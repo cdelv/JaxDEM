@@ -81,6 +81,7 @@ print("Colliders:", sorted(k for k in jdem.Collider._registry if k))
 # systems. The cost grows quickly as :math:`N` grows.
 
 system_naive = jdem.System.create(state.shape, collider_type="naive")
+state, system_naive = jdem.System.initialize(state, system_naive)
 state_out, system_out = system_naive.step(state, system_naive)
 print("Forces after one step:\n", state_out.force)
 
@@ -197,8 +198,10 @@ print("Cell-list overflow:", bool(overflow_cl))
 # - ``skin_fraction`` — alternative way to specify the skin as a fraction
 #   of the cutoff (defaults to ``0.05`` when neither ``skin`` nor
 #   ``skin_fraction`` is given). Passing both raises an error.
-# - ``max_neighbors`` — buffer size per particle (auto-estimated if
-#   omitted).
+# - ``max_neighbors`` — average capacity budget per particle (auto-estimated if
+#   omitted). The cache shares ``N * max_neighbors`` slots: individual particles
+#   may exceed this budget. An exactly full pool is valid; overflow means the
+#   total directed-pair count exceeds the pool (or spatial hashing overflows).
 # - ``secondary_collider_type`` — any registered collider except another ``"neighbor_list"``.
 #
 # This design works because every collider exposes ``create_neighbor_list``.

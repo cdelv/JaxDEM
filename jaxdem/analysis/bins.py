@@ -26,8 +26,9 @@ class BinSpec:
     T : int
         Number of frames (time steps).
     timestep : np.ndarray or None, optional
-        Physical timestep labels of shape ``(T,)``. If absent,
-        defaults to ``np.arange(T)``.
+        Strictly increasing integer timestep labels of shape ``(T,)``.
+        Empty and singleton arrays are supported. If absent, defaults to
+        ``np.arange(T)``.
 
     """
 
@@ -38,11 +39,15 @@ class BinSpec:
         if timestep is None:
             self.timestep = np.arange(self.T, dtype=int)
         else:
-            ts = np.asarray(timestep).squeeze()
+            ts = np.asarray(timestep)
             if ts.ndim != 1:
                 raise ValueError("timestep must be a 1D array")
             if int(ts.size) != self.T:
                 raise ValueError("timestep length must equal T")
+            if not np.issubdtype(ts.dtype, np.integer):
+                raise ValueError("timestep labels must be integers")
+            if ts.size > 1 and np.any(ts[1:] <= ts[:-1]):
+                raise ValueError("timestep labels must be strictly increasing")
             self.timestep = ts.astype(int, copy=False)
 
     def num_bins(self) -> int:
@@ -82,7 +87,7 @@ def _infer_timestep_and_T_from_source(source: Any) -> tuple[np.ndarray, int]:
 
     if isinstance(source, dict):
         if "timestep" in source:
-            ts = np.asarray(source["timestep"]).astype(int, copy=False)
+            ts = np.asarray(source["timestep"])
             if ts.ndim != 1:
                 raise ValueError("source['timestep'] must be 1D")
             return ts, int(ts.shape[0])

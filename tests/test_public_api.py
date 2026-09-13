@@ -57,7 +57,8 @@ def test_refresh_collider_after_resize(collider_type):
     refreshed = jdem.colliders.refresh_collider(bigger, system.collider)
     assert type(refreshed) is type(system.collider)
     if hasattr(refreshed, "neighbor_list"):
-        assert refreshed.neighbor_list.shape[0] == bigger.N
+        assert refreshed.neighbor_list.shape == (bigger.N * refreshed.max_neighbors,)
+        assert refreshed.row_offsets.shape == (bigger.N + 1,)
 
     # Editing positions at the same N: the refreshed collider must step.
     state.pos_c = state.pos_c + 10.0

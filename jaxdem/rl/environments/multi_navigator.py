@@ -393,8 +393,7 @@ class MultiNavigator(Environment):
         ke_curr = thermal.compute_translational_kinetic_energy_per_particle(env.state)
 
         phi_curr = jnp.exp(
-            -2 * curr_eff_dist
-            - ke_curr * jnp.exp(-alpha * curr_eff_dist) / tau
+            -2 * curr_eff_dist - ke_curr * jnp.exp(-alpha * curr_eff_dist) / tau
         )
         phi_prev = jnp.exp(
             -2 * prev_eff_dist
@@ -411,10 +410,10 @@ class MultiNavigator(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiNavigator.done")
-    def done(env: MultiNavigator) -> jax.Array:
+    def truncated(env: MultiNavigator) -> jax.Array:
         """Return whether the episode has ended.
 
-        The episode ends when ``step_count`` exceeds ``max_steps``.
+        The episode ends when ``step_count`` reaches ``max_steps``.
 
         Parameters
         ----------
@@ -427,7 +426,7 @@ class MultiNavigator(Environment):
             A bool that is True when the episode has ended.
 
         """
-        return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
+        return jnp.asarray(env.system.step_count >= env.env_params["max_steps"])
 
     @property
     def action_space_size(self) -> int:

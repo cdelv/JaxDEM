@@ -11,7 +11,7 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 from . import ForceModel
-from ..utils.linalg import norm2
+from ..utils.linalg import norm, unit_and_norm
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -33,35 +33,41 @@ class WCAShifted(ForceModel):
     The model reads the material-pair parameter ``epsilon_eff[mi, mj]``.
     """
 
+    def search_radii(self, state: State, system: System) -> jax.Array:
+        """Conservative search extent for this law's finite interaction range."""
+        return jnp.maximum(state._rad, (1.0) * state.rad)
+
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="WCAShifted.force")
     def force(
-        i: int, j: int, pos: jax.Array, state: State, system: System
-    ) -> tuple[jax.Array, jax.Array]:
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
         mi, mj = state.mat_id[i], state.mat_id[j]
         eps = system.mat_table.epsilon_eff[mi, mj]
         sig = state.rad[i] + state.rad[j]
 
         rij = system.domain._displacement(pos[i], pos[j], system)
-        r2 = norm2(rij)
-        r2 = jnp.where(r2 == 0, jnp.ones_like(r2), r2)
+        rhat, r = unit_and_norm(rij)
+        safe_r = jnp.where(r == 0.0, 1.0, r)
 
-        sig2 = sig * sig
-        inv_r2 = 1.0 / r2
-        inv_r = jnp.sqrt(inv_r2)  # == 1/sqrt(r2)
-        sr2 = sig2 * inv_r2
+        inv_r = 1.0 / safe_r
+        sr = sig * inv_r
+        sr2 = sr * sr
         sr6 = sr2 * sr2 * sr2
         sr12 = sr6 * sr6
 
         # cutoff at contact: r_c = sigma
-        rc2 = sig2
-        active = r2 < rc2
+        active = safe_r < sig
         not_self = j != i
         mask = active & not_self
-
-        # Unit vector rhat = rij / r
-        rhat = rij * inv_r[..., None]
 
         # LJ force magnitude along rhat: F(r) = 24 eps (2 sr12 - sr6) / r
         fmag = 24.0 * eps * inv_r * (2.0 * sr12 - sr6)
@@ -71,7 +77,7 @@ class WCAShifted(ForceModel):
 
         f = (fmag_fs * mask)[..., None] * rhat
         t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
-        return f, jnp.zeros(t_shape, dtype=state.torque.dtype)
+        return f, jnp.zeros(t_shape, dtype=state.torque.dtype), history
 
     @staticmethod
     @jax.jit(inline=True)
@@ -84,19 +90,16 @@ class WCAShifted(ForceModel):
         sig = state.rad[i] + state.rad[j]
 
         rij = system.domain._displacement(pos[i], pos[j], system)
-        r2 = norm2(rij)
-        r2 = jnp.where(r2 == 0, jnp.ones_like(r2), r2)
+        r = norm(rij)
+        safe_r = jnp.where(r == 0.0, 1.0, r)
 
-        sig2 = sig * sig
-        inv_r2 = 1.0 / r2
-        inv_r = jnp.sqrt(inv_r2)  # 1/r
-        r = r2 * inv_r
-        sr2 = sig2 * inv_r2
+        inv_r = 1.0 / safe_r
+        sr = sig * inv_r
+        sr2 = sr * sr
         sr6 = sr2 * sr2 * sr2
         sr12 = sr6 * sr6
 
-        rc2 = sig2
-        active = r2 < rc2
+        active = safe_r < sig
         not_self = j != i
         mask = active & not_self
 
@@ -105,7 +108,7 @@ class WCAShifted(ForceModel):
 
         # Force-shifted energy so that U(rc)=0 and dU/dr(rc)=0.
         # With rc=sigma: U(rc)=0 and U'(rc)=-24 eps/sigma, so add (r-sigma)*24 eps/sigma.
-        u_fs = u + (r - sig) * (24.0 * eps / sig)
+        u_fs = u + (safe_r - sig) * (24.0 * eps / sig)
 
         return u_fs * mask
 

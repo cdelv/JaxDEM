@@ -95,10 +95,12 @@ n_steps = 1_000_000
 # The minimizer returns the final state, system, number of steps taken, and the final
 # potential energy. It reports the final potential energy PER PARTICLE (PE / N) when you
 # do not set a custom target_fn.
-state, system, steps, final_pe = jax.vmap(
-    lambda st, sys: sys.minimize(st, sys, max_steps=n_steps)
-)(state, system)
+result = jax.vmap(lambda st, sys: sys.minimize(st, sys, max_steps=n_steps))(
+    state, system
+)
+state, system, steps, final_pe = result
 
+print(f"Converged: {result.converged}")
 print(f"Final potential energy: {final_pe}")
 print(f"Number of steps taken: {steps}")
 
@@ -107,10 +109,10 @@ print(f"Number of steps taken: {steps}")
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # We can also run the minimization on a single system by passing the state and system to the minimization function.
 state, system = build_microstate(0)
-state, system, steps, final_pe = system.minimize(
-    state, system, max_steps=n_steps
-)
+result = system.minimize(state, system, max_steps=n_steps)
+state, system, steps, final_pe = result
 
+print(f"Converged: {result.converged}")
 print(f"Final potential energy: {final_pe}")
 print(f"Number of steps taken: {steps}")
 # %%

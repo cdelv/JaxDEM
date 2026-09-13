@@ -1,0 +1,10 @@
+{
+  "n": 1000000,
+  "scenario": "uniform",
+  "force_max_abs_error": 2.205371856689453e-06,
+  "torque_max_abs_error": 0.0,
+  "energy_abs_error": 0.125,
+  "pos_max_abs_error": 4.656612873077393e-10,
+  "vel_max_abs_error": 1.862645149230957e-08,
+  "passed": true
+}

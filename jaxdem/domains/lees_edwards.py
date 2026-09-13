@@ -11,7 +11,7 @@ from functools import partial
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any, cast
 
-from . import Domain
+from . import Domain, SearchGeometry
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -42,21 +42,50 @@ class LeesEdwardsDomain(Domain):
     while oscillatory shear sets ``gamma = gamma_amp * jnp.sin(omega * system.time)``.
     """
 
+    search_geometry = SearchGeometry.SHEAR_PERIODIC
+
+    @staticmethod
+    @jax.jit(inline=True)
+    def _shift(pos: jax.Array, system: System) -> jax.Array:
+        domain = cast("LeesEdwardsDomain", system.domain)
+        beta_image = jnp.floor(
+            (pos[..., domain.beta] - domain.anchor[domain.beta])
+            / domain.box_size[domain.beta]
+        )
+        shifted = pos.at[..., domain.alpha].add(
+            -beta_image * domain.gamma * domain.box_size[domain.beta]
+        )
+        return domain.anchor + jnp.mod(shifted - domain.anchor, domain.box_size)
+
     gamma: jax.Array  # float
     """Current shear strain. The Lees-Edwards image offset along ``alpha`` is
     ``gamma * L_beta``. Update it externally to impose the shear protocol."""
 
     alpha_axis: jax.Array
-    """One-hot vector for the shear-flow coordinate."""
+    """Legacy serialized one-hot cache; runtime geometry uses canonical ``alpha``."""
 
     beta_axis: jax.Array
-    """One-hot vector for the shear-gradient coordinate."""
+    """Legacy serialized one-hot cache; runtime geometry uses canonical ``beta``."""
 
-    alpha: int = jax.tree.static(default=0)  # type: ignore[attr-defined]
+    alpha: int = jax.tree.static(default=0)
     """Index of the shear-flow coordinate."""
 
-    beta: int = jax.tree.static(default=1)  # type: ignore[attr-defined]
+    beta: int = jax.tree.static(default=1)
     """Index of the shear-gradient coordinate."""
+
+    def search_geometry_snapshot(self) -> jax.Array:
+        """Return box and canonical shear geometry used by search caches."""
+        return jnp.concatenate(
+            (
+                self.box_size,
+                jnp.reshape(self.gamma, (1,)),
+                jnp.asarray((self.alpha, self.beta), dtype=self.box_size.dtype),
+            )
+        )
+
+    def shear_search_parameters(self) -> tuple[jax.Array, int, int]:
+        """Return the shear strain and canonical flow/gradient axes."""
+        return self.gamma, self.alpha, self.beta
 
     @classmethod
     def Create(
@@ -87,6 +116,11 @@ class LeesEdwardsDomain(Domain):
             raise ValueError(
                 f"anchor must have shape ({dim},), got shape {anchor.shape}."
             )
+
+        if not bool(jnp.all(jnp.isfinite(box_size))) or not bool(jnp.all(box_size > 0)):
+            raise ValueError("box_size must contain only finite positive values.")
+        if not bool(jnp.all(jnp.isfinite(anchor))):
+            raise ValueError("anchor must contain only finite values.")
 
         alpha = int(alpha)
         beta = int(beta)
@@ -151,17 +185,11 @@ class LeesEdwardsDomain(Domain):
         """
         le_domain = cast("LeesEdwardsDomain", system.domain)
         rij = ri - rj
-        beta_rij = jnp.sum(rij * le_domain.beta_axis, axis=-1, keepdims=True)
-        beta_length = jnp.sum(le_domain.box_size * le_domain.beta_axis)
         gamma = le_domain.gamma
-        rij = (
-            rij
-            - jnp.round(beta_rij / beta_length)
-            * beta_length
-            * gamma
-            * le_domain.alpha_axis
-        )
-        return rij - le_domain.box_size * jnp.round(rij * le_domain.inv_box_size)
+        beta_length = le_domain.box_size[le_domain.beta]
+        shear_image = jnp.round(rij[..., le_domain.beta] / beta_length)
+        rij = rij.at[..., le_domain.alpha].add(-shear_image * beta_length * gamma)
+        return rij - le_domain.box_size * jnp.round(rij / le_domain.box_size)
 
     @staticmethod
     @partial(jax.jit, inline=True)
@@ -192,17 +220,8 @@ class LeesEdwardsDomain(Domain):
             `System` object.
 
         """
-        pos = state.pos
         le_domain = cast("LeesEdwardsDomain", system.domain)
-        image = jnp.floor((pos - le_domain.anchor) * le_domain.inv_box_size)
-        beta_image = jnp.sum(image * le_domain.beta_axis, axis=-1, keepdims=True)
-        beta_length = jnp.sum(le_domain.box_size * le_domain.beta_axis)
-        gamma = le_domain.gamma
-        shear_offset = beta_image * gamma * beta_length * le_domain.alpha_axis
-
-        shifted_pos = pos - shear_offset
-        image = jnp.floor((shifted_pos - le_domain.anchor) * le_domain.inv_box_size)
-        pos_c = state.pos_c - shear_offset - le_domain.box_size * image
+        pos_c = le_domain._shift(state.pos_c, system)
         return replace(state, pos_c=pos_c), system
 
 

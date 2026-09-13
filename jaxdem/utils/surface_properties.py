@@ -398,9 +398,7 @@ def _measure_probe(
     tracer_core_mask: jax.Array,
     central_idx: jax.Array,
     tracer_idx: jax.Array,
-) -> tuple[
-    jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array
-]:
+) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
     """Configure a single (approach direction, tracer orientation) probe,
     bisect to ``target_overlap``, compute interaction force and friction.
     """
@@ -715,9 +713,7 @@ def compute_surface_properties(
     if n_rolls < 1:
         raise ValueError(f"n_rolls must be >= 1; got {n_rolls}.")
     if sampling not in ("lattice", "random"):
-        raise ValueError(
-            f"sampling must be 'lattice' or 'random'; got {sampling!r}."
-        )
+        raise ValueError(f"sampling must be 'lattice' or 'random'; got {sampling!r}.")
 
     n_central_clumps = int(np.unique(np.asarray(central_state.clump_id)).size)
     n_tracer_clumps = int(np.unique(np.asarray(tracer_state.clump_id)).size)
@@ -800,9 +796,7 @@ def compute_surface_properties(
     # Independent keys per grid so approach directions, facings and rolls are
     # sampled independently; reproducible for a fixed ``seed``.
     if sampling == "random":
-        k_approach, k_orient, k_roll = jax.random.split(
-            jax.random.PRNGKey(seed), 3
-        )
+        k_approach, k_orient, k_roll = jax.random.split(jax.random.PRNGKey(seed), 3)
     else:
         k_approach = k_orient = k_roll = None
 
@@ -890,9 +884,7 @@ def compute_surface_properties(
             pos_b = jnp.concatenate(
                 [pos_b, jnp.broadcast_to(pos_b[-1:], (pad, dim))], axis=0
             )
-            q_b = jnp.concatenate(
-                [q_b, jnp.broadcast_to(q_b[-1:], (pad, 4))], axis=0
-            )
+            q_b = jnp.concatenate([q_b, jnp.broadcast_to(q_b[-1:], (pad, 4))], axis=0)
         _mu, _sep, _nc, _nt, _ccore, _tcore, _mu_asp = measure_batch(
             state,
             system,

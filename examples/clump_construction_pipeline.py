@@ -171,6 +171,7 @@ sim_system = dataclasses.replace(
     dt=jnp.asarray(1e-3, dtype=float),
 )
 
+state, sim_system = jdem.System.initialize(state, sim_system)
 for k in range(100):
     state, sim_system = sim_system.step(state, sim_system)
 _, _, pe = sim_system.collider.compute_potential_energy(state, sim_system)

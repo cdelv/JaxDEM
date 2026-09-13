@@ -387,7 +387,7 @@ def create_sim(_i: jax.Array) -> tuple[jdem.State, jdem.System]:
         gamma=0.1,
     )
     system = jdem.System.create(state.shape, bonded_force_model=dp_model)
-    return state, system
+    return jdem.System.initialize(state, system)
 
 
 # Build a batch of 8 independent simulations.

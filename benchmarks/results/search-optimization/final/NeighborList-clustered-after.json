@@ -1,0 +1,32 @@
+{
+  "n": 1000000,
+  "scenario": "clustered",
+  "capacity": 24,
+  "collider": "NeighborList",
+  "force_law": "spring",
+  "phase": "rebuild",
+  "module": "/home/wind/Documents/JaxDEM/jaxdem/__init__.py",
+  "row_width_override": null,
+  "row_batch_override": null,
+  "cell_batch_override": null,
+  "search_batch_override": null,
+  "minimum_warmup_seconds": 2.0,
+  "devices": [
+    "cuda:0"
+  ],
+  "memory": {
+    "argument_size_in_bytes": 297000476,
+    "output_size_in_bytes": 309000925,
+    "temp_size_in_bytes": 567014592,
+    "alias_size_in_bytes": 0
+  },
+  "seconds": [
+    0.02140618699922925,
+    0.02113512100186199,
+    0.02115677400433924,
+    0.02088364899827866,
+    0.020599446004780475,
+    0.020707362004031893,
+    0.020397189000505023
+  ]
+}

@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Callable
 from typing import Any, cast
 
 import distrax  # type: ignore[import-untyped]
@@ -28,7 +27,6 @@ class SigmaHead(nnx.Module):  # type: ignore[misc]
     def __init__(
         self, in_features: int, out_dim: int, sigma_scale: float, key: nnx.Rngs
     ):
-        self.log_std = nnx.Param(jnp.zeros((1, out_dim)))
         self.net = nnx.Sequential(
             nnx.Linear(
                 in_features=in_features,
@@ -104,15 +102,16 @@ class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
         actor_sigma_head: bool = False,
         action_space: Any = None,
         discrete: bool = False,
+        create_actor_head: bool = True,
     ) -> None:
         """Build the policy head shared by every actor-critic model.
 
-        Creates three attributes on ``self``:
+        Configures the policy distribution and normally creates:
 
         - ``actor_mu``: mean head for continuous actions, logits head for
           discrete ones.
-        - ``actor_sigma``: a learned per-action parameter, or a dense head
-          when ``actor_sigma_head=True``.
+        - ``actor_sigma``: for continuous policies, a learned per-action
+          parameter or a dense head when ``actor_sigma_head=True``.
         - ``bij``: the action-space bijector. ``None`` for discrete actions.
 
         Parameters
@@ -134,28 +133,30 @@ class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
             Bijector constraining the action distribution (continuous only).
         discrete : bool
             Whether the model emits a categorical distribution.
+        create_actor_head : bool
+            Build ``actor_mu``. Recurrent models use a fused actor/value head
+            and disable this separate unused projection.
         """
         from ..action_spaces import ActionSpace
 
         out_dim = int(action_space_size)
         # For discrete: logits head, for continuous: mean head
-        self.actor_mu = nnx.Linear(
-            in_features=in_features,
-            out_features=out_dim,
-            kernel_init=nnx.initializers.orthogonal(actor_scale),
-            bias_init=nnx.initializers.constant(0.0),
-            rngs=key,
-        )
-
-        if actor_sigma_head:
-            self.actor_sigma = SigmaHead(in_features, out_dim, sigma_scale, key)
-        else:
-            self.actor_sigma = SigmaParam(out_dim)
-        self._log_std = self.actor_sigma.log_std
+        if create_actor_head:
+            self.actor_mu = nnx.Linear(
+                in_features=in_features,
+                out_features=out_dim,
+                kernel_init=nnx.initializers.orthogonal(actor_scale),
+                bias_init=nnx.initializers.constant(0.0),
+                rngs=key,
+            )
 
         # Bijector only used for continuous actions
         self.bij: distrax.Bijector | None = None
         if not discrete:
+            if actor_sigma_head:
+                self.actor_sigma = SigmaHead(in_features, out_dim, sigma_scale, key)
+            else:
+                self.actor_sigma = SigmaParam(out_dim)
             if action_space is None:
                 action_space = ActionSpace.create("Free")
 

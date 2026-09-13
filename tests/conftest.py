@@ -1,7 +1,9 @@
 # conftest.py
+import os
+
 import jax
 
-jax.config.update("jax_enable_x64", True)
+jax.config.update("jax_enable_x64", os.environ.get("JAX_ENABLE_X64", "1") == "1")
 
 
 def pytest_addoption(parser):

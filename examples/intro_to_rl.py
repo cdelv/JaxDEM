@@ -18,7 +18,6 @@ from pathlib import Path
 import jax
 import jax.numpy as jnp
 from flax import nnx
-from jax._src.ad_util import stop_gradient_p
 
 import jaxdem as jdem
 import jaxdem.rl as rl
@@ -35,11 +34,25 @@ num_envs = 32
 # First, we create a single-agent navigation environment with reflective boundaries.
 # It uses default values for the domain and time step. See
 # :py:class:`~jaxdem.rl.environments.SingleNavigator` for details.
+# RL is an experimental optional subsystem installed with ``JaxDEM[rl]``. A
+# scalar environment uses fixed agent slots: observations are
+# ``(max_num_agents, observation_space_size)``, actions are
+# ``(max_num_agents, action_space_size)``, and rewards and ``agent_mask`` are
+# ``(max_num_agents,)``. Vectorization prepends an environment axis.
 
 env = rl.Environment.create(
     "single_navigator",
     max_steps=num_steps_epoch * reset_every * skip_frames,
 )
+
+# %%
+# Environments distinguish terminal outcomes from external truncation such as
+# a time limit. Both end an episode, while PPO bootstraps the final observation
+# only for truncation. Inactive agent slots are masked from actions and the
+# learning objective. Recurrent state is cleared at episode and agent-mask
+# boundaries. ``skip_frames=k`` repeats an action for at most ``1 + k`` physics
+# frames and stops at the first boundary; its reward is the last accepted
+# frame's reward rather than a sum over repeated frames.
 
 # %%
 # Model

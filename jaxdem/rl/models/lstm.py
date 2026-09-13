@@ -158,8 +158,8 @@ class LSTMActorCritic(Model):
             actor_sigma_head=self.actor_sigma_head,
             action_space=action_space,
             discrete=discrete,
+            create_actor_head=False,
         )
-        self.critic = self._critic_head(self.lstm_features, key)
 
         def fused_init(rng: jax.Array, shape: tuple[int, ...], dtype: Any) -> jax.Array:
             k1, k2 = jax.random.split(rng)
@@ -228,7 +228,7 @@ class LSTMActorCritic(Model):
             return
 
         # If shapes matches and masked reset
-        mask = mask.reshape((mask.shape[0],) + (1,) * (self.h.value.ndim - 1))
+        mask = mask.reshape(mask.shape + (1,) * (self.h.value.ndim - mask.ndim))
         self.h.value = jnp.where(mask, 0.0, self.h.value)
         self.c.value = jnp.where(mask, 0.0, self.c.value)
 

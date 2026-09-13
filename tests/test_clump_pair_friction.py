@@ -187,7 +187,7 @@ def test_periodic_radial_contact_uses_minimum_image_axis() -> None:
     np.testing.assert_allclose(float(mu[1, 0]), 0.0, atol=1e-12)
 
 
-def test_fresh_neighbor_list_is_built_before_friction() -> None:
+def test_friction_queries_neighbors_without_replacing_force_cache() -> None:
     """Diagnostics must not read the all-padding initial NeighborList cache."""
     pos = jnp.array([[0.0, 0.0], [0.8, 0.0]])
     rad = jnp.array([0.5, 0.5])
@@ -214,7 +214,7 @@ def test_fresh_neighbor_list_is_built_before_friction() -> None:
     assert bool(contact_mask[0, 1])
     np.testing.assert_allclose(F_clumps[0, 1], [-0.2, 0.0], atol=1e-14)
     np.testing.assert_allclose(float(mu[0, 1]), 0.0, atol=1e-14)
-    assert int(system.collider.n_build_times) == 1
+    assert int(system.collider.n_build_times) == 0
 
 
 def test_sphere_counts_preserve_cancelling_vertex_contacts() -> None:

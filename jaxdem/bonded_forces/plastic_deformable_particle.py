@@ -38,7 +38,8 @@ class PlasticDeformableParticleModel(DeformableParticleModel):
 
     **Plasticity:**
 
-    Each force calculation integrates a spring-dashpot equation for the
+    Once per physical time step, after the integrator drift and before force
+    evaluation, the model integrates a spring-dashpot equation for the
     reference length of each edge:
 
     .. math::

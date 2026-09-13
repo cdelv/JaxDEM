@@ -31,8 +31,12 @@ This guide covers:
 #
 # To detect collisions with facets during broad-phase:
 #
-# - The standard ``CellList`` (DynamicCellList) assigns each vertex an inflated search radius (``_rad``), equal to the maximum distance from the COM to any vertex. Standard spherical queries then cover the entire facet without gaps.
-# - The ``MultiCellList`` (DynamicMultiCellList) is tighter: it computes the joint axis-aligned bounding box (AABB) of the facet vertices instead of using ``_rad`` directly. This reduces cell registration overhead.
+# - The standard ``CellList`` recomputes each facet's current extent from its
+#   search-key vertex to all facet vertices, adds thickness, and takes the
+#   maximum with the stored ``_rad`` lower bound.
+# - The ``MultiCellList`` is tighter: it computes the current joint
+#   axis-aligned bounding box (AABB) of the facet vertices. This reduces cell
+#   registration overhead.
 #
 # Each vertex particle also stores the unique IDs of its facet vertices in ``state.facet_vertices``. This gives :math:`O(1)` lookup of the facet shape during narrow-phase contact resolution.
 
@@ -53,9 +57,9 @@ empty_state = jdem.State.create(
 # The method computes the center of mass, true moment of inertia, and relative
 # vertex offsets.
 #
-# Use the ``safety_factor`` parameter to multiply the search radius ``_rad``.
-# This helps for fast-moving or flexible facets, whose broad-phase detection
-# box needs more margin.
+# ``safety_factor`` enlarges the stored ``_rad`` lower bound established at
+# construction. The colliders still recompute current flexible-facet geometry;
+# use a factor above one when the stored bound should include extra margin.
 
 L = 1.0
 vertices = jnp.array([[L, 0.0, -L / 2], [-L, 0.0, -L / 2], [0.0, 0.0, L]])
@@ -124,11 +128,11 @@ print(f"Flexible mesh particles: {state_flex_mesh.N}")
 # %%
 # Dynamic Facet Connection
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
-# To construct custom boundaries incrementally or share vertices between adjacent facets,
-# use :py:meth:`~jaxdem.state.State.add_connected_facet`.
+# To construct custom boundaries incrementally from ordinary particles and new
+# vertices, use :py:meth:`~jaxdem.state.State.add_connected_facet`.
 #
 # You specify the vertices of the new facet using a list of ``vertex_specs``.
-# - A **scalar integer** unique ID refers to an existing vertex in the State.
+# - A **scalar integer** index refers to an existing non-facet particle in the State.
 # - An **ArrayLike** position array of shape ``(dim,)`` defines a new vertex.
 #
 # **Rules & Constraints**:
@@ -136,19 +140,22 @@ print(f"Flexible mesh particles: {state_flex_mesh.N}")
 # 2. **No Hybrid Facets**: You cannot mix rigid and flexible vertices in the same facet (i.e., you cannot connect a rigid clumped vertex to a flexible vertex).
 # 3. **Dynamic Clump Update**: If you connect new vertices to an existing rigid clump, ``add_connected_facet`` updates the center of mass, moment of inertia, and relative vertex offsets of that clump.
 # 4. **Single Clump for Rigid Connections**: If the new facet shares multiple existing rigid vertices, they must already belong to the same rigid clump. You cannot connect vertices from two different rigid clumps into one facet.
+# 5. **One Contact Facet per Particle**: A particle whose ``facet_id`` is already assigned cannot be reused; use bonded deformable-particle meshes when topology must share vertices.
 
-# Add a connected facet to the rigid mesh, sharing vertices 0 and 1, and introducing a new vertex
-new_vertex_pos = jnp.array([0.5, 0.5, -1.0])
+# Start with one ordinary particle, then reuse it as one vertex of a triangle.
+connection_seed = jdem.State.create(
+    pos=jnp.array([[0.0, 0.0, 0.0]]), species_id=jnp.array([1])
+)
 state_connected = jdem.State.add_connected_facet(
-    state_rigid_mesh,
-    [0, 1, new_vertex_pos],
+    connection_seed,
+    [0, jnp.array([1.0, 0.0, 0.0]), jnp.array([0.0, 1.0, 0.0])],
     thickness=0.1,
-    rigid=True,
+    rigid=False,
     mass=2.5,
-    species_id=1,  # must match the existing vertices' species ID
+    species_id=1,
 )
 
-print(f"After connection, N = {state_connected.N} (1 new vertex added)")
+print(f"After connection, N = {state_connected.N} (2 new vertices added)")
 
 # %%
 # Force Routing & Thickness (Minkowski Sum)
@@ -194,8 +201,8 @@ router = jdem.ForceRouter.from_dict(
     S=2, mapping={(1, 1): jdem.ForceModel.create("facet_facet_spring")}
 )
 
-# Spatial colliders such as "cell_list" and "multi_cell_list" work with
-# facets. Standard "cell_list" uses the facet's search radius `_rad` automatically.
+# Spatial colliders such as ``"cell_list"`` and ``"multi_cell_list"`` work with
+# facets and derive their search bounds from the current facet geometry.
 # Passing ``state=`` to ``System.create`` forwards it to colliders that need it,
 # so there is no need for ``collider_kw={"state": ...}``.
 system = jdem.System.create(
@@ -207,6 +214,7 @@ system = jdem.System.create(
 )
 
 # Run a simulation step to verify
+state_connected, system = jdem.System.initialize(state_connected, system)
 state_stepped, system = system.step(state_connected, system)
 print("Simulation step successful.")
 
@@ -226,9 +234,11 @@ print("Simulation step successful.")
 import tempfile
 from pathlib import Path
 
-tmp_dir = Path(tempfile.gettempdir()) / "jaxdem_facets_guide"
+tmp_root = tempfile.TemporaryDirectory(prefix="jaxdem-facets-guide-")
+tmp_dir = Path(tmp_root.name)
 with jdem.VTKWriter(
     directory=tmp_dir, writers=["facets", "spheres", "facet_spheres"]
 ) as writer:
     writer.save(state_connected, system)
 print(f"Saved VTK output (check the generated {tmp_dir} directory).")
+tmp_root.cleanup()

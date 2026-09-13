@@ -129,6 +129,7 @@ print("Registered force functions:", len(system.force_manager.force_functions))
 
 # %%
 # The system calls the force functions automatically every step:
+state, system = jdem.System.initialize(state, system)
 state, system = system.step(state, system, n=16)
 print("Position after stepping (pulled to origin):", state.pos)
 

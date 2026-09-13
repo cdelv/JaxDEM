@@ -125,6 +125,7 @@ print(
 )
 print("Effective stiffness used by pair (0,1):", system.mat_table.young_eff[0, 1])
 
+state, system = jdem.System.initialize(state, system)
 state, system = system.step(state, system)
 print("Resulting forces:\n", state.force)
 

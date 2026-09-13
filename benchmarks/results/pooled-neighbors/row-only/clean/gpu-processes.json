@@ -1,0 +1,828 @@
+[
+  {
+    "case": "uniform-before",
+    "expected_pid": 385674,
+    "time": 1789266376.6490366,
+    "processes": "",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-before",
+    "expected_pid": 385674,
+    "time": 1789266377.7408378,
+    "processes": "",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-before",
+    "expected_pid": 385674,
+    "time": 1789266378.7614768,
+    "processes": "385674, /home/wind/.python3/bin/python, 446",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-before",
+    "expected_pid": 385674,
+    "time": 1789266379.7828107,
+    "processes": "385674, /home/wind/.python3/bin/python, 446",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-before",
+    "expected_pid": 385674,
+    "time": 1789266380.8035538,
+    "processes": "385674, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-before",
+    "expected_pid": 385674,
+    "time": 1789266381.8234365,
+    "processes": "385674, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-before",
+    "expected_pid": 385674,
+    "time": 1789266382.8438702,
+    "processes": "385674, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-before",
+    "expected_pid": 385674,
+    "time": 1789266383.8649414,
+    "processes": "385674, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-before",
+    "expected_pid": 385674,
+    "time": 1789266384.8853376,
+    "processes": "385674, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-before",
+    "expected_pid": 385674,
+    "time": 1789266385.9118075,
+    "processes": "385674, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-before",
+    "expected_pid": 385674,
+    "time": 1789266386.9330893,
+    "processes": "385674, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-before",
+    "expected_pid": 385674,
+    "time": 1789266387.953575,
+    "processes": "385674, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-before",
+    "expected_pid": 385674,
+    "time": 1789266388.9735231,
+    "processes": "385674, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-before",
+    "expected_pid": 385674,
+    "time": 1789266389.9935453,
+    "processes": "385674, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-before",
+    "expected_pid": 385674,
+    "time": 1789266391.0249746,
+    "processes": "385674, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-before",
+    "expected_pid": 385674,
+    "time": 1789266392.0509408,
+    "processes": "385674, /home/wind/.python3/bin/python, 4292",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-before",
+    "expected_pid": 385674,
+    "time": 1789266393.0720584,
+    "processes": "385674, /home/wind/.python3/bin/python, 4292",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-before",
+    "expected_pid": 385674,
+    "time": 1789266394.0929306,
+    "processes": "385674, /home/wind/.python3/bin/python, 4292",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-before",
+    "expected_pid": 385674,
+    "time": 1789266395.1132095,
+    "processes": "385674, /home/wind/.python3/bin/python, 4292",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-before",
+    "expected_pid": 385674,
+    "time": 1789266396.1338713,
+    "processes": "385674, /home/wind/.python3/bin/python, 4294",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-after",
+    "expected_pid": 386661,
+    "time": 1789266397.1551113,
+    "processes": "",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-after",
+    "expected_pid": 386661,
+    "time": 1789266398.1766684,
+    "processes": "386661, /home/wind/.python3/bin/python, 318",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-after",
+    "expected_pid": 386661,
+    "time": 1789266399.1975198,
+    "processes": "386661, /home/wind/.python3/bin/python, 446",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-after",
+    "expected_pid": 386661,
+    "time": 1789266400.2229533,
+    "processes": "386661, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-after",
+    "expected_pid": 386661,
+    "time": 1789266401.2440224,
+    "processes": "386661, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-after",
+    "expected_pid": 386661,
+    "time": 1789266402.273604,
+    "processes": "386661, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-after",
+    "expected_pid": 386661,
+    "time": 1789266403.294282,
+    "processes": "386661, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-after",
+    "expected_pid": 386661,
+    "time": 1789266404.3157084,
+    "processes": "386661, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-after",
+    "expected_pid": 386661,
+    "time": 1789266405.3462093,
+    "processes": "386661, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-after",
+    "expected_pid": 386661,
+    "time": 1789266406.3665178,
+    "processes": "386661, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-after",
+    "expected_pid": 386661,
+    "time": 1789266407.3873942,
+    "processes": "386661, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-after",
+    "expected_pid": 386661,
+    "time": 1789266408.4081366,
+    "processes": "386661, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-after",
+    "expected_pid": 386661,
+    "time": 1789266409.4286563,
+    "processes": "386661, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-after",
+    "expected_pid": 386661,
+    "time": 1789266410.4566479,
+    "processes": "386661, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-after",
+    "expected_pid": 386661,
+    "time": 1789266411.4812403,
+    "processes": "386661, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-after",
+    "expected_pid": 386661,
+    "time": 1789266412.5025208,
+    "processes": "386661, /home/wind/.python3/bin/python, 4292",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-after",
+    "expected_pid": 386661,
+    "time": 1789266413.527112,
+    "processes": "386661, /home/wind/.python3/bin/python, 4292",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-after",
+    "expected_pid": 386661,
+    "time": 1789266414.5479498,
+    "processes": "386661, /home/wind/.python3/bin/python, 4292",
+    "query_returncode": 0
+  },
+  {
+    "case": "uniform-after",
+    "expected_pid": 386661,
+    "time": 1789266415.569686,
+    "processes": "386661, /home/wind/.python3/bin/python, 4294",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-before",
+    "expected_pid": 387684,
+    "time": 1789266416.5918338,
+    "processes": "",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-before",
+    "expected_pid": 387684,
+    "time": 1789266417.6138697,
+    "processes": "387684, /home/wind/.python3/bin/python, 318",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-before",
+    "expected_pid": 387684,
+    "time": 1789266418.6357615,
+    "processes": "387684, /home/wind/.python3/bin/python, 446",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-before",
+    "expected_pid": 387684,
+    "time": 1789266419.6569858,
+    "processes": "387684, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-before",
+    "expected_pid": 387684,
+    "time": 1789266420.677045,
+    "processes": "387684, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-before",
+    "expected_pid": 387684,
+    "time": 1789266421.7076507,
+    "processes": "387684, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-before",
+    "expected_pid": 387684,
+    "time": 1789266422.733434,
+    "processes": "387684, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-before",
+    "expected_pid": 387684,
+    "time": 1789266423.7598655,
+    "processes": "387684, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-before",
+    "expected_pid": 387684,
+    "time": 1789266424.7802968,
+    "processes": "387684, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-before",
+    "expected_pid": 387684,
+    "time": 1789266425.8014398,
+    "processes": "387684, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-before",
+    "expected_pid": 387684,
+    "time": 1789266426.8217525,
+    "processes": "387684, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-before",
+    "expected_pid": 387684,
+    "time": 1789266427.8425727,
+    "processes": "387684, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-before",
+    "expected_pid": 387684,
+    "time": 1789266428.8662498,
+    "processes": "387684, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-before",
+    "expected_pid": 387684,
+    "time": 1789266429.8872864,
+    "processes": "387684, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-before",
+    "expected_pid": 387684,
+    "time": 1789266430.9086354,
+    "processes": "387684, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-before",
+    "expected_pid": 387684,
+    "time": 1789266431.9363346,
+    "processes": "387684, /home/wind/.python3/bin/python, 4292",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-before",
+    "expected_pid": 387684,
+    "time": 1789266432.9565337,
+    "processes": "387684, /home/wind/.python3/bin/python, 4292",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-before",
+    "expected_pid": 387684,
+    "time": 1789266433.9773338,
+    "processes": "387684, /home/wind/.python3/bin/python, 4292",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-before",
+    "expected_pid": 387684,
+    "time": 1789266435.002376,
+    "processes": "387684, /home/wind/.python3/bin/python, 4294",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-before",
+    "expected_pid": 387684,
+    "time": 1789266436.0233839,
+    "processes": "387684, /home/wind/.python3/bin/python, 198",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-after",
+    "expected_pid": 388676,
+    "time": 1789266437.0448341,
+    "processes": "",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-after",
+    "expected_pid": 388676,
+    "time": 1789266438.0657032,
+    "processes": "388676, /home/wind/.python3/bin/python, 318",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-after",
+    "expected_pid": 388676,
+    "time": 1789266439.0868242,
+    "processes": "388676, /home/wind/.python3/bin/python, 446",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-after",
+    "expected_pid": 388676,
+    "time": 1789266440.108321,
+    "processes": "388676, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-after",
+    "expected_pid": 388676,
+    "time": 1789266441.128786,
+    "processes": "388676, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-after",
+    "expected_pid": 388676,
+    "time": 1789266442.1498644,
+    "processes": "388676, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-after",
+    "expected_pid": 388676,
+    "time": 1789266443.1697783,
+    "processes": "388676, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-after",
+    "expected_pid": 388676,
+    "time": 1789266444.1897478,
+    "processes": "388676, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-after",
+    "expected_pid": 388676,
+    "time": 1789266445.224173,
+    "processes": "388676, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-after",
+    "expected_pid": 388676,
+    "time": 1789266446.2441242,
+    "processes": "388676, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-after",
+    "expected_pid": 388676,
+    "time": 1789266447.2649245,
+    "processes": "388676, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-after",
+    "expected_pid": 388676,
+    "time": 1789266448.286207,
+    "processes": "388676, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-after",
+    "expected_pid": 388676,
+    "time": 1789266449.3073015,
+    "processes": "388676, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-after",
+    "expected_pid": 388676,
+    "time": 1789266450.3421366,
+    "processes": "388676, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-after",
+    "expected_pid": 388676,
+    "time": 1789266451.3628151,
+    "processes": "388676, /home/wind/.python3/bin/python, 2244",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-after",
+    "expected_pid": 388676,
+    "time": 1789266452.3874404,
+    "processes": "388676, /home/wind/.python3/bin/python, 4292",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-after",
+    "expected_pid": 388676,
+    "time": 1789266453.4081943,
+    "processes": "388676, /home/wind/.python3/bin/python, 4292",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-after",
+    "expected_pid": 388676,
+    "time": 1789266454.4285703,
+    "processes": "388676, /home/wind/.python3/bin/python, 4292",
+    "query_returncode": 0
+  },
+  {
+    "case": "clustered-after",
+    "expected_pid": 388676,
+    "time": 1789266455.4517508,
+    "processes": "388676, /home/wind/.python3/bin/python, 4294",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-force-before",
+    "expected_pid": 389664,
+    "time": 1789266456.4736092,
+    "processes": "",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-force-before",
+    "expected_pid": 389664,
+    "time": 1789266457.4953535,
+    "processes": "389664, /home/wind/.python3/bin/python, 318",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-force-before",
+    "expected_pid": 389664,
+    "time": 1789266458.5178702,
+    "processes": "389664, /home/wind/.python3/bin/python, 446",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-force-before",
+    "expected_pid": 389664,
+    "time": 1789266459.5400352,
+    "processes": "389664, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-force-before",
+    "expected_pid": 389664,
+    "time": 1789266460.5611422,
+    "processes": "389664, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-force-before",
+    "expected_pid": 389664,
+    "time": 1789266461.581003,
+    "processes": "389664, /home/wind/.python3/bin/python, 1728",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-force-before",
+    "expected_pid": 389664,
+    "time": 1789266462.6173654,
+    "processes": "389664, /home/wind/.python3/bin/python, 1728",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-force-before",
+    "expected_pid": 389664,
+    "time": 1789266463.6386068,
+    "processes": "389664, /home/wind/.python3/bin/python, 4802",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-force-before",
+    "expected_pid": 389664,
+    "time": 1789266464.665644,
+    "processes": "389664, /home/wind/.python3/bin/python, 4804",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-force-before",
+    "expected_pid": 389664,
+    "time": 1789266465.686173,
+    "processes": "389664, /home/wind/.python3/bin/python, 194",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-force-after",
+    "expected_pid": 390503,
+    "time": 1789266466.708234,
+    "processes": "",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-force-after",
+    "expected_pid": 390503,
+    "time": 1789266467.7300198,
+    "processes": "390503, /home/wind/.python3/bin/python, 318",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-force-after",
+    "expected_pid": 390503,
+    "time": 1789266468.7508347,
+    "processes": "390503, /home/wind/.python3/bin/python, 446",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-force-after",
+    "expected_pid": 390503,
+    "time": 1789266469.7717335,
+    "processes": "390503, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-force-after",
+    "expected_pid": 390503,
+    "time": 1789266470.7931368,
+    "processes": "390503, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-force-after",
+    "expected_pid": 390503,
+    "time": 1789266471.8137228,
+    "processes": "390503, /home/wind/.python3/bin/python, 1728",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-force-after",
+    "expected_pid": 390503,
+    "time": 1789266472.8532124,
+    "processes": "390503, /home/wind/.python3/bin/python, 1728",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-force-after",
+    "expected_pid": 390503,
+    "time": 1789266473.87338,
+    "processes": "390503, /home/wind/.python3/bin/python, 4804",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-force-after",
+    "expected_pid": 390503,
+    "time": 1789266474.90128,
+    "processes": "390503, /home/wind/.python3/bin/python, 4804",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-force-after",
+    "expected_pid": 390503,
+    "time": 1789266475.9221866,
+    "processes": "390503, /home/wind/.python3/bin/python, 4804",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-update-before",
+    "expected_pid": 391353,
+    "time": 1789266476.9449098,
+    "processes": "",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-update-before",
+    "expected_pid": 391353,
+    "time": 1789266477.9658954,
+    "processes": "391353, /home/wind/.python3/bin/python, 316",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-update-before",
+    "expected_pid": 391353,
+    "time": 1789266478.9886708,
+    "processes": "391353, /home/wind/.python3/bin/python, 446",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-update-before",
+    "expected_pid": 391353,
+    "time": 1789266480.0109217,
+    "processes": "391353, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-update-before",
+    "expected_pid": 391353,
+    "time": 1789266481.0316765,
+    "processes": "391353, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-update-before",
+    "expected_pid": 391353,
+    "time": 1789266482.053864,
+    "processes": "391353, /home/wind/.python3/bin/python, 1728",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-update-before",
+    "expected_pid": 391353,
+    "time": 1789266483.0910177,
+    "processes": "391353, /home/wind/.python3/bin/python, 1728",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-update-before",
+    "expected_pid": 391353,
+    "time": 1789266484.1120977,
+    "processes": "391353, /home/wind/.python3/bin/python, 4802",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-update-before",
+    "expected_pid": 391353,
+    "time": 1789266485.1400933,
+    "processes": "391353, /home/wind/.python3/bin/python, 4804",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-update-before",
+    "expected_pid": 391353,
+    "time": 1789266486.1613982,
+    "processes": "391353, /home/wind/.python3/bin/python, 4802",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-update-after",
+    "expected_pid": 392184,
+    "time": 1789266487.1839347,
+    "processes": "",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-update-after",
+    "expected_pid": 392184,
+    "time": 1789266488.2077641,
+    "processes": "392184, /home/wind/.python3/bin/python, 318",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-update-after",
+    "expected_pid": 392184,
+    "time": 1789266489.2293973,
+    "processes": "392184, /home/wind/.python3/bin/python, 446",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-update-after",
+    "expected_pid": 392184,
+    "time": 1789266490.2513685,
+    "processes": "392184, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-update-after",
+    "expected_pid": 392184,
+    "time": 1789266491.271858,
+    "processes": "392184, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-update-after",
+    "expected_pid": 392184,
+    "time": 1789266492.2933857,
+    "processes": "392184, /home/wind/.python3/bin/python, 1728",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-update-after",
+    "expected_pid": 392184,
+    "time": 1789266493.3352993,
+    "processes": "392184, /home/wind/.python3/bin/python, 1728",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-update-after",
+    "expected_pid": 392184,
+    "time": 1789266494.358047,
+    "processes": "392184, /home/wind/.python3/bin/python, 4804",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-update-after",
+    "expected_pid": 392184,
+    "time": 1789266495.378384,
+    "processes": "392184, /home/wind/.python3/bin/python, 4804",
+    "query_returncode": 0
+  },
+  {
+    "case": "friction-update-after",
+    "expected_pid": 392184,
+    "time": 1789266496.4065292,
+    "processes": "392184, /home/wind/.python3/bin/python, 4806",
+    "query_returncode": 0
+  }
+]

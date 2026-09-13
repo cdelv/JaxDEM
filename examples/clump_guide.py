@@ -319,6 +319,7 @@ system_sim = jdem.System.create(
 )
 
 # Run a few steps
+state_sim, system_sim = jdem.System.initialize(state_sim, system_sim)
 state_sim, system_sim = system_sim.step(state_sim, system_sim, n=4)
 print("Dumbbell COM:", state_sim.pos_c[1])
 print("Floor position (unchanged):  ", state_sim.pos[0])

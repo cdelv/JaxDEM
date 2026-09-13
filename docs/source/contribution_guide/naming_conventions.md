@@ -25,12 +25,16 @@ class ForceRouter:
 
 ## Functions and methods
 
-Functions and class methods should follow the snake_case convention:
+Functions and class methods use snake_case. The established factory hook
+`Create` is the explicit exception: subclasses implement `Create`, while callers
+use the registry root's `create(type_name, **kwargs)`. `Factory` is not generic.
+
+For example:
 
 ```python
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
-class Collider(Factory["Collider"], ABC):
+class Collider(Factory, ABC):
     """
     ...
 

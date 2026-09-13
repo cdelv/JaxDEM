@@ -1,0 +1,8 @@
+include LICENSE README.md pyproject.toml
+recursive-include jaxdem *.py py.typed
+prune docs
+prune examples
+prune tests
+prune benchmarks
+prune tools
+prune audit

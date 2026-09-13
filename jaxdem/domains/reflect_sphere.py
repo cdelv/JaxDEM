@@ -16,7 +16,7 @@ try:  # Python 3.11+
 except ImportError:  # pragma: no cover
     from typing_extensions import Self
 
-from . import Domain
+from . import Domain, SearchGeometry
 from ._toc import verlet_collision_fraction
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -40,6 +40,8 @@ class ReflectSphereDomain(Domain):
     - The reflection occurs at the boundaries defined by `anchor` and `anchor + box_size`.
 
     """
+
+    search_geometry = SearchGeometry.ORTHOGONAL
 
     restitution_coefficient: jax.Array
 
@@ -173,7 +175,8 @@ class ReflectSphereDomain(Domain):
         alpha = verlet_collision_fraction(state.vel, acc, delta, wall_sign, system.dt)
         alpha = jnp.where(wall_sign != 0.0, alpha, 1.0)
 
-        v_col = state.vel + (alpha - 1.0) * system.dt * acc
+        dt_remaining = (1.0 - alpha) * system.dt
+        v_col = state.vel - dt_remaining * acc
 
         closing_mask = (v_col * wall_sign) < 0.0
 
@@ -182,7 +185,6 @@ class ReflectSphereDomain(Domain):
 
         state.vel += dv_flat
 
-        dt_remaining = (1.0 - alpha) * system.dt
         state.pos_c += dv_flat * dt_remaining
 
         return state, system

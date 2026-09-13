@@ -243,7 +243,13 @@ def generate_report(
 
     os.makedirs(os.path.join(output_dir, "plots"), exist_ok=True)
 
-    md_report = ""
+    md_report = (
+        "> **Historical kernel measurements.** These entries predate the corrected "
+        "benchmark fixtures and explicit compile, snapshot-replay, sustained-state, "
+        "and validation phases. They are retained for provenance and must not be "
+        "read as current release performance claims. See `audit/PERFORMANCE_RELEASE.md` "
+        "for validated, versioned release workloads.\n\n"
+    )
 
     systems = sorted(structured_data.keys())
 

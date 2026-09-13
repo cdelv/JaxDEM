@@ -5,9 +5,10 @@
 from __future__ import annotations
 
 import dataclasses
+import math
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 import jax
 import jax.numpy as jnp
@@ -45,48 +46,91 @@ class LawCombiner(ForceModel):
       all contained laws.
     """
 
-    laws: tuple[ForceModel, ...] = jax.tree.static(default=())
-    """Static tuple of the elementary :class:`ForceModel` instances to sum."""
+    laws: tuple[ForceModel, ...] = ()
+    """Tuple of elementary :class:`ForceModel` instances to sum as pytree data."""
 
     @property
-    def requires_history(self) -> bool:
-        return any(law.requires_history for law in self.laws)
+    def supports_analytical_energy_gradient(self) -> bool:
+        """Whether every contained law supports analytical minimization."""
+        return all(law.supports_analytical_energy_gradient for law in self.laws)
 
-    @jax.jit(inline=True)
-    def init_history(self, shape: tuple[int, ...]) -> Any:
-        return tuple(
-            law.init_history(shape) if law.requires_history else None
+    @property
+    def species_capacity(self) -> int | None:
+        """Smallest router capacity reachable through the contained laws."""
+        capacities = [
+            capacity
             for law in self.laws
-        )
+            if (capacity := law.species_capacity) is not None
+        ]
+        return min(capacities) if capacities else None
+
+    def history_shape(self, dim: int) -> tuple[int, ...]:
+        return (sum(math.prod(law.history_shape(dim)) for law in self.laws),)
+
+    def init_history(self, pair_shape: tuple[int, ...], dim: int) -> jax.Array:
+        histories = [
+            law.init_history(pair_shape, dim).reshape(
+                (*pair_shape, math.prod(law.history_shape(dim)))
+            )
+            for law in self.laws
+        ]
+        if not histories:
+            return ForceModel.init_history(self, pair_shape, dim)
+        return jnp.concatenate(histories, axis=-1)
+
+    def search_radii(self, state: State, system: System) -> jax.Array:
+        """Conservative per-primitive reach across every contained law."""
+        radii = jnp.zeros_like(state.rad)
+        for law in self.laws:
+            sub_system = dataclasses.replace(system, force_model=law)
+            radii = jnp.maximum(radii, law.search_radii(state, sub_system))
+        return radii
 
     @staticmethod
-    @jax.jit
-    @partial(jax.named_call, name="LawCombiner.force_and_history")
-    def force_and_history(
+    @jax.jit(static_argnames=("advance_history",))
+    @partial(jax.named_call, name="LawCombiner.force")
+    def force(
         i: int,
         j: int,
         pos: jax.Array,
         state: State,
         system: System,
-        history: Any,
-    ) -> tuple[jax.Array, jax.Array, Any]:
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
         f_shape = jnp.shape(j) + jnp.shape(state.force[i])
         t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
         force = jnp.zeros(f_shape, dtype=state.force.dtype)
         torque = jnp.zeros(t_shape, dtype=state.torque.dtype)
         combiner = cast(LawCombiner, system.force_model)
         new_histories = []
-        for law, h in zip(combiner.laws, history):
+        offset = 0
+        for law in combiner.laws:
+            child_shape = law.history_shape(pos.shape[-1])
+            width = math.prod(child_shape)
+            h = history[..., offset : offset + width].reshape(
+                (*history.shape[:-1], *child_shape)
+            )
             sub_system = dataclasses.replace(system, force_model=law)
-            if law.requires_history:
-                f, t, nh = law.force_and_history(i, j, pos, state, sub_system, h)
-            else:
-                f, t = law.force(i, j, pos, state, sub_system)
-                nh = h
+            f, t, nh = law.force(
+                i,
+                j,
+                pos,
+                state,
+                sub_system,
+                h,
+                advance_history=advance_history,
+            )
             force += f
             torque += t
-            new_histories.append(nh)
-        return force, torque, tuple(new_histories)
+            new_histories.append(nh.reshape((*history.shape[:-1], width)))
+            offset += width
+        return (
+            force,
+            torque,
+            jnp.concatenate(new_histories, axis=-1) if new_histories else history,
+        )
 
     @property
     def required_material_properties(self) -> tuple[str, ...]:
@@ -99,53 +143,6 @@ class LawCombiner(ForceModel):
         return tuple(
             sorted({p for lw in self.laws for p in lw.required_material_properties})
         )
-
-    @staticmethod
-    @jax.jit
-    @partial(jax.named_call, name="LawCombiner.force")
-    def force(
-        i: int,
-        j: int,
-        pos: jax.Array,
-        state: State,
-        system: System,
-    ) -> tuple[jax.Array, jax.Array]:
-        """Compute the total force and torque on particle :math:`i` from particle :math:`j` by summing all contained laws.
-
-        Parameters
-        ----------
-        i : int
-            Index of the first particle.
-        j : int
-            Index of the second particle.
-        pos : jax.Array
-            Particle positions used to evaluate the interaction.
-        state : State
-            Current state of the simulation.
-        system : System
-            Simulation system configuration.
-
-        Returns
-        -------
-        Tuple[jax.Array, jax.Array]
-            A tuple ``(force, torque)`` with the sums of the forces and torques
-            of all contained laws acting on particle :math:`i` from particle :math:`j`.
-
-        """
-        f_shape = jnp.shape(j) + jnp.shape(state.force[i])
-        t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
-        force = jnp.zeros(f_shape, dtype=state.force.dtype)
-        torque = jnp.zeros(t_shape, dtype=state.torque.dtype)
-        combiner = cast(LawCombiner, system.force_model)
-        for law in combiner.laws:
-            # Each sub-law sees a system whose force_model is itself, so laws
-            # that read their own config from system.force_model (including
-            # nested combiners) work correctly.
-            sub_system = dataclasses.replace(system, force_model=law)
-            f, t = law.force(i, j, pos, state, sub_system)
-            force += f
-            torque += t
-        return force, torque
 
     @staticmethod
     @jax.jit

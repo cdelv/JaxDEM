@@ -3,6 +3,7 @@
 """Bijector that constrains actions elementwise to a box."""
 
 from functools import partial
+import math
 
 import distrax  # type: ignore[import-untyped]
 import jax
@@ -91,15 +92,31 @@ class BoxSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         )
         x_min = jnp.asarray(x_min, dtype=float)
         x_max = jnp.asarray(x_max, dtype=float)
-        if not jnp.all(x_max > x_min):
+        try:
+            x_min, x_max = jnp.broadcast_arrays(x_min, x_max)
+        except ValueError as exc:
+            raise ValueError(
+                "Box bounds must have broadcast-compatible shapes"
+            ) from exc
+        if not bool(jnp.all(jnp.isfinite(x_min))) or not bool(
+            jnp.all(jnp.isfinite(x_max))
+        ):
+            raise ValueError("Box bounds must be finite")
+        if not bool(jnp.all(x_max > x_min)):
             raise ValueError("Box: require x_max > x_min elementwise.")
+        width = float(width)
+        eps = float(eps)
+        if not math.isfinite(width) or width <= 0.0:
+            raise ValueError("width must be finite and positive")
+        if not math.isfinite(eps) or not 0.0 < eps < 1.0:
+            raise ValueError("eps must be finite and strictly between 0 and 1")
 
         self.x_min = x_min
         self.x_max = x_max
         self.center = (x_min + x_max) / 2.0
         self.half = (1.0 - eps) * (x_max - x_min) / 2.0
         self.width = width
-        self.eps = float(eps)
+        self.eps = eps
 
     @staticmethod
     @partial(jax.named_call, name="BoxSpace.sec2_log")
@@ -126,10 +143,6 @@ class BoxSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         u = u.clip(-1.0 + self.eps, 1.0 - self.eps)
         x = self.width * jnp.arctanh(u)
         return x, -self.forward_log_det_jacobian(x)
-
-    def same_as(self, other: distrax.Bijector) -> bool:
-        """Return True if this bijector is guaranteed to be the same as `other`."""
-        return type(other) is BoxSpace  # pylint: disable=unidiomatic-typecheck
 
     @partial(jax.named_call, name="BoxSpace.log_det_expectation")
     def log_det_expectation(self, mean: jax.Array, std: jax.Array) -> jax.Array:

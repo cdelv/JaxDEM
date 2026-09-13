@@ -63,14 +63,21 @@ class PairAttractor(jdem.ForceModel):
     @staticmethod
     @jax.jit(inline=True)
     def force(
-        i: int, j: int, pos: jax.Array, state: jdem.State, system: jdem.System
-    ) -> tuple[jax.Array, jax.Array]:
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: jdem.State,
+        system: jdem.System,
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
         rij = system.domain.displacement(pos[i], pos[j], system)
         mask = jnp.asarray(i != j, dtype=rij.dtype)[..., None]
         model = cast(PairAttractor, system.force_model)
         force = -model.k * rij * mask
         torque = jnp.zeros_like(state.torque[j])
-        return force, torque
+        return force, torque, history
 
     @staticmethod
     @jax.jit(inline=True)
@@ -98,6 +105,7 @@ system = jdem.System.create(
     force_model_type="pairattractor",
     force_model_kw={"k": 0.2},
 )
+state, system = jdem.System.initialize(state, system)
 state, system = system.step(state, system, n=5)
 print("Custom force model:", type(system.force_model).__name__)
 print("Positions after 5 steps:\n", state.pos)
@@ -138,6 +146,7 @@ system = jdem.System.create(
     domain_type="centered",
     force_model_type="pairattractor",
 )
+state, system = jdem.System.initialize(state, system)
 state, system = system.step(state, system, n=3)
 print("Custom domain:", type(system.domain).__name__)
 print("Mean position after centering:", jnp.mean(state.pos, axis=0))
@@ -202,6 +211,7 @@ system = jdem.System.create(
     collider_type="nocontact",
     force_model_type="pairattractor",
 )
+state, system = jdem.System.initialize(state, system)
 state, system = system.step(state, system, n=2)
 print("Custom collider:", type(system.collider).__name__)
 print("Forces with nocontact collider:\n", state.force)
@@ -284,6 +294,7 @@ system = jdem.System.create(
     rotation_integrator_type="frozenrotation",
 )
 
+state, system = jdem.System.initialize(state, system)
 state, system = system.step(state, system, n=10)
 print("Custom linear integrator:", type(system.linear_integrator).__name__)
 print("Custom rotation integrator:", type(system.rotation_integrator).__name__)

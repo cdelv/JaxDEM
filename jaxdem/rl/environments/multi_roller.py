@@ -294,7 +294,15 @@ class MultiRoller(Environment):
             },
             mat_table=mat_table,
             force_model_type="cundallstrack",
+            collider_type="NeighborList",
+            collider_kw={
+                "state": env.state,
+                "cutoff": 2 * jnp.max(env.state.rad),
+                "max_neighbors": min(32, env.state.N),
+                "secondary_collider_kw": {"search_range": 1},
+            },
         )
+        env.state, env.system = System.initialize(env.state, env.system)
 
         delta_xy = env.system.domain.displacement(
             env.state.pos_c, env.env_params["objective"], env.system
@@ -453,8 +461,7 @@ class MultiRoller(Environment):
         ke_curr = thermal.compute_translational_kinetic_energy_per_particle(env.state)
 
         phi_curr = jnp.exp(
-            -2 * curr_eff_dist
-            - ke_curr * jnp.exp(-alpha * curr_eff_dist) / tau
+            -2 * curr_eff_dist - ke_curr * jnp.exp(-alpha * curr_eff_dist) / tau
         )
         phi_prev = jnp.exp(
             -2 * prev_eff_dist
@@ -471,10 +478,10 @@ class MultiRoller(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiRoller.done")
-    def done(env: MultiRoller) -> jax.Array:
+    def truncated(env: MultiRoller) -> jax.Array:
         """Return whether the episode has ended.
 
-        The episode ends when ``step_count`` exceeds ``max_steps``.
+        The episode ends when ``step_count`` reaches ``max_steps``.
 
         Parameters
         ----------
@@ -487,7 +494,7 @@ class MultiRoller(Environment):
             A bool that is True when the episode has ended.
 
         """
-        return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
+        return jnp.asarray(env.system.step_count >= env.env_params["max_steps"])
 
     @property
     def action_space_size(self) -> int:

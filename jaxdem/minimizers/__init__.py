@@ -5,13 +5,15 @@
 
 from __future__ import annotations
 
-from .optimizers import fire, damped_newtonian, conjugate_gradient
-from .routines import MinimizeInfo, minimize
+from .optimizers import conjugate_gradient, damped_newtonian, fire
+from .routines import MinimizationResult, MinimizeInfo, TerminationReason, minimize
 
 __all__ = [
+    "MinimizationResult",
+    "MinimizeInfo",
+    "TerminationReason",
     "conjugate_gradient",
     "damped_newtonian",
     "fire",
     "minimize",
-    "MinimizeInfo",
 ]

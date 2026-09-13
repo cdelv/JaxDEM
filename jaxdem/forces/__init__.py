@@ -6,9 +6,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import jax
+import jax.numpy as jnp
 
 from ..factory import Factory
 
@@ -44,20 +45,48 @@ class ForceModel(Factory, ABC):
 
     """
 
-    laws: tuple[ForceModel, ...] = jax.tree.static(default=())
+    laws: tuple[ForceModel, ...] = ()
     """
-    Static tuple of other :class:`ForceModel` instances that compose this force model.
+    Tuple of other :class:`ForceModel` instances that compose this force model.
 
     Use it to build composite force models, for example a spring force plus a
     damping force.
     """
 
+    @property
+    def supports_analytical_energy_gradient(self) -> bool:
+        """Whether force is the negative analytical gradient of ``energy``.
+
+        Translational components use center positions and rotational components
+        use the minimizer's incremental rotation coordinates. Force laws are
+        assumed to satisfy this contract by default. Laws that do not must
+        override this property with ``False``; they require an explicit target
+        for minimization.
+        """
+        return True
+
+    @property
+    def species_capacity(self) -> int | None:
+        """Smallest species-table capacity reachable through this law.
+
+        Ordinary laws do not constrain species identifiers. Composite laws
+        override this capability so callers need not inspect concrete types.
+        """
+        return None
+
     @staticmethod
     @abstractmethod
     @jax.jit
     def force(
-        i: int, j: int, pos: jax.Array, state: State, system: System
-    ) -> tuple[jax.Array, jax.Array]:
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
         """Compute the force and torque on particle :math:`i` from particle :math:`j`.
 
         Parameters
@@ -75,8 +104,9 @@ class ForceModel(Factory, ABC):
 
         Returns
         -------
-        Tuple[jax.Array, jax.Array]
-            A tuple ``(force, torque)`` where ``force`` has shape ``(dim,)`` and ``torque`` has shape ``(1,)`` in 2D or ``(3,)`` in 3D.
+        Tuple[jax.Array, jax.Array, jax.Array]
+            ``(force, torque, history)``. The history output is unchanged for
+            stateless laws and when ``advance_history=False``.
 
         """
         raise NotImplementedError
@@ -111,37 +141,43 @@ class ForceModel(Factory, ABC):
         """
         raise NotImplementedError
 
-    @property
-    def requires_history(self) -> bool:
-        """Whether this force model needs persistent pair history."""
-        return False
+    def search_radii(self, state: State, system: System) -> jax.Array:
+        """Return conservative radii for a single search snapshot.
 
-    def init_history(self, shape: tuple[int, ...]) -> Any:
+        A nonzero pair interaction must fit within the sum of the two bounds.
+        Custom finite-range laws must override this method to use accelerated
+        colliders; the naive all-pairs collider does not require a bound.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} must declare search_radii for spatial search."
+        )
+
+    def history_shape(self, dim: int) -> tuple[int, ...]:
+        """Trailing shape of one pair's history; stateless laws use ``(0,)``.
+
+        Composite laws flatten child histories internally and restore this
+        shape before invoking the child law.
+        """
+        return (0,)
+
+    def init_history(self, pair_shape: tuple[int, ...], dim: int) -> jax.Array:
         """Initialize the history variables for this force model.
 
         Parameters
         ----------
-        shape : tuple[int, ...]
-            The expected shape for pair-wise quantities, typically `(..., N, max_neighbors)`.
+        pair_shape : tuple[int, ...]
+            Leading shape of pair-wise quantities, typically
+            ``(N, max_neighbors)``.
+        dim : int
+            Spatial dimension used by dimension-dependent history layouts.
 
         Returns
         -------
-        Any
-            A PyTree of initialized JAX arrays, or None by default.
+        jax.Array
+            A zero-filled array with shape
+            ``pair_shape + history_shape(dim)``.
         """
-        return None
-
-    @staticmethod
-    @jax.jit
-    def force_and_history(
-        i: int, j: int, pos: jax.Array, state: State, system: System, history: Any
-    ) -> tuple[jax.Array, jax.Array, Any]:
-        """Compute the force and torque, and update history.
-
-        By default, this calls `force` and returns `history` unchanged.
-        """
-        f, t = system.force_model.force(i, j, pos, state, system)
-        return f, t, history
+        return jnp.zeros(pair_shape + self.history_shape(dim))
 
     @property
     def required_material_properties(self) -> tuple[str, ...]:

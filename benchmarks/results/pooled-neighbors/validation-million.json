@@ -1,0 +1,10 @@
+{
+  "n": 1000000,
+  "scenario": "clustered",
+  "reduction": "row",
+  "force_max_abs_error": 2.0503997802734375e-05,
+  "torque_max_abs_error": 0.0,
+  "pos_max_abs_error": 1.9073486328125e-06,
+  "vel_max_abs_error": 1.4435499906539917e-07,
+  "passed": true
+}

@@ -55,7 +55,7 @@ def build_microstate(
         mat_table=mat_table,
         domain_kw={"box_size": box_size},
     )
-    return microstate, microsystem
+    return jdem.System.initialize(microstate, microsystem)
 
 
 # %%

@@ -1,0 +1,98 @@
+{
+  "n": 1000000,
+  "capacity": 24,
+  "warmup_runs": 4,
+  "minimum_warmup_seconds": 0.3,
+  "scenario": "uniform",
+  "jax": "0.11.0",
+  "module": "/tmp/jaxdem-before-row-only/jaxdem/__init__.py",
+  "device": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+  "x64": false,
+  "pair_count": 5940000,
+  "max_neighbors": 6,
+  "cache_bytes": 100000004,
+  "cached_force": {
+    "seconds": [
+      0.0034075439980369993,
+      0.00313591500162147,
+      0.0034307390014873818,
+      0.0035438549966784194,
+      0.002861305001715664,
+      0.002892112999688834,
+      0.002906483001424931
+    ],
+    "median_s": 0.00313591500162147,
+    "compile_s": 2.24704679199931,
+    "memory": {
+      "argument_size_in_bytes": 285000477,
+      "output_size_in_bytes": 309000925,
+      "temp_size_in_bytes": 567014848,
+      "alias_size_in_bytes": 0
+    },
+    "warmup_runs": 79
+  },
+  "cached_energy": {
+    "seconds": [
+      0.0047794429992791265,
+      0.004740966003737412,
+      0.004696322001109365,
+      0.0047159470050246455,
+      0.00487414999952307,
+      0.004739138996228576,
+      0.0047042890000739135
+    ],
+    "median_s": 0.004739138996228576,
+    "compile_s": 2.1645631729988963,
+    "memory": {
+      "argument_size_in_bytes": 297000477,
+      "output_size_in_bytes": 309000937,
+      "temp_size_in_bytes": 567011784,
+      "alias_size_in_bytes": 0
+    },
+    "warmup_runs": 55
+  },
+  "rebuild_and_force": {
+    "seconds": [
+      0.024938299997302238,
+      0.02539689400146017,
+      0.025051982003787998,
+      0.025397359000635333,
+      0.025242867995984852,
+      0.02518774000054691,
+      0.024970949998532888
+    ],
+    "median_s": 0.02518774000054691,
+    "compile_s": 2.1350368939965847,
+    "memory": {
+      "argument_size_in_bytes": 285000476,
+      "output_size_in_bytes": 309000925,
+      "temp_size_in_bytes": 567014080,
+      "alias_size_in_bytes": 0
+    },
+    "warmup_runs": 9
+  },
+  "ten_steps": {
+    "seconds": [
+      0.04224268300458789,
+      0.04225543700158596,
+      0.04213046099903295,
+      0.04214676099945791,
+      0.04215456400561379,
+      0.04214118099480402,
+      0.042297837004298344
+    ],
+    "median_s": 0.04215456400561379,
+    "compile_s": 3.0305717640003422,
+    "memory": {
+      "argument_size_in_bytes": 297000477,
+      "output_size_in_bytes": 309000925,
+      "temp_size_in_bytes": 731058112,
+      "alias_size_in_bytes": 0
+    },
+    "warmup_runs": 7
+  },
+  "step_median_s": 0.0042154564005613794,
+  "step_rebuilds": 0,
+  "force_norm": 2665.259033203125,
+  "finite": true
+}

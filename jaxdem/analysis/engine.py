@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 from collections.abc import Mapping
+from collections import OrderedDict
 
 import jax
 import jax.numpy as jnp
@@ -27,7 +28,16 @@ PyTree = Any
 # Cache of jitted compute closures keyed by (path, kernel, kwargs digest, B[, chunk]).
 # Without this, every `evaluate_binned` call wraps a fresh closure in `jax.jit`
 # and recompiles even for identical kernels/shapes.
-_JIT_CACHE: dict[Any, Any] = {}
+_JIT_CACHE_MAXSIZE = 16
+_JIT_CACHE: OrderedDict[Any, Any] = OrderedDict()
+
+
+def clear_jit_cache() -> None:
+    """Clear analysis-owned compiled-function references.
+
+    This does not clear JAX's process-wide compilation caches.
+    """
+    _JIT_CACHE.clear()
 
 
 def _kwargs_cache_key(kernel_kwargs: Mapping[str, Any]) -> tuple[Any, ...] | None:
@@ -38,11 +48,9 @@ def _kwargs_cache_key(kernel_kwargs: Mapping[str, Any]) -> tuple[Any, ...] | Non
         if v is None or isinstance(v, (bool, int, float, str)):
             items.append((k, type(v).__name__, v))
         else:
-            try:
-                arr = np.asarray(v)
-                items.append((k, arr.dtype.str, arr.shape, arr.tobytes()))
-            except Exception:
-                return None
+            # Array contents can be large and copying them into a cache key is
+            # more expensive than compiling an uncached closure.
+            return None
     return tuple(items)
 
 
@@ -55,6 +63,10 @@ def _cached_jit(fn: Any, cache_key: Any) -> Any:
         if jitted is None:
             jitted = jax.jit(fn)
             _JIT_CACHE[cache_key] = jitted
+            if len(_JIT_CACHE) > _JIT_CACHE_MAXSIZE:
+                _JIT_CACHE.popitem(last=False)
+        else:
+            _JIT_CACHE.move_to_end(cache_key)
         return jitted
     except TypeError:  # unhashable component (e.g. exotic kernel object)
         return jax.jit(fn)
@@ -104,6 +116,7 @@ def evaluate_binned(
     kernel_kwargs: dict[str, Any] | None = None,
     jit: bool = True,
     chunk_size: int | None = None,
+    max_pairs: int | None = None,
 ) -> Binned:
     """Run a kernel over bins and average the results in JAX.
 
@@ -114,17 +127,23 @@ def evaluate_binned(
         binspec: bin specification built on the host. Defines which indices to use.
         kernel_kwargs: extra keyword arguments for the kernel.
         jit: whether to jit the core compute.
-        chunk_size: optional maximum number of pairs per chunk. With the
+        chunk_size: optional maximum number of pairs transferred to the device
+            and evaluated per chunk. With the
             default *None*, one ``jax.vmap`` call processes all pairs. Set a
             positive integer to process pairs in chunks with
-            ``jax.lax.scan``. Chunking keeps peak device memory proportional
-            to *chunk_size* instead of the total number of pairs.
+            repeated compiled calls. Chunking keeps peak device pair storage
+            proportional to *chunk_size*. The returned ``pairs`` arrays still
+            retain one host index triple per pair.
+        max_pairs: optional bound on the number of host pair-index triples.
+            The default ``None`` retains all pairs without a host-memory bound.
+            The estimate is checked before allocation and the bound is also
+            enforced while enumerating custom bin specifications.
 
     """
     kernel_kwargs = {} if kernel_kwargs is None else dict(kernel_kwargs)
 
     # Flatten binspec once on host
-    pairs = build_pairs(binspec)
+    pairs = build_pairs(binspec, max_pairs=max_pairs)
     B = int(binspec.num_bins())
     P = int(pairs.pair_i.shape[0])
 
@@ -133,11 +152,22 @@ def evaluate_binned(
     arrays_tree = {str(k): jnp.asarray(v) for k, v in arrays.items()}
 
     if P == 0:
-        # No pairs -> produce empty bins
+        # Infer the normal output tree without vmapping an empty axis. This is
+        # well-defined when the input contains at least one frame, including a
+        # custom BinSpec whose bins happen to be empty.
+        sample = kernel(arrays_tree, jnp.array(0), jnp.array(0), **kernel_kwargs)
         ones = jnp.zeros((0,), dtype=int)
         counts = ops.segment_sum(ones, jnp.zeros((0,), dtype=int), num_segments=B)
-        # We cannot infer leaf shapes without running kernel; return empty dict.
-        return Binned(sums={}, counts=counts, mean={}, pairs=pairs)
+        sums = tree_util.tree_map(
+            lambda v: jnp.zeros((B, *jnp.asarray(v).shape), jnp.asarray(v).dtype),
+            sample,
+        )
+        return Binned(
+            sums=sums,
+            counts=counts,
+            mean=_compute_mean_and_mask(sums, counts, B),
+            pairs=pairs,
+        )
 
     # ------------------------------------------------------------------
     # Decide between the single-shot path and the chunked path.
@@ -186,81 +216,61 @@ def evaluate_binned(
         if chunk_size < 1:
             raise ValueError("chunk_size must be a positive integer")
 
-        n_chunks = -(-P // chunk_size)  # ceil division
-        pad_total = n_chunks * chunk_size
-
-        # Pad on host.  Overflow pairs use index 0 (valid, cheap to
-        # evaluate) but are directed to dummy bin *B* which is discarded.
-        pi_host = np.zeros(pad_total, dtype=int)
-        pj_host = np.zeros(pad_total, dtype=int)
-        bi_host = np.full(pad_total, B, dtype=int)
-        pi_host[:P] = pairs.pair_i
-        pj_host[:P] = pairs.pair_j
-        bi_host[:P] = pairs.bin_id
-
-        # Transfer to device as (n_chunks, chunk_size)
-        pair_i_c = jnp.asarray(pi_host.reshape(n_chunks, chunk_size))
-        pair_j_c = jnp.asarray(pj_host.reshape(n_chunks, chunk_size))
-        bin_id_c = jnp.asarray(bi_host.reshape(n_chunks, chunk_size))
-
-        def compute_chunked(
-            pair_i_c: jnp.ndarray,
-            pair_j_c: jnp.ndarray,
-            bin_id_c: jnp.ndarray,
+        def compute_chunk(
+            pair_i: jnp.ndarray,
+            pair_j: jnp.ndarray,
+            bin_id: jnp.ndarray,
             arrays_tree: Mapping[str, jnp.ndarray],
-        ) -> tuple[PyTree, jnp.ndarray, PyTree]:
+        ) -> tuple[PyTree, jnp.ndarray]:
             def per_pair(i: jnp.ndarray, j: jnp.ndarray) -> PyTree:
                 return kernel(arrays_tree, i, j, **kernel_kwargs)
 
             # Evaluate the kernel on a single pair to infer the output
             # pytree structure and leaf shapes/dtypes for the accumulator.
-            _sample = per_pair(pair_i_c[0, 0], pair_j_c[0, 0])
-            init_sums = tree_util.tree_map(
-                lambda v: jnp.zeros((B + 1, *v.shape), v.dtype), _sample
+            vals = jax.vmap(per_pair, in_axes=(0, 0))(pair_i, pair_j)
+            counts = ops.segment_sum(
+                jnp.ones((chunk_size,), dtype=int), bin_id, num_segments=B + 1
             )
-            init_counts = jnp.zeros((B + 1,), dtype=int)
-
-            def scan_body(
-                carry: tuple[PyTree, jnp.ndarray],
-                xs: tuple[jnp.ndarray, jnp.ndarray, jnp.ndarray],
-            ) -> tuple[tuple[PyTree, jnp.ndarray], None]:
-                sums_acc, counts_acc = carry
-                pi, pj, bi = xs
-
-                vals = jax.vmap(per_pair, in_axes=(0, 0))(pi, pj)
-
-                ones = jnp.ones((chunk_size,), dtype=int)
-                chunk_counts = ops.segment_sum(ones, bi, num_segments=B + 1)
-                chunk_sums = tree_util.tree_map(
-                    lambda v: ops.segment_sum(v, bi, num_segments=B + 1),
-                    vals,
-                )
-
-                new_sums = tree_util.tree_map(jnp.add, sums_acc, chunk_sums)
-                new_counts = counts_acc + chunk_counts
-                return (new_sums, new_counts), None
-
-            (sums_full, counts_full), _ = jax.lax.scan(
-                scan_body,
-                (init_sums, init_counts),
-                (pair_i_c, pair_j_c, bin_id_c),
+            sums = tree_util.tree_map(
+                lambda v: ops.segment_sum(v, bin_id, num_segments=B + 1), vals
             )
-
-            # Discard the dummy bin (index B)
-            sums = tree_util.tree_map(lambda s: s[:B], sums_full)
-            counts = counts_full[:B]
-
-            mean = _compute_mean_and_mask(sums, counts, B)
-            return sums, counts, mean
+            return sums, counts
 
         if jit:
             cache_key = None
             kw_key = _kwargs_cache_key(kernel_kwargs)
             if kw_key is not None:
                 cache_key = ("chunked", kernel, kw_key, B, int(chunk_size))
-            fn_chunked: Any = _cached_jit(compute_chunked, cache_key)
+            fn_chunked: Any = _cached_jit(compute_chunk, cache_key)
         else:
-            fn_chunked = compute_chunked
-        sums, counts, mean = fn_chunked(pair_i_c, pair_j_c, bin_id_c, arrays_tree)
+            fn_chunked = compute_chunk
+
+        sums = None
+        counts = jnp.zeros((B + 1,), dtype=int)
+        for start in range(0, P, chunk_size):
+            stop = min(start + chunk_size, P)
+            valid = stop - start
+            pi_host = np.zeros(chunk_size, dtype=int)
+            pj_host = np.zeros(chunk_size, dtype=int)
+            bi_host = np.full(chunk_size, B, dtype=int)
+            pi_host[:valid] = pairs.pair_i[start:stop]
+            pj_host[:valid] = pairs.pair_j[start:stop]
+            bi_host[:valid] = pairs.bin_id[start:stop]
+            chunk_sums, chunk_counts = fn_chunked(
+                jnp.asarray(pi_host),
+                jnp.asarray(pj_host),
+                jnp.asarray(bi_host),
+                arrays_tree,
+            )
+            sums = (
+                chunk_sums
+                if sums is None
+                else tree_util.tree_map(jnp.add, sums, chunk_sums)
+            )
+            counts = counts + chunk_counts
+
+        sums = tree_util.tree_map(lambda s: s[:B], sums)
+        counts = counts[:B]
+        mean = _compute_mean_and_mask(sums, counts, B)
 
     return Binned(sums=sums, counts=counts, mean=mean, pairs=pairs)

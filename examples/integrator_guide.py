@@ -198,8 +198,9 @@ print("Minimizer:", system.minimizer.type_name)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # JaxDEM provides a convenience method
 # :py:meth:`~jaxdem.system.System.minimize` that runs a
-# ``while_loop`` until the potential energy converges or the step count
-# reaches the maximum.
+# ``while_loop`` until both free-body force and torque norms meet tolerance.
+# Step limits, nonfinite values and search overflow are unsuccessful exits.
+# FIRE and damped Newtonian evaluate energy once after relaxation.
 
 state = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
@@ -211,10 +212,10 @@ system = jdem.System.create(
     minimizer_kw={"dt": 1e-2},
 )
 
-state, system, steps, pe = system.minimize(
-    state, system, max_steps=500
-)
-print(f"Converged in {steps} steps, PE = {pe:.6e}")
+result = system.minimize(state, system, max_steps=500)
+state, system, steps, pe = result
+print(f"Converged: {result.converged}, steps: {steps}, PE = {pe:.6e}")
+print(f"Force residual: {result.info.force_max}, torque residual: {result.info.torque_max}")
 
 
 # %%

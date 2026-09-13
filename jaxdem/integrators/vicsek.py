@@ -64,22 +64,21 @@ def _vicsek_alignment(
     count = jnp.sum(valid, axis=1) + 1
     avg_v = sum_v / count[..., None]
 
-    # Clump-wise average of avg_v (so each clump has a single alignment vector).
+    # Clump-wise average of avg_v (so each clump has a single alignment vector)
+    # and clump-wise force.
     counts = jnp.bincount(state.clump_id, length=state.N)
     counts_safe = jnp.where(counts > 0, counts, 1).astype(avg_v.dtype)
-    avg_v_clump = (
-        jax.ops.segment_sum(avg_v, state.clump_id, num_segments=state.N)
+    clump_values = (
+        jax.ops.segment_sum(
+            jnp.concatenate((avg_v, state.force), axis=-1),
+            state.clump_id,
+            num_segments=state.N,
+        )
         / counts_safe[..., None]
     )
-    avg_v = avg_v_clump[state.clump_id]
-
-    # Clump-wise force (state.force is expected to already be clump-broadcasted,
-    # but compute robustly anyway).
-    force_clump = (
-        jax.ops.segment_sum(state.force, state.clump_id, num_segments=state.N)
-        / counts_safe[..., None]
-    )
-    force = force_clump[state.clump_id]
+    clump_values = clump_values[state.clump_id]
+    avg_v = clump_values[..., : state.dim]
+    force = clump_values[..., state.dim :]
 
     return state, system, force, avg_v
 

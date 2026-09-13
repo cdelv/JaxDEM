@@ -54,7 +54,7 @@ class Factory(ABC):
     --------
     Use Factory as a base class for a specific component type (e.g., `Foo`):
 
-    >>> class Foo(Factory["Foo"], ABC):
+    >>> class Foo(Factory, ABC):
     >>>   ...
 
     Register a concrete subclass of `Foo`:

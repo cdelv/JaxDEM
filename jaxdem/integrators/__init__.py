@@ -92,12 +92,26 @@ class Integrator(Factory, ABC):
 
     @staticmethod
     @jax.jit(inline=True)
+    @partial(jax.named_call, name="Integrator.finalize_step")
+    def finalize_step(state: State, system: System) -> tuple[State, System]:
+        """Apply work that must run after both linear and rotational kicks.
+
+        Thermostats use this hook so their temperature includes the terminal
+        translational and rotational velocities. The default is a no-op.
+        """
+        return state, system
+
+    @staticmethod
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="Integrator.initialize")
     def initialize(state: State, system: System) -> tuple[State, System]:
         """Initialize the integrator.
 
-        Some integration methods need an initialization step, for example LeapFrog.
-        The default implementation returns the state and system unchanged.
+        Called by ``System.initialize`` after initial forces and torques have
+        been computed. Override this hook for integrator-specific setup, such
+        as a backward half-kick for staggered velocities. The default returns
+        the state and system unchanged. Initialization must not advance the
+        simulation clock or perform an ordinary position/orientation step.
 
         Parameters
         ----------
@@ -114,7 +128,7 @@ class Integrator(Factory, ABC):
         Example
         -------
 
-        >>> state, system = system.integrator.initialize(state, system)
+        >>> state, system = system.initialize(state, system)
 
         """
         return state, system

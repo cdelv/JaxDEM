@@ -103,7 +103,7 @@ def build_microstate(
         collider_type="naive",
         seed=seed,
     )
-    return state, system
+    return jdem.System.initialize(state, system)
 
 
 # %%

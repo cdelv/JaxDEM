@@ -22,8 +22,10 @@ import jaxdem as jdem
 
 state = jdem.State.create(pos=jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]))
 system = jdem.System.create(state.shape, dt=1e-3)
+state, system = jdem.System.initialize(state, system)
 
-tmp_dir = Path(tempfile.gettempdir()) / "simulation"
+tmp_root = tempfile.TemporaryDirectory(prefix="jaxdem-checkpoint-guide-")
+tmp_dir = Path(tmp_root.name) / "simulation"
 with jdem.CheckpointWriter(directory=tmp_dir, max_to_keep=2) as writer:
     # By default (clean=False) the writer preserves any checkpoints already
     # present in the directory, so re-opening a writer on the same directory
@@ -75,6 +77,11 @@ with jdem.CheckpointLoader(directory=tmp_dir) as loader:
 # Checkpoint saving is asynchronous. Call ``block_until_ready()`` before
 # program exit. When you manage the writer manually, also call it before
 # ``close()``, so all files reach the disk.
+# Continue a loaded initialized checkpoint directly; do not call
+# :py:meth:`~jaxdem.system.System.initialize` again. Checkpoints include
+# collider/contact history, integrator state, callbacks, and PRNG state needed
+# for deterministic continuation. Load only trusted checkpoints because their
+# metadata resolves Python classes and callables.
 
 # %%
 # Bonded-force model checkpointing
@@ -117,8 +124,8 @@ system_bonded = jdem.System.create(
 
 # Use a separate directory to avoid mixing the bonded snapshot with the
 # earlier ones.
-tmp_dir_bonded = Path(tempfile.gettempdir()) / "simulation_bonded"
-with jdem.CheckpointWriter(directory=tmp_dir_bonded, clean=True) as writer:
+tmp_dir_bonded = Path(tmp_root.name) / "simulation_bonded"
+with jdem.CheckpointWriter(directory=tmp_dir_bonded) as writer:
     writer.save(state_bonded, system_bonded)
     writer.block_until_ready()
 
@@ -141,14 +148,16 @@ with jdem.CheckpointLoader(directory=tmp_dir_bonded) as loader:
 #
 # .. warning::
 #
-#    A different script cannot restore functions defined **in the top-level
-#    script** (``__main__``). This applies to both **custom force functions**
-#    and custom **minimizers/optimizers** (such as composite optax constructors).
-#    The writer emits a warning at save time when it detects this case. If the
-#    loader cannot resolve a function,
+#    Checkpointed custom forces, energy functions, targets, and pre/post-step
+#    callbacks must be module-level objects in an importable module. The writer
+#    resolves every recorded path and verifies object identity before saving;
+#    closures, local functions, and functions in ``__main__`` are rejected.
+#    If the loader later cannot resolve a required physics function,
 #    :py:meth:`~jaxdem.writers.CheckpointLoader.load` raises a
-#    ``RuntimeError`` by default (``strict=True``). Pass ``strict=False`` to
-#    skip unresolvable functions with a warning instead.
+#    ``RuntimeError`` by default (``strict=True``). ``strict=False`` permits
+#    explicitly degraded loading of legacy custom force/energy entries, while
+#    required callbacks in current checkpoints still fail rather than silently
+#    changing the protocol.
 #
 # To make checkpoints load from any script, define your custom force and
 # energy functions, and any custom minimizer constructors, in a separate **importable module**:
@@ -182,3 +191,5 @@ with jdem.CheckpointLoader(directory=tmp_dir_bonded) as loader:
 #
 # You can load checkpoints saved this way from **any** script that has
 # ``my_forces`` on its Python path.
+
+tmp_root.cleanup()

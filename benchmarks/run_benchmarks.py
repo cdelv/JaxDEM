@@ -32,6 +32,27 @@ def benchmark_function(
     repeat: int = 100,
 ) -> tuple[float, float]:
 
+    def validate_result(res: Any) -> None:
+        for leaf in jax.tree.leaves(res):
+            try:
+                arr = np.asarray(leaf)
+            except (TypeError, ValueError):
+                continue
+            if np.issubdtype(arr.dtype, np.number) and not np.all(np.isfinite(arr)):
+                raise ValueError("benchmark returned non-finite output")
+
+        values = res if isinstance(res, tuple) else (res,)
+        if isinstance(res, tuple) and len(res) == 4:
+            possible_overflow = np.asarray(res[-1])
+            if possible_overflow.dtype == np.dtype(bool) and bool(possible_overflow):
+                raise RuntimeError("benchmark neighbor query reported overflow")
+        for value in values:
+            if hasattr(value, "check_overflow"):
+                value.check_overflow()
+            collider = getattr(value, "collider", None)
+            if collider is not None and bool(np.asarray(collider.overflow)):
+                raise RuntimeError("benchmark collider reported overflow")
+
     def run_once() -> None:
         res = func(*args, **kwargs)
         if hasattr(res, "block_until_ready"):
@@ -45,6 +66,7 @@ def benchmark_function(
                 ),
                 res,
             )
+        validate_result(res)
 
     run_once()
     times = timeit.repeat(stmt=run_once, number=number, repeat=repeat)
@@ -65,6 +87,7 @@ def run_all_benchmarks() -> None:
         and f.name not in ["__init__.py", "run_benchmarks.py", "utils.py", "base.py"]
     ]
 
+    failures: list[str] = []
     for mod_name in modules:
         print(f"Running benchmarks from module: {mod_name}")
         module = importlib.import_module(f"benchmarks.{mod_name}")
@@ -104,6 +127,13 @@ def run_all_benchmarks() -> None:
                     print(f"    Skipped: {e}")
                 except Exception as e:
                     print(f"    Failed: {e}")
+                    failures.append(f"{mod_name}.{name}: {type(e).__name__}: {e}")
+
+    if failures:
+        details = "\n".join(f"- {failure}" for failure in failures)
+        raise RuntimeError(
+            f"{len(failures)} benchmark(s) failed or returned invalid output:\n{details}"
+        )
 
 
 if __name__ == "__main__":

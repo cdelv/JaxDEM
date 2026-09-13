@@ -6,11 +6,12 @@ from __future__ import annotations
 
 from abc import ABC
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 import jax
 import jax.numpy as jnp
 
+from ..domains import Domain, SearchGeometry
 from ..factory import Factory
 from ..utils.linalg import norm2
 
@@ -52,6 +53,40 @@ class Collider(Factory, ABC):
     )
     """True when a collider overflow occurred."""
 
+    supported_search_geometries: ClassVar[frozenset[SearchGeometry] | None] = None
+    """Supported hashed geometries, or ``None`` for displacement-only search."""
+
+    def validate_domain(self, domain: Domain) -> None:
+        """Validate construction-time compatibility with ``domain``."""
+        supported = self.supported_search_geometries
+        if supported is None:
+            return
+        geometry = domain.search_geometry
+        if geometry is None:
+            raise ValueError(
+                f"{type(domain).__name__} does not declare a search geometry; "
+                "custom domains must explicitly set Domain.search_geometry."
+            )
+        if geometry not in supported:
+            raise ValueError(
+                f"{type(self).__name__} does not support the "
+                f"{geometry.value!r} search geometry."
+            )
+
+    def invalidate(self) -> Collider:
+        """Return this collider with any search cache marked invalid."""
+        return self
+
+    @property
+    def stateful(self) -> bool:
+        """Whether this collider caches state-size-dependent search data."""
+        return False
+
+    @property
+    def supports_history(self) -> bool:
+        """Whether this collider implements the NeighborList history contract."""
+        return False
+
     @staticmethod
     @jax.jit(inline=True)
     def compute_force(state: State, system: System) -> tuple[State, System]:
@@ -84,6 +119,19 @@ class Collider(Factory, ABC):
         state.force *= 0
         state.torque *= 0
         return state, system
+
+    @staticmethod
+    @jax.jit(inline=True)
+    def evaluate_force(state: State, system: System) -> tuple[State, System]:
+        """Evaluate forces without advancing contact history."""
+        return system.collider.compute_force(state, system)
+
+    @staticmethod
+    def get_history(
+        state: State, system: System, neighbor_list: jax.Array
+    ) -> jax.Array:
+        """Return initialized history for an explicit pair query."""
+        return system.force_model.init_history(neighbor_list.shape, state.dim)
 
     @staticmethod
     @jax.jit(inline=True)
@@ -239,7 +287,18 @@ def valid_interaction_mask(
     return mask1 * mask2
 
 
-def refresh_collider(state: State, collider: Collider) -> Collider:
+def invalidate_collider(collider: Collider) -> Collider:
+    """Explicitly invalidate cached topology, radii, or search geometry."""
+    return collider.invalidate()
+
+
+def refresh_collider(
+    state: State,
+    collider: Collider,
+    force_model: Any | None = None,
+    *,
+    reset_history: bool = False,
+) -> Collider:
     """Rebuild a stateful collider for a (possibly resized) state.
 
     Stateless colliders (``naive``) have no state-size-dependent buffers, so
@@ -252,6 +311,9 @@ def refresh_collider(state: State, collider: Collider) -> Collider:
 
     Use this after editing a state in ways the collider caches cannot track
     (changing the particle count, teleporting particles, rescaling the box).
+    Supply ``force_model`` when growing nonempty history so new slots use its
+    initializer. Changing particle count with nonempty history, shrinking its
+    capacity, or changing particle identities requires ``reset_history=True``.
 
     Example
     -------
@@ -259,8 +321,7 @@ def refresh_collider(state: State, collider: Collider) -> Collider:
     """
     from inspect import signature
 
-    stateful = {"neighborlist", "celllist", "multicelllist"}
-    if collider.type_name.lower() not in stateful:
+    if not collider.stateful:
         return collider
 
     create_fn = getattr(type(collider), "Create", None)
@@ -273,7 +334,9 @@ def refresh_collider(state: State, collider: Collider) -> Collider:
         return int(jnp.max(jnp.abs(c.neighbor_mask)))
 
     def _stored_create_kwargs(c: Any) -> dict[str, Any]:
-        kwargs: dict[str, Any] = {"state": state}
+        kwargs: dict[str, Any] = {}
+        if c.stateful:
+            kwargs["state"] = state
         if hasattr(c, "cell_size"):
             kwargs["cell_size"] = c.cell_size
         search_range = _stored_search_range(c)
@@ -281,25 +344,24 @@ def refresh_collider(state: State, collider: Collider) -> Collider:
             kwargs["search_range"] = search_range
         return kwargs
 
-    if collider.type_name.lower() == "neighborlist":
-        secondary_collider = collider.secondary_collider  # type: ignore[attr-defined]
-        new_collider = cast(
+    if isinstance(collider, NeighborList):
+        secondary_collider = collider.secondary_collider
+        new_collider = type(collider).Create(
+            state=state,
+            cutoff=collider.cutoff,
+            skin=collider.skin,
+            max_neighbors=collider.max_neighbors,
+            secondary_collider_type=secondary_collider.type_name,
+            secondary_collider_kw=_stored_create_kwargs(secondary_collider),
+        )
+        from ._neighbor_cache import refresh
+
+        return cast(
             Collider,
-            type(collider).Create(  # type: ignore[attr-defined]
-                state=state,
-                cutoff=collider.cutoff,  # type: ignore[attr-defined]
-                skin=collider.skin,  # type: ignore[attr-defined]
-                max_neighbors=collider.max_neighbors,  # type: ignore[attr-defined]
-                secondary_collider_type=secondary_collider.type_name,
-                secondary_collider_kw=_stored_create_kwargs(secondary_collider),
+            refresh(
+                state, collider, new_collider, force_model, reset_history=reset_history
             ),
         )
-        if getattr(collider, "history", None) is not None:
-            # We don't have access to ForceModel to initialize properly here!
-            # Wait, history is just a PyTree of arrays.
-            # We can't easily recreate history without the force model!
-            pass
-        return new_collider
 
     kwargs: dict[str, Any] = {}
     for pname in signature(create_fn).parameters:
@@ -327,6 +389,7 @@ __all__ = [
     "DynamicMultiCellList",
     "NaiveSimulator",
     "NeighborList",
+    "invalidate_collider",
     "refresh_collider",
     "valid_interaction_mask",
 ]

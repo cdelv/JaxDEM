@@ -332,9 +332,9 @@ class SwarmNavigator(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SwarmNavigator.done")
-    def done(env: SwarmNavigator) -> jax.Array:
-        """The episode ends when ``step_count`` exceeds ``max_steps``."""
-        return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
+    def truncated(env: SwarmNavigator) -> jax.Array:
+        """The episode ends when ``step_count`` reaches ``max_steps``."""
+        return jnp.asarray(env.system.step_count >= env.env_params["max_steps"])
 
     @property
     def action_space_size(self) -> int:

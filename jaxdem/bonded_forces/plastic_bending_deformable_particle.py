@@ -41,6 +41,9 @@ class PlasticBendingDeformableParticleModel(DeformableParticleModel):
     :class:`PlasticDeformableParticleModel`), the **reference bending angle**
     of each adjacency relaxes toward the current bending angle:
 
+    The update runs once per physical time step, after the integrator drift
+    and before force evaluation.
+
     .. math::
 
         \theta_{a,0}(t+dt) = \theta_{a,0}(t)

@@ -11,6 +11,7 @@ This guide covers:
 - How materials supply the parameters each model needs.
 - Combining several laws with :py:class:`~jaxdem.forces.law_combiner.LawCombiner`.
 - Species-wise interactions with :py:class:`~jaxdem.forces.router.ForceRouter`.
+- Contact history for stateful force models.
 """
 
 # %%
@@ -93,6 +94,7 @@ system_2mat = jdem.System.create(
     mat_table=mat_table,
 )
 
+state_2mat, system_2mat = jdem.System.initialize(state_2mat, system_2mat)
 state_2mat, system_2mat = system_2mat.step(state_2mat, system_2mat)
 print("Force model:", type(system_2mat.force_model).__name__)
 
@@ -136,6 +138,9 @@ system_combined = jdem.System.create(
     mat_table=mat_table_both,
 )
 
+state_combined, system_combined = jdem.System.initialize(
+    state_combined, system_combined
+)
 state_combined, system_combined = system_combined.step(state_combined, system_combined)
 print("System force model:", type(system_combined.force_model).__name__)
 
@@ -184,6 +189,7 @@ system_species = jdem.System.create(
     mat_table=jdem.MaterialTable.from_materials([mat, mat_lj]),
 )
 
+state_species, system_species = jdem.System.initialize(state_species, system_species)
 state_species, system_species = system_species.step(state_species, system_species)
 print("Active force model:", type(system_species.force_model).__name__)
 
@@ -194,3 +200,60 @@ print("Active force model:", type(system_species.force_model).__name__)
 #    material *parameters* (stiffness, epsilon, etc.). They are independent
 #    — you can have species 0 and 1 share the same material but use
 #    different force laws, or vice-versa.
+
+# %%
+# Contact History
+# ~~~~~~~~~~~~~~~~
+# A force model may keep per-pair state by defining ``history_shape(dim)`` and
+# ``init_history(pair_shape, dim)`` and returning updated history from its force
+# calculation. Such models require a history-capable ``NeighborList``. This API
+# also works through law combiners and species routers, so contact memory is a
+# general force-model feature.
+#
+# The built-in ``cundallstrack`` model stores ``(2 * dim,)`` values per directed
+# pair: tangential spring displacement followed by the previous contact normal.
+# It transports the spring to the current contact frame, applies tangential
+# motion and the Coulomb limit, and clears memory when contact separates.
+
+history_state = jdem.State.create(
+    pos=jnp.array([[0.0, 0.0], [0.9, 0.0]]),
+    rad=jnp.full(2, 0.5),
+    vel=jnp.array([[0.0, 0.1], [0.0, 0.0]]),
+)
+history_material = jdem.Material.create(
+    "elasticfrict",
+    density=1.0,
+    young=100.0,
+    poisson=0.3,
+    e=0.8,
+    mu=0.5,
+    mu_r=0.0,
+)
+history_system = jdem.System.create(
+    state=history_state,
+    dt=1e-3,
+    mat_table=jdem.MaterialTable.from_materials([history_material]),
+    force_model_type="cundallstrack",
+    collider_type="NeighborList",
+    collider_kw={"cutoff": 1.0, "skin": 0.1, "max_neighbors": 1},
+)
+history_state, history_system = jdem.System.initialize(history_state, history_system)
+history_state, history_system = jdem.System.step(history_state, history_system, n=10)
+history_system.check_overflow()
+print("Pair-history shape:", history_system.collider.history.shape)
+print("History advanced:", bool(jnp.any(history_system.collider.history != 0)))
+
+# %%
+# Initialization and :py:meth:`~jaxdem.system.System.evaluate_forces` preserve
+# history; each physical step advances it once. Neighbor-list rebuilds remap
+# surviving pairs. Use :func:`jaxdem.colliders.invalidate_collider` after edits
+# that invalidate search geometry, or :func:`jaxdem.colliders.refresh_collider`
+# when particle count or capacity changes. Pass ``reset_history=True`` only
+# when pair identities or the history layout changed and old values cannot be
+# mapped. Checkpoints retain pair history and continue the same trajectory.
+#
+# Energy support is separate from history. Cundall--Strack reports normal
+# elastic energy only: the energy API has no pair history, so it excludes
+# tangential stored energy and dissipative losses. Its
+# ``supports_analytical_energy_gradient`` is false; minimization needs an
+# explicit objective, and this value is not total mechanical energy.

@@ -1,0 +1,32 @@
+{
+  "n": 1000000,
+  "scenario": "uniform",
+  "capacity": 24,
+  "collider": "CellList",
+  "force_law": "spring",
+  "phase": "force",
+  "module": "/home/wind/Documents/JaxDEM/jaxdem/__init__.py",
+  "row_width_override": null,
+  "row_batch_override": null,
+  "cell_batch_override": null,
+  "search_batch_override": null,
+  "minimum_warmup_seconds": 2.0,
+  "devices": [
+    "cuda:0"
+  ],
+  "memory": {
+    "argument_size_in_bytes": 173000390,
+    "output_size_in_bytes": 197000779,
+    "temp_size_in_bytes": 594011232,
+    "alias_size_in_bytes": 0
+  },
+  "seconds": [
+    0.01949403899925528,
+    0.01969226300570881,
+    0.019696247996762395,
+    0.01939318799850298,
+    0.01946267300081672,
+    0.01919523700053105,
+    0.0191419449984096
+  ]
+}

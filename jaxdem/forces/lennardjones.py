@@ -6,9 +6,9 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, cast
 
 from . import ForceModel
 from ..utils.linalg import norm2
@@ -32,7 +32,7 @@ class LennardJones(ForceModel):
     .. math::
         \sigma_{ij} = R_i + R_j
 
-    Potential (for :math:`r < r_c = 2.5 \sigma_{ij}`):
+    Potential (for :math:`r < r_c = c \sigma_{ij}`, with ``cutoff_ratio`` :math:`c=2.5` by default):
 
     .. math::
         U(r) = 4 \epsilon \left[\left(\frac{\sigma}{r}\right)^{12} - \left(\frac{\sigma}{r}\right)^6 \right]
@@ -50,15 +50,34 @@ class LennardJones(ForceModel):
                      \frac{1}{r^2}\, \mathbf{r}_{ij}
     """
 
-    # Common LJ cutoff (in units of sigma). Kept as a python float constant.
-    RC_FACTOR: ClassVar[float] = 2.5
+    cutoff_ratio: jax.Array = field(default_factory=lambda: jnp.asarray(2.5))
+    """Pair cutoff in units of ``rad[i] + rad[j]``; also sets collider search reach."""
+
+    @staticmethod
+    def Create(cutoff_ratio: float = 2.5) -> LennardJones:
+        """Create an LJ law with a positive finite cutoff measured in pair sigma."""
+        cutoff = jnp.asarray(cutoff_ratio, dtype=float)
+        if cutoff.ndim != 0 or not bool(jnp.isfinite(cutoff) & (cutoff > 0)):
+            raise ValueError("cutoff_ratio must be a positive finite scalar.")
+        return LennardJones(cutoff_ratio=cutoff)
+
+    def search_radii(self, state: State, system: System) -> jax.Array:
+        """Conservative search extent for this law's finite interaction range."""
+        return jnp.maximum(state._rad, self.cutoff_ratio * state.rad)
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="LennardJones.force")
     def force(
-        i: int, j: int, pos: jax.Array, state: State, system: System
-    ) -> tuple[jax.Array, jax.Array]:
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
         mi, mj = state.mat_id[i], state.mat_id[j]
         eps = system.mat_table.epsilon_eff[mi, mj]
         sig = state.rad[i] + state.rad[j]
@@ -73,7 +92,8 @@ class LennardJones(ForceModel):
         sr6 = sr2 * sr2 * sr2
         sr12 = sr6 * sr6
 
-        rc2 = (LennardJones.RC_FACTOR * LennardJones.RC_FACTOR) * sig2
+        cutoff = cast(LennardJones, system.force_model).cutoff_ratio
+        rc2 = cutoff * cutoff * sig2
         active = r2 < rc2
         not_self = j != i
         mask = active * not_self
@@ -82,7 +102,7 @@ class LennardJones(ForceModel):
         f = (coeff * mask)[..., None] * rij
 
         t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
-        return f, jnp.zeros(t_shape, dtype=state.torque.dtype)
+        return f, jnp.zeros(t_shape, dtype=state.torque.dtype), history
 
     @staticmethod
     @jax.jit(inline=True)
@@ -104,13 +124,14 @@ class LennardJones(ForceModel):
         sr6 = sr2 * sr2 * sr2
         sr12 = sr6 * sr6
 
-        rc2 = (LennardJones.RC_FACTOR * LennardJones.RC_FACTOR) * sig2
+        cutoff = cast(LennardJones, system.force_model).cutoff_ratio
+        rc2 = cutoff * cutoff * sig2
         active = r2 < rc2
         not_self = j != i
         mask = active * not_self
 
-        # Shift so U(rc) = 0. Since rc = RC_FACTOR * sigma, (sigma/rc) is constant.
-        inv_rc6 = (1.0 / LennardJones.RC_FACTOR) ** 6
+        # Shift the potential to zero at the configured pair cutoff.
+        inv_rc6 = (1.0 / cutoff) ** 6
         u_shift = 4.0 * eps * (inv_rc6 * inv_rc6 - inv_rc6)
 
         u = 4.0 * eps * (sr12 - sr6) - u_shift

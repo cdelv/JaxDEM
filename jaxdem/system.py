@@ -21,7 +21,9 @@ from .integrators import LinearIntegrator, RotationIntegrator
 from .materials import Material, MaterialTable
 
 if TYPE_CHECKING:
+    from .minimizers import MinimizationResult
     from .state import State
+    from .simulation_status import StepResult
 
 
 def _check_material_table(table: MaterialTable, required: Sequence[str]) -> None:
@@ -74,10 +76,21 @@ def _step_once(state: State, system: System) -> tuple[State, System]:
     )
     state, system = system.linear_integrator.step_before_force(state, system)
     state, system = system.rotation_integrator.step_before_force(state, system)
+    if system.bonded_force_model is not None:
+        bonded_force_model = system.bonded_force_model.update_reference_state(
+            state.pos, state, system
+        )
+        system = dataclasses.replace(system, bonded_force_model=bonded_force_model)
     state, system = system.collider.compute_force(state, system)
+    system = dataclasses.replace(
+        system,
+        search_overflow=system.search_overflow | system.collider.overflow,
+    )
     state, system = system.force_manager.apply(state, system)
     state, system = system.linear_integrator.step_after_force(state, system)
     state, system = system.rotation_integrator.step_after_force(state, system)
+    state, system = system.linear_integrator.finalize_step(state, system)
+    state, system = system.rotation_integrator.finalize_step(state, system)
     state, system = system.user_post_step_actions(state, system)
     return state, system
 
@@ -112,9 +125,11 @@ def _trajectory_rollout(
     def scan_fn(
         carry: tuple[State, System], xs: jax.Array | None
     ) -> tuple[tuple[State, System], Any]:
-        k = xs if xs is not None else stride
         state, system = carry
-        state, system = System.step(state, system, n=k)
+        if xs is None:
+            state, system = System.step(state, system, n=stride)
+        else:
+            state, system = System.step_dynamic(state, system, n=xs)
         return (state, system), save_fn(state, system)
 
     return jax.lax.scan(scan_fn, (state, system), length=n, xs=strides, unroll=unroll)
@@ -201,10 +216,19 @@ class System:
 
     interact_same_bond_id: jax.Array
     """
-    Boolean scalar controlling interactions between particles with the same ``bond_id``.
+    Boolean scalar controlling interactions between particles connected by ``bond_id`` adjacency.
 
-    If ``False`` (default), colliders mask out these pairs.
+    If ``False`` (default), colliders mask out directly bonded pairs.
     If ``True``, these pairs interact.
+    """
+
+    search_overflow: jax.Array = dataclasses.field(
+        default_factory=lambda: jnp.asarray(False)
+    )
+    """Sticky flag: a force evaluation used an incomplete spatial search.
+
+    Check with :meth:`check_overflow` at host chunk boundaries. Retry from the
+    last valid state after resizing; clearing this flag cannot repair a trajectory.
     """
 
     user_pre_step_actions: Callable[[State, System], tuple[State, System]] = (
@@ -554,19 +578,34 @@ class System:
                     collider_kw["state"] = state
             collider = Collider.create(collider_type, **collider_kw)
 
-        if force_model.requires_history:
-            if collider.type_name.lower() != "neighborlist":
-                raise ValueError(
-                    f"Force model '{force_model.type_name}' requires history tracking. "
-                    f"You must use the 'NeighborList' collider, but got '{collider.type_name}'."
-                )
-        if collider.type_name.lower() == "neighborlist":
-            if getattr(collider, "history", None) is None:
-                from dataclasses import replace
+        history_shape = force_model.history_shape(state_shape[-1])
+        if history_shape != (0,) and not collider.supports_history:
+            force_name = type(force_model).__name__
+            collider_name = type(collider).__name__
+            raise ValueError(
+                f"Force model '{force_name}' has nonempty pair history "
+                f"{history_shape}, but collider '{collider_name}' cannot persist it."
+            )
+        if collider.supports_history:
+            from dataclasses import replace
 
-                shape = tuple(state_shape[:-1]) + (cast(Any, collider).max_neighbors,)
-                history = force_model.init_history(shape)
+            pair_shape = tuple(state_shape[:-2]) + (
+                state_shape[-2] * cast(Any, collider).max_neighbors,
+            )
+            expected_shape = pair_shape + history_shape
+            history = cast(Any, collider).history
+            if history.shape == pair_shape + (0,) and history_shape != (0,):
+                history = force_model.init_history(pair_shape, state_shape[-1])
                 collider = replace(cast(Any, collider), history=history)
+            elif history.shape != expected_shape:
+                raise ValueError(
+                    f"NeighborList history has shape {history.shape}, expected "
+                    f"{expected_shape} for force model '{type(force_model).__name__}'."
+                )
+
+        if domain is None:
+            domain = Domain.create(domain_type, dim=dim, **domain_kw)
+        collider.validate_domain(domain)
 
         return System(
             linear_integrator=(
@@ -582,11 +621,7 @@ class System:
                 else rotation_integrator
             ),
             collider=collider,
-            domain=(
-                Domain.create(domain_type, dim=dim, **domain_kw)
-                if domain is None
-                else domain
-            ),
+            domain=domain,
             force_manager=force_manager,
             bonded_force_model=bonded_force_model,
             force_model=force_model,
@@ -601,6 +636,121 @@ class System:
             user_post_step_actions=user_post_step_actions,
             minimizer=minimizer_wrapped,
             target_fn=target_fn,
+        )
+
+    @staticmethod
+    @jax.jit
+    @partial(jax.named_call, name="System.initialize")
+    def initialize(state: State, system: System) -> tuple[State, System]:
+        """Compute initial forces and initialize both configured integrators.
+
+        Call explicitly after constructing the state and system, before the
+        first integration step. This method supports one snapshot or matching
+        stacked states and systems, like :meth:`step`.
+
+        Bounds and collider caches are updated, pair and managed forces are
+        evaluated, then the linear and rotational ``initialize`` hooks run.
+        An integrator can use its hook to stagger velocities, for example by
+        a backward half-kick. The default integrator hook leaves state unchanged.
+
+        Initialization does not advance time, step count, contact/plastic
+        history, or timestep callbacks. Managed force buffers follow their
+        ordinary apply-and-clear semantics. No initialized flag is stored:
+        callers must initialize new trajectories themselves and must not repeat
+        integrator setup when continuing an initialized checkpoint.
+
+        Example
+        -------
+        >>> state, system = System.initialize(state, system)
+        >>> state, system = System.step(state, system, n=100)
+        """
+        state_rank = state.pos_c.ndim
+        if state_rank not in (2, 3) or system.dt.ndim != state_rank - 2:
+            raise ValueError(
+                "System.initialize() requires matching state and system layouts: "
+                "(N, dim) with a scalar system, or (B, N, dim) with a stacked system. "
+                f"Got state.pos_c.shape={state.pos_c.shape} and "
+                f"system.dt.shape={system.dt.shape}."
+            )
+
+        def initialize_snapshot(st: State, sys: System) -> tuple[State, System]:
+            sys = sys.domain.update_bounds(st.pos, sys, padding=st.rad)
+            st, sys = sys.collider.evaluate_force(st, sys)
+            st, sys = sys.force_manager.apply(st, sys)
+            sys = dataclasses.replace(
+                sys, search_overflow=sys.search_overflow | sys.collider.overflow
+            )
+            st, sys = sys.linear_integrator.initialize(st, sys)
+            return sys.rotation_integrator.initialize(st, sys)
+
+        if state_rank == 3:
+            return jax.vmap(initialize_snapshot)(state, system)
+        return initialize_snapshot(state, system)
+
+    @staticmethod
+    @jax.jit
+    def evaluate_forces(state: State, system: System) -> tuple[State, System]:
+        """Inspect instantaneous forces without advancing physical state.
+
+        Return updated forces and search caches while preserving contact and
+        plastic history, queued loads, time, and integrator state. Queued loads
+        contribute to the returned forces but remain available for the next
+        physical step. This is an observation, not integrator initialization.
+        Custom force callbacks must themselves be pure evaluations.
+        """
+        rank = state.pos_c.ndim
+        if rank not in (2, 3) or system.dt.ndim != rank - 2:
+            raise ValueError(
+                "System.evaluate_forces() requires matching state and system layouts."
+            )
+
+        def evaluate_snapshot(st: State, sys: System) -> tuple[State, System]:
+            sys = sys.domain.update_bounds(st.pos, sys, padding=st.rad)
+            manager = sys.force_manager
+            sys = dataclasses.replace(sys, force_manager=dataclasses.replace(manager))
+            st, sys = sys.collider.evaluate_force(st, sys)
+            st, sys = sys.force_manager.apply(st, sys)
+            return st, dataclasses.replace(
+                sys,
+                force_manager=manager,
+                search_overflow=sys.search_overflow | sys.collider.overflow,
+            )
+
+        if rank == 3:
+            return jax.vmap(evaluate_snapshot)(state, system)
+        return evaluate_snapshot(state, system)
+
+    def check_overflow(self) -> None:
+        """Raise at a host boundary if this trajectory used truncated searches.
+
+        This synchronizes the status flag, so call once per completed chunk,
+        outside compiled loops. A successful later query does not clear it.
+        """
+        if bool(jnp.any(self.search_overflow | self.collider.overflow)):
+            raise RuntimeError(
+                "Spatial search overflow: resize the collider and retry from "
+                "a valid pre-overflow state."
+            )
+
+    def validate(self, state: State, *, strict_clumps: bool = True) -> None:
+        """Run opt-in host validation for a state against this system."""
+        self.collider.validate_domain(self.domain)
+        if not bool(jnp.all(jnp.isfinite(self.dt))) or bool(jnp.any(self.dt <= 0)):
+            raise ValueError("System.dt must be finite and positive.")
+        if not bool(jnp.all(jnp.isfinite(self.time))):
+            raise ValueError("System.time must be finite.")
+        if not bool(jnp.all(jnp.isfinite(self.domain.box_size))) or bool(
+            jnp.any(self.domain.box_size <= 0)
+        ):
+            raise ValueError("Domain box_size must be finite and positive.")
+        if not bool(jnp.all(jnp.isfinite(self.domain.anchor))):
+            raise ValueError("Domain anchor must be finite.")
+        if not bool(jnp.allclose(self.domain.inv_box_size, 1.0 / self.domain.box_size)):
+            raise ValueError("Domain inv_box_size is inconsistent with box_size.")
+        state.validate(
+            num_materials=len(self.mat_table),
+            num_species=self.force_model.species_capacity,
+            strict_clumps=strict_clumps,
         )
 
     @staticmethod
@@ -678,13 +828,22 @@ class System:
         ... )
 
         """
-        stride = int(stride)
+        if isinstance(stride, bool) or not isinstance(stride, int) or stride < 0:
+            raise ValueError("`stride` must be a nonnegative Python integer.")
+        if isinstance(unroll, bool) or not isinstance(unroll, int) or unroll < 1:
+            raise ValueError("`unroll` must be a positive Python integer.")
         if strides is not None:
-            strides = jnp.asarray(strides, dtype=int)
+            strides = jnp.asarray(strides)
+            if strides.ndim != 1 or not jnp.issubdtype(strides.dtype, jnp.integer):
+                raise ValueError("`strides` must be a 1D integer array.")
+            if bool(jnp.any(strides < 0)):
+                raise ValueError("`strides` entries must be nonnegative.")
             n = None
         else:
             if n is None:
                 raise ValueError("`n` must be provided when `strides` is None.")
+            if isinstance(n, bool) or not isinstance(n, int) or n < 0:
+                raise ValueError("`n` must be a nonnegative Python integer.")
 
         (state, system), traj = _trajectory_rollout(
             state,
@@ -693,19 +852,18 @@ class System:
             n=n,
             stride=stride,
             save_fn=save_fn,
-            unroll=int(unroll),
+            unroll=unroll,
         )
 
         return state, system, traj
 
     @staticmethod
-    @jax.jit(inline=True)
     @partial(jax.named_call, name="System.step")
     def step(
         state: State,
         system: System,
         *,
-        n: int | jax.Array = 1,
+        n: int = 1,
     ) -> tuple[State, System]:
         """Advance the simulation by `n` integration steps.
 
@@ -715,9 +873,9 @@ class System:
             Current state.
         system : System
             Current system configuration.
-        n : int or jax.Array, optional
-            Number of integration steps. May be a Python `int` or a scalar
-            JAX array. Defaults to 1.
+        n : int, optional
+            Static number of integration steps. Defaults to 1. Use
+            :meth:`step_dynamic` for a traced scalar count.
 
         Returns
         -------
@@ -731,21 +889,97 @@ class System:
 
         Notes
         -----
+        Call :meth:`initialize` explicitly before stepping a new trajectory.
+        This method performs no automatic force or integrator initialization.
+        Checkpoint continuation uses its saved forces and integrator state
+        without repeating initialization.
+
         This method does not check collider overflow, to avoid a host
         synchronization per step.
 
         """
-        if isinstance(n, int):
-            body = _steps_fori_loop_unrolled
-        else:
-            body = _steps_fori_loop
+        if isinstance(n, bool) or not isinstance(n, int) or n < 0:
+            raise ValueError("System.step() requires a nonnegative Python integer `n`.")
+        body = _steps_fori_loop_unrolled
 
-        if state.batch_size > 1:
+        state_rank = state.pos_c.ndim
+        system_rank = system.dt.ndim
+        if state_rank not in (2, 3):
+            raise ValueError(
+                "System.step() expects state.pos_c with shape (N, dim) or "
+                f"(B, N, dim). Got shape={state.pos_c.shape}."
+            )
+        if system_rank != state_rank - 2:
+            raise ValueError(
+                "System.step() requires matching state and system layouts: "
+                "an unbatched state needs a scalar system, and a batched state "
+                f"needs a stacked system. Got state.pos_c.shape={state.pos_c.shape} "
+                f"and system.dt.shape={system.dt.shape}."
+            )
+
+        if state_rank == 3:
             body = jax.vmap(body, in_axes=(0, 0, None))
-
         state, system = body(state, system, n)
 
         return state, system
+
+    @staticmethod
+    def step_checked(state: State, system: System, *, n: int = 1) -> StepResult:
+        """Advance at most ``n`` steps, stopping and rolling back on failure.
+
+        Unlike :meth:`step`, this opt-in device loop checks finite particle
+        state and spatial-search overflow after every step. ``result.steps``
+        counts accepted steps; ``result.status`` preserves failure even though
+        the returned state/system precede the failed step. An invalid input is
+        returned unchanged with zero accepted steps. Check ``result.check()``
+        on the host before continuing or writing successful output.
+
+        Initialization and physical setup validation remain explicit. A batch
+        returns one status/count per snapshot. This dynamic stopping loop does
+        not support reverse-mode differentiation. No automatic retry changes
+        the timestep, neighbor capacity, or physical history.
+        """
+        from .simulation_status import checked_steps
+
+        if isinstance(n, bool) or not isinstance(n, int) or n < 0:
+            raise ValueError(
+                "System.step_checked() requires a nonnegative Python integer `n`."
+            )
+        rank = state.pos_c.ndim
+        if rank not in (2, 3) or system.dt.ndim != rank - 2:
+            raise ValueError(
+                "System.step_checked() requires matching state and system layouts."
+            )
+        if rank == 3:
+            return jax.vmap(checked_steps, in_axes=(0, 0, None))(state, system, n)
+        return checked_steps(state, system, n)
+
+    @staticmethod
+    @jax.jit(inline=True)
+    @partial(jax.named_call, name="System.step_dynamic")
+    def step_dynamic(
+        state: State, system: System, *, n: int | jax.Array
+    ) -> tuple[State, System]:
+        """Advance by a scalar integer count that may be traced at run time.
+
+        This path uses ``lax.fori_loop`` with dynamic bounds. It is intended
+        for compiled control flow such as variable trajectory strides. Reverse
+        mode differentiation through dynamic loop bounds is not supported by
+        JAX; use :meth:`step` with a Python integer for differentiable rollouts.
+        """
+        n_array = jnp.asarray(n)
+        if n_array.ndim != 0 or not jnp.issubdtype(n_array.dtype, jnp.integer):
+            raise ValueError("System.step_dynamic() requires a scalar integer `n`.")
+        state_rank = state.pos_c.ndim
+        if state_rank not in (2, 3) or system.dt.ndim != state_rank - 2:
+            raise ValueError(
+                "System.step_dynamic() requires (N, dim) with a scalar system "
+                "or (B, N, dim) with a stacked system."
+            )
+        body = _steps_fori_loop
+        if state_rank == 3:
+            body = jax.vmap(body, in_axes=(0, 0, None))
+        return body(state, system, n_array)
 
     @staticmethod
     @partial(jax.named_call, name="System.stack")
@@ -809,13 +1043,13 @@ class System:
         max_steps: int = 10000,
         force_tol: float = 1e-12,
         torque_tol: float | None = None,
-        return_info: bool = False,
-    ):
-        """Relax until both free-body force and torque tolerances are met.
+    ) -> MinimizationResult:
+        """Relax until both free-body force and torque norms meet tolerance.
 
-        See :func:`jaxdem.minimizers.minimize`. ``return_info=True`` appends
-        convergence diagnostics to the historical four-tuple.
-        Energy normalization is unchanged.
+        Returns an iterable four-value result with ``reason`` and ``info``
+        diagnostics. Energy is reported per constituent sphere for the physical
+        objective. See :func:`jaxdem.minimizers.minimize` for convergence,
+        conservative force evaluation and optimizer behavior.
         """
         from .minimizers import minimize
 
@@ -825,13 +1059,10 @@ class System:
             max_steps=max_steps,
             force_tol=force_tol,
             torque_tol=torque_tol,
-            return_info=return_info,
         )
 
     def _serialize_force_functions(self) -> list[dict[str, Any]] | None:
         """Serialize user-supplied custom force functions to JSON."""
-        import warnings
-
         from .forces.force_manager import default_energy_func
         from .utils import encode_callable
 
@@ -852,18 +1083,6 @@ class System:
             energy_fn = fm.energy_functions[i]
             is_default_energy = energy_fn is default_energy_func
 
-            fns_to_check = (force_fn,) if is_default_energy else (force_fn, energy_fn)
-            for fn in fns_to_check:
-                if fn is not None:
-                    mod = getattr(fn, "__module__", None)
-                    if mod == "__main__":
-                        warnings.warn(
-                            f"Force function '{fn.__name__}' is defined in __main__. "
-                            "It will not be restorable from a different script. "
-                            "Define it in an importable module instead.",
-                            stacklevel=3,
-                        )
-
             entry: dict[str, Any] = {
                 "force": encode_callable(force_fn),
                 "energy": (
@@ -882,10 +1101,14 @@ class System:
         from .utils import encode_callable
 
         return {
+            "checkpoint_metadata_version": 2,
             "linear_integrator_type": self.linear_integrator.type_name,
+            "linear_integrator_kw": self.linear_integrator.metadata or None,
             "rotation_integrator_type": self.rotation_integrator.type_name,
+            "rotation_integrator_kw": self.rotation_integrator.metadata or None,
             "collider_type": self.collider.type_name,
             "domain_type": self.domain.type_name,
+            "domain_kw": self.domain.metadata or None,
             "force_model_type": self.force_model.type_name,
             "bonded_force_model_type": (
                 None
@@ -912,4 +1135,6 @@ class System:
             "target_fn": (
                 encode_callable(self.target_fn) if self.target_fn is not None else None
             ),
+            "user_pre_step_actions": encode_callable(self.user_pre_step_actions),
+            "user_post_step_actions": encode_callable(self.user_post_step_actions),
         }

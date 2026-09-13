@@ -186,6 +186,7 @@ sim_system = dataclasses.replace(
     dt=jnp.asarray(1e-3, dtype=float),
 )
 
+state, sim_system = jdem.System.initialize(state, sim_system)
 for _ in range(100):
     state, sim_system = sim_system.step(state, sim_system)
 print("100 Verlet steps completed")

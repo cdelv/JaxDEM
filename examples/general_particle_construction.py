@@ -136,6 +136,7 @@ summarize("3D DPs", state, system, container)
 # %%
 # Short rollout on the DP system to confirm everything composes
 # -------------------------------------------------------------
+state, system = system.initialize(state, system)
 for _ in range(100):
     state, system = system.step(state, system)
 print("100 Verlet steps on the DP system completed cleanly.")

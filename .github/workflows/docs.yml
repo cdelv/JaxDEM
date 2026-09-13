@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]          # or any default branch
   pull_request:
-    paths: ["docs/**", "**.py"]
+
 
 permissions:          
   contents: write     
@@ -19,7 +19,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with: 
-          python-version: '3.13'
+          python-version: '3.14'
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -31,8 +31,7 @@ jobs:
       - name: Build HTML
         run: |
           make -C docs clean
-          make -C docs html
-          make -C docs html
+          make -C docs html SPHINXOPTS="-W --keep-going"
       - name: Deploy to GH Pages
         uses: peaceiris/actions-gh-pages@v3
         if: github.ref == 'refs/heads/main'

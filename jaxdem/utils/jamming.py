@@ -10,14 +10,16 @@ constituent sphere, and optional convergence diagnostics.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass
+from enum import IntEnum
+from functools import partial
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 import jax
 import jax.numpy as jnp
-from functools import partial
 
-from typing import TYPE_CHECKING, Any, NamedTuple
-
-from ..minimizers.routines import MAX_STEPS, MinimizeInfo
+from ..minimizers.routines import COLLIDER_OVERFLOW, MAX_STEPS, NONFINITE, MinimizeInfo
 from .contacts import compute_contact_pressure
 from .packing_utils import (
     _host_body_grouping,
@@ -31,7 +33,23 @@ if TYPE_CHECKING:
     from ..system import System
 
 
-class JamResult(NamedTuple):
+class JamReason(IntEnum):
+    """Why a jamming search stopped; bracket exhaustion is not acceptance."""
+
+    MAX_STEPS = 0
+    TARGET_REACHED = 1
+    BRACKET_CONVERGED = 2
+    INITIAL_OVERCOMPRESSED = 3
+    MINIMIZATION_FAILED = 4
+    NONFINITE = 5
+    SEARCH_OVERFLOW = 6
+    INVALID_MEASUREMENT = 7
+    BRACKET_EXHAUSTED = 8
+
+
+@jax.tree_util.register_dataclass
+@dataclass(frozen=True, slots=True)
+class JamResult:
     """Particle states and measured scalars from a jamming search.
 
     Attributes
@@ -55,21 +73,52 @@ class JamResult(NamedTuple):
 
     Notes
     -----
-    This named tuple can be unpacked into six values in the order shown above.
+    Iteration yields six values in the order shown above. ``reason`` and
+    ``minimizer_reason`` identify the termination conditions; ``info``
+    holds the residuals, trial count and maximum inner iteration count.
+    ``steps`` counts trial minimizations, not cumulative inner iterations.
     Check ``converged`` before using its contents as a jammed packing.
     """
 
-    unjammed_state: "State"
-    unjammed_system: "System"
-    jammed_state: "State"
-    jammed_system: "System"
+    unjammed_state: State
+    unjammed_system: System
+    jammed_state: State
+    jammed_system: System
     packing_fraction: jax.Array
     potential_energy: jax.Array
+    reason: jax.Array
+    info: JammingInfo
 
     @property
-    def converged(self):
-        """Return whether both reported packing fraction and energy are finite."""
-        return jnp.isfinite(self.packing_fraction) & jnp.isfinite(self.potential_energy)
+    def converged(self) -> jax.Array:
+        return self.info.converged
+
+    @property
+    def minimizer_reason(self) -> jax.Array:
+        return self.info.minimization.reason
+
+    @property
+    def steps(self) -> jax.Array:
+        """Number of attempted trial minimizations, including failed attempts."""
+        return self.info.steps
+
+    @property
+    def max_minimization_steps(self) -> jax.Array:
+        return self.info.max_minimization_steps
+
+    def __iter__(self) -> Iterator[Any]:
+        yield self.unjammed_state
+        yield self.unjammed_system
+        yield self.jammed_state
+        yield self.jammed_system
+        yield self.packing_fraction
+        yield self.potential_energy
+
+    def __len__(self) -> int:
+        return 6
+
+    def __getitem__(self, index: int | slice) -> Any:
+        return tuple(self)[index]
 
 
 class JammingInfo(NamedTuple):
@@ -105,6 +154,7 @@ class JammingInfo(NamedTuple):
         Largest number of minimizer steps taken by any trial, including
         failed attempts. Zero if no minimization was attempted.
     """
+
     converged: jax.Array
     status: jax.Array
     steps: jax.Array
@@ -112,19 +162,50 @@ class JammingInfo(NamedTuple):
     max_minimization_steps: jax.Array
 
 
-def _bisect_jamming(
-    state,
-    system,
-    payload,
-    relax,
-    scale,
+def _jam_reason(
+    info: JammingInfo,
+    success_reason: JamReason,
     *,
-    pe_tol,
-    n_jamming_steps,
-    packing_fraction_tolerance,
-    packing_fraction_increment,
-    verbose,
-):
+    measurement_finite: bool | jax.Array = True,
+) -> jax.Array:
+    """Map search and minimizer diagnostics to a jamming termination code."""
+    return jnp.select(
+        [
+            info.status == 0,
+            info.status == 1,
+            info.status == 3,
+            info.status == 4,
+            info.minimization.status == COLLIDER_OVERFLOW,
+            (info.minimization.status == NONFINITE)
+            | (info.minimization.converged & ~jnp.asarray(measurement_finite)),
+            info.minimization.converged,
+        ],
+        [
+            int(success_reason),
+            int(JamReason.INITIAL_OVERCOMPRESSED),
+            int(JamReason.MAX_STEPS),
+            int(JamReason.BRACKET_EXHAUSTED),
+            int(JamReason.SEARCH_OVERFLOW),
+            int(JamReason.NONFINITE),
+            int(JamReason.INVALID_MEASUREMENT),
+        ],
+        default=int(JamReason.MINIMIZATION_FAILED),
+    )
+
+
+def _bisect_jamming(
+    state: State,
+    system: System,
+    payload: Any,
+    relax: Callable[..., tuple[Any, ...]],
+    scale: Callable[..., tuple[State, System]],
+    *,
+    pe_tol: float,
+    n_jamming_steps: int,
+    packing_fraction_tolerance: float,
+    packing_fraction_increment: float,
+    verbose: bool,
+) -> tuple[tuple[Any, ...], tuple[Any, ...], jax.Array, jax.Array, JammingInfo]:
     """Bisect an energy threshold while retaining state and payload at each bound.
 
     Each trial is relaxed and classified by energy only if its minimization
@@ -201,10 +282,10 @@ def _bisect_jamming(
         jnp.asarray(0, dtype=int),
     )
 
-    def condition(c):
+    def condition(c: tuple[Any, ...]) -> jax.Array:
         return (c[0] < n_jamming_steps) & (c[1] == -1)
 
-    def step(c):
+    def step(c: tuple[Any, ...]) -> tuple[Any, ...]:
         (
             it,
             _,
@@ -286,7 +367,7 @@ def _bisect_jamming(
     info = JammingInfo(
         success,
         status,
-        it,
+        jnp.asarray(it),
         jax.lax.cond(success, lambda: high_info, lambda: last_info),
         max_minimization_steps,
     )
@@ -322,7 +403,7 @@ def bisection_jam(
     force_tol: float = 1e-12,
     torque_tol: float | None = None,
     return_info: bool = False,
-):
+) -> JamResult | tuple[JamResult, JammingInfo]:
     """Locate an energy threshold by bisecting packing fraction.
 
     Minimize each trial with the system's configured minimizer. A trial can
@@ -395,24 +476,24 @@ def bisection_jam(
         raise ValueError("bisection_jam requires a repulsive physical energy objective")
     group_id = jax.pure_callback(
         _host_body_grouping,
-        jax.ShapeDtypeStruct((state.N,), int),
+        jax.ShapeDtypeStruct((state.N,), jnp.int32),  # type: ignore[no-untyped-call]
         state.clump_id,
         state.bond_id,
         vmap_method="sequential",
     )
 
-    def relax(st, sy, history):
-        st, sy, n, pe, info = sy.minimize(
+    def relax(st: State, sy: System, history: Any) -> tuple[Any, ...]:
+        result = sy.minimize(
             st,
             sy,
             max_steps=n_minimization_steps,
             force_tol=force_tol,
             torque_tol=torque_tol,
-            return_info=True,
         )
-        return st, sy, history, n, pe, info
+        st, sy, n, pe = result
+        return st, sy, history, n, pe, result.info
 
-    def scale(st, sy, phi):
+    def scale(st: State, sy: System, phi: float) -> tuple[State, System]:
         return _scale_to_packing_fraction_grouped(st, sy, phi, group_id)
 
     low, high, phi, pe, info = _bisect_jamming(
@@ -427,7 +508,16 @@ def bisection_jam(
         packing_fraction_increment=packing_fraction_increment,
         verbose=verbose,
     )
-    result = JamResult(low[0], low[1], high[0], high[1], phi, pe)
+    result = JamResult(
+        low[0],
+        low[1],
+        high[0],
+        high[1],
+        phi,
+        pe,
+        _jam_reason(info, JamReason.BRACKET_CONVERGED),
+        info,
+    )
     return (result, info) if return_info else result
 
 
@@ -558,26 +648,39 @@ def pressure_bisection_jam(
     max_minimization_steps = 0
     status = 3
     pe = jnp.asarray(jnp.nan)
+    pressure = float("nan")
     min_info = MinimizeInfo(
-        jnp.asarray(False), jnp.asarray(False), jnp.asarray(jnp.inf),
-        jnp.asarray(jnp.inf), jnp.asarray(MAX_STEPS),
+        jnp.asarray(False),
+        jnp.asarray(False),
+        jnp.asarray(jnp.inf),
+        jnp.asarray(jnp.inf),
+        jnp.asarray(MAX_STEPS),
     )
 
     while iteration < n_jamming_steps:
-        state, system, n_steps, pe, min_info = system.minimize(
-            state, system, max_steps=n_minimization_steps,
-            force_tol=force_tol, torque_tol=torque_tol, return_info=True,
+        relaxation = system.minimize(
+            state,
+            system,
+            max_steps=n_minimization_steps,
+            force_tol=force_tol,
+            torque_tol=torque_tol,
         )
+        state, system, n_steps, pe = relaxation
+        min_info = relaxation.info
         iteration += 1
         max_minimization_steps = max(max_minimization_steps, int(n_steps))
-        if not bool(min_info.converged) or not math.isfinite(float(pe)) or float(pe) < 0:
+        if (
+            not bool(min_info.converged)
+            or not math.isfinite(float(pe))
+            or float(pe) < 0
+        ):
             status = 2
             break
 
-        state, system, pressure = compute_contact_pressure(
+        state, system, pressure_value = compute_contact_pressure(
             state, system, pressure_cutoff, pressure_max_neighbors
         )
-        pressure = float(pressure)
+        pressure = float(pressure_value)
         if not math.isfinite(pressure) or pressure < 0:
             status = 2
             break
@@ -607,7 +710,9 @@ def pressure_bisection_jam(
             next_length = 0.5 * (length_hi + length_lo)
 
         if (
-            fine and length_hi > 0 and length_lo > 0
+            fine
+            and length_hi > 0
+            and length_lo > 0
             and abs(length_hi / length_lo - 1.0) < length_ratio_tolerance
         ) or next_length == length:
             status = 4
@@ -622,23 +727,39 @@ def pressure_bisection_jam(
 
     success = status == 0
     info = JammingInfo(
-        jnp.asarray(success), jnp.asarray(status), jnp.asarray(iteration),
-        min_info, jnp.asarray(max_minimization_steps),
+        jnp.asarray(success),
+        jnp.asarray(status),
+        jnp.asarray(iteration),
+        min_info,
+        jnp.asarray(max_minimization_steps),
     )
     result = JamResult(
         unjammed_state=last_state,
         unjammed_system=last_system,
         jammed_state=state,
         jammed_system=system,
-        packing_fraction=(compute_packing_fraction(state, system) if success else jnp.asarray(jnp.nan)),
+        packing_fraction=(
+            compute_packing_fraction(state, system) if success else jnp.asarray(jnp.nan)
+        ),
         potential_energy=(jnp.asarray(pe) if success else jnp.asarray(jnp.nan)),
+        reason=_jam_reason(
+            info,
+            JamReason.TARGET_REACHED,
+            measurement_finite=math.isfinite(float(pe)) and math.isfinite(pressure),
+        ),
+        info=info,
     )
     return (result, info) if return_info else result
 
 
 @partial(
     jax.jit,
-    static_argnames=["n_minimization_steps", "n_jamming_steps", "verbose", "return_info"],
+    static_argnames=[
+        "n_minimization_steps",
+        "n_jamming_steps",
+        "verbose",
+        "return_info",
+    ],
 )
 def pe_band_jam(
     state: State,
@@ -730,7 +851,7 @@ def pe_band_jam(
     # Body grouping depends only on the (static) topology; compute it once.
     group_id = jax.pure_callback(
         _host_body_grouping,
-        jax.ShapeDtypeStruct((state.N,), int),  # type: ignore[no-untyped-call]
+        jax.ShapeDtypeStruct((state.N,), jnp.int32),  # type: ignore[no-untyped-call]
         state.clump_id,
         state.bond_id,
         vmap_method="sequential",
@@ -778,14 +899,15 @@ def pe_band_jam(
             max_minimization_steps,
         ) = carry
 
-        state, system, n_steps, pe, info = system.minimize(
+        relaxation = system.minimize(
             state,
             system,
             max_steps=n_minimization_steps,
             force_tol=force_tol,
             torque_tol=torque_tol,
-            return_info=True,
         )
+        state, system, n_steps, pe = relaxation
+        info = relaxation.info
         max_minimization_steps = jnp.maximum(max_minimization_steps, n_steps)
 
         valid = info.converged & jnp.isfinite(pe) & (pe >= 0.0)
@@ -863,7 +985,9 @@ def pe_band_jam(
     ) = final_carry
     status = jnp.where(status == -1, 3, status)
     success = status == 0
-    info = JammingInfo(success, status, iterations, min_info, max_minimization_steps)
+    info = JammingInfo(
+        success, status, jnp.asarray(iterations), min_info, max_minimization_steps
+    )
     result = JamResult(
         unjammed_state=last_state,
         unjammed_system=last_system,
@@ -873,5 +997,9 @@ def pe_band_jam(
             success, compute_packing_fraction(final_state, final_system), jnp.nan
         ),
         potential_energy=jnp.where(success, final_pe, jnp.nan),
+        reason=_jam_reason(
+            info, JamReason.TARGET_REACHED, measurement_finite=jnp.isfinite(final_pe)
+        ),
+        info=info,
     )
     return (result, info) if return_info else result

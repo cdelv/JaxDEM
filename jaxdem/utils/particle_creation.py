@@ -695,7 +695,7 @@ def distribute_bodies(
 
     Returns
     -------
-    state, box_size
+    tuple[State, jax.Array]
         The input state with per-body translation and (optionally) per-body
         random orientation applied, and the periodic box size vector.
     """

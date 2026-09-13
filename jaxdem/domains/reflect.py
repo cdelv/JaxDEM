@@ -18,7 +18,7 @@ except ImportError:  # pragma: no cover
 
 from ..utils.linalg import cross, cross_3X3D_1X2D
 from ..utils.quaternion import Quaternion
-from . import Domain
+from . import Domain, SearchGeometry
 from ._toc import verlet_collision_fraction
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -36,6 +36,8 @@ class ReflectDomain(Domain):
     its position back into the box. It also reverses the velocity component
     normal to the boundary.
     """
+
+    search_geometry = SearchGeometry.ORTHOGONAL
 
     restitution_coefficient: jax.Array
 
@@ -173,14 +175,13 @@ class ReflectDomain(Domain):
         over_lo = jnp.maximum(0.0, lo - pos)
         over_hi = jnp.maximum(0.0, pos - hi)
 
-        body_over_lo = jax.ops.segment_max(
-            over_lo, state.clump_id, num_segments=state.N
-        )
-        body_over_hi = jax.ops.segment_max(
-            over_hi, state.clump_id, num_segments=state.N
-        )
-        max_lo = body_over_lo[state.clump_id]
-        max_hi = body_over_hi[state.clump_id]
+        body_over = jax.ops.segment_max(
+            jnp.concatenate((over_lo, over_hi), axis=-1),
+            state.clump_id,
+            num_segments=state.N,
+        )[state.clump_id]
+        max_lo = body_over[..., : state.dim]
+        max_hi = body_over[..., state.dim :]
 
         inv_mass = 1.0 / state.mass
         inv_inertia = 1.0 / state.inertia
@@ -250,15 +251,8 @@ class ReflectDomain(Domain):
         weight = active_mask / count_safe[state.clump_id]
         j_magnitude *= weight * closing_mask
 
-        # --- Linear Velocity Update ---
-        dv = jax.ops.segment_sum(
-            j_magnitude * inv_mass[..., None], state.clump_id, num_segments=state.N
-        )
-        dv_flat = dv[state.clump_id]
-        dv_flat = jnp.where(state.fixed[..., None], 0.0, dv_flat)
-        state.vel += dv_flat
+        dv_particle = j_magnitude * inv_mass[..., None]
 
-        # --- Angular Velocity Update (Optimized) ---
         if state.dim == 3:
             j_body = jnp.einsum("...ij,...j->...i", R_T, j_magnitude, optimize=True)
         else:
@@ -272,9 +266,18 @@ class ReflectDomain(Domain):
             d_omega_body = moment_net_body * inv_inertia
             d_omega_lab = jnp.einsum("...ij,...j->...i", R, d_omega_body, optimize=True)
 
-        d_omega_net = jax.ops.segment_sum(
-            d_omega_lab, state.clump_id, num_segments=state.N
+        velocity_update = jax.ops.segment_sum(
+            jnp.concatenate((dv_particle, d_omega_lab), axis=-1),
+            state.clump_id,
+            num_segments=state.N,
         )
+        dv = velocity_update[..., : state.dim]
+        d_omega_net = velocity_update[..., state.dim :]
+
+        dv_flat = dv[state.clump_id]
+        dv_flat = jnp.where(state.fixed[..., None], 0.0, dv_flat)
+        state.vel += dv_flat
+
         d_omega_net_flat = d_omega_net[state.clump_id]
         d_omega_net_flat = jnp.where(state.fixed[..., None], 0.0, d_omega_net_flat)
         state.ang_vel += d_omega_net_flat

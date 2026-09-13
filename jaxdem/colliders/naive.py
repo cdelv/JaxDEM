@@ -142,6 +142,7 @@ class NaiveSimulator(Collider):
         -------
         Tuple[State, System, jax.Array, jax.Array]
             A tuple containing:
+
             - state: The simulation state.
             - system: The simulation system.
             - neighbor_list: Array of shape (N, max_neighbors) containing neighbor indices.
@@ -149,12 +150,30 @@ class NaiveSimulator(Collider):
               ``max_neighbors`` neighbors.
 
         """
+        if max_neighbors < 0:
+            raise ValueError("max_neighbors must be non-negative")
+
         # Preserve documented semantics: always return shape (N, max_neighbors),
         # padded with -1. But `lax.top_k` requires k <= len(candidates), so we
         # clamp internally when `max_neighbors` exceeds N.
         if max_neighbors == 0:
             empty = jnp.empty((state.N, 0), dtype=int)
-            return state, system, empty, jnp.asarray(False)
+            iota = jax.lax.iota(dtype=int, size=state.N)
+            pos = state.pos
+            cutoff_sq = jnp.asarray(cutoff, dtype=pos.dtype) ** 2
+
+            def any_neighbor(i: jax.Array) -> jax.Array:
+                dr = system.domain._displacement(pos[i], pos, system)
+                valid = valid_interaction_mask(
+                    state.clump_id[i],
+                    state.clump_id,
+                    state.bond_id[i],
+                    iota,
+                    system.interact_same_bond_id,
+                ) * (norm2(dr) <= cutoff_sq)
+                return jnp.any(valid)
+
+            return state, system, empty, jnp.any(jax.vmap(any_neighbor)(iota))
 
         iota = jax.lax.iota(dtype=int, size=state.N)
         pos = state.pos
@@ -215,7 +234,10 @@ class NaiveSimulator(Collider):
         def per_particle_i(
             i: jax.Array, pos_pi: jax.Array, st: State, sys: System
         ) -> tuple[jax.Array, jax.Array]:
-            res_f, res_t = sys.force_model.force(i, iota, pos, st, sys)
+            history = sys.force_model.init_history(iota.shape, pos.shape[-1])
+            res_f, res_t, _ = sys.force_model.force(
+                i, iota, pos, st, sys, history, advance_history=False
+            )
             mask = valid_interaction_mask(
                 st.clump_id[i],
                 st.clump_id,

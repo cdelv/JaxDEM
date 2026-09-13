@@ -11,10 +11,11 @@ boundary conditions of a simulation. It controls two things:
    stay inside the simulation box (reflection, wrapping, or nothing at
    all).
 
-JaxDEM supports four domain types:
+JaxDEM supports five domain types:
 
 * ``"free"`` (:py:class:`~jaxdem.domains.free.FreeDomain`) — unbounded space, no boundary effects.
 * ``"periodic"`` (:py:class:`~jaxdem.domains.periodic.PeriodicDomain`) — periodic (minimum-image) boundary conditions.
+* ``"leesedwards"`` (:py:class:`~jaxdem.domains.lees_edwards.LeesEdwardsDomain`) — shear-periodic Lees--Edwards boundaries.
 * ``"reflect"`` (:py:class:`~jaxdem.domains.reflect.ReflectDomain`) — reflective walls with impulse-based collision for general
   rigid bodies (spheres and clumps).
 * ``"reflectsphere"`` (:py:class:`~jaxdem.domains.reflect_sphere.ReflectSphereDomain`) — a faster reflective domain for
@@ -90,6 +91,7 @@ state = jdem.State.create(
 system = jdem.System.create(state.shape, domain_type="free")
 
 # After a step, the domain auto-fits to the particles:
+state, system = jdem.System.initialize(state, system)
 state, system = system.step(state, system)
 print("Free domain box_size:", system.domain.box_size)
 print("Free domain anchor:", system.domain.anchor)
@@ -136,6 +138,59 @@ print("Wrapped positions:\n", state.pos)
 
 
 # %%
+# Lees--Edwards Shear-Periodic Domain
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# :py:class:`~jaxdem.domains.lees_edwards.LeesEdwardsDomain` is periodic in
+# every direction. When an image crosses the shear-gradient axis ``beta``, it
+# is offset along the shear-flow axis ``alpha`` by ``gamma * box_size[beta]``.
+# ``gamma`` is the current shear strain. The defaults are flow along x
+# (``alpha=0``) and gradient along y (``beta=1``); the axes must be distinct.
+
+system = jdem.System.create(
+    state.shape,
+    domain_type="leesedwards",
+    domain_kw={
+        "box_size": 10.0 * jnp.ones(2),
+        "anchor": jnp.zeros(2),
+        "gamma": 0.5,
+        "alpha": 0,
+        "beta": 1,
+    },
+)
+rij = system.domain.displacement(jnp.array([1.0, 0.1]), jnp.array([6.0, 9.9]), system)
+print("Lees-Edwards displacement:", rij)
+
+# %%
+# The domain reads ``gamma`` but does not advance it. Update the strain in a
+# simulation callback and return the updated pytrees. This updates periodic
+# image geometry only; it does not impose background streaming velocities or a
+# velocity jump. Add any driving required by your shear protocol separately.
+#
+# .. code-block:: python
+#
+#    from dataclasses import replace
+#
+#    def advance_shear(state, system):
+#        domain = replace(
+#            system.domain,
+#            gamma=system.domain.gamma + shear_rate * system.dt,
+#        )
+#        return state, replace(system, domain=domain)
+#
+#    system = jdem.System.create(
+#        state.shape,
+#        domain_type="leesedwards",
+#        domain_kw={"box_size": 10.0 * jnp.ones(2)},
+#        user_post_step_actions=advance_shear,
+#    )
+#
+# ``shift`` removes the positional shear offset for each crossed gradient image and then
+# wraps all coordinates into the primary box. Spatial-search caches include
+# ``gamma``, ``alpha``, and ``beta`` in their geometry snapshot, so cached
+# colliders rebuild when that geometry changes.
+
+
+# %%
 # Reflective Domain
 # ~~~~~~~~~~~~~~~~~~
 # :py:class:`~jaxdem.domains.reflect.ReflectDomain` reflects particles off
@@ -163,6 +218,7 @@ system = jdem.System.create(
 print("Restitution:", system.domain.restitution_coefficient)
 
 # After stepping, the particle bounces off the left wall:
+state, system = jdem.System.initialize(state, system)
 state, system = system.step(state, system, n=3)
 print("Position after bounce:", state.pos)
 print("Velocity after bounce:", state.vel)
@@ -190,6 +246,7 @@ system = jdem.System.create(
     domain_kw={"box_size": 10.0 * jnp.ones(2), "anchor": jnp.zeros(2)},
 )
 
+state, system = jdem.System.initialize(state, system)
 state, system = system.step(state, system, n=3)
 print("Sphere-reflect position:", state.pos)
 print("Sphere-reflect velocity:", state.vel)

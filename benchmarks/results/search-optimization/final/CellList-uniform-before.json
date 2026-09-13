@@ -1,0 +1,32 @@
+{
+  "n": 1000000,
+  "scenario": "uniform",
+  "capacity": 24,
+  "collider": "CellList",
+  "force_law": "spring",
+  "phase": "force",
+  "module": "/tmp/jaxdem-before-search-optimization/jaxdem/__init__.py",
+  "row_width_override": null,
+  "row_batch_override": null,
+  "cell_batch_override": null,
+  "search_batch_override": null,
+  "minimum_warmup_seconds": 2.0,
+  "devices": [
+    "cuda:0"
+  ],
+  "memory": {
+    "argument_size_in_bytes": 173000390,
+    "output_size_in_bytes": 197000779,
+    "temp_size_in_bytes": 2052008800,
+    "alias_size_in_bytes": 0
+  },
+  "seconds": [
+    0.031155916993157007,
+    0.03015525899536442,
+    0.029530886000429746,
+    0.028694564003671985,
+    0.02735167399805505,
+    0.02468424100516131,
+    0.023223819996928796
+  ]
+}

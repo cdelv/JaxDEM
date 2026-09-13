@@ -235,7 +235,15 @@ class SwarmRoller(Environment):
             },
             mat_table=mat_table,
             force_model_type="cundallstrack",
+            collider_type="NeighborList",
+            collider_kw={
+                "state": env.state,
+                "cutoff": 2 * jnp.max(env.state.rad),
+                "max_neighbors": min(32, env.state.N),
+                "secondary_collider_kw": {"search_range": 1},
+            },
         )
+        env.state, env.system = System.initialize(env.state, env.system)
 
         env = SwarmRoller._sense(env)
         env.env_params["lidar_obj_prev"] = env.env_params["lidar_obj"]
@@ -362,9 +370,9 @@ class SwarmRoller(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SwarmRoller.done")
-    def done(env: SwarmRoller) -> jax.Array:
-        """The episode ends when ``step_count`` exceeds ``max_steps``."""
-        return jnp.asarray(env.system.step_count > env.env_params["max_steps"])
+    def truncated(env: SwarmRoller) -> jax.Array:
+        """The episode ends when ``step_count`` reaches ``max_steps``."""
+        return jnp.asarray(env.system.step_count >= env.env_params["max_steps"])
 
     @property
     def action_space_size(self) -> int:

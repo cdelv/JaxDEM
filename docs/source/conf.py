@@ -82,12 +82,15 @@ extensions = [
 ]
 
 autosummary_generate = True
+autosummary_ignore_module_all = True
+napoleon_use_ivar = True
 autodoc_default_options = {
     "members": True,
     "undoc-members": True,
     "inherited-members": False,
     "show-inheritance": True,
     "member-order": "bysource",
+    "ignore-module-all": True,
 }
 
 source_suffix = {
@@ -95,13 +98,17 @@ source_suffix = {
     ".md": "markdown",
 }
 
+os.environ.setdefault("JAX_PLATFORMS", "cpu")
+
 sphinx_gallery_conf = {
     "examples_dirs": "../../examples",
     "gallery_dirs": "auto_examples",
-    "filename_pattern": r".*\.py",
+    # Generate every page and execute the lightweight guides whose printed
+    # results form part of the documentation.
+    "filename_pattern": r"/(introduction|[^/]+_guide)\.py$",
     "ignore_pattern": r"__init__",
     "download_all_examples": False,
-    "plot_gallery": True,
+    "plot_gallery": os.environ.get("JAXDEM_DOCS_EXECUTE", "1") == "1",
     "show_signature": False,
 }
 

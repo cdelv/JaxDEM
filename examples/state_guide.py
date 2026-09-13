@@ -67,6 +67,20 @@ print(f"Initial position: {state.pos}")
 # on clump membership.
 
 # %%
+# Mutation and Compiled State
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ``State`` and ``System`` are mutable while you assemble a simulation in
+# Python. Inside JAX transformations, treat them as pytrees of values: use the
+# objects returned by each operation and rebind them. Python assignment to an
+# object captured by an already compiled function does not change that
+# computation; pass changed objects as arguments, or compile again when static
+# configuration changes.
+#
+# Array fields are dynamic pytree leaves. Class identity, callable
+# configuration, tuple structure, and fields declared static are compilation
+# metadata and select a separate specialization.
+
+# %%
 # Particle Sizes: ``rad`` and ``_rad``
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # JaxDEM distinguishes between the physical size of a particle and its search/interaction radius:
@@ -75,15 +89,27 @@ print(f"Initial position: {state.pos}")
 #     contact force and energy calculations use this radius, as do
 #     plotting and visualization. For facets, ``rad`` represents the physical
 #     thickness of the segment or triangle.
-# *   ``_rad`` — the private "search" radius of the particle. The broad-phase
-#     colliders use it to build neighbor/cell lists. For standard spheres, ``_rad`` is
-#     equal to ``rad``. For facet vertices, ``_rad`` is the maximum
-#     distance from the vertex to the center of mass (COM) of the facet, so
-#     the broad-phase candidate list covers the entire facet.
+# *   ``_rad`` — a private conservative lower bound on search extent. For
+#     standard spheres, ``_rad`` equals ``rad``. Facet builders initialize it
+#     from the facet geometry and thickness; facet-aware searches recompute
+#     current geometric bounds, which is necessary for flexible facets.
 #
 # JaxDEM computes the broad-phase search radius ``_rad`` internally. User-facing
 # constructors (like ``State.create`` or ``State.add_facet``) do not expose it
 # as a parameter.
+
+# %%
+# Derived values need an explicit refresh after some nested edits. Assigning a
+# complete ``q`` or ``pos_p`` refreshes rotated clump offsets automatically;
+# after changing ``state.q.w`` or ``state.q.xyz`` directly, call
+# :py:meth:`~jaxdem.state.State.refresh_rotation_cache`. Positions, domain
+# geometry, or force search radii can also invalidate a collider cache; use the
+# collider invalidation and refresh helpers described in the
+# :doc:`force-model guide <../auto_examples/force_model_guide>`.
+#
+# Validate host-side setup changes with :py:meth:`~jaxdem.state.State.validate`
+# or :py:meth:`~jaxdem.system.System.validate` before a long compiled run. These
+# checks synchronize device values and belong outside compiled loops.
 
 # %%
 # Modifying State Attributes
@@ -334,7 +360,7 @@ print(f"Position at batch 2: {batched_state.pos[2]}")
 def initialize(i: jax.Array) -> tuple[jdem.State, jdem.System]:
     state = jdem.State.create(i * jnp.ones((4, 2)))
     system = jdem.System.create(state.shape)
-    return state, system
+    return jdem.System.initialize(state, system)
 
 
 N_batches = 10

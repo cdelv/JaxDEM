@@ -21,18 +21,94 @@ import json
 import time
 from dataclasses import dataclass
 from functools import partial
+from numbers import Integral
 from pathlib import Path
 
 import optax  # type: ignore[import-untyped]
 from flax import nnx
+from tensorboardX import SummaryWriter  # type: ignore[import-untyped]
 from tqdm.auto import trange  # type: ignore[import-untyped]
 
-from ..envWrappers import clip_action_env, vectorise_env
+from ..env_wrappers import clip_action_env, vectorise_env
 from . import Trainer, TrajectoryData
 
 if TYPE_CHECKING:
     from ..environments import Environment
     from ..models import Model
+
+
+def _require_int(name: str, value: Any, *, minimum: int | None = None) -> int:
+    """Return an integer argument without silently accepting bools or fractions."""
+    if isinstance(value, bool) or not isinstance(value, Integral):
+        raise ValueError(f"{name} must be an integer")
+    result = int(value)
+    if minimum is not None and result < minimum:
+        raise ValueError(f"{name} must be at least {minimum}")
+    return result
+
+
+def _epoch_learning_rate_schedule(
+    learning_rate: float, num_epochs: int, updates_per_epoch: int
+) -> Any:
+    """Return a cosine schedule which is constant within each PPO epoch."""
+    epoch_schedule = optax.cosine_decay_schedule(
+        init_value=float(learning_rate), decay_steps=int(num_epochs)
+    )
+    return lambda update: epoch_schedule(update // int(updates_per_epoch))
+
+
+def _build_optimizer(
+    optimizer: Any,
+    schedule: Any,
+    max_grad_norm: float,
+    accumulate_n_gradients: int,
+) -> Any:
+    """Build an optimizer which clips and transforms averaged raw gradients."""
+    inner_tx = optax.chain(
+        optax.clip_by_global_norm(float(max_grad_norm)),
+        optimizer(schedule, eps=1e-12),
+    )
+    if accumulate_n_gradients == 1:
+        return inner_tx
+    return optax.MultiSteps(
+        inner_tx,
+        every_k_schedule=accumulate_n_gradients,
+        use_grad_mean=True,
+    )
+
+
+def _priority_probabilities(
+    priority: jax.Array, alpha: jax.Array, support: jax.Array | None = None
+) -> jax.Array:
+    """Normalize priorities over a nonempty active support (all slots by default)."""
+    priority = jnp.nan_to_num(priority, nan=0.0, posinf=0.0, neginf=0.0)
+    priority = jnp.maximum(priority, 0.0)
+    log_priority = jnp.where(priority > 0.0, jnp.log(priority), -jnp.inf)
+    log_power = jnp.where(alpha == 0.0, 0.0, alpha * log_priority)
+    epsilon = jnp.asarray(1e-6, dtype=priority.dtype)
+    log_weights = jnp.logaddexp(log_power, jnp.log(epsilon))
+    if support is not None:
+        log_weights = jnp.where(support, log_weights, -jnp.inf)
+    probabilities = jax.nn.softmax(log_weights)
+
+    # The exact epsilon-supported probability can lie below the dtype's range.
+    # Use the smallest normal value because accelerators may flush subnormals;
+    # this preserves categorical support at the precision the backend can honor.
+    probability_floor = jnp.asarray(jnp.finfo(priority.dtype).tiny, priority.dtype)
+    if support is None:
+        probabilities = jnp.maximum(probabilities, probability_floor)
+    else:
+        probabilities = jnp.where(
+            support, jnp.maximum(probabilities, probability_floor), 0.0
+        )
+    return probabilities / probabilities.sum()
+
+
+def _last_occurrence_indices(indices: jax.Array, size: int) -> jax.Array:
+    """Keep the last repeated draw and map earlier duplicates out of bounds."""
+    positions = jnp.arange(indices.size, dtype=indices.dtype)
+    last = jnp.full((size,), -1, dtype=indices.dtype).at[indices].max(positions)
+    return jnp.where(last[indices] == positions, indices, size)
 
 
 def _hparam_dict_from_tr(tr: PPOTrainer) -> dict[str, Any]:
@@ -61,7 +137,7 @@ def _hparam_dict_from_tr(tr: PPOTrainer) -> dict[str, Any]:
 
 def _log_hparams_fallback(writer: Any, tr: PPOTrainer, step: int = 0) -> None:
     hp = _hparam_dict_from_tr(tr)
-    writer.text("hparams/json", json.dumps(hp, indent=2), step=step)
+    writer.add_text("hparams/json", json.dumps(hp, indent=2), global_step=step)
 
 
 @Trainer.register("PPO")
@@ -129,7 +205,8 @@ class PPOTrainer(Trainer):
     **Prioritized Experience Replay (PER)**
 
     This trainer uses a prioritized categorical distribution over segments (environments x agents) to
-    form minibatches. For each segment index :math:`i \in \{1,\dots,N\}`,
+    form minibatches. Let :math:`N` be the number of segments containing at least
+    one active sample. For each such segment index :math:`i \in \{1,\dots,N\}`,
     we define a *priority* from the trajectory advantages:
 
     .. math::
@@ -143,10 +220,15 @@ class PPOTrainer(Trainer):
 
     .. math::
 
-        P(i) \;=\; \frac{\tilde{p}_i}{\sum_{k=1}^{N} \tilde{p}_k},
+        P(i) \;=\; \frac{\tilde{p}_i + \varepsilon}
+                              {\sum_{k=1}^{N} (\tilde{p}_k + \varepsilon)},
 
-    and sample indices :math:`\{i\}` to create each minibatch
-    (:func:`jax.random.choice` with probabilities :math:`P(i)`).
+    and sample indices :math:`\{i\}` with replacement to create each minibatch
+    (:func:`jax.random.choice` with probabilities :math:`P(i)`). The positive
+    :math:`\varepsilon` keeps every active segment in the sampling support and makes
+    zero priorities uniform. Normalization is evaluated in log space. Probabilities
+    below the dtype's smallest normal value are floored and renormalized to retain
+    representable support; importance weights use these resulting probabilities.
     This mirrors Prioritized Experience Replay (PER), where :math:`\tilde{p}` comes
     from the TD-error magnitude. Here we use the per-trajectory advantage
     magnitude as a proxy for learning progress. Recent large-scale self-play
@@ -174,7 +256,11 @@ class PPOTrainer(Trainer):
         w_i(\beta_t)\;
         \frac{A_{t,i} - \mu_{\text{mb}}(A)}{\sigma_{\text{mb}}(A)+\varepsilon}.
 
-    If :attr:`importance_sampling_alpha` = 0, we get uniform sampling. If :attr:`importance_sampling_beta` = 1 we get full PER correction.
+    If :attr:`importance_sampling_alpha` = 0, we get uniform sampling. At
+    :attr:`importance_sampling_beta` = 1, the weights fully correct the
+    categorical segment draws for a fixed priority distribution. Advantage
+    standardization and priority recomputation remain nonlinear parts of PPO,
+    so this is not a claim that the complete training estimator is unbiased.
 
     **Off-policy correction of advantages (V-trace)**
 
@@ -323,8 +409,11 @@ class PPOTrainer(Trainer):
         r"""Construct a PPO trainer from an environment and a model.
 
         Vectorizes the environment, builds the optimizer chain, and
-        initializes the model carry.  See the class-level field
-        docstrings for parameter descriptions.
+        initializes the model carry. When enabled, learning-rate annealing is
+        cosine decay over ``num_epochs`` and remains constant within an epoch.
+        Gradient accumulation averages raw minibatch gradients before clipping
+        and the stateful optimizer. See the class-level field docstrings for
+        parameter descriptions.
 
         Parameters
         ----------
@@ -346,37 +435,65 @@ class PPOTrainer(Trainer):
             Ready-to-train trainer instance.
 
         """
+        num_envs = _require_int("num_envs", num_envs, minimum=1)
+        num_steps_epoch = _require_int("num_steps_epoch", num_steps_epoch, minimum=1)
+        num_minibatches = _require_int("num_minibatches", num_minibatches, minimum=1)
+        accumulate_n_gradients = _require_int(
+            "accumulate_n_gradients", accumulate_n_gradients, minimum=1
+        )
+        skip_frames = _require_int("skip_frames", skip_frames, minimum=0)
+        if minibatch_size is not None:
+            minibatch_size = _require_int("minibatch_size", minibatch_size, minimum=1)
+        if total_timesteps is None:
+            num_epochs = _require_int("num_epochs", num_epochs, minimum=1)
+        else:
+            total_timesteps = _require_int(
+                "total_timesteps", total_timesteps, minimum=1
+            )
+        if stop_at_epoch is not None:
+            stop_at_epoch = _require_int("stop_at_epoch", stop_at_epoch, minimum=1)
+        if num_minibatches % accumulate_n_gradients != 0:
+            raise ValueError(
+                f"num_minibatches={num_minibatches} must be divisible by "
+                f"accumulate_n_gradients={accumulate_n_gradients}"
+            )
+
         # --- RNG split ---
+        initial_agent_mask = jnp.asarray(env.agent_mask(env), dtype=bool)
+        if initial_agent_mask.shape != (env.max_num_agents,):
+            raise ValueError(
+                "Environment.agent_mask() must have shape (max_num_agents,)."
+            )
+        if not bool(jnp.any(initial_agent_mask)):
+            raise ValueError("Environment.agent_mask() must select at least one agent.")
         if key is None:
             key = jax.random.key(int(seed) if seed is not None else 1)
         key, subkey = jax.random.split(key)
-        subkeys = jax.random.split(subkey, int(num_envs))
+        subkeys = jax.random.split(subkey, num_envs)
 
         # --- Vectorize envs before sizing math ---
-        num_envs = int(num_envs)
         if clip_actions:
             min_val, max_val = clip_range
             env = clip_action_env(env, min_val=float(min_val), max_val=float(max_val))
         env = vectorise_env(env, n=num_envs)
         env = env.reset(env, subkeys)
+        reset_agent_mask = jnp.asarray(env.agent_mask(env), dtype=bool)
+        if not bool(jnp.all(jnp.any(reset_agent_mask, axis=-1))):
+            raise ValueError(
+                "Environment.reset() must leave at least one active agent per environment."
+            )
 
         # --- Derived sizes ---
-        num_steps_epoch = int(num_steps_epoch)
         num_segments = int(num_envs * env.max_num_agents)
         total_steps_per_epoch = int(num_segments * num_steps_epoch)
-        num_minibatches = int(num_minibatches)
 
         if minibatch_size is None:
             minibatch_size = total_steps_per_epoch // num_minibatches
-        minibatch_size = int(minibatch_size)
-
-        assert (
-            num_minibatches % int(accumulate_n_gradients) == 0
-        ), f"num_minibatches={num_minibatches} must be divisible by accumulate_n_gradients={accumulate_n_gradients}"
-
-        assert (
-            1 <= minibatch_size <= total_steps_per_epoch
-        ), f"minibatch_size={minibatch_size} must be in [1, {total_steps_per_epoch}]"
+        if minibatch_size > total_steps_per_epoch:
+            raise ValueError(
+                f"minibatch_size={minibatch_size} must be in "
+                f"[1, {total_steps_per_epoch}]"
+            )
 
         # Each minibatch samples `minibatch_size // num_steps_epoch` whole
         # segments; if that is 0 the minibatch is empty and the loss is NaN.
@@ -389,44 +506,38 @@ class PPOTrainer(Trainer):
                 "segments, which would produce an empty minibatch and NaN losses. "
                 "Increase minibatch_size (or num_envs) or decrease num_steps_epoch."
             )
-        if num_sampled_segments > num_segments:
-            raise ValueError(
-                f"minibatch_size // num_steps_epoch = {num_sampled_segments} "
-                f"segments are sampled per minibatch without replacement, but only "
-                f"num_envs * max_num_agents = {num_segments} segments exist. "
-                "Decrease minibatch_size or increase num_envs."
-            )
-
         # --- Epoch count ---
         if total_timesteps is not None:
-            total_timesteps = int(total_timesteps)
-            assert (
-                total_timesteps % total_steps_per_epoch == 0
-            ), f"total_timesteps={total_timesteps} must be divisible by total_steps_per_epoch=num_envs * env.max_num_agents * num_steps_epoch={total_steps_per_epoch}"
+            if total_timesteps % total_steps_per_epoch != 0:
+                raise ValueError(
+                    f"total_timesteps={total_timesteps} must be divisible by "
+                    "total_steps_per_epoch=num_envs * env.max_num_agents * "
+                    f"num_steps_epoch={total_steps_per_epoch}"
+                )
             num_epochs = total_timesteps // total_steps_per_epoch
-        num_epochs = int(num_epochs)
 
         # --- Stop-at-epoch ---
         if stop_at_epoch is None:
             stop_at_epoch = num_epochs
-        stop_at_epoch = int(stop_at_epoch)
-        assert (
-            1 <= stop_at_epoch <= num_epochs
-        ), f"stop_at_epoch={stop_at_epoch} must be in [1, num_epochs={num_epochs}]"
+        if stop_at_epoch > num_epochs:
+            raise ValueError(
+                f"stop_at_epoch={stop_at_epoch} must be in [1, num_epochs={num_epochs}]"
+            )
 
         # --- Optimizer ---
+        updates_per_epoch = num_minibatches // accumulate_n_gradients
         if anneal_learning_rate:
-            schedule = optax.cosine_decay_schedule(
-                init_value=float(learning_rate),
-                decay_steps=num_epochs,
+            schedule = _epoch_learning_rate_schedule(
+                learning_rate, num_epochs, updates_per_epoch
             )
         else:
             schedule = float(learning_rate)
 
-        tx = optax.chain(
-            optax.clip_by_global_norm(float(max_grad_norm)),
-            optimizer(schedule, eps=1e-12),
-            optax.apply_every(int(accumulate_n_gradients)),
+        tx = _build_optimizer(
+            optimizer,
+            schedule,
+            float(max_grad_norm),
+            accumulate_n_gradients,
         )
 
         graphdef, graphstate = nnx.split(
@@ -464,7 +575,7 @@ class PPOTrainer(Trainer):
             num_steps_epoch=num_steps_epoch,
             num_minibatches=num_minibatches,
             minibatch_size=minibatch_size,
-            skip_frames=int(skip_frames),
+            skip_frames=skip_frames,
         )
 
     @staticmethod
@@ -491,9 +602,14 @@ class PPOTrainer(Trainer):
         directory : Path | str
             Root directory for TensorBoard logs.
         save_every : int
-            Sync metrics and log every *save_every* epochs.
+            Positive integer interval for syncing metrics and logging epochs.
         start_epoch : int
-            Resume epoch counter (useful after checkpoint restore).
+            Resume epoch counter for logging and rollout numbering. Exact
+            learning-rate and momentum continuation also requires the restored
+            trainer ``graphstate``; changing this label alone does not restore
+            optimizer state.
+            Must lie in ``[0, stop_at_epoch]``. At ``stop_at_epoch``, returns
+            the trainer unchanged without opening a writer or running an epoch.
         debug_overflow_checks : bool
             If ``True``, check the collider overflow flag after *every* epoch.
             This forces a host synchronization per epoch, which defeats async
@@ -508,19 +624,26 @@ class PPOTrainer(Trainer):
         """
         _ = kwargs
         tr_typed = cast("PPOTrainer", tr)
-        total_epochs = int(tr_typed.stop_at_epoch)
-        start_epoch = int(start_epoch)
-        save_every = int(save_every)
+        total_epochs = _require_int(
+            "trainer.stop_at_epoch", tr_typed.stop_at_epoch, minimum=1
+        )
+        start_epoch = _require_int("start_epoch", start_epoch, minimum=0)
+        save_every = _require_int("save_every", save_every, minimum=1)
+        if start_epoch > total_epochs:
+            raise ValueError(
+                f"start_epoch={start_epoch} must not exceed "
+                f"stop_at_epoch={total_epochs}"
+            )
+        if start_epoch == total_epochs:
+            return tr_typed
 
         writer: Any = None
         directory = Path(directory)
         log_folder = directory / datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
         if log:
-            from flax.metrics import tensorboard
-
             directory.mkdir(parents=True, exist_ok=True)
-            writer = tensorboard.SummaryWriter(log_folder)  # type: ignore[no-untyped-call]
+            writer = SummaryWriter(log_folder)
             if writer:
                 _log_hparams_fallback(writer, tr_typed, step=0)
 
@@ -543,7 +666,7 @@ class PPOTrainer(Trainer):
         if writer is not None:
             data_np = jax.device_get(data)
             for k, v in data_np.items():
-                writer.scalar(k, float(v), step=start_epoch)
+                writer.add_scalar(k, float(v), global_step=start_epoch)
             writer.flush()
 
         start_time = time.perf_counter()
@@ -587,9 +710,9 @@ class PPOTrainer(Trainer):
 
                 if log and writer is not None:
                     for k, v in data_np.items():
-                        writer.scalar(k, float(v), step=epoch)
-                    writer.scalar("elapsed", elapsed, step=epoch)
-                    writer.scalar("steps_per_sec", sps, step=epoch)
+                        writer.add_scalar(k, float(v), global_step=epoch)
+                    writer.add_scalar("elapsed", elapsed, global_step=epoch)
+                    writer.add_scalar("steps_per_sec", sps, global_step=epoch)
                     writer.flush()
 
         # Final summary (syncs once).
@@ -653,12 +776,21 @@ class PPOTrainer(Trainer):
         # 1) Forward.
         old_value = td.value
         pi, td.value = model(
-            td.obs, sequence=True, initial_carry=initial_carry, done=td.done
+            td.obs,
+            sequence=True,
+            initial_carry=initial_carry,
+            done=td.done | ~td.agent_mask,
         )
         new_log_prob = pi.log_prob(td.action)
         td.value = jnp.squeeze(td.value, -1)
         log_ratio = new_log_prob - td.log_prob
         td.ratio = jnp.exp(log_ratio)
+
+        mask = td.agent_mask.astype(td.value.dtype)
+        count = jnp.maximum(mask.sum(), 1.0)
+
+        def masked_mean(x: jax.Array) -> jax.Array:
+            return jnp.sum(x * mask) / count
 
         # 2) Value loss (clipped).
         value_pred_clipped = old_value + (td.value - old_value).clip(
@@ -666,7 +798,7 @@ class PPOTrainer(Trainer):
         )
         v_diff = jnp.abs(td.value - returns)
         v_clip_diff = jnp.abs(value_pred_clipped - returns)
-        value_loss = 0.5 * jnp.square(jnp.maximum(v_diff, v_clip_diff)).mean()
+        value_loss = 0.5 * masked_mean(jnp.square(jnp.maximum(v_diff, v_clip_diff)))
 
         # 3) Policy loss (clipped).
         ratio_bounded = jnp.where(
@@ -674,10 +806,10 @@ class PPOTrainer(Trainer):
             jnp.minimum(td.ratio, 1.0 + ppo_clip_eps),
             jnp.maximum(td.ratio, 1.0 - ppo_clip_eps),
         )
-        actor_loss = -(advantage * ratio_bounded).mean()
+        actor_loss = -masked_mean(advantage * ratio_bounded)
 
         # 4) Entropy (via Gauss-Hermite quadrature on the transformed distribution).
-        entropy = pi.entropy().mean()
+        entropy = masked_mean(pi.entropy())
 
         # 5) Total Loss.
         total_loss = (
@@ -685,12 +817,15 @@ class PPOTrainer(Trainer):
         )
 
         # 6) Diagnostics.
-        approx_kl = jax.lax.stop_gradient(0.5 * jnp.square(log_ratio).mean())
+        approx_kl = jax.lax.stop_gradient(0.5 * masked_mean(jnp.square(log_ratio)))
+        returns_mean = masked_mean(returns)
+        return_variance = masked_mean(jnp.square(returns - returns_mean))
+        residual = returns - td.value
+        residual_mean = masked_mean(residual)
+        residual_variance = masked_mean(jnp.square(residual - residual_mean))
         explained_var = jax.lax.stop_gradient(
-            1.0 - jnp.var(returns - td.value) / jnp.var(returns)
+            1.0 - residual_variance / jnp.maximum(return_variance, 1e-8)
         )
-
-        log_std_mag = model._log_std.value.mean()
 
         aux = {
             "actor_loss": actor_loss,
@@ -700,9 +835,8 @@ class PPOTrainer(Trainer):
             "explained_variance": explained_var,
             "ratio": jax.lax.stop_gradient(td.ratio),
             "value": jax.lax.stop_gradient(td.value),
-            "returns": returns.mean(),
-            "score": td.reward.mean(),
-            "log_std": log_std_mag,
+            "returns": masked_mean(returns),
+            "score": masked_mean(td.reward),
         }
         return total_loss, aux
 
@@ -715,7 +849,7 @@ class PPOTrainer(Trainer):
         r"""Execute one PPO epoch: rollout → advantage → minibatch updates.
 
         Steps:
-        0. Reset done environments and split PRNG keys.
+        0. Split PRNG keys (boundary resets occur inside each rollout step).
         1. Collect a trajectory of length ``num_steps_epoch``.
         2. Flatten the agent axis and apply DRIP if enabled.
         3. Compute PER priorities.
@@ -738,18 +872,9 @@ class PPOTrainer(Trainer):
         beta_t = tr.importance_sampling_beta + tr.anneal_importance_sampling_beta * (
             1.0 - tr.importance_sampling_beta
         ) * (epoch / tr.num_epochs)
-        # 0) Split PRNG keys and reset environments where done == True.
-        reset_root, rollout_key, mb_root = jax.random.split(tr.key, 3)
-        subkeys = jax.random.split(reset_root, tr.env.num_envs)
-        done_mask = tr.env.done(tr.env)
-        # The vectorised environment's ``reset_if_done`` is already vmapped.
-        tr.env = tr.env.reset_if_done(tr.env, done_mask, subkeys)
-
-        # 0.5) Reset the recurrent carry of freshly reset envs.
+        # 0) Split rollout and minibatch keys. Trainer.step resets boundaries.
+        rollout_key, mb_root = jax.random.split(tr.key)
         model, optimizer = nnx.merge(tr.graphdef, tr.graphstate)
-        model.reset(shape=(tr.env.num_envs, tr.env.max_num_agents, 1), mask=done_mask)
-        tr.graphstate = nnx.state((model, optimizer))
-
         initial_carry = model.carry
 
         # 1) Roll out trajectories; td has shape [T, E, A, ...].
@@ -823,6 +948,10 @@ class PPOTrainer(Trainer):
             tr.advantage_gamma,
             tr.advantage_lambda,
             last_value=last_value,
+            terminated=td.terminated,
+            truncated=td.truncated,
+            bootstrap_value=td.bootstrap_value,
+            agent_mask=td.agent_mask,
         )
 
         @jax.jit(inline=True)
@@ -840,28 +969,41 @@ class PPOTrainer(Trainer):
             model, optimizer = nnx.merge(graphdef, graphstate)
 
             # 3.2) Compute PER sampling probabilities.
-            prio_p = jnp.sum(jnp.abs(advantage), axis=0)
-            prio_w = jnp.nan_to_num(
-                jnp.power(prio_p, tr.importance_sampling_alpha), False, 0.0, 0.0, 0.0
+            priority = jnp.sum(jnp.abs(advantage), axis=0)
+            active_segments = jnp.any(td.agent_mask, axis=0)
+            active_population = jnp.sum(active_segments)
+            prio_p = _priority_probabilities(
+                priority, tr.importance_sampling_alpha, active_segments
             )
-            prio_p = (prio_w + 1e-6) / (prio_w.sum() + 1e-6)
 
-            # Sample segment indices without replacement to avoid
-            # non-deterministic scatter when writing back value/ratio.
+            # Independent categorical draws match the probabilities used by
+            # the PER importance weights below.
             idx = jax.random.choice(
                 samp_key,
                 a=S,
                 shape=(tr.minibatch_size // T,),
                 p=prio_p,
-                replace=False,
+                replace=True,
             )  # [M]
+            write_idx = _last_occurrence_indices(idx, S)
 
-            # Importance weights: (S * p[idx])^{-beta}, shape [M]; broadcast to [T, M].
-            seg_w = jnp.power(S * prio_p[idx], -beta_t)  # [M]
+            # Use the active population for importance weights; padding has no support.
+            seg_w = jnp.power(active_population * prio_p[idx], -beta_t)  # [M]
 
             # 3.3) Normalize and slice advantages.
             adv = jnp.take(advantage, idx, axis=1)
-            adv = seg_w * (adv - adv.mean()) / (adv.std() + 1e-8)
+            sampled_mask = jnp.take(td.agent_mask, idx, axis=1).astype(adv.dtype)
+            active_count = jnp.maximum(sampled_mask.sum(), 1.0)
+            adv_mean = jnp.sum(adv * sampled_mask) / active_count
+            adv_variance = (
+                jnp.sum(jnp.square(adv - adv_mean) * sampled_mask) / active_count
+            )
+            adv = (
+                seg_w
+                * (adv - adv_mean)
+                / (jnp.sqrt(adv_variance) + 1e-8)
+                * sampled_mask
+            )
 
             # 3.4) Slice trajectory data to [T, M].
             mb_td = jax.tree.map(lambda x: jnp.take(x, idx, axis=1), td)
@@ -887,8 +1029,8 @@ class PPOTrainer(Trainer):
             optimizer.update(model, grads)
 
             # Write back value and ratio to global buffers.
-            td.value = td.value.at[:, idx].set(aux["value"])
-            td.ratio = td.ratio.at[:, idx].set(aux["ratio"])
+            td.value = td.value.at[:, write_idx].set(aux["value"], mode="drop")
+            td.ratio = td.ratio.at[:, write_idx].set(aux["ratio"], mode="drop")
 
             # 3.6.5) Recompute advantages ONLY for the updated minibatch segments.
             # This is mathematically identical to recomputing over all S segments
@@ -903,9 +1045,13 @@ class PPOTrainer(Trainer):
                 tr.advantage_gamma,
                 tr.advantage_lambda,
                 last_value=last_value[idx],
+                terminated=mb_td.terminated,
+                truncated=mb_td.truncated,
+                bootstrap_value=mb_td.bootstrap_value,
+                agent_mask=mb_td.agent_mask,
             )
-            returns = returns.at[:, idx].set(mb_returns)
-            advantage = advantage.at[:, idx].set(mb_advantage)
+            returns = returns.at[:, write_idx].set(mb_returns, mode="drop")
+            advantage = advantage.at[:, write_idx].set(mb_advantage, mode="drop")
 
             # 3.7) Collect scalar metrics (averaged after scan).
             mb_metrics = {
@@ -916,10 +1062,10 @@ class PPOTrainer(Trainer):
                 "approx_KL": aux["approx_KL"],
                 "explained_variance": aux["explained_variance"],
                 "grad_norm": optax.tree.norm(grads),
-                "ratio": aux["ratio"].mean(),
+                "ratio": jnp.sum(aux["ratio"] * mb_td.agent_mask)
+                / jnp.maximum(jnp.sum(mb_td.agent_mask), 1),
                 "returns": aux["returns"],
                 "score": aux["score"],
-                "log_std": aux["log_std"],
             }
 
             graphstate = nnx.state((model, optimizer))

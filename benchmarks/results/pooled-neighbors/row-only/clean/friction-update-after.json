@@ -1,0 +1,28 @@
+{
+  "n": 1000000,
+  "scenario": "clustered",
+  "capacity": 24,
+  "force_law": "cundallstrack",
+  "phase": "update",
+  "module": "/home/wind/Documents/JaxDEM/jaxdem/__init__.py",
+  "row_width_override": null,
+  "row_batch_override": null,
+  "devices": [
+    "cuda:0"
+  ],
+  "memory": {
+    "argument_size_in_bytes": 873000501,
+    "output_size_in_bytes": 885000997,
+    "temp_size_in_bytes": 1024016112,
+    "alias_size_in_bytes": 0
+  },
+  "seconds": [
+    0.05420081000193022,
+    0.05495033699844498,
+    0.05576622700027656,
+    0.06788447199505754,
+    0.0820637870056089,
+    0.08600978899630718,
+    0.08281252500455594
+  ]
+}

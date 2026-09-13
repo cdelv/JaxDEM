@@ -97,13 +97,16 @@ class Langevin(LinearIntegrator):
         state.pos_c += (dt / 2) * state.vel
 
         c1 = jnp.exp(-gamma * dt)
-        c2 = jnp.sqrt(kT / state.mass * (1.0 - jnp.exp(-2.0 * gamma * dt)))[..., None]
+        c2 = jnp.sqrt(kT / state.mass * (1.0 - c1 * c1))[..., None]
         system.key, noise_key = jax.random.split(system.key)  # split
-        noise = jax.random.normal(
+        body_noise = jax.random.normal(
             noise_key, shape=state.vel.shape, dtype=state.vel.dtype
         )
+        noise = body_noise[state.clump_id]
         # O-step: thermostat only the free particles; fixed particles keep their
         # prescribed velocities (multiplying by the mask would permanently zero them).
+        # One sample per clump keeps every rigid body's translational velocity
+        # coherent.  Unique clump IDs retain the usual independent sphere noise.
         state.vel = jnp.where(mask, c1 * state.vel + c2 * noise, state.vel)
 
         state.pos_c += (dt / 2) * state.vel

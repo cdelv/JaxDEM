@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 import jax
@@ -15,6 +17,43 @@ from ..utils.quaternion import Quaternion
 
 if TYPE_CHECKING:
     pass
+
+
+def _freeze_metadata(value: Any) -> Any:
+    """Recursively detach mutable containers used as static metadata."""
+    if isinstance(value, Mapping):
+        return MappingProxyType({k: _freeze_metadata(v) for k, v in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze_metadata(v) for v in value)
+    if isinstance(value, set):
+        return frozenset(_freeze_metadata(v) for v in value)
+    return value
+
+
+def _metadata_key(value: Any) -> Any:
+    """Return a stable hash key without invoking array-valued equality."""
+    if isinstance(value, Mapping):
+        return tuple(sorted((k, _metadata_key(v)) for k, v in value.items()))
+    if isinstance(value, tuple):
+        return tuple(_metadata_key(v) for v in value)
+    if isinstance(value, frozenset):
+        return frozenset(_metadata_key(v) for v in value)
+    try:
+        hash(value)
+    except TypeError:
+        return (type(value), id(value))
+    return value
+
+
+def _thaw_metadata(value: Any) -> Any:
+    """Copy frozen metadata into JSON-compatible mutable containers."""
+    if isinstance(value, Mapping):
+        return {k: _thaw_metadata(v) for k, v in value.items()}
+    if isinstance(value, tuple):
+        return tuple(_thaw_metadata(v) for v in value)
+    if isinstance(value, frozenset):
+        return [_thaw_metadata(v) for v in value]
+    return value
 
 
 @jax.jit
@@ -75,7 +114,8 @@ class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # ty
 
     _constructor: Any
     type_name: str
-    kw: dict[str, Any]
+    kw: Mapping[str, Any]
+    _kw_key: Any
 
     def __new__(
         cls,
@@ -86,10 +126,16 @@ class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # ty
         type_name: str = "",
     ) -> CustomGradientTransformation:
         obj = super().__new__(cls, init_fn, update_fn)
-        obj._constructor = _constructor
-        obj.type_name = type_name
-        obj.kw = kw
+        object.__setattr__(obj, "_constructor", _constructor)
+        object.__setattr__(obj, "type_name", type_name)
+        # Static JAX arguments must not change their equality/hash after they
+        # have been used as compilation-cache keys.
+        object.__setattr__(obj, "kw", _freeze_metadata(kw))
+        object.__setattr__(obj, "_kw_key", _metadata_key(obj.kw))
         return obj
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        raise AttributeError("CustomGradientTransformation is immutable")
 
     @property
     def metadata(self) -> dict[str, Any]:
@@ -97,7 +143,7 @@ class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # ty
 
         return {
             "constructor": encode_callable(self._constructor),
-            "kw": self.kw,
+            "kw": _thaw_metadata(self.kw),
         }
 
     def __copy__(self) -> CustomGradientTransformation:
@@ -116,11 +162,10 @@ class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # ty
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, CustomGradientTransformation):
             return False
-        return self.type_name == other.type_name and self.kw == other.kw
+        return self._constructor is other._constructor and self._kw_key == other._kw_key
 
     def __hash__(self) -> int:
-        kw_items = tuple(sorted((k, str(v)) for k, v in self.kw.items()))
-        return hash((self.type_name, kw_items))
+        return hash((id(self._constructor), self._kw_key))
 
 
 class FIREState(NamedTuple):
@@ -433,7 +478,9 @@ class ConjugateGradientState(NamedTuple):
 
     grad_prev: Any
     dir_prev: Any
-    count: jax.Array
+    # NamedTuple inherits tuple.count, but this field intentionally stores the
+    # optimizer iteration as an array for JAX transformations.
+    count: jax.Array  # type: ignore[assignment]
 
 
 def _scale_by_conjugate_gradient() -> Any:
@@ -453,7 +500,8 @@ def _scale_by_conjugate_gradient() -> Any:
 
     def _dot(a: Any, b: Any) -> jax.Array:
         return sum(
-            jnp.vdot(x, y) for x, y in zip(jax.tree.leaves(a), jax.tree.leaves(b))
+            (jnp.vdot(x, y) for x, y in zip(jax.tree.leaves(a), jax.tree.leaves(b))),
+            start=jnp.array(0.0),
         )
 
     def init(params: Any) -> ConjugateGradientState:
