@@ -54,8 +54,23 @@ def _capacity_offsets(counts: jax.Array, capacity: int) -> tuple[jax.Array, jax.
 
 
 def build_pairs(state: Any, system: Any, cutoff: Any, capacity: int) -> tuple[Any, ...]:
+    return _search_pairs(state, system, cutoff, capacity)
+
+
+@jax.jit
+def count_pairs(state: Any, system: Any, cutoff: Any) -> tuple[Any, Any]:
+    """Return directed row counts and hash overflow without allocating pairs."""
+    counts, overflow = _search_pairs(state, system, cutoff, None)
+    return counts, overflow
+
+
+def _search_pairs(
+    state: Any, system: Any, cutoff: Any, capacity: int | None
+) -> tuple[Any, ...]:
     n = state.N
     if n == 0:
+        if capacity is None:
+            return jnp.zeros((0,), dtype=int), jnp.asarray(False)
         return (
             jnp.full((capacity,), -1, dtype=int),
             jnp.zeros((1,), dtype=int),
@@ -136,6 +151,8 @@ def build_pairs(state: Any, system: Any, cutoff: Any, capacity: int) -> tuple[An
         )[1]
 
     counts = jax.lax.map(count_batch, batches).reshape(padded_n, -1)[:n]
+    if capacity is None:
+        return counts.sum(axis=1), hash_overflow
     offsets, overflow = _capacity_offsets(counts.sum(axis=1), capacity)
     overflow = overflow | hash_overflow
     neighbors = jnp.full((capacity,), -1, dtype=int)

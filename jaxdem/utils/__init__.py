@@ -40,15 +40,14 @@ from .environment import (
 )
 from .grid_state import grid_state
 from .jamming import (
+    JammingInfo,
     JamReason,
     JamResult,
-    JammingInfo,
     bisection_jam,
     pe_band_jam,
     pressure_bisection_jam,
 )
 from .linalg import cross, cross_3X3D_1X2D, dot, norm, norm2, unit, unit_and_norm
-
 from .meshes import (
     generate_arclength_mesh,
     generate_faceted_mesh,
@@ -57,6 +56,12 @@ from .meshes import (
     generate_icosphere_mesh,
     generate_thomson_mesh,
     generate_torus_mesh,
+)
+from .neighbor_list_sizing import (
+    CandidateStatistics,
+    NeighborCapacityEstimate,
+    estimate_neighbor_capacity,
+    measure_neighbor_candidates,
 )
 from .packing_utils import (
     CompressionReason,
@@ -84,12 +89,14 @@ from .thermal import (
 )
 
 __all__ = [
-    "Quaternion",
+    "CandidateStatistics",
+    "CompressionReason",
+    "CompressionResult",
     "JamReason",
     "JamResult",
     "JammingInfo",
-    "CompressionReason",
-    "CompressionResult",
+    "NeighborCapacityEstimate",
+    "Quaternion",
     "angle",
     "angle_x",
     "bisection_jam",
@@ -120,6 +127,7 @@ __all__ = [
     "encode_callable",
     "env_step",
     "env_trajectory_rollout",
+    "estimate_neighbor_capacity",
     "generate_arclength_mesh",
     "generate_faceted_mesh",
     "generate_fibonacci_sphere_mesh",
@@ -141,6 +149,7 @@ __all__ = [
     "load_legacy_system",
     "make_save_steps_linear",
     "make_save_steps_pseudolog",
+    "measure_neighbor_candidates",
     "non_bonded_hessian",
     "norm",
     "norm2",

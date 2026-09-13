@@ -183,6 +183,46 @@ completed simulation chunk. This synchronizes only at the host boundary. A later
 successful search does not repair earlier steps: increase capacity and restart
 from a valid snapshot saved before failure.
 
+## Estimating neighbor capacity
+
+`estimate_neighbor_capacity` sizes a periodic sphere or rigid-clump system at a
+specified **bounding-sphere packing fraction**. It rescales a separate sphere
+analogue, relaxes it with FIRE, restores the clumps, and measures candidates using
+the force model's search radii, configured cutoff, skin, and interaction
+exclusions. The input configuration and contact history are unchanged.
+
+```python
+from jaxdem.utils import estimate_neighbor_capacity
+
+sizing = estimate_neighbor_capacity(state, system, packing_fraction=0.84)
+collider = jd.Collider.create(
+    "NeighborList",
+    state=state,
+    cutoff=sizing.cutoff,
+    skin=sizing.skin,
+    max_neighbors=sizing.max_neighbors,
+)
+```
+
+The default relaxation budget is 1,000,000 steps, with early convergence at a
+maximum force norm of `1e-8`. The analogue uses unit maximum bounding radius,
+mass, and spring stiffness. Relaxation runs once; three orientation samples reuse
+the relaxed centers. Sphere-only states need one sample. Failure to converge
+raises an error instead of producing a capacity recommendation.
+
+`sizing.max_neighbors` is the average budget for a pool of
+`state.N * max_neighbors` directed pairs. `sizing.query_max_neighbors` is the
+per-row capacity for dense queries at the measured list cutoff. Both include a
+20% multiplicative or two-neighbor additive margin, whichever is larger, and
+round upward to multiples of eight. These settings are configurable. The sample
+statistics, bounding radii, probe box, and relaxation diagnostics are returned.
+
+For an existing configuration, `measure_neighbor_candidates(state, system)`
+performs only the count. Neither helper allocates a trial pair buffer or evaluates
+clump forces. Counts are exact for the sampled configurations; later motion can
+require more capacity, so keep the production overflow checks. Direct CellList
+and MultiCellList force traversal does not need this pooled capacity setting.
+
 ## Construction and restart
 
 Low-level `State.add_clump` accepts placeholder volume and inertia defaults.
