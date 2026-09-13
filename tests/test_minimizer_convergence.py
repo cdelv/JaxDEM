@@ -171,6 +171,7 @@ def test_bisection_returns_the_validated_high_state():
         return_info=True,
     )
     assert result.converged and info.converged and info.minimization.converged
+    assert 0 <= int(info.max_minimization_steps) <= 2
     assert result.potential_energy > 1e-8
     actual = jd.utils.compute_packing_fraction(
         result.jammed_state, result.jammed_system
@@ -202,6 +203,7 @@ def test_bisection_failure_cannot_look_jammed(outer_limit):
     assert not result.converged and not info.converged
     assert jnp.isnan(result.packing_fraction) and jnp.isnan(result.potential_energy)
     assert int(info.status) == (3 if outer_limit else 2)
+    assert int(info.max_minimization_steps) == 0
 
 
 def test_other_jamming_drivers_reject_unresolved_relaxation():
@@ -210,17 +212,17 @@ def test_other_jamming_drivers_reject_unresolved_relaxation():
         st, sy, n_minimization_steps=0, n_jamming_steps=1, verbose=False
     )
     assert not result.converged
-    with pytest.raises(RuntimeError, match="minimization failed"):
-        pressure_bisection_jam(
-            st, sy, n_minimization_steps=0, n_jamming_steps=1, verbose=False
-        )
+    result = pressure_bisection_jam(
+        st, sy, n_minimization_steps=0, n_jamming_steps=1, verbose=False
+    )
+    assert not result.converged
 
 
 @pytest.mark.parametrize("driver", ["energy", "pressure"])
 def test_other_jamming_drivers_return_balanced_in_band_states(driver):
     st, sy = lattice()
     if driver == "energy":
-        result = pe_band_jam(
+        result, info = pe_band_jam(
             st,
             sy,
             pe_tol=1e-6,
@@ -229,10 +231,11 @@ def test_other_jamming_drivers_return_balanced_in_band_states(driver):
             n_minimization_steps=2,
             n_jamming_steps=60,
             verbose=False,
+            return_info=True,
         )
         assert 1e-6 <= result.potential_energy <= 2e-6
     else:
-        result = pressure_bisection_jam(
+        result, info = pressure_bisection_jam(
             st,
             sy,
             pressure_threshold=1e-4,
@@ -242,6 +245,7 @@ def test_other_jamming_drivers_return_balanced_in_band_states(driver):
             n_minimization_steps=2,
             n_jamming_steps=60,
             verbose=False,
+            return_info=True,
         )
         from jaxdem.utils.contacts import compute_contact_pressure
 
@@ -250,10 +254,15 @@ def test_other_jamming_drivers_return_balanced_in_band_states(driver):
         )
         assert 1e-4 <= pressure <= 1.2e-4
     assert result.converged
+    assert info.converged and int(info.status) == 0
+    assert info.minimization.converged and 0 < int(info.steps) <= 60
+    assert 0 <= int(info.max_minimization_steps) <= 2
     checked = minimize(
         result.jammed_state, result.jammed_system, max_steps=0, return_info=True
     )
     assert checked[-1].converged
+    np.testing.assert_allclose(checked[-1].force_max, info.minimization.force_max, atol=1e-14)
+    np.testing.assert_allclose(checked[-1].torque_max, info.minimization.torque_max, atol=1e-14)
     np.testing.assert_allclose(checked[3], result.potential_energy, rtol=1e-10)
 
 
@@ -266,6 +275,7 @@ def test_unbalanced_small_energy_cannot_establish_lower_bound(dim, driver):
         result, info = bisection_jam(st, sy, return_info=True, **kw)
         assert not info.converged and int(info.status) == 2
         assert int(info.steps) == 1 and int(info.minimization.status) == MAX_STEPS
+        assert int(info.max_minimization_steps) == 3
         assert not info.minimization.converged
     else:
         result = pe_band_jam(st, sy, **kw)

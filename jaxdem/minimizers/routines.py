@@ -23,10 +23,13 @@ if TYPE_CHECKING:  # pragma: no cover
 CONVERGED = 0
 MAX_STEPS = 2
 NONFINITE = 3
+COLLIDER_OVERFLOW = 4
 
 
 class MinimizeInfo(NamedTuple):
-    """Mechanical convergence quantities and termination status."""
+    """Mechanical diagnostics; status 0=converged, 2=step limit,
+    3=nonfinite, 4=collider overflow.
+    """
 
     converged: jax.Array
     finite: jax.Array
@@ -219,7 +222,9 @@ def minimize(
     ``return_info=True`` appends a :class:`MinimizeInfo` to the historical
     four-tuple ``(state, system, steps, energy)``. Check ``info.converged`` before
     accepting a mechanically equilibrated state: hitting ``max_steps`` or
-    encountering a nonfinite value is not convergence. The reported energy
+    encountering a nonfinite value or collider overflow is not convergence.
+    Collider overflow stops relaxation immediately with status 4; retry from
+    a valid state with sufficient collider capacity. The reported energy
     remains per constituent sphere (or the unnormalized custom objective).
     Tolerances are in the user's units; for a relative residual target, choose
     them from the relevant contact-force and particle-length scales.
@@ -293,12 +298,15 @@ def minimize(
     )
 
     def cond_fun(carry: tuple[Any, ...]) -> jax.Array:
-        cur_state, _, step_count, pe, _, _, grads = carry
+        cur_state, cur_system, step_count, pe, _, _, grads = carry
         info = convergence_info(
             grads["pos_c"], grads["rotvec"], cur_state.fixed, force_tol, torque_tol
         )
         finite = info.finite if force_only else info.finite & jnp.isfinite(pe)
-        return (step_count < max_steps) & finite & ~info.converged
+        return (
+            (step_count < max_steps) & finite & ~info.converged
+            & ~cur_system.collider.overflow
+        )
 
     def body_fun(carry: tuple[Any, ...]) -> tuple[Any, ...]:
         state, system, step_count, pe, params, opt_state, grads = carry
@@ -345,12 +353,14 @@ def minimize(
     )
     # Validate the reported objective once, including on the force-only path.
     finite = info.finite & jnp.isfinite(final_pe)
-    converged = info.converged & finite
+    overflow = final_system.collider.overflow
+    converged = info.converged & finite & ~overflow
     info = info._replace(
         finite=finite,
         converged=converged,
         status=jnp.where(
-            ~finite, NONFINITE, jnp.where(converged, CONVERGED, MAX_STEPS)
+            overflow, COLLIDER_OVERFLOW,
+            jnp.where(~finite, NONFINITE, jnp.where(converged, CONVERGED, MAX_STEPS)),
         ),
     )
     result = (final_state, final_system, steps, final_pe)

@@ -1,10 +1,15 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Jamming routines.
-https://doi.org/10.1103/PhysRevE.68.011306.
+"""Search for equilibrated packings using energy or pressure criteria.
+
+The drivers change the box size and minimize each trial configuration before
+classifying it. They return particle states, packing fraction, energy per
+constituent sphere, and optional convergence diagnostics.
 """
 
 from __future__ import annotations
+
+import math
 
 import jax
 import jax.numpy as jnp
@@ -27,41 +32,84 @@ if TYPE_CHECKING:
 
 
 class JamResult(NamedTuple):
-    """Result of :func:`bisection_jam`.
+    """Particle states and measured scalars from a jamming search.
 
-    Behaves like the historical 6-tuple (same field order), but the named
-    fields make the intent explicit at the call site, e.g.
-    ``result.jammed_state`` instead of ``result[2]``.
+    Attributes
+    ----------
+    unjammed_state : State
+        Most recent equilibrated state below the driver's energy or pressure
+        threshold. Defaults to the input state if no such trial was found.
+    unjammed_system : System
+        System associated with ``unjammed_state``.
+    jammed_state : State
+        Accepted state on success. On failure, contains a state retained by
+        the driver for inspection; see its Returns section.
+    jammed_system : System
+        System associated with ``jammed_state``, including its collider state.
+    packing_fraction : jax.Array
+        Particle volume divided by box volume for the accepted state.
+        NaN if the search failed.
+    potential_energy : jax.Array
+        Potential energy divided by the number of constituent spheres for
+        the accepted state. NaN if the search failed.
+
+    Notes
+    -----
+    This named tuple can be unpacked into six values in the order shown above.
+    Check ``converged`` before using its contents as a jammed packing.
     """
 
     unjammed_state: "State"
-    """Last *unjammed* state visited by the bisection."""
     unjammed_system: "System"
-    """System matching :attr:`unjammed_state`."""
     jammed_state: "State"
-    """The jammed state (usually what you want)."""
     jammed_system: "System"
-    """System matching :attr:`jammed_state`."""
     packing_fraction: jax.Array
-    """Packing fraction of the jammed state."""
     potential_energy: jax.Array
-    """Per-particle potential energy of the jammed state."""
 
     @property
     def converged(self):
-        """Whether the search returned validated jammed scalars."""
+        """Return whether both reported packing fraction and energy are finite."""
         return jnp.isfinite(self.packing_fraction) & jnp.isfinite(self.potential_energy)
 
 
 class JammingInfo(NamedTuple):
-    """Search diagnostics: status 0=success, 1=initially jammed,
-    2=unresolved minimization, 3=outer iteration limit.
-    """
+    """Convergence diagnostics for a jamming search.
 
+    Attributes
+    ----------
+    converged : jax.Array
+        Whether the driver met its acceptance criterion.
+    status : jax.Array
+        Integer search status:
+
+        * 0: accepted a mechanically equilibrated packing.
+        * 1: the initial trial exceeded the energy threshold in
+          ``bisection_jam`` or the upper pressure bound in
+          ``pressure_bisection_jam``.
+        * 2: minimization failed, or the trial energy or pressure was
+          nonfinite or negative.
+        * 3: reached the maximum number of jamming steps.
+        * 4: pressure refinement stopped outside the target band because
+          the bracket in box length was too narrow or the next length was
+          numerically unchanged.
+    steps : jax.Array
+        Number of attempted minimizations, including the initial trial and
+        any failed attempt.
+    minimization : MinimizeInfo
+        Force and torque residuals, finiteness, convergence flag, and
+        minimizer status for the accepted state on success or the last
+        attempted trial on failure. Before any trial, convergence and
+        finiteness are false, residuals are infinite, and the minimizer
+        status is ``MAX_STEPS``.
+    max_minimization_steps : jax.Array
+        Largest number of minimizer steps taken by any trial, including
+        failed attempts. Zero if no minimization was attempted.
+    """
     converged: jax.Array
     status: jax.Array
     steps: jax.Array
     minimization: MinimizeInfo
+    max_minimization_steps: jax.Array
 
 
 def _bisect_jamming(
@@ -77,12 +125,56 @@ def _bisect_jamming(
     packing_fraction_increment,
     verbose,
 ):
-    """Shared device loop, including opaque contact history in each bound.
+    """Bisect an energy threshold while retaining state and payload at each bound.
 
-    ``relax(state, system, payload)`` returns state, system, payload, steps,
-    energy per sphere, MinimizeInfo. Both bounds require mechanical convergence
-    before energy classifies the equilibrated state. Return the cached high
-    bound without reconstruction.
+    Each trial is relaxed and classified by energy only if its minimization
+    converged and its energy is finite and nonnegative. Energies at or below
+    ``pe_tol`` update the lower bound on packing fraction; higher energies
+    update the upper bound. Before an upper bound exists, increase packing fraction
+    by ``packing_fraction_increment``. Once both bounds exist, use their
+    midpoint. Each trial is scaled from the stored state at the lower bound.
+
+    Parameters
+    ----------
+    state, system
+        Initial particle state and simulation system.
+    payload
+        JAX pytree carried with each state, such as contact history or a
+        random key. Each bound retains its own payload.
+    relax : callable
+        ``relax(state, system, payload)`` returns
+        ``(state, system, payload, steps, energy, MinimizeInfo)``. Energy
+        must be normalized per constituent sphere.
+    scale : callable
+        ``scale(state, system, packing_fraction)`` returns the state and
+        system rescaled to the requested packing fraction.
+    pe_tol : float
+        Energy threshold separating the lower and upper bounds.
+    n_jamming_steps : int
+        Maximum number of calls to ``relax``.
+    packing_fraction_tolerance : float
+        Accept the upper bound when ``phi_hi / phi_lo - 1`` is at most
+        this value and both bounds have been established.
+    packing_fraction_increment : float
+        Additive step in packing fraction before establishing an upper bound.
+    verbose : bool
+        Print the packing fraction, energy, and minimizer steps for each trial.
+
+    Returns
+    -------
+    low, high : tuple
+        Stored ``(state, system, payload)`` for each bound. An unset bound
+        contains the input values.
+    packing_fraction, potential_energy : jax.Array
+        Packing fraction and energy of the accepted upper bound, or NaN
+        if the search failed.
+    info : JammingInfo
+        Search status, minimizer diagnostics, and iteration counts.
+
+    Notes
+    -----
+    The search uses ``jax.lax.while_loop``. The callbacks and payload must
+    support JAX tracing.
     """
     phi = compute_packing_fraction(state, system)
     empty = MinimizeInfo(
@@ -106,14 +198,29 @@ def _bisect_jamming(
         jnp.asarray(jnp.nan),
         empty,
         empty,
+        jnp.asarray(0, dtype=int),
     )
 
     def condition(c):
         return (c[0] < n_jamming_steps) & (c[1] == -1)
 
     def step(c):
-        it, _, trial, low, high, phi, lo, hi, high_pe, high_info, _ = c
+        (
+            it,
+            _,
+            trial,
+            low,
+            high,
+            phi,
+            lo,
+            hi,
+            high_pe,
+            high_info,
+            _,
+            max_minimization_steps,
+        ) = c
         st, sy, history, n, pe, info = relax(*trial)
+        max_minimization_steps = jnp.maximum(max_minimization_steps, n)
         evaluated = (st, sy, history)
         valid = info.converged & jnp.isfinite(pe) & (pe >= 0.0)
         below = valid & (pe <= pe_tol)
@@ -138,12 +245,11 @@ def _bisect_jamming(
         )
         if verbose:
             jax.debug.print(
-                "Step {i}: phi={phi}, PE/N={pe}, steps={n}, balanced={ok}",
+                "Step {i}: phi={phi}, PE/N={pe}, steps={n}",
                 i=it + 1,
                 phi=phi,
                 pe=pe,
                 n=n,
-                ok=info.converged,
             )
         return (
             it + 1,
@@ -157,14 +263,32 @@ def _bisect_jamming(
             high_pe,
             high_info,
             info,
+            max_minimization_steps,
         )
 
     c = jax.lax.while_loop(condition, step, carry)
-    it, status, trial, low, high, _, lo, hi, high_pe, high_info, last_info = c
+    (
+        it,
+        status,
+        _trial,
+        low,
+        high,
+        _,
+        _lo,
+        hi,
+        high_pe,
+        high_info,
+        last_info,
+        max_minimization_steps,
+    ) = c
     status = jnp.where(status == -1, 3, status)
     success = status == 0
     info = JammingInfo(
-        success, status, it, jax.lax.cond(success, lambda: high_info, lambda: last_info)
+        success,
+        status,
+        it,
+        jax.lax.cond(success, lambda: high_info, lambda: last_info),
+        max_minimization_steps,
     )
     # Invalid scalars prevent exhausted/unresolved searches masquerading as a jam.
     return (
@@ -199,20 +323,73 @@ def bisection_jam(
     torque_tol: float | None = None,
     return_info: bool = False,
 ):
-    """Bracket repulsive jamming using mechanically validated high states.
+    """Locate an energy threshold by bisecting packing fraction.
 
-    Every trial must meet BOTH force/torque tolerances before its energy can
-    classify it and change either bracket bound. The returned
-    jammed state is the stored equilibrated high state, including its collider
-    history; no final reconstruction/minimization can change its classification.
+    Minimize each trial with the system's configured minimizer. A trial can
+    update a bound only after its maximum net force and torque norms satisfy
+    their tolerances and its energy is finite and nonnegative. Write
+    ``e = E / N``, where ``N`` is the number of constituent spheres. Trials
+    with ``e <= pe_tol`` set the lower bound; trials with ``e > pe_tol`` set
+    the upper bound.
 
-    Energy normalization remains per constituent sphere. Tolerances are in
-    force and torque units (``torque_tol=None`` inherits ``force_tol``).
-    Returns the historical six-field :class:`JamResult`. On failed relaxation,
-    an initially jammed input, or outer-step exhaustion, packing_fraction and
-    potential_energy are NaN. Check ``result.converged``. ``return_info=True``
-    returns ``(result, JammingInfo)`` with the specific failure status.
-    This routine remains jit/vmap compatible; no per-step host checks are used.
+    Until an upper bound is found, increase packing fraction by
+    ``packing_fraction_increment``. Then choose each trial packing fraction
+    as the midpoint of the two bounds. Rescale the stored state at the lower
+    bound to create each trial, preserving body sizes and box aspect ratio.
+    Accept the stored state at the upper bound when
+    ``phi_hi / phi_lo - 1 <= packing_fraction_tolerance``.
+
+    Parameters
+    ----------
+    state : State
+        Initial particle configuration. Its minimized energy must be at or
+        below ``pe_tol`` to establish the first lower bound.
+    system : System
+        Domain, interactions, collider, and configured minimizer. The search
+        requires a repulsive physical energy and ``system.target_fn=None``.
+    n_minimization_steps : int, optional
+        Maximum steps per minimization.
+    pe_tol : float, optional
+        Threshold for energy per constituent sphere, applied after
+        mechanical equilibration.
+    n_jamming_steps : int, optional
+        Maximum number of trial minimizations, including the initial trial.
+    packing_fraction_tolerance : float, optional
+        Maximum relative separation of the two bounds on packing fraction
+        required for acceptance.
+    packing_fraction_increment : float, optional
+        Additive step in packing fraction used before finding an upper bound.
+    verbose : bool, optional
+        Print packing fraction, energy, and minimizer steps for each trial.
+    force_tol, torque_tol : float, optional
+        Absolute tolerances on maximum net force and torque norms over free
+        bodies. Reactions on fixed bodies are excluded. ``torque_tol=None``
+        uses the numerical value of ``force_tol``.
+    return_info : bool, optional
+        Return ``(result, info)`` when true; otherwise return ``result``.
+
+    Returns
+    -------
+    result : JamResult
+        The stored lower and upper states and their systems, with the upper
+        bound's packing fraction and energy on success. State and collider
+        history are retained together. On failure, the stored bounds are
+        returned for inspection, with NaN packing fraction and energy.
+        An unset bound contains the input state and system.
+    info : JammingInfo, optional
+        Returned when ``return_info=True``. Includes search status, force
+        and torque diagnostics, trial count, and maximum minimizer steps.
+
+    Raises
+    ------
+    ValueError
+        If ``system.target_fn`` is set.
+
+    Notes
+    -----
+    Failed minimization, an initial energy above the threshold, or exhaustion
+    of the jamming step budget ends the search with ``result.converged=False``.
+    The search supports ``jax.jit`` and ``jax.vmap``.
     """
     if system.target_fn is not None:
         raise ValueError("bisection_jam requires a repulsive physical energy objective")
@@ -270,313 +447,198 @@ def pressure_bisection_jam(
     verbose: bool = True,
     force_tol: float = 1e-12,
     torque_tol: float | None = None,
-) -> JamResult:
-    r"""Find the nearest jammed state via a *pressure-band* bisection search.
+    return_info: bool = False,
+) -> JamResult | tuple[JamResult, JammingInfo]:
+    """Find an equilibrated packing within a prescribed contact pressure band.
 
-    This is a JaxDEM port of the classic single-system C++ ``Disk::Jam``
-    routine. Where :func:`bisection_jam` works in packing-fraction space and
-    classifies a state as jammed or unjammed with a single potential-energy
-    threshold, this routine follows the C++ algorithm:
+    The target is ``P_lo <= P <= P_hi``, where
+    ``P_lo = pressure_threshold`` and
+    ``P_hi = pressure_band_factor * pressure_threshold``. Minimize each trial,
+    require force and torque convergence, then compute its contact pressure.
+    Accept the first trial inside the band and return that state and system.
 
-    * The control variable is the **characteristic box length**
-      ``L = prod(box_size) ** (1 / dim)``. Compression decreases ``L`` and the
-      bisection is performed *linearly in* ``L`` (not in packing fraction).
-    * The jamming criterion is a **pressure band** ``[P_lo, P_hi]`` with
-      ``P_lo = pressure_threshold`` and ``P_hi = pressure_band_factor * P_lo``.
-      A configuration is *unjammed* if ``P < P_lo``, *over-compressed* if
-      ``P > P_hi``, and *accepted* (a successful jammed packing) if ``P`` lands
-      inside the band.
-    * The routine runs two phases, as in the original. A **coarse** phase
-      compresses multiplicatively by ``growth_rate`` until the first
-      over-compression brackets the jamming point. A **fine** phase
-      (``fine_growth_rate``) then bisects until the pressure lands in the band
-      or the bracket collapses to
-      ``|L_hi / L_lo - 1| < length_ratio_tolerance``.
+    The search variable is box length ``L = prod(box_size) ** (1 / dim)``.
+    Before finding a trial above the pressure band, compress by dividing
+    ``L`` by ``growth_rate``. A trial above the band records a shorter box
+    length and sets the next trial to the midpoint between it and the stored
+    length below the band. Subsequent compression uses ``fine_growth_rate``
+    whenever no length above the band is stored. A trial below the band uses
+    any stored length above the band to choose a midpoint, then clears that
+    bound.
 
-    Unlike :func:`bisection_jam`, this routine relies on host-side control
-    flow and on :func:`~jaxdem.utils.contacts.compute_contact_pressure`,
-    which is not ``jit``-safe. It runs on a **single system** and is neither
-    ``jit``-ed nor ``vmap``-able. Loop over systems in Python (or use
-    :func:`bisection_jam`) if you need many packings.
-
-    .. note::
-        The default ``pressure_threshold`` (``1e-7``) comes from the original
-        C++ code's unit system. Pressure scales with the contact stiffness, so
-        you will typically need to tune ``pressure_threshold`` to your own
-        units to get a meaningfully marginal packing.
+    Every trial is produced by rescaling the most recent equilibrated state
+    below the band. Rescaling preserves body sizes and box aspect ratio.
+    Stop without acceptance if refinement exhausts the length bracket or
+    the proposed box length is numerically unchanged.
 
     Parameters
     ----------
-    state, system
-        The (single) state/system to jam. The state must start *unjammed*.
-        If the initial minimized pressure already exceeds ``P_hi``, the
-        routine raises ValueError.
+    state : State
+        Initial particle configuration. Its minimized pressure must not
+        exceed the upper edge of the target band.
+    system : System
+        Domain, interactions, collider, and configured minimizer. The search
+        requires a repulsive physical energy and ``system.target_fn=None``.
     n_minimization_steps : int, optional
-        Maximum FIRE iterations per minimization. Typically ``1e6``.
-    force_tol, torque_tol : float, optional
-        Maximum free-body force and torque norms for mechanical convergence.
-        Torque tolerance defaults to the numerical force tolerance.
+        Maximum steps per minimization.
     pressure_threshold : float, optional
-        Lower edge ``P_lo`` of the target pressure band.
+        Positive lower edge of the pressure band, in the system's pressure
+        units.
     pressure_band_factor : float, optional
-        ``P_hi = pressure_band_factor * P_lo`` (``> 1``). Default ``1.01``.
+        Multiplier greater than one defining the upper edge of the band.
     growth_rate : float, optional
-        Coarse multiplicative compression rate (``> 1``). Each unjammed step
-        shrinks the box as ``L /= growth_rate``. Default ``1.001``.
+        Compression factor for box length, greater than one. Used before
+        the first trial above the pressure band.
     fine_growth_rate : float, optional
-        Compression rate used in the refinement phase. Default ``1.000001``.
+        Compression factor for box length, greater than one. Used after
+        the first trial above the band when no upper pressure bound is stored.
     length_ratio_tolerance : float, optional
-        Convergence tolerance on ``|L_hi / L_lo - 1|``. Default ``1e-14``.
+        Stop refinement outside the band when
+        ``abs(L_below / L_above - 1)`` is smaller than this value.
     n_jamming_steps : int, optional
-        Hard cap on the total number of outer (minimize + classify) iterations
-        across both phases. Default ``1e4``.
-    pressure_cutoff, pressure_max_neighbors : optional
-        Forwarded to :func:`~jaxdem.utils.contacts.compute_contact_pressure`.
+        Maximum number of trial minimizations, including the initial trial.
+    pressure_cutoff : float or None, optional
+        Neighbor search cutoff passed to ``compute_contact_pressure``.
+    pressure_max_neighbors : int or None, optional
+        Neighbor capacity passed to ``compute_contact_pressure``.
     verbose : bool, optional
-        If ``True`` (default), print per-iteration progress.
+        Print box length, packing fraction, pressure, energy, and minimizer
+        steps for each trial with a valid pressure measurement.
+    force_tol, torque_tol : float, optional
+        Absolute tolerances on maximum net force and torque norms over free
+        bodies. Reactions on fixed bodies are excluded. ``torque_tol=None``
+        uses the numerical value of ``force_tol``.
+    return_info : bool, optional
+        Return ``(result, info)`` when true; otherwise return ``result``.
 
     Returns
     -------
-    JamResult
-        ``(unjammed_state, unjammed_system, jammed_state, jammed_system,
-        packing_fraction, potential_energy)`` for the jammed packing, matching
-        :func:`bisection_jam`.
-    """
+    result : JamResult
+        The most recent state below the band and the accepted state, each
+        with its system. The unjammed fields contain the input if no trial
+        below the band was found. On failure, the jammed fields contain the last
+        evaluated state and system, or the input if no trial was attempted;
+        packing fraction and energy are NaN. Reported energy is per
+        constituent sphere.
+    info : JammingInfo, optional
+        Returned when ``return_info=True``. Includes search status, force
+        and torque diagnostics, trial count, and maximum minimizer steps.
 
-    def relax_checked(st, sy, **kwargs):
-        st, sy, steps, pe, info = sy.minimize(
-            st,
-            sy,
-            force_tol=force_tol,
-            torque_tol=torque_tol,
-            return_info=True,
-            **kwargs,
-        )
-        if not bool(info.converged):
-            raise RuntimeError(
-                f"Pressure jamming minimization failed (status={int(info.status)}, "
-                f"force={float(info.force_max)}, torque={float(info.torque_max)})"
-            )
-        return st, sy, steps, pe
+    Raises
+    ------
+    ValueError
+        If ``system.target_fn`` is set or contact pressure analysis reports
+        a neighbor list overflow.
+
+    Notes
+    -----
+    Failed minimization, invalid energy or pressure, an initial state above
+    the band, or exhaustion of the jamming step budget or pressure bracket
+    ends the search with ``result.converged=False``. Energies and pressures
+    used for classification must be finite and nonnegative.
+
+    The search uses Python control flow and contact analysis on one system.
+    It cannot be transformed with ``jax.jit`` or ``jax.vmap``.
+    """
 
     if system.target_fn is not None:
         raise ValueError("pressure_bisection_jam requires a physical energy objective")
     p_lo = float(pressure_threshold)
     p_hi = float(pressure_band_factor) * p_lo
     dim = int(state.dim)
-
-    # Total particle volume is fixed during jamming (radii do not change), so
-    # the box length maps to a packing fraction via phi = V / L**dim.
     volume = float(compute_particle_volume(state))
-
-    def length_of(system: System) -> float:
-        return float(jnp.prod(system.domain.box_size)) ** (1.0 / dim)
-
-    def packing_fraction_for_length(length: float) -> float:
-        return volume / (length**dim)
-
-    # Body grouping depends only on the (static) topology; compute it once.
     group_id = jnp.asarray(_host_body_grouping(state.clump_id, state.bond_id))
 
-    def pressure_of(state: State, system: System) -> tuple[State, System, float]:
+    # L_hi is the below-band box length; L_lo is the above-band length.
+    length_hi = -1.0
+    length_lo = -1.0
+    last_state, last_system = state, system
+    fine = False
+    iteration = 0
+    max_minimization_steps = 0
+    status = 3
+    pe = jnp.asarray(jnp.nan)
+    min_info = MinimizeInfo(
+        jnp.asarray(False), jnp.asarray(False), jnp.asarray(jnp.inf),
+        jnp.asarray(jnp.inf), jnp.asarray(MAX_STEPS),
+    )
+
+    while iteration < n_jamming_steps:
+        state, system, n_steps, pe, min_info = system.minimize(
+            state, system, max_steps=n_minimization_steps,
+            force_tol=force_tol, torque_tol=torque_tol, return_info=True,
+        )
+        iteration += 1
+        max_minimization_steps = max(max_minimization_steps, int(n_steps))
+        if not bool(min_info.converged) or not math.isfinite(float(pe)) or float(pe) < 0:
+            status = 2
+            break
+
         state, system, pressure = compute_contact_pressure(
             state, system, pressure_cutoff, pressure_max_neighbors
         )
-        return state, system, float(pressure)
-
-    # Initial relaxation and over-compression guard.
-    state, system, _, final_pe = relax_checked(
-        state,
-        system,
-        max_steps=n_minimization_steps,
-    )
-    state, system, pressure = pressure_of(state, system)
-    if pressure > p_hi:
-        raise ValueError("Initial state is already above the requested pressure band")
-
-    length = length_of(system)
-    # Bracket bounds: L_hi is the largest *unjammed* box seen, L_lo the
-    # smallest *over-compressed* box seen (mirrors L_h / L_l in the C++ code).
-    # A bound is "unknown" while it is negative.
-    length_hi = -1.0
-    length_lo = -1.0
-
-    # Last fully relaxed *unjammed* configuration; every new box is produced by
-    # affinely rescaling this reference (== the C++ ``x_old`` reversion).
-    last_state, last_system = state, system
-
-    iteration = 0
-    success = False
-    final_pe = float(final_pe)
-
-    def do_step(
-        state: State,
-        system: System,
-        last_state: State,
-        last_system: System,
-        length: float,
-        length_hi: float,
-        length_lo: float,
-        rate: float,
-        break_on_over: bool,
-        check_convergence: bool,
-    ) -> tuple[State, System, State, System, float, float, float, float, str]:
-        state, system, _, pe = relax_checked(
-            state,
-            system,
-            max_steps=n_minimization_steps,
-        )
-        state, system, pressure = pressure_of(state, system)
-        pe = float(pe)
-
+        pressure = float(pressure)
+        if not math.isfinite(pressure) or pressure < 0:
+            status = 2
+            break
+        length = float(jnp.prod(system.domain.box_size)) ** (1.0 / dim)
         if verbose:
             print(
-                f"Step {iteration}: L={length:.8e}, "
-                f"phi={packing_fraction_for_length(length):.8e}, "
-                f"P={pressure:.5e}, PE={pe:.5e}"
+                f"Step {iteration}: L={length:.8e}, phi={volume / length**dim:.8e}, "
+                f"P={pressure:.5e}, PE/N={float(pe):.5e}, steps={int(n_steps)}"
             )
 
-        status = "continue"
-        if pressure < p_lo:  # unjammed -> compress further
+        if p_lo <= pressure <= p_hi:
+            status = 0
+            break
+        if pressure < p_lo:
             last_state, last_system = state, system
             length_hi = length
-            if length_lo > 0.0:  # bracket known: bisect, then resume growth
-                length = 0.5 * (length_hi + length_lo)
+            if length_lo > 0:
+                next_length = 0.5 * (length_hi + length_lo)
                 length_lo = -1.0
             else:
-                length /= rate
-        elif pressure > p_hi:  # over-compressed -> record bound and bisect
+                next_length = length / (fine_growth_rate if fine else growth_rate)
+        else:
+            if length_hi < 0:
+                status = 1
+                break
             length_lo = length
-            length = 0.5 * (length_hi + length_lo)
-            if break_on_over:
-                status = "break"
-        else:  # pressure inside the band -> success
-            status = "success"
+            next_length = 0.5 * (length_hi + length_lo)
 
         if (
-            check_convergence
-            and length_hi > 0.0
-            and length_lo > 0.0
+            fine and length_hi > 0 and length_lo > 0
             and abs(length_hi / length_lo - 1.0) < length_ratio_tolerance
-        ):
-            status = "converged"
-
-        # Produce the next trial box by rescaling the last unjammed reference,
-        # unless we have already accepted a packing.
-        if status in ("continue", "break"):
-            state, system = _scale_to_packing_fraction_grouped(
-                last_state,
-                last_system,
-                packing_fraction_for_length(length),
-                group_id,
-            )
-
-        return (
-            state,
-            system,
-            last_state,
-            last_system,
-            length,
-            length_hi,
-            length_lo,
-            pe,
-            status,
+        ) or next_length == length:
+            status = 4
+            break
+        fine = fine or pressure > p_hi
+        if iteration == n_jamming_steps:
+            break
+        # Each pressure trial starts from the latest equilibrated low state.
+        state, system = _scale_to_packing_fraction_grouped(
+            last_state, last_system, volume / next_length**dim, group_id
         )
 
-    # Phase 1: coarse compression until the first over-compression brackets it.
-    status = "continue"
-    while iteration < n_jamming_steps and status == "continue":
-        (
-            state,
-            system,
-            last_state,
-            last_system,
-            length,
-            length_hi,
-            length_lo,
-            final_pe,
-            status,
-        ) = do_step(
-            state,
-            system,
-            last_state,
-            last_system,
-            length,
-            length_hi,
-            length_lo,
-            growth_rate,
-            break_on_over=True,
-            check_convergence=False,
-        )
-        iteration += 1
-    success = status == "success"
-
-    # Phase 2: fine bisection to the pressure band or the length tolerance.
-    if not success:
-        status = "continue"
-        while iteration < n_jamming_steps and status == "continue":
-            (
-                state,
-                system,
-                last_state,
-                last_system,
-                length,
-                length_hi,
-                length_lo,
-                final_pe,
-                status,
-            ) = do_step(
-                state,
-                system,
-                last_state,
-                last_system,
-                length,
-                length_hi,
-                length_lo,
-                fine_growth_rate,
-                break_on_over=False,
-                check_convergence=True,
-            )
-            iteration += 1
-        success = status == "success"
-
-    if verbose and not success:
-        print(
-            "Warning: pressure band not reached; returning the marginally "
-            "jammed bracket bound, which must still pass final validation."
-        )
-
-    # Recover the jammed packing: rescale the last unjammed configuration to the
-    # jammed box length and relax it once more. On success ``length`` already
-    # holds the in-band box; otherwise fall back to the over-compressed bound.
-    jammed_length = length if success else (length_lo if length_lo > 0.0 else length)
-    jammed_state, jammed_system = _scale_to_packing_fraction_grouped(
-        last_state, last_system, packing_fraction_for_length(jammed_length), group_id
+    success = status == 0
+    info = JammingInfo(
+        jnp.asarray(success), jnp.asarray(status), jnp.asarray(iteration),
+        min_info, jnp.asarray(max_minimization_steps),
     )
-    jammed_state, jammed_system, _, final_pe = relax_checked(
-        jammed_state,
-        jammed_system,
-        max_steps=n_minimization_steps,
-    )
-
-    jammed_state, jammed_system, final_pressure = pressure_of(
-        jammed_state, jammed_system
-    )
-    if not (p_lo <= final_pressure <= p_hi):
-        raise RuntimeError("Pressure jamming did not reach the requested pressure band")
-
-    return JamResult(
+    result = JamResult(
         unjammed_state=last_state,
         unjammed_system=last_system,
-        jammed_state=jammed_state,
-        jammed_system=jammed_system,
-        packing_fraction=compute_packing_fraction(jammed_state, jammed_system),
-        potential_energy=jnp.asarray(final_pe),
+        jammed_state=state,
+        jammed_system=system,
+        packing_fraction=(compute_packing_fraction(state, system) if success else jnp.asarray(jnp.nan)),
+        potential_energy=(jnp.asarray(pe) if success else jnp.asarray(jnp.nan)),
     )
+    return (result, info) if return_info else result
 
 
 @partial(
-    jax.jit, static_argnames=["n_minimization_steps", "n_jamming_steps", "verbose"]
+    jax.jit,
+    static_argnames=["n_minimization_steps", "n_jamming_steps", "verbose", "return_info"],
 )
 def pe_band_jam(
     state: State,
@@ -590,66 +652,73 @@ def pe_band_jam(
     *,
     force_tol: float = 1e-12,
     torque_tol: float | None = None,
-) -> JamResult:
-    r"""Find a jammed state via an adaptive, halving packing-fraction step.
+    return_info: bool = False,
+) -> JamResult | tuple[JamResult, JammingInfo]:
+    """Find an equilibrated packing within a prescribed energy band.
 
-    Like :func:`bisection_jam`, this strategy works in packing-fraction space
-    and uses the per-particle potential energy as its criterion. Instead of a
-    single jammed/unjammed threshold, it targets a **potential-energy band**
-    ``[pe_tol, pe_band_factor * pe_tol]`` with an *adaptive step size*:
+    The target is ``pe_tol <= E / N <= pe_band_factor * pe_tol``, where
+    ``N`` is the number of constituent spheres. Minimize each trial and
+    require force and torque convergence before classifying its energy.
 
-    * Start from ``packing_fraction_increment`` (typically ``1e-3``).
-    * If ``PE/N < pe_tol`` the configuration is under-compressed -> **compress**
-      (increase the packing fraction by the current increment, shrinking the
-      box).
-    * If ``PE/N > pe_band_factor * pe_tol`` it is over-compressed -> **expand**
-      (decrease the packing fraction).
-    * An in-band state is accepted only after force AND torque convergence.
-
-    Every time the search *reverses direction* (compress -> expand or
-    expand -> compress) it **halves** the increment. The step refines
-    itself once it brackets the band -- a self-bracketing bisection that
-    needs no separately tracked bracket bounds.
-
-    Unlike :func:`bisection_jam` and :func:`pressure_bisection_jam`, this routine
-    **does not revert** to the last sub-threshold configuration: it produces
-    each new box by affinely rescaling the *current* (just-minimized) state. The
-    minimizer already returns ``PE/N`` directly, so this routine -- like
-    :func:`bisection_jam` -- is fully ``jit``/``vmap`` compatible.
+    Begin with a step in packing fraction of ``packing_fraction_increment``.
+    Increase packing fraction when the energy is below the band and decrease
+    it when the energy is above the band. Halve the step before applying it
+    whenever the direction changes between compression and expansion. Each
+    trial is produced by rescaling the current equilibrated state, preserving
+    body sizes and box aspect ratio. Accept the first trial inside the band.
+    An initial state above the band starts the search with expansion.
 
     Parameters
     ----------
-    state, system
-        The state/system to jam.
+    state : State
+        Initial particle configuration.
+    system : System
+        Domain, interactions, collider, and configured minimizer. The search
+        requires a repulsive physical energy and ``system.target_fn=None``.
     n_minimization_steps : int, optional
-        Maximum FIRE iterations per minimization. Typically ``1e6``.
+        Maximum steps per minimization.
     pe_tol : float, optional
-        Lower edge of the energy band, applied after mechanical relaxation.
-    force_tol, torque_tol : float, optional
-        Both maximum free-body norms must pass before each trial is classified
-        for compression, expansion, or acceptance. Torque tolerance defaults
-        to the numerical force tolerance.
+        Lower edge of the band for energy per constituent sphere, applied after
+        mechanical equilibration.
     pe_band_factor : float, optional
-        The PE band is ``[pe_tol, pe_band_factor * pe_tol]`` (``> 1``).
-        Default ``2.0`` (i.e. the upper edge is ``2 * pe_tol``).
+        Multiplier greater than one defining the upper edge of the band.
     packing_fraction_increment : float, optional
-        Initial packing-fraction step. Default ``1e-3``.
+        Initial magnitude of the additive step in packing fraction.
     n_jamming_steps : int, optional
-        Hard cap on the number of (minimize + classify) iterations.
-        Default ``1e4``.
+        Maximum number of trial minimizations, including the initial trial.
     verbose : bool, optional
-        If ``True`` (default), print per-iteration progress via
-        ``jax.debug.print``.
+        Print packing fraction, step size, energy, and minimizer steps for
+        each trial.
+    force_tol, torque_tol : float, optional
+        Absolute tolerances on maximum net force and torque norms over free
+        bodies. Reactions on fixed bodies are excluded. ``torque_tol=None``
+        uses the numerical value of ``force_tol``.
+    return_info : bool, optional
+        Return ``(result, info)`` when true; otherwise return ``result``.
 
     Returns
     -------
-    JamResult
-        ``(unjammed_state, unjammed_system, jammed_state, jammed_system,
-        packing_fraction, potential_energy)``. ``unjammed_state`` is the most
-        recent configuration seen with ``PE/N < pe_tol`` (it defaults to the
-        input if none was seen). ``jammed_state`` is the final in-band
-        packing. Failed or exhausted searches return NaN phi/energy; check
-        result.converged before accepting or saving the packing.
+    result : JamResult
+        The most recent state below the band and the accepted state, each
+        with its system. The unjammed fields contain the input if no trial
+        below the band was found. On failure, the jammed fields contain the last
+        evaluated state and system, or the input if no trial was attempted;
+        packing fraction and energy are NaN. Reported energy is per
+        constituent sphere.
+    info : JammingInfo, optional
+        Returned when ``return_info=True``. Includes search status, force
+        and torque diagnostics, trial count, and maximum minimizer steps.
+
+    Raises
+    ------
+    ValueError
+        If ``system.target_fn`` is set.
+
+    Notes
+    -----
+    Failed minimization, nonfinite or negative energy, or exhaustion of the
+    jamming step budget ends the search with ``result.converged=False``.
+    The search supports ``jax.jit`` and ``jax.vmap``.
     """
     if system.target_fn is not None:
         raise ValueError("pe_band_jam requires a repulsive physical energy objective")
@@ -676,7 +745,7 @@ def pe_band_jam(
     )
     init_carry = (
         0,  # iteration
-        jnp.asarray(False),  # done
+        jnp.asarray(-1),  # running
         state,
         system,  # current state/system
         state,
@@ -686,11 +755,12 @@ def pe_band_jam(
         jnp.asarray(0, int),  # previous step direction in {-1, 0, +1}
         jnp.asarray(jnp.inf),  # final PE/N
         empty_info,
+        jnp.asarray(0, dtype=int),  # maximum inner step count
     )
 
     def cond_fun(carry: tuple[Any, ...]) -> jax.Array:
-        i, done, *_ = carry
-        return (i < n_jamming_steps) & (~done)
+        i, status, *_ = carry
+        return (i < n_jamming_steps) & (status == -1)
 
     def body_fun(carry: tuple[Any, ...]) -> tuple[Any, ...]:
         (
@@ -705,6 +775,7 @@ def pe_band_jam(
             prev_dir,
             _,
             _,
+            max_minimization_steps,
         ) = carry
 
         state, system, n_steps, pe, info = system.minimize(
@@ -715,12 +786,14 @@ def pe_band_jam(
             torque_tol=torque_tol,
             return_info=True,
         )
+        max_minimization_steps = jnp.maximum(max_minimization_steps, n_steps)
 
         valid = info.converged & jnp.isfinite(pe) & (pe >= 0.0)
         below = valid & (pe < pe_lo)  # under-compressed -> compress
         above = valid & (pe > pe_hi)  # over-compressed -> expand
         accepted = valid & (pe >= pe_lo) & (pe <= pe_hi)
-        done = accepted | ~valid  # failures stop, but do not certify a packing
+        status = jnp.where(~valid, 2, jnp.where(accepted, 0, -1))
+        done = (status != -1) | (i + 1 == n_jamming_steps)
 
         direction = jnp.where(below, 1, jnp.where(above, -1, 0))
 
@@ -740,8 +813,7 @@ def pe_band_jam(
 
         new_prev_dir = jnp.where(done, prev_dir, direction)
 
-        # Rescale the *current* (non-reverted) state to the new box. On success
-        # leave the accepted in-band state untouched.
+        # Preserve the evaluated state on every exit so diagnostics match it.
         next_state, next_system = jax.lax.cond(
             done,
             lambda: (state, system),
@@ -761,7 +833,7 @@ def pe_band_jam(
 
         return (
             i + 1,
-            done,
+            status,
             next_state,
             next_system,
             new_last_state,
@@ -771,12 +843,13 @@ def pe_band_jam(
             new_prev_dir,
             pe,
             info,
+            max_minimization_steps,
         )
 
     final_carry = jax.lax.while_loop(cond_fun, body_fun, init_carry)
     (
-        _,
-        _,
+        iterations,
+        status,
         final_state,
         final_system,
         last_state,
@@ -785,10 +858,13 @@ def pe_band_jam(
         _,
         _,
         final_pe,
-        info,
+        min_info,
+        max_minimization_steps,
     ) = final_carry
-    success = info.converged & (final_pe >= pe_lo) & (final_pe <= pe_hi)
-    return JamResult(
+    status = jnp.where(status == -1, 3, status)
+    success = status == 0
+    info = JammingInfo(success, status, iterations, min_info, max_minimization_steps)
+    result = JamResult(
         unjammed_state=last_state,
         unjammed_system=last_system,
         jammed_state=final_state,
@@ -798,3 +874,4 @@ def pe_band_jam(
         ),
         potential_energy=jnp.where(success, final_pe, jnp.nan),
     )
+    return (result, info) if return_info else result
