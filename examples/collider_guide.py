@@ -198,8 +198,10 @@ print("Cell-list overflow:", bool(overflow_cl))
 # - ``skin_fraction`` — alternative way to specify the skin as a fraction
 #   of the cutoff (defaults to ``0.05`` when neither ``skin`` nor
 #   ``skin_fraction`` is given). Passing both raises an error.
-# - ``max_neighbors`` — buffer size per particle (auto-estimated if
-#   omitted).
+# - ``max_neighbors`` — average capacity budget per particle (auto-estimated if
+#   omitted). The cache shares ``N * max_neighbors`` slots: individual particles
+#   may exceed this budget. An exactly full pool is valid; overflow means the
+#   total directed-pair count exceeds the pool (or spatial hashing overflows).
 # - ``secondary_collider_type`` — any registered collider except another ``"neighbor_list"``.
 #
 # This design works because every collider exposes ``create_neighbor_list``.

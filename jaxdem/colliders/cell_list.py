@@ -497,11 +497,10 @@ class DynamicCellList(Collider):
         DynamicCellList
             A configured DynamicCellList instance.
         """
-        min_rad = jnp.min(state._rad)
-        max_rad = jnp.max(state._rad)
-        alpha = max_rad / jnp.where(min_rad > 0, min_rad, 1.0)
-
+        max_rad = jnp.max(state._rad, initial=0.0)
         if cell_size is None:
+            min_rad = jnp.min(state._rad, initial=jnp.inf)
+            alpha = max_rad / jnp.where(min_rad > 0, min_rad, 1.0)
             cell_size = jnp.where(
                 max_rad > 0, jnp.where(alpha < 2.5, 2.0 * max_rad, 0.5 * max_rad), 1.0
             )

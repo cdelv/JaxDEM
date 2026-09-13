@@ -17,158 +17,12 @@ try:
 except ImportError:
     from typing_extensions import Self
 
-from ..utils.linalg import cross, norm2
-from . import Collider, valid_interaction_mask
-
-# Limit force intermediates while leaving small neighbor arrays full-width.
-_FORCE_NEIGHBOR_PAIR_BUDGET = 8 * 1024 * 1024
+from . import Collider
 
 if TYPE_CHECKING:
     from ..domains import Domain
     from ..state import State
     from ..system import System
-
-
-@jax.jit(inline=True)
-def _remap_history_array(
-    old_hist: jax.Array,
-    old_nl: jax.Array,
-    new_nl: jax.Array,
-    initialized_hist: jax.Array,
-) -> jax.Array:
-    if old_nl.shape[-1] == 0:
-        return initialized_hist
-
-    def map_particle(
-        h_old_i: jax.Array,
-        nl_old_i: jax.Array,
-        nl_new_i: jax.Array,
-        h_init_i: jax.Array,
-    ) -> jax.Array:
-        matches = nl_new_i[:, None] == nl_old_i[None, :]
-        valid_matches = matches * (nl_new_i[:, None] != -1)
-
-        has_match = jnp.any(valid_matches, axis=-1)
-        idx = jnp.argmax(valid_matches, axis=-1)
-
-        gathered = h_old_i[idx]
-
-        has_match_exp = has_match
-        for _ in range(gathered.ndim - has_match.ndim):
-            has_match_exp = jnp.expand_dims(has_match_exp, -1)
-
-        return jnp.where(has_match_exp, gathered, h_init_i)
-
-    return jax.vmap(map_particle)(old_hist, old_nl, new_nl, initialized_hist)
-
-
-@jax.jit(inline=True)
-def _check_and_rebuild(
-    state: State, system: System, collider: "NeighborList"
-) -> "NeighborList":
-    """Check the displacement criterion and conditionally rebuild the list.
-
-    It triggers a rebuild when any particle has moved farther than half the
-    skin distance since the last build. It also rebuilds when the list has
-    never been built (``n_build_times == 0``). Otherwise it returns the
-    cached buffers.
-
-    Returns
-    -------
-    NeighborList
-        The updated cache, including indices, geometry snapshots, and history.
-
-    Notes
-    -----
-    Under ``jax.vmap`` the ``jax.lax.cond`` below lowers to ``select`` and
-    both branches execute every step (full rebuild every step). See the
-    class docstring of :class:`NeighborList`.
-    """
-    # Intentionally not a periodic displacement: the list is built from
-    # absolute positions, so unwrapped motion is what invalidates it.
-    disp = state.pos - collider.old_pos
-    max_disp_sq = jnp.max(norm2(disp))
-    trigger_dist_sq = collider.skin**2 / 4
-
-    # Force rebuild if displacement is large OR if this is the first step (count == 0)
-    metric = _physical_metric_snapshot(system, state.dim)
-    radii = _search_radii(state, system)
-    physical_cutoff = jnp.maximum(collider.cutoff, 2.0 * jnp.max(radii))
-    should_rebuild = (
-        (max_disp_sq > trigger_dist_sq)
-        | (collider.n_build_times == 0)
-        | collider.invalidated
-        | jnp.any(metric != collider.metric_snapshot)
-        | (physical_cutoff != collider.physical_cutoff_snapshot)
-        | (collider.skin != collider.skin_snapshot)
-    )
-
-    def rebuild_branch(
-        operands: tuple[State, System, NeighborList],
-    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, Any]:
-        s, sys, col = operands
-        nl_new, old_pos_new, n_build_new, overflow_new = col._rebuild(col, s, sys)
-
-        def init_hist(_: Any) -> Any:
-            shape = s.pos_c.shape[:-1] + (col.max_neighbors,)
-            return sys.force_model.init_history(shape, s.pos.shape[-1])
-
-        def remap_hist(_: Any) -> Any:
-            initialized = init_hist(())
-            return _remap_history_array(
-                col.history, col.neighbor_list, nl_new, initialized
-            )
-
-        new_history = jax.lax.cond(col.n_build_times == 0, init_hist, remap_hist, ())
-
-        return nl_new, old_pos_new, n_build_new, overflow_new, new_history
-
-    def no_rebuild_branch(
-        operands: tuple[State, System, NeighborList],
-    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, Any]:
-        s, sys, col = operands
-        return (
-            col.neighbor_list,
-            col.old_pos,
-            col.n_build_times,
-            col.overflow,
-            col.history,
-        )
-
-    nl, old_pos, n_build, overflow, history = jax.lax.cond(
-        should_rebuild > 0,
-        rebuild_branch,
-        no_rebuild_branch,
-        (state, system, collider),
-    )
-    return replace(
-        collider,
-        neighbor_list=nl,
-        old_pos=old_pos,
-        n_build_times=n_build,
-        overflow=overflow,
-        history=history,
-        metric_snapshot=metric,
-        physical_cutoff_snapshot=physical_cutoff,
-        skin_snapshot=collider.skin,
-        invalidated=jnp.asarray(False),
-    )
-
-
-def _physical_metric_snapshot(system: System, dim: int) -> jax.Array:
-    """Return fixed-shape periodic geometry used by cache validity."""
-    snapshot = system.domain.search_geometry_snapshot()
-    if snapshot.shape != (dim + 3,):
-        raise ValueError(
-            "Domain.search_geometry_snapshot() must return shape "
-            f"({dim + 3},), got {snapshot.shape}."
-        )
-    return snapshot
-
-
-def _search_radii(state: State, system: System) -> jax.Array:
-    """Return the force law's conservative per-particle search extent."""
-    return system.force_model.search_radii(state, system)
 
 
 @Collider.register("NeighborList")
@@ -181,6 +35,11 @@ class NeighborList(Collider):
     timesteps. This removes the need to run full spatial partitioning queries
     (sorting and slab/cell hashing) at every timestep and reduces contact
     detection overhead.
+
+    The cache pools ``N * max_neighbors`` directed pairs. ``max_neighbors`` is
+    an average capacity budget, not a per-particle limit. CSR offsets identify
+    each particle's pairs. Overflow occurs when the total pair count exceeds
+    the pool capacity; an exactly full pool is valid.
 
     Mathematical Formalism & Rebuild Criteria
     -----------------------------------------
@@ -220,8 +79,8 @@ class NeighborList(Collider):
        of this rebuild phase. The chosen underlying collider sets the complexity of
        the rebuild step (e.g., :math:`O(N^2)` for ``NaiveSimulator``, or
        :math:`O(N \log N)` for ``DynamicCellList``/``DynamicMultiCellList``).
-    2. **Step Evaluation Cost**: Occurs at every timestep. We iterate directly over the static
-       cached neighbor buffer of size ``max_neighbors``.
+    2. **Step Evaluation Cost**: Occurs at every timestep. We iterate over occupied
+       rows in the shared cache of capacity ``N * max_neighbors``.
 
        .. math::
            \text{cost}_{step} \approx N \cdot \text{max\_neighbors}
@@ -252,7 +111,8 @@ class NeighborList(Collider):
       field ``skin`` stores). You can also pass it to ``Create`` as ``skin_fraction``, a fraction of the
       cutoff (default `0.05`). Larger skin reduces rebuild frequency but inflates `max_neighbors`, which
       increases step time and memory.
-    - **max_neighbors**: The static neighbor buffer size per particle. If not provided, the constructor
+    - **max_neighbors**: The average per-particle capacity budget for the shared pool.
+      If not provided, the constructor
       estimates it with safety factor and density heuristics. A value too small causes list overflows. A
       value too large wastes GPU memory.
     - **number_density**: Macroscopic number density for the ``max_neighbors`` estimate. Default is `1.0`.
@@ -303,10 +163,10 @@ class NeighborList(Collider):
     """
 
     secondary_collider: Collider
-    """The underlying collider used to build the list via ``create_neighbor_list``."""
+    """The spatial search backend used to construct the packed pair cache."""
 
     neighbor_list: jax.Array
-    """Shape (N, max_neighbors). Contains the IDs of neighboring particles, padded with -1."""
+    """Flat neighbor IDs of shape (N * max_neighbors,), with trailing -1 padding."""
 
     old_pos: jax.Array
     """Shape (N, dim). Positions of particles at the last build time."""
@@ -328,11 +188,12 @@ class NeighborList(Collider):
     """
 
     max_neighbors: int = jax.tree.static()
-    """Static buffer size for the neighbor list."""
+    """Average per-particle capacity budget for the shared pair pool."""
 
-    history: jax.Array = field(
-        default_factory=lambda: jnp.empty((0, 0, 0)), kw_only=True
-    )
+    row_offsets: jax.Array = field(default_factory=lambda: jnp.empty((0,), dtype=int))
+    """Sparse CSR offsets of length N + 1, clipped to allocated capacity."""
+
+    history: jax.Array = field(default_factory=lambda: jnp.empty((0, 0)), kw_only=True)
     """Pair-wise history variables for stateful force models."""
 
     @property
@@ -397,10 +258,14 @@ class NeighborList(Collider):
             distance is ``skin_fraction * cutoff``). Defaults to ``0.05``
             when neither ``skin`` nor ``skin_fraction`` is given.
         max_neighbors : int, optional
-            Maximum number of neighbors to store per particle. If not
+            Average capacity budget per particle for the shared pool. If not
             provided, the constructor estimates it from ``number_density``
             and packing limits. Construction inside a JAX trace requires an
             explicit Python integer because buffer widths must remain static.
+            The entire pool holds ``N * max_neighbors`` directed pairs and
+            individual particles may exceed this number of neighbors. An
+            exactly full pool is valid; capacity overflow means the total
+            directed-pair count exceeds the pool size.
         number_density : float, default 1.0
             Number density of the system. The constructor uses it to estimate
             ``max_neighbors`` when ``max_neighbors`` is not given.
@@ -462,6 +327,8 @@ class NeighborList(Collider):
                 "NeighborList.Create requires explicit static `max_neighbors` "
                 "when called while tracing."
             )
+        if max_neighbors is None and state.N == 0:
+            max_neighbors = 0
         if max_neighbors is None:
             # Estimate capacity only when the caller omits it. An explicit
             # capacity is an exact static buffer width, including widths
@@ -524,10 +391,20 @@ class NeighborList(Collider):
             )
 
         cl = Collider.create(secondary_collider_type, **secondary_collider_kw)
+        max_index = (1 << (63 if jax.config.jax_enable_x64 else 31)) - 1
+        if state.N * max_neighbors >= max_index:
+            raise ValueError("Pool capacity exceeds the particle-index integer range")
+        from .cell_list import DynamicCellList
+        from .multi_cell_list import DynamicMultiCellList
+        from .naive import NaiveSimulator
+
+        if not isinstance(cl, (DynamicCellList, DynamicMultiCellList, NaiveSimulator)):
+            raise ValueError("NeighborList requires CellList, MultiCellList, or naive")
 
         # Initialize buffers
         current_pos = state.pos
-        dummy_nl = jnp.full((state.N, max_neighbors), -1, dtype=int)
+        pair_shape = (state.N * max_neighbors,)
+        dummy_nl = jnp.full(pair_shape, -1, dtype=int)
 
         return cls(
             secondary_collider=cl,
@@ -538,7 +415,8 @@ class NeighborList(Collider):
             skin=jnp.asarray(skin_val, dtype=float),
             overflow=jnp.asarray(False, dtype=bool),
             max_neighbors=int(max_neighbors),
-            history=jnp.zeros((state.N, max_neighbors, 0), dtype=state.pos.dtype),
+            row_offsets=jnp.zeros((state.N + 1,), dtype=int),
+            history=jnp.zeros(pair_shape + (0,), dtype=state.pos.dtype),
             metric_snapshot=jnp.zeros((state.dim + 3,), dtype=state.pos.dtype),
             physical_cutoff_snapshot=jnp.asarray(-1.0, dtype=state.pos.dtype),
             skin_snapshot=jnp.asarray(-1.0, dtype=state.pos.dtype),
@@ -605,56 +483,6 @@ class NeighborList(Collider):
         return state_out, replace(inner_system, collider=collider), nl, overflow
 
     @staticmethod
-    @jax.jit(inline=True)
-    @partial(jax.named_call, name="NeighborList._rebuild")
-    def _rebuild(
-        collider: NeighborList, state: State, system: System
-    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
-        r"""Rebuild the neighbor list with the secondary collider. Internal use only.
-
-        Parameters
-        ----------
-        collider : NeighborList
-            The current collider instance.
-        state : State
-            The current simulation state.
-        system : System
-            The simulation system.
-
-        Returns
-        -------
-        Tuple[jax.Array, jax.Array, jax.Array, jax.Array]
-            A tuple containing:
-            - New neighbor list indices (pointing to original order)
-            - New reference positions for displacement tracking
-            - Incremented build counter
-            - Overflow flag
-
-        """
-        radii = _search_radii(state, system)
-        list_cutoff = jnp.maximum(collider.cutoff, 2.0 * jnp.max(radii)) + collider.skin
-
-        # Create a view of the system using the inner collider
-        inner_system = replace(system, collider=collider.secondary_collider)
-
-        # 1. Get neighbors using the spatial partitioner
-        (
-            _,
-            _,
-            sorted_nl_indices,
-            overflow_flag,
-        ) = collider.secondary_collider.create_neighbor_list(
-            state, inner_system, list_cutoff, collider.max_neighbors
-        )
-
-        return (
-            sorted_nl_indices,
-            state.pos,
-            collider.n_build_times + 1,
-            overflow_flag,
-        )
-
-    @staticmethod
     @jax.jit(static_argnames=("advance_history",), inline=True)
     @partial(jax.named_call, name="NeighborList.compute_force")
     def compute_force(
@@ -681,130 +509,16 @@ class NeighborList(Collider):
             and the updated ``System`` object (with refreshed collider cache).
 
         """
-        iota = jax.lax.iota(dtype=int, size=state.N)
-        collider = cast(NeighborList, system.collider)
+        from ._neighbor_cache import check_and_rebuild, forces
 
-        # 1. Check Displacement & Trigger Rebuild
-        collider = _check_and_rebuild(state, system, collider)
-        system = replace(system, collider=collider)
-        nl, history = collider.neighbor_list, collider.history
-
-        # 2. Compute Forces
-        # Pre-calculate contact points in global frame for torque
-        pos_p_global = state._pos_p_rot
-        pos = state.pos
-
-        def per_particle_force(
-            i: jax.Array, neighbors: jax.Array, hist_i: Any
-        ) -> tuple[jax.Array, jax.Array, Any]:
-            valid = neighbors != -1
-            safe_j = jnp.maximum(neighbors, 0)
-            valid = valid * valid_interaction_mask(
-                state.clump_id[i],
-                state.clump_id[safe_j],
-                state.bond_id[i],
-                safe_j,
-                system.interact_same_bond_id,
-            )
-
-            f, t, new_hist_i = system.force_model.force(
-                i,
-                safe_j,
-                pos,
-                state,
-                system,
-                hist_i,
-                advance_history=advance_history,
-            )
-
-            # Mask out invalid/padding forces
-            f = jnp.where((valid > 0)[..., None], f, 0.0)
-            t = jnp.where((valid > 0)[..., None], t, 0.0)
-            if advance_history:
-                initialized = system.force_model.init_history(
-                    neighbors.shape, state.dim
-                )
-                history_valid = valid > 0
-                for _ in range(new_hist_i.ndim - history_valid.ndim):
-                    history_valid = history_valid[..., None]
-                new_hist_i = jnp.where(history_valid, new_hist_i, initialized)
-
-            f_sum = jnp.sum(f, axis=0)
-            t_sum = jnp.sum(t, axis=0)
-
-            return f_sum, t_sum, new_hist_i
-
-        capacity = nl.shape[1]
-        block_size = min(
-            capacity, max(1, _FORCE_NEIGHBOR_PAIR_BUDGET // max(state.N, 1))
+        system = check_and_rebuild(state, system)
+        state.force, state.torque, history = forces(
+            state, system, advance_history=advance_history
         )
-        if block_size == capacity:
-            state.force, torque_sum, history = jax.vmap(per_particle_force)(
-                iota, nl, history
-            )
-            state.torque = torque_sum + jax.vmap(cross)(pos_p_global, state.force)
-        else:
-            padded_capacity = ((capacity + block_size - 1) // block_size) * block_size
-            pad_width = padded_capacity - capacity
-            padded_nl = jnp.pad(nl, ((0, 0), (0, pad_width)), constant_values=-1)
-            initialized_history = system.force_model.init_history(
-                (state.N, padded_capacity), state.dim
-            )
-            padded_history = initialized_history.at[:, :capacity].set(history)
-
-            init_carry = (
-                jnp.zeros_like(state.force),
-                jnp.zeros_like(state.torque),
-            )
-
-            def block_step(
-                carry: tuple[jax.Array, jax.Array],
-                block_idx: jax.Array,
-            ) -> tuple[tuple[jax.Array, jax.Array], jax.Array]:
-                start = block_idx * block_size
-                neighbors_block = jax.lax.dynamic_slice_in_dim(
-                    padded_nl, start, block_size, axis=1
-                )
-                history_block = jax.lax.dynamic_slice_in_dim(
-                    padded_history, start, block_size, axis=1
-                )
-
-                def evaluate_block() -> tuple[tuple[jax.Array, jax.Array], jax.Array]:
-                    block_force, block_torque, new_history_block = jax.vmap(
-                        per_particle_force
-                    )(iota, neighbors_block, history_block)
-                    force_sum, torque_sum = carry
-                    return (
-                        force_sum + block_force,
-                        torque_sum + block_torque,
-                    ), new_history_block
-
-                def skip_block() -> tuple[tuple[jax.Array, jax.Array], jax.Array]:
-                    if advance_history:
-                        skipped_history = system.force_model.init_history(
-                            neighbors_block.shape, state.dim
-                        )
-                    else:
-                        skipped_history = history_block
-                    return carry, skipped_history
-
-                return jax.lax.cond(
-                    jnp.any(neighbors_block != -1), evaluate_block, skip_block
-                )
-
-            block_indices = jax.lax.iota(dtype=int, size=padded_capacity // block_size)
-            (state.force, torque_sum), history_blocks = jax.lax.scan(
-                block_step, init_carry, block_indices
-            )
-            state.torque = torque_sum + jax.vmap(cross)(pos_p_global, state.force)
-            history = history_blocks.swapaxes(0, 1).reshape(
-                state.N, padded_capacity, *history.shape[2:]
-            )[:, :capacity]
-
-        # Update collider cache
-        system.collider = replace(collider, history=history)
-
-        return state, system
+        return state, replace(
+            system,
+            collider=replace(cast(NeighborList, system.collider), history=history),
+        )
 
     @staticmethod
     @jax.jit(inline=True)
@@ -819,9 +533,14 @@ class NeighborList(Collider):
         """Map stored contact history onto an explicit neighbor query."""
         collider = cast(NeighborList, system.collider)
         initialized = system.force_model.init_history(neighbor_list.shape, state.dim)
-        return _remap_history_array(
+        from ._neighbor_cache import pair_sources, remap_history
+
+        sources = jnp.broadcast_to(jnp.arange(state.N)[:, None], neighbor_list.shape)
+        return remap_history(
             collider.history,
+            pair_sources(collider),
             collider.neighbor_list,
+            sources,
             neighbor_list,
             initialized,
         )
@@ -850,37 +569,10 @@ class NeighborList(Collider):
             Tuple of (state, system, energy).
 
         """
-        collider = cast(NeighborList, system.collider)
+        from ._neighbor_cache import check_and_rebuild, energy
 
-        # Check displacement & trigger rebuild if necessary
-        collider = _check_and_rebuild(state, system, collider)
-        system = replace(system, collider=collider)
-        nl = collider.neighbor_list
-
-        iota = jax.lax.iota(dtype=int, size=state.N)
-
-        def per_particle_energy(i: jax.Array) -> jax.Array:
-            neighbors = nl[i]
-
-            valid = neighbors != -1
-            safe_j = jnp.maximum(neighbors, 0)
-            valid = valid * valid_interaction_mask(
-                state.clump_id[i],
-                state.clump_id[safe_j],
-                state.bond_id[i],
-                safe_j,
-                system.interact_same_bond_id,
-            )
-            e = system.force_model.energy(i, safe_j, state.pos, state, system)
-
-            # Sum energies and divide by 2 (double counting in neighbor list)
-            e = jnp.where(valid > 0, e, 0.0)
-            return 0.5 * jnp.sum(e)
-
-        system.collider = collider
-
-        energy = jnp.sum(jax.vmap(per_particle_energy)(iota))
-        return state, system, energy
+        system = check_and_rebuild(state, system)
+        return state, system, energy(state, system)
 
     @staticmethod
     @jax.jit(static_argnames=("max_neighbors",), inline=True)

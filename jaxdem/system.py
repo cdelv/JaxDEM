@@ -589,7 +589,9 @@ class System:
         if collider.supports_history:
             from dataclasses import replace
 
-            pair_shape = tuple(state_shape[:-1]) + (cast(Any, collider).max_neighbors,)
+            pair_shape = tuple(state_shape[:-2]) + (
+                state_shape[-2] * cast(Any, collider).max_neighbors,
+            )
             expected_shape = pair_shape + history_shape
             history = cast(Any, collider).history
             if history.shape == pair_shape + (0,) and history_shape != (0,):

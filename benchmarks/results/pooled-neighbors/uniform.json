@@ -1,0 +1,80 @@
+{
+  "n": 1000000,
+  "layout": "sparse",
+  "capacity": 24,
+  "force_batch_size": 8388608,
+  "reduction": "row",
+  "warmup_runs": 4,
+  "minimum_warmup_seconds": 0.3,
+  "scenario": "uniform",
+  "jax": "0.11.0",
+  "device": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+  "x64": false,
+  "pair_count": 5940000,
+  "max_neighbors": 6,
+  "cache_bytes": 100000004,
+  "cached_force": {
+    "seconds": [
+      0.0034669759988901205,
+      0.0031606060001649894,
+      0.003162408000207506,
+      0.0031965540001692716,
+      0.003141664001304889,
+      0.0030879240002832375,
+      0.0031448949994228315
+    ],
+    "median_s": 0.0031606060001649894,
+    "compile_s": 2.322304630000872,
+    "memory": {
+      "argument_size_in_bytes": 285000477,
+      "output_size_in_bytes": 309000933,
+      "temp_size_in_bytes": 567014856,
+      "alias_size_in_bytes": 0
+    },
+    "warmup_runs": 83
+  },
+  "rebuild_and_force": {
+    "seconds": [
+      0.02622509200227796,
+      0.02613723300237325,
+      0.02594732099896646,
+      0.026409153997519752,
+      0.02667922299951897,
+      0.026272176997736096,
+      0.026193035999312997
+    ],
+    "median_s": 0.02622509200227796,
+    "compile_s": 2.3520515390009678,
+    "memory": {
+      "argument_size_in_bytes": 285000476,
+      "output_size_in_bytes": 309000933,
+      "temp_size_in_bytes": 567014088,
+      "alias_size_in_bytes": 0
+    },
+    "warmup_runs": 10
+  },
+  "ten_steps": {
+    "seconds": [
+      0.04346394000094733,
+      0.04366468700027326,
+      0.04348536999896169,
+      0.04395466200003284,
+      0.04328396200071438,
+      0.04320007199930842,
+      0.04344749099982437
+    ],
+    "median_s": 0.04346394000094733,
+    "compile_s": 3.159423819000949,
+    "memory": {
+      "argument_size_in_bytes": 297000477,
+      "output_size_in_bytes": 309000933,
+      "temp_size_in_bytes": 731058120,
+      "alias_size_in_bytes": 0
+    },
+    "warmup_runs": 6
+  },
+  "step_median_s": 0.004346394000094733,
+  "step_rebuilds": 0,
+  "force_norm": 2665.259033203125,
+  "finite": true
+}

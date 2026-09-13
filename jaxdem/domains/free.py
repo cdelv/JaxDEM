@@ -48,6 +48,8 @@ class FreeDomain(Domain):
                 f"resize expects one snapshot with shape (N, dim); got {pos.shape}. "
                 "Use jax.vmap for batched snapshots."
             )
+        if pos.shape[0] == 0:
+            return system
         pad = jnp.asarray(padding, dtype=pos.dtype)
         if pad.ndim == pos.ndim - 1:
             pad = pad[..., None]

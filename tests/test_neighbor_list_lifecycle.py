@@ -9,7 +9,7 @@ import jax.numpy as jnp
 import numpy as np
 
 import jaxdem as jd
-from jaxdem.colliders.neighbor_list import _remap_history_array
+from jaxdem.colliders._neighbor_cache import pair_sources, remap_history
 
 
 def _neighbor_system(pos, *, cutoff=1.0, max_neighbors=4, domain_type="free"):
@@ -66,16 +66,6 @@ def test_periodic_metric_change_rebuilds_cached_force_list():
     assert int(system.collider.n_build_times) == first_count + 1
 
 
-def test_history_remap_follows_neighbor_identity():
-    old_neighbors = jnp.array([[1, 2, -1], [0, -1, -1]])
-    new_neighbors = jnp.array([[2, 1, -1], [0, -1, -1]])
-    history = jnp.array([[10.0, 20.0, 0.0], [30.0, 0.0, 0.0]])
-    remapped = _remap_history_array(
-        history, old_neighbors, new_neighbors, jnp.zeros_like(history)
-    )
-    np.testing.assert_allclose(remapped, [[20.0, 10.0, 0.0], [30.0, 0.0, 0.0]])
-
-
 def test_zero_radius_capacity_estimate_is_finite():
     state = jd.State.create(pos=jnp.array([[0.0, 0.0], [1.0, 0.0]]), rad=jnp.zeros(2))
     collider = jd.colliders.NeighborList.Create(
@@ -96,8 +86,8 @@ def test_explicit_neighbor_capacity_is_exact(capacity):
         secondary_collider_type="naive",
     )
     assert collider.max_neighbors == capacity
-    assert collider.neighbor_list.shape == (state.N, capacity)
-    assert collider.history.shape == (state.N, capacity, 0)
+    assert collider.neighbor_list.shape == (state.N * capacity,)
+    assert collider.history.shape == (state.N * capacity, 0)
 
 
 @jax.tree_util.register_dataclass
@@ -233,15 +223,18 @@ def test_history_survives_evaluation_refresh_and_initial_preparation(composite):
         )
     previous = system.collider.history
     previous_neighbors = system.collider.neighbor_list
+    previous_sources = pair_sources(system.collider)
     moved = replace(state, pos_c=state.pos_c + 0.2)
     moved, evaluated, _ = system.collider.compute_potential_energy(moved, system)
     assert int(evaluated.collider.n_build_times) > int(system.collider.n_build_times)
     for before, after in zip(
         jax.tree.leaves(previous), jax.tree.leaves(evaluated.collider.history)
     ):
-        expected = _remap_history_array(
+        expected = remap_history(
             before,
+            previous_sources,
             previous_neighbors,
+            pair_sources(evaluated.collider),
             evaluated.collider.neighbor_list,
             law.init_history(
                 evaluated.collider.neighbor_list.shape, moved.pos.shape[-1]
@@ -318,7 +311,7 @@ def test_refresh_grows_history_capacity_without_losing_pair_memory():
     resized = jd.colliders.refresh_collider(
         state, replace(system.collider, max_neighbors=4), law
     )
-    assert resized.history.shape == (2, 4, 1)
+    assert resized.history.shape == (8, 1)
     _, system = resized.compute_force(
         state, replace(system, collider=resized), advance_history=False
     )
@@ -346,8 +339,8 @@ def test_refresh_growth_uses_force_history_initializer_for_new_slots():
     )
     old = replace(system.collider, history=system.collider.history * 3.0)
     resized = jd.colliders.refresh_collider(state, replace(old, max_neighbors=3), law)
-    np.testing.assert_array_equal(resized.history[:, :1], 21.0)
-    np.testing.assert_array_equal(resized.history[:, 1:], 7.0)
+    np.testing.assert_array_equal(resized.history[:2], 21.0)
+    np.testing.assert_array_equal(resized.history[2:], 7.0)
 
 
 def test_particle_count_change_requires_explicit_nonempty_history_reset():
@@ -397,23 +390,13 @@ def test_new_neighbor_uses_force_history_initializer_after_rebuild():
     np.testing.assert_allclose(np.abs(evaluated.force[:, 0]), 49_000.0)
 
 
-def test_empty_history_capacity_remaps_without_invalid_reduction():
-    history = _remap_history_array(
-        jnp.zeros((2, 0, 0)),
-        jnp.zeros((2, 0), dtype=int),
-        jnp.ones((2, 3), dtype=int),
-        jnp.zeros((2, 3, 0)),
-    )
-    np.testing.assert_array_equal(history, np.zeros((2, 3, 0)))
-
-
 def test_refresh_shrinks_stateless_history_with_neighbor_capacity():
     state, system = _neighbor_system([[0.0, 0.0], [0.3, 0.0]], max_neighbors=4)
     resized = jd.colliders.refresh_collider(
         state, replace(system.collider, max_neighbors=1), system.force_model
     )
-    assert resized.neighbor_list.shape == (2, 1)
-    assert resized.history.shape == (2, 1, 0)
+    assert resized.neighbor_list.shape == (2,)
+    assert resized.history.shape == (2, 0)
 
 
 def test_refresh_rejects_incompatible_force_history_without_reset():

@@ -1,0 +1,80 @@
+{
+  "n": 1000000,
+  "layout": "sparse",
+  "capacity": 24,
+  "force_batch_size": 8388608,
+  "reduction": "row",
+  "warmup_runs": 4,
+  "minimum_warmup_seconds": 0.3,
+  "scenario": "clustered",
+  "jax": "0.11.0",
+  "device": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+  "x64": false,
+  "pair_count": 12661876,
+  "max_neighbors": 26,
+  "cache_bytes": 100000004,
+  "cached_force": {
+    "seconds": [
+      0.0038270670011115726,
+      0.0037836080009583384,
+      0.003750137002498377,
+      0.0037384200004453305,
+      0.0037205369990260806,
+      0.0036633750023611356,
+      0.0037773240001115482
+    ],
+    "median_s": 0.003750137002498377,
+    "compile_s": 2.3759233319979103,
+    "memory": {
+      "argument_size_in_bytes": 285000477,
+      "output_size_in_bytes": 309000933,
+      "temp_size_in_bytes": 567014856,
+      "alias_size_in_bytes": 0
+    },
+    "warmup_runs": 70
+  },
+  "rebuild_and_force": {
+    "seconds": [
+      0.044811484000092605,
+      0.0447694459980994,
+      0.04488714399849414,
+      0.0449578970001312,
+      0.04457378599909134,
+      0.044805385998188285,
+      0.04487376600081916
+    ],
+    "median_s": 0.044811484000092605,
+    "compile_s": 2.243178736000118,
+    "memory": {
+      "argument_size_in_bytes": 285000476,
+      "output_size_in_bytes": 309000933,
+      "temp_size_in_bytes": 567014088,
+      "alias_size_in_bytes": 0
+    },
+    "warmup_runs": 6
+  },
+  "ten_steps": {
+    "seconds": [
+      0.051004848999582464,
+      0.05085349599903566,
+      0.05108024400033173,
+      0.05082681999920169,
+      0.05107412199868122,
+      0.05065306100004818,
+      0.050867003003077116
+    ],
+    "median_s": 0.050867003003077116,
+    "compile_s": 3.0661314349999884,
+    "memory": {
+      "argument_size_in_bytes": 297000477,
+      "output_size_in_bytes": 309000933,
+      "temp_size_in_bytes": 731058120,
+      "alias_size_in_bytes": 0
+    },
+    "warmup_runs": 5
+  },
+  "step_median_s": 0.005086700300307711,
+  "step_rebuilds": 0,
+  "force_norm": 11299.90625,
+  "finite": true
+}

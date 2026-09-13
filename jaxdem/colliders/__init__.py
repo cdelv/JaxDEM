@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import dataclasses
 from abc import ABC
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, cast
@@ -12,8 +11,8 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 import jax
 import jax.numpy as jnp
 
-from ..factory import Factory
 from ..domains import Domain, SearchGeometry
+from ..factory import Factory
 from ..utils.linalg import norm2
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -355,76 +354,14 @@ def refresh_collider(
             secondary_collider_type=secondary_collider.type_name,
             secondary_collider_kw=_stored_create_kwargs(secondary_collider),
         )
-        old_n = int(collider.neighbor_list.shape[0])
-        same_indexing = old_n == state.N
-        old_history = collider.history
-        if not same_indexing and old_history.shape[-1] > 0 and not reset_history:
-            raise ValueError(
-                "Changing particle count with nonempty pair history requires "
-                "reset_history=True because particle identity cannot be inferred."
-            )
-        if force_model is not None:
-            expected_tail = force_model.history_shape(state.pos.shape[-1])
-            if (
-                old_history.shape[-len(expected_tail) :] != expected_tail
-                and not reset_history
-            ):
-                raise ValueError(
-                    "Changing the force-model history shape requires "
-                    "reset_history=True."
-                )
-        if same_indexing and not reset_history:
-            old_neighbors = collider.neighbor_list
-            old_width = old_neighbors.shape[-1]
-            new_width = new_collider.max_neighbors
-            if old_history.shape[-1] > 0 and new_width < old_width:
-                raise ValueError(
-                    "Shrinking history capacity requires reset_history=True; "
-                    "discarded pair memory cannot be preserved without a rebuild."
-                )
-            if new_width > old_width:
-                padding = new_width - old_width
-                old_neighbors = jnp.pad(
-                    old_neighbors, ((0, 0), (0, padding)), constant_values=-1
-                )
-                if old_history.shape[-1] > 0:
-                    if force_model is None:
-                        raise ValueError(
-                            "force_model is required to initialize expanded "
-                            "NeighborList history capacity"
-                        )
-                    expanded_history = force_model.init_history(
-                        (state.N, new_width), state.pos.shape[-1]
-                    )
-                    old_history = expanded_history.at[:, :old_width].set(old_history)
-                else:
-                    old_history = jnp.empty(
-                        (state.N, new_width, 0), dtype=old_history.dtype
-                    )
-            else:
-                old_neighbors = old_neighbors[:, :new_width]
-                old_history = old_history[:, :new_width]
-            return cast(
-                Collider,
-                dataclasses.replace(
-                    new_collider,
-                    neighbor_list=old_neighbors,
-                    old_pos=collider.old_pos,
-                    n_build_times=collider.n_build_times,
-                    history=old_history,
-                    invalidated=jnp.asarray(True),
-                ),
-            )
-        if force_model is None and old_history.shape[-1] > 0:
-            raise ValueError(
-                "force_model is required to refresh a resized NeighborList with history"
-            )
-        history = new_collider.history
-        if force_model is not None:
-            history = force_model.init_history(
-                (state.N, new_collider.max_neighbors), state.pos.shape[-1]
-            )
-        return cast(Collider, dataclasses.replace(new_collider, history=history))
+        from ._neighbor_cache import refresh
+
+        return cast(
+            Collider,
+            refresh(
+                state, collider, new_collider, force_model, reset_history=reset_history
+            ),
+        )
 
     kwargs: dict[str, Any] = {}
     for pname in signature(create_fn).parameters:

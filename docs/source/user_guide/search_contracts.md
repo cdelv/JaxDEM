@@ -79,6 +79,9 @@ collider; they do not replace its physical force cache or contact history.
 
 An explicit NeighborList capacity bypasses estimation and is preserved exactly. Omitted
 capacities are estimates and can overflow in dense or overlapping configurations.
+The force cache shares `N * max_neighbors` slots: individual particles may exceed
+`max_neighbors`. An exactly full pool is valid; capacity overflow occurs only when
+the total directed-pair count exceeds the pool. Each batched simulation has its own pool.
 Hashes use `uint64` with JAX x64 enabled and `uint32` otherwise; particle indices
 remain signed. Invalid hash geometry is reported as overflow.
 

@@ -1,0 +1,29 @@
+{
+  "n": 1000000,
+  "scenario": "clustered",
+  "capacity": 24,
+  "force_law": "cundallstrack",
+  "phase": "sources",
+  "module": "/tmp/jaxdem-before-final-review/jaxdem/__init__.py",
+  "row_width_override": null,
+  "row_batch_override": null,
+  "minimum_warmup_seconds": 2.0,
+  "devices": [
+    "cuda:0"
+  ],
+  "memory": {
+    "argument_size_in_bytes": 4000004,
+    "output_size_in_bytes": 96000000,
+    "temp_size_in_bytes": 198000400,
+    "alias_size_in_bytes": 0
+  },
+  "seconds": [
+    0.003081580995058175,
+    0.003182817999913823,
+    0.0030709140046383254,
+    0.003005842001584824,
+    0.0029945139976916835,
+    0.0030200500041246414,
+    0.003109486999164801
+  ]
+}

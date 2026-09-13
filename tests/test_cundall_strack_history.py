@@ -221,7 +221,7 @@ def test_neighbor_list_initializes_and_advances_contact_history() -> None:
         },
     )
     state, system = jd.System.initialize(state, system)
-    assert system.collider.history.shape == (2, 2, 4)
+    assert system.collider.history.shape == (4, 4)
     np.testing.assert_array_equal(system.collider.history, 0.0)
 
     _, stepped = jd.System.step(state, system)

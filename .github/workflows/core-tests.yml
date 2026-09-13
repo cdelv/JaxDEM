@@ -43,6 +43,8 @@ jobs:
           tests/test_jamming_contracts.py tests/test_composite_history_shapes.py
           tests/test_packing_protocol.py tests/test_contact_diagnostics.py
           tests/test_analysis_timesteps.py
+          tests/test_sparse_neighbors.py
+          tests/test_neighbor_batching.py
       - run: python -m pytest -q tests/test_checkpoints.py
       - run: python -m mypy jaxdem
 
@@ -123,6 +125,7 @@ jobs:
       - run: >-
           python -m pytest -q tests/test_boundary_search_geometry.py
           tests/test_neighbor_list_lifecycle.py tests/test_force_search_contracts.py
+          tests/test_sparse_neighbors.py
           tests/test_cundall_strack_history.py
           tests/test_dynamics_state_contracts.py tests/test_ppo_math.py
           tests/test_packing_protocol.py tests/test_contact_diagnostics.py

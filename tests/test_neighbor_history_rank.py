@@ -83,18 +83,20 @@ def _case(force_model, capacity):
     )
     state, system = system.collider.compute_force(state, system)
 
-    neighbors = jnp.full((state.N, capacity), -1, dtype=int)
+    neighbors = jnp.full((state.N * capacity,), -1, dtype=int)
+    offsets = jnp.array([0, 1, 2, 2]) if capacity else jnp.zeros(4, dtype=int)
     if capacity:
-        neighbors = neighbors.at[0, 0].set(1)
-        neighbors = neighbors.at[1, capacity - 1].set(2)
+        neighbors = neighbors.at[0].set(1).at[1].set(2)
     history = force_model.init_history(neighbors.shape, state.dim)
-    offsets = jnp.arange(state.N * capacity, dtype=history.dtype).reshape(
+    values = jnp.arange(state.N * capacity, dtype=history.dtype).reshape(
         neighbors.shape
     )
     for _ in force_model.history_shape(state.dim):
-        offsets = offsets[..., None]
-    history = history + offsets
-    collider = replace(system.collider, neighbor_list=neighbors, history=history)
+        values = values[..., None]
+    history = history + values
+    collider = replace(
+        system.collider, neighbor_list=neighbors, row_offsets=offsets, history=history
+    )
     return state, replace(system, collider=collider), neighbors, history
 
 

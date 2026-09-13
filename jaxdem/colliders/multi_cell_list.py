@@ -314,12 +314,10 @@ class DynamicMultiCellList(Collider):
         """
         del max_hashes  # deprecated no-op, kept for API compatibility
 
-        max_rad = jnp.max(state._rad)
+        max_rad = jnp.max(state._rad, initial=0.0)
 
         if cell_size is None:
             cell_size = jnp.where(max_rad > 0, 2.0 * max_rad, 1.0)
-        cell_size = jnp.asarray(cell_size, dtype=float)
-
         cell_size = jnp.asarray(cell_size, dtype=float)
         if cell_size.ndim != 0 or not bool(jnp.isfinite(cell_size) & (cell_size > 0)):
             raise ValueError("cell_size must be a finite positive scalar")

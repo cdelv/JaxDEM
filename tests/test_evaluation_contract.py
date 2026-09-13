@@ -91,14 +91,16 @@ def test_evaluation_preserves_history_and_queued_load_until_step() -> None:
 
 def test_evaluation_remaps_history_after_modest_box_rescale() -> None:
     state, system = _history_system()
-    old_neighbors = np.asarray(system.collider.neighbor_list)
-    old_history = np.asarray(system.collider.history)
-    remembered = {
-        (i, int(j)): old_history[i, slot].copy()
-        for i, row in enumerate(old_neighbors)
-        for slot, j in enumerate(row)
-        if j >= 0
-    }
+
+    def pair_history(col):
+        offsets = np.asarray(col.row_offsets)
+        return {
+            (i, int(col.neighbor_list[slot])): np.asarray(col.history[slot]).copy()
+            for i in range(state.N)
+            for slot in range(offsets[i], offsets[i + 1])
+        }
+
+    remembered = pair_history(system.collider)
     packing_fraction = jd.utils.compute_packing_fraction(state, system)
 
     scaled_state, invalidated = scale_to_packing_fraction(
@@ -106,13 +108,9 @@ def test_evaluation_remaps_history_after_modest_box_rescale() -> None:
     )
     _, evaluated = jd.System.evaluate_forces(scaled_state, invalidated)
 
-    for i, row in enumerate(np.asarray(evaluated.collider.neighbor_list)):
-        for slot, j in enumerate(row):
-            if (i, int(j)) in remembered:
-                np.testing.assert_array_equal(
-                    np.asarray(evaluated.collider.history)[i, slot],
-                    remembered[i, int(j)],
-                )
+    for pair, history in pair_history(evaluated.collider).items():
+        if pair in remembered:
+            np.testing.assert_array_equal(history, remembered[pair])
 
 
 def test_evaluation_updates_free_bounds_after_particle_teleport() -> None:

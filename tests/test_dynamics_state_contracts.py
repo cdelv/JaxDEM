@@ -55,7 +55,7 @@ def test_traced_neighbor_constructor_uses_explicit_static_capacity() -> None:
         )
 
     collider = create(state)
-    assert collider.neighbor_list.shape == (2, 2)
+    assert collider.neighbor_list.shape == (4,)
     host_cell_list = DynamicCellList.Create(
         state, cell_size=1.0, search_range=jnp.asarray(1)
     )
