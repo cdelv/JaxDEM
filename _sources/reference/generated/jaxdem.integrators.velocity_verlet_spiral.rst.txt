@@ -1,0 +1,12 @@
+jaxdem.integrators.velocity\_verlet\_spiral
+===========================================
+
+.. automodule:: jaxdem.integrators.velocity_verlet_spiral
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      VelocityVerletSpiral
+   

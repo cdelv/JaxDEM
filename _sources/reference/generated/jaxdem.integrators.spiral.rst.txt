@@ -1,0 +1,18 @@
+jaxdem.integrators.spiral
+=========================
+
+.. automodule:: jaxdem.integrators.spiral
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      omega_dot
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Spiral
+   

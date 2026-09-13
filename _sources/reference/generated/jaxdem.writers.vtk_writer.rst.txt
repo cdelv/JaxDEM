@@ -1,0 +1,12 @@
+jaxdem.writers.vtk\_writer
+==========================
+
+.. automodule:: jaxdem.writers.vtk_writer
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      VTKWriter
+   

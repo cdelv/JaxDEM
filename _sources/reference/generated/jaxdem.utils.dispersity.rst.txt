@@ -1,0 +1,13 @@
+jaxdem.utils.dispersity
+=======================
+
+.. automodule:: jaxdem.utils.dispersity
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      allocate_counts
+      get_polydisperse_radii
+   

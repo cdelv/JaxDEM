@@ -1,0 +1,18 @@
+jaxdem.rl.environments.two\_gears
+=================================
+
+.. automodule:: jaxdem.rl.environments.two_gears
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      frictional_floor_force
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      TwoGears
+   

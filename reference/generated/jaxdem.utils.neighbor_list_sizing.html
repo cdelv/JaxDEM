@@ -1,0 +1,870 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>jaxdem.utils.neighbor_list_sizing &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'reference/generated/jaxdem.utils.neighbor_list_sizing';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="jaxdem.utils.packing_utils" href="jaxdem.utils.packing_utils.html" />
+    <link rel="prev" title="jaxdem.utils.meshes" href="jaxdem.utils.meshes.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../_static/searchtools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <script src="../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar">
+  <svg class="pst-icon" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="jaxdem.html">jaxdem</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.analysis.html">jaxdem.analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.bonded_forces.html">jaxdem.bonded_forces</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.colliders.html">jaxdem.colliders</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.domains.html">jaxdem.domains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.factory.html">jaxdem.factory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.forces.html">jaxdem.forces</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.integrators.html">jaxdem.integrators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.material_matchmakers.html">jaxdem.material_matchmakers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.materials.html">jaxdem.materials</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.minimizers.html">jaxdem.minimizers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.rl.html">jaxdem.rl</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.simulation_status.html">jaxdem.simulation_status</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.state.html">jaxdem.state</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.system.html">jaxdem.system</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.topology.html">jaxdem.topology</a></li>
+<li class="toctree-l2 current active has-children"><a class="reference internal" href="jaxdem.utils.html">jaxdem.utils</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.angles.html">jaxdem.utils.angles</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.clumps.html">jaxdem.utils.clumps</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.contacts.html">jaxdem.utils.contacts</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.dispersity.html">jaxdem.utils.dispersity</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.dynamical_matrix.html">jaxdem.utils.dynamical_matrix</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.dynamics_routines.html">jaxdem.utils.dynamics_routines</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.environment.html">jaxdem.utils.environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.geometric_asperity_creation.html">jaxdem.utils.geometric_asperity_creation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.grid_state.html">jaxdem.utils.grid_state</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.h5.html">jaxdem.utils.h5</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.jamming.html">jaxdem.utils.jamming</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.linalg.html">jaxdem.utils.linalg</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.load_legacy.html">jaxdem.utils.load_legacy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.meshes.html">jaxdem.utils.meshes</a></li>
+<li class="toctree-l3 current active"><a class="current reference internal" href="#">jaxdem.utils.neighbor_list_sizing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.packing_utils.html">jaxdem.utils.packing_utils</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.particle_creation.html">jaxdem.utils.particle_creation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.post_processing.html">jaxdem.utils.post_processing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.quaternion.html">jaxdem.utils.quaternion</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.random_sphere_configuration.html">jaxdem.utils.random_sphere_configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.random_state.html">jaxdem.utils.random_state</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.randomize_orientations.html">jaxdem.utils.randomize_orientations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.rollout_schedules.html">jaxdem.utils.rollout_schedules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.serialization.html">jaxdem.utils.serialization</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.serialization_schema.html">jaxdem.utils.serialization_schema</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.surface_properties.html">jaxdem.utils.surface_properties</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.thermal.html">jaxdem.utils.thermal</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.writers.html">jaxdem.writers</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="jaxdem.rl.html">jaxdem.rl</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../api.html" class="nav-link">API reference</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="jaxdem.html" class="nav-link">jaxdem</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="jaxdem.utils.html" class="nav-link">jaxdem.utils</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.utils.neighbor_list_sizing</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-jaxdem.utils.neighbor_list_sizing">
+<span id="jaxdem-utils-neighbor-list-sizing"></span><h1>jaxdem.utils.neighbor_list_sizing<a class="headerlink" href="#module-jaxdem.utils.neighbor_list_sizing" title="Link to this heading">#</a></h1>
+<p>Measure neighbor candidates and estimate capacity from relaxed bounding spheres.</p>
+<p class="rubric">Functions</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#jaxdem.utils.neighbor_list_sizing.estimate_neighbor_capacity" title="jaxdem.utils.neighbor_list_sizing.estimate_neighbor_capacity"><code class="xref py py-obj docutils literal notranslate"><span class="pre">estimate_neighbor_capacity</span></code></a>(state, system, ...)</p></td>
+<td><p>Estimate neighbor capacity using compressed, relaxed bounding spheres.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#jaxdem.utils.neighbor_list_sizing.measure_neighbor_candidates" title="jaxdem.utils.neighbor_list_sizing.measure_neighbor_candidates"><code class="xref py py-obj docutils literal notranslate"><span class="pre">measure_neighbor_candidates</span></code></a>(state, system, *)</p></td>
+<td><p>Count candidates in a snapshot without allocating a neighbor-pair buffer.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p class="rubric">Classes</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics" title="jaxdem.utils.neighbor_list_sizing.CandidateStatistics"><code class="xref py py-obj docutils literal notranslate"><span class="pre">CandidateStatistics</span></code></a>(degree, ...)</p></td>
+<td><p>Candidate counts for one configuration, before applying a capacity limit.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate" title="jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate"><code class="xref py py-obj docutils literal notranslate"><span class="pre">NeighborCapacityEstimate</span></code></a>(max_neighbors, ...)</p></td>
+<td><p>Capacity recommendations from a relaxed bounding-sphere configuration.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.CandidateStatistics">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.utils.neighbor_list_sizing.</span></span><span class="sig-name descname"><span class="pre">CandidateStatistics</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">degree</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">NDArray</span><span class="p"><span class="pre">[</span></span><span class="pre">int64</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">directed_pair_count</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_degree</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mean_degree</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p95_degree</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p99_degree</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">list_cutoff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Candidate counts for one configuration, before applying a capacity limit.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Variables<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>degree</strong> (<em>numpy.ndarray</em>) – Directed candidate count for each constituent sphere, shape <code class="docutils literal notranslate"><span class="pre">(N,)</span></code>.</p></li>
+<li><p><strong>directed_pair_count</strong> (<em>int</em>) – Sum of <code class="docutils literal notranslate"><span class="pre">degree</span></code>; each directed entry occupies one pooled cache slot.</p></li>
+<li><p><strong>p99_degree</strong> (<a class="reference internal" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics.max_degree" title="jaxdem.utils.neighbor_list_sizing.CandidateStatistics.max_degree"><em>max_degree</em></a><em>, </em><a class="reference internal" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics.mean_degree" title="jaxdem.utils.neighbor_list_sizing.CandidateStatistics.mean_degree"><em>mean_degree</em></a><em>, </em><a class="reference internal" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics.p95_degree" title="jaxdem.utils.neighbor_list_sizing.CandidateStatistics.p95_degree"><em>p95_degree</em></a><em>,</em>) – Maximum, mean, and degree percentiles across constituent spheres.</p></li>
+<li><p><strong>list_cutoff</strong> (<em>float</em>) – Effective search distance, including the absolute skin.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.CandidateStatistics.degree">
+<span class="sig-name descname"><span class="pre">degree</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">NDArray</span><span class="p"><span class="pre">[</span></span><span class="pre">int64</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics.degree" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.CandidateStatistics.directed_pair_count">
+<span class="sig-name descname"><span class="pre">directed_pair_count</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics.directed_pair_count" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.CandidateStatistics.max_degree">
+<span class="sig-name descname"><span class="pre">max_degree</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics.max_degree" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.CandidateStatistics.mean_degree">
+<span class="sig-name descname"><span class="pre">mean_degree</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics.mean_degree" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.CandidateStatistics.p95_degree">
+<span class="sig-name descname"><span class="pre">p95_degree</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics.p95_degree" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.CandidateStatistics.p99_degree">
+<span class="sig-name descname"><span class="pre">p99_degree</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics.p99_degree" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.CandidateStatistics.list_cutoff">
+<span class="sig-name descname"><span class="pre">list_cutoff</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics.list_cutoff" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.utils.neighbor_list_sizing.</span></span><span class="sig-name descname"><span class="pre">NeighborCapacityEstimate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">max_neighbors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">query_max_neighbors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">samples</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics" title="jaxdem.utils.neighbor_list_sizing.CandidateStatistics"><span class="pre">CandidateStatistics</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bounding_radii</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">NDArray</span><span class="p"><span class="pre">[</span></span><span class="pre">np.float64</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">box_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">NDArray</span><span class="p"><span class="pre">[</span></span><span class="pre">np.float64</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">packing_fraction</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skin</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">relaxation_steps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">relaxation_info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.minimizers.routines.html#jaxdem.minimizers.routines.MinimizeInfo" title="jaxdem.minimizers.routines.MinimizeInfo"><span class="pre">MinimizeInfo</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Capacity recommendations from a relaxed bounding-sphere configuration.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Variables<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>max_neighbors</strong> (<em>int</em>) – Average per-sphere budget for a NeighborList pool of size
+<code class="docutils literal notranslate"><span class="pre">N</span> <span class="pre">*</span> <span class="pre">max_neighbors</span></code>, including the requested margin and rounding.</p></li>
+<li><p><strong>query_max_neighbors</strong> (<em>int</em>) – Per-row capacity for dense neighbor queries at the sampled list cutoff.</p></li>
+<li><p><strong>samples</strong> (<em>tuple</em><em>[</em><a class="reference internal" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics" title="jaxdem.utils.neighbor_list_sizing.CandidateStatistics"><em>CandidateStatistics</em></a><em>, </em><em>...</em><em>]</em>) – Counts for the restored input orientations followed by random rotations.</p></li>
+<li><p><strong>bounding_radii</strong> (<em>numpy.ndarray</em>) – Bounding radius of each clump, ordered by increasing clump ID.</p></li>
+<li><p><strong>box_size</strong> (<em>numpy.ndarray</em>) – Probe box lengths in input length units, shape <code class="docutils literal notranslate"><span class="pre">(dim,)</span></code>.</p></li>
+<li><p><strong>packing_fraction</strong> (<em>float</em>) – Sum of bounding-sphere volumes divided by the probe box volume.</p></li>
+<li><p><strong>skin</strong> (<a class="reference internal" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.cutoff" title="jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.cutoff"><em>cutoff</em></a><em>,</em>) – Configured cutoff and absolute skin suitable for NeighborList.Create.
+The force model can enlarge the effective cutoff reported in <code class="docutils literal notranslate"><span class="pre">samples</span></code>.</p></li>
+<li><p><strong>relaxation_steps</strong> (<em>int</em>) – Number of FIRE updates performed on the bounding spheres.</p></li>
+<li><p><strong>relaxation_info</strong> (<a class="reference internal" href="jaxdem.minimizers.routines.html#jaxdem.minimizers.routines.MinimizeInfo" title="jaxdem.minimizers.routines.MinimizeInfo"><em>MinimizeInfo</em></a>) – Force and torque convergence diagnostics in analogue units. The largest
+bounding radius, sphere mass, and contact stiffness are each one.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.max_neighbors">
+<span class="sig-name descname"><span class="pre">max_neighbors</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.max_neighbors" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.query_max_neighbors">
+<span class="sig-name descname"><span class="pre">query_max_neighbors</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.query_max_neighbors" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.samples">
+<span class="sig-name descname"><span class="pre">samples</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics" title="jaxdem.utils.neighbor_list_sizing.CandidateStatistics"><span class="pre">CandidateStatistics</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.samples" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.bounding_radii">
+<span class="sig-name descname"><span class="pre">bounding_radii</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">NDArray</span><span class="p"><span class="pre">[</span></span><span class="pre">np.float64</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.bounding_radii" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.box_size">
+<span class="sig-name descname"><span class="pre">box_size</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">NDArray</span><span class="p"><span class="pre">[</span></span><span class="pre">np.float64</span><span class="p"><span class="pre">]</span></span></span><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.box_size" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.packing_fraction">
+<span class="sig-name descname"><span class="pre">packing_fraction</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.packing_fraction" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.cutoff">
+<span class="sig-name descname"><span class="pre">cutoff</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.cutoff" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.skin">
+<span class="sig-name descname"><span class="pre">skin</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">float</span></span><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.skin" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.relaxation_steps">
+<span class="sig-name descname"><span class="pre">relaxation_steps</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></span><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.relaxation_steps" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.relaxation_info">
+<span class="sig-name descname"><span class="pre">relaxation_info</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.minimizers.routines.html#jaxdem.minimizers.routines.MinimizeInfo" title="jaxdem.minimizers.routines.MinimizeInfo"><span class="pre">MinimizeInfo</span></a></span><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.relaxation_info" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.measure_neighbor_candidates">
+<span class="sig-prename descclassname"><span class="pre">jaxdem.utils.neighbor_list_sizing.</span></span><span class="sig-name descname"><span class="pre">measure_neighbor_candidates</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.system.html#jaxdem.system.System" title="jaxdem.system.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skin</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skin_fraction</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics" title="jaxdem.utils.neighbor_list_sizing.CandidateStatistics"><span class="pre">CandidateStatistics</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/utils/neighbor_list_sizing.py#L134-L204"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.measure_neighbor_candidates" title="Link to this definition">#</a></dt>
+<dd><p>Count candidates in a snapshot without allocating a neighbor-pair buffer.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> – One configuration and its domain, force model, and interaction rules.
+Positions, forces, and contact history are unchanged.</p></li>
+<li><p><strong>system</strong> – One configuration and its domain, force model, and interaction rules.
+Positions, forces, and contact history are unchanged.</p></li>
+<li><p><strong>cutoff</strong> – Configured cutoff. Defaults to the collider’s cutoff if present,
+otherwise twice the largest force-model search radius. The effective
+cutoff is at least twice that radius, matching NeighborList rebuilds.</p></li>
+<li><p><strong>skin</strong> – Absolute buffer distance. Defaults to the collider’s stored skin if
+present, otherwise <code class="docutils literal notranslate"><span class="pre">0.05</span> <span class="pre">*</span> <span class="pre">cutoff</span></code>.</p></li>
+<li><p><strong>skin_fraction</strong> – Buffer as a fraction of the configured cutoff; mutually exclusive
+with <code class="docutils literal notranslate"><span class="pre">skin</span></code>. Overrides the collider’s stored skin.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Directed per-sphere counts with the domain’s distance convention and
+the collider’s clump and bond exclusions. Empty states have zero counts.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics" title="jaxdem.utils.neighbor_list_sizing.CandidateStatistics">CandidateStatistics</a></p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><p><strong>RuntimeError</strong> – The spatial hash overflows, so counts would be incomplete.</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>This is a host-side utility. A JIT-compiled search counts candidates without
+evaluating forces or energy. At most 64 particles use the all-pairs backend
+to avoid grid setup. Larger configurations use a cell search, except custom
+domains without a declared cell-search geometry, which use all pairs.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="jaxdem.utils.neighbor_list_sizing.estimate_neighbor_capacity">
+<span class="sig-prename descclassname"><span class="pre">jaxdem.utils.neighbor_list_sizing.</span></span><span class="sig-name descname"><span class="pre">estimate_neighbor_capacity</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.system.html#jaxdem.system.System" title="jaxdem.system.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">packing_fraction</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">cutoff</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skin</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">skin_fraction</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_steps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1000000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_tol</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1e-08</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">orientation_samples</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">3</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">safety_factor</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">extra_neighbors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">round_to</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">8</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate" title="jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate"><span class="pre">NeighborCapacityEstimate</span></a></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/utils/neighbor_list_sizing.py#L212-L400"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.utils.neighbor_list_sizing.estimate_neighbor_capacity" title="Link to this definition">#</a></dt>
+<dd><p>Estimate neighbor capacity using compressed, relaxed bounding spheres.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> – One periodic 2D or 3D configuration of spheres or rigid clumps. Bodies
+are identified by <code class="docutils literal notranslate"><span class="pre">clump_id</span></code>. All analogue bodies can move, including
+those marked fixed in the input. Input arrays and history are unchanged.</p></li>
+<li><p><strong>system</strong> – One periodic 2D or 3D configuration of spheres or rigid clumps. Bodies
+are identified by <code class="docutils literal notranslate"><span class="pre">clump_id</span></code>. All analogue bodies can move, including
+those marked fixed in the input. Input arrays and history are unchanged.</p></li>
+<li><p><strong>packing_fraction</strong> – Positive target sum of bounding-sphere volumes divided by box volume.
+Values above one are permitted for overlapping soft bounding spheres.</p></li>
+<li><p><strong>cutoff</strong> – Search settings as in <a class="reference internal" href="#jaxdem.utils.neighbor_list_sizing.measure_neighbor_candidates" title="jaxdem.utils.neighbor_list_sizing.measure_neighbor_candidates"><code class="xref py py-func docutils literal notranslate"><span class="pre">measure_neighbor_candidates()</span></code></a>.</p></li>
+<li><p><strong>skin</strong> – Search settings as in <a class="reference internal" href="#jaxdem.utils.neighbor_list_sizing.measure_neighbor_candidates" title="jaxdem.utils.neighbor_list_sizing.measure_neighbor_candidates"><code class="xref py py-func docutils literal notranslate"><span class="pre">measure_neighbor_candidates()</span></code></a>.</p></li>
+<li><p><strong>skin_fraction</strong> – Search settings as in <a class="reference internal" href="#jaxdem.utils.neighbor_list_sizing.measure_neighbor_candidates" title="jaxdem.utils.neighbor_list_sizing.measure_neighbor_candidates"><code class="xref py py-func docutils literal notranslate"><span class="pre">measure_neighbor_candidates()</span></code></a>.</p></li>
+<li><p><strong>max_steps</strong> – FIRE update budget for one analogue relaxation. Default: 1,000,000.</p></li>
+<li><p><strong>force_tol</strong> – Maximum force norm tolerance in analogue units: the largest bounding
+radius, sphere mass, and spring stiffness are each one. Default: 1e-8.</p></li>
+<li><p><strong>orientation_samples</strong> – Total orientation samples, including the input orientations first.
+Later samples independently rotate each clump. Default: three.
+Single-sphere states require only one sample.</p></li>
+<li><p><strong>safety_factor</strong> – Multiplier &gt;= 1 applied to the largest observed mean and maximum degree.</p></li>
+<li><p><strong>extra_neighbors</strong> – Minimum additive margin on each of those statistics. Default: two.
+The larger of the additive and multiplicative margins is used.</p></li>
+<li><p><strong>round_to</strong> – Round each recommendation upward to this integer multiple. Default: eight.</p></li>
+<li><p><strong>seed</strong> – Seed for the initial small center perturbation and random orientations.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Pooled and dense-query capacities, sample counts, probe geometry, and
+analogue convergence diagnostics. Capacities are Python integers.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate" title="jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate">NeighborCapacityEstimate</a></p>
+</dd>
+<dt class="field-even">Raises<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>ValueError</strong> – Inputs are invalid, empty, or nonperiodic.</p></li>
+<li><p><strong>RuntimeError</strong> – Analogue relaxation fails to converge or candidate counting overflows.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Body centers and box lengths are scaled once to the requested packing
+fraction, preserving the box aspect ratio and periodic shear. A small
+seeded perturbation separates coincident centers before relaxation.
+Frictionless spheres are relaxed with FIRE and a CellList. Only force
+evaluations are needed during its iterations. Clump geometry is then
+restored at the relaxed centers; orientation samples reuse that relaxation.</p>
+<p>Counts are exact for the sampled configurations. The recommendations are
+estimates for subsequent motion, so production overflow checks remain
+necessary. Dense queries with a different cutoff require separate sizing.
+This host-side preparation utility cannot be called inside <code class="docutils literal notranslate"><span class="pre">jax.jit</span></code>.</p>
+</dd></dl>
+
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="jaxdem.utils.meshes.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">jaxdem.utils.meshes</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="jaxdem.utils.packing_utils.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">jaxdem.utils.packing_utils</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics"><code class="docutils literal notranslate"><span class="pre">CandidateStatistics</span></code></a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics.degree"><code class="docutils literal notranslate"><span class="pre">CandidateStatistics.degree</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics.directed_pair_count"><code class="docutils literal notranslate"><span class="pre">CandidateStatistics.directed_pair_count</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics.max_degree"><code class="docutils literal notranslate"><span class="pre">CandidateStatistics.max_degree</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics.mean_degree"><code class="docutils literal notranslate"><span class="pre">CandidateStatistics.mean_degree</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics.p95_degree"><code class="docutils literal notranslate"><span class="pre">CandidateStatistics.p95_degree</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics.p99_degree"><code class="docutils literal notranslate"><span class="pre">CandidateStatistics.p99_degree</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.CandidateStatistics.list_cutoff"><code class="docutils literal notranslate"><span class="pre">CandidateStatistics.list_cutoff</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate"><code class="docutils literal notranslate"><span class="pre">NeighborCapacityEstimate</span></code></a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.max_neighbors"><code class="docutils literal notranslate"><span class="pre">NeighborCapacityEstimate.max_neighbors</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.query_max_neighbors"><code class="docutils literal notranslate"><span class="pre">NeighborCapacityEstimate.query_max_neighbors</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.samples"><code class="docutils literal notranslate"><span class="pre">NeighborCapacityEstimate.samples</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.bounding_radii"><code class="docutils literal notranslate"><span class="pre">NeighborCapacityEstimate.bounding_radii</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.box_size"><code class="docutils literal notranslate"><span class="pre">NeighborCapacityEstimate.box_size</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.packing_fraction"><code class="docutils literal notranslate"><span class="pre">NeighborCapacityEstimate.packing_fraction</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.cutoff"><code class="docutils literal notranslate"><span class="pre">NeighborCapacityEstimate.cutoff</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.skin"><code class="docutils literal notranslate"><span class="pre">NeighborCapacityEstimate.skin</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.relaxation_steps"><code class="docutils literal notranslate"><span class="pre">NeighborCapacityEstimate.relaxation_steps</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.NeighborCapacityEstimate.relaxation_info"><code class="docutils literal notranslate"><span class="pre">NeighborCapacityEstimate.relaxation_info</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.measure_neighbor_candidates"><code class="docutils literal notranslate"><span class="pre">measure_neighbor_candidates()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.neighbor_list_sizing.estimate_neighbor_capacity"><code class="docutils literal notranslate"><span class="pre">estimate_neighbor_capacity()</span></code></a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

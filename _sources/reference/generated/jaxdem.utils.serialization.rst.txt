@@ -1,0 +1,13 @@
+jaxdem.utils.serialization
+==========================
+
+.. automodule:: jaxdem.utils.serialization
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      decode_callable
+      encode_callable
+   

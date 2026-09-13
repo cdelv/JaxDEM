@@ -1,0 +1,18 @@
+jaxdem.topology
+===============
+
+.. automodule:: jaxdem.topology
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      body_topology
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      BodyTopology
+   

@@ -1,0 +1,22 @@
+jaxdem.rl.action\_spaces
+========================
+
+.. automodule:: jaxdem.rl.action_spaces
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      ActionSpace
+      Transformed
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   box_space
+   free_space
+   max_norm_space

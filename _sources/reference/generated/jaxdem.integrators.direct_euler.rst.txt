@@ -1,0 +1,12 @@
+jaxdem.integrators.direct\_euler
+================================
+
+.. automodule:: jaxdem.integrators.direct_euler
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      DirectEuler
+   

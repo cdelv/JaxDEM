@@ -1,0 +1,1077 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>jaxdem.utils.jamming &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'reference/generated/jaxdem.utils.jamming';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+    <link rel="next" title="jaxdem.utils.linalg" href="jaxdem.utils.linalg.html" />
+    <link rel="prev" title="jaxdem.utils.h5" href="jaxdem.utils.h5.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../../_static/searchtools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <script src="../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar">
+  <svg class="pst-icon" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="jaxdem.html">jaxdem</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.analysis.html">jaxdem.analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.bonded_forces.html">jaxdem.bonded_forces</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.colliders.html">jaxdem.colliders</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.domains.html">jaxdem.domains</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.factory.html">jaxdem.factory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.forces.html">jaxdem.forces</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.integrators.html">jaxdem.integrators</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.material_matchmakers.html">jaxdem.material_matchmakers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.materials.html">jaxdem.materials</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.minimizers.html">jaxdem.minimizers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.rl.html">jaxdem.rl</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.simulation_status.html">jaxdem.simulation_status</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.state.html">jaxdem.state</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.system.html">jaxdem.system</a></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.topology.html">jaxdem.topology</a></li>
+<li class="toctree-l2 current active has-children"><a class="reference internal" href="jaxdem.utils.html">jaxdem.utils</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.angles.html">jaxdem.utils.angles</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.clumps.html">jaxdem.utils.clumps</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.contacts.html">jaxdem.utils.contacts</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.dispersity.html">jaxdem.utils.dispersity</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.dynamical_matrix.html">jaxdem.utils.dynamical_matrix</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.dynamics_routines.html">jaxdem.utils.dynamics_routines</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.environment.html">jaxdem.utils.environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.geometric_asperity_creation.html">jaxdem.utils.geometric_asperity_creation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.grid_state.html">jaxdem.utils.grid_state</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.h5.html">jaxdem.utils.h5</a></li>
+<li class="toctree-l3 current active"><a class="current reference internal" href="#">jaxdem.utils.jamming</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.linalg.html">jaxdem.utils.linalg</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.load_legacy.html">jaxdem.utils.load_legacy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.meshes.html">jaxdem.utils.meshes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.neighbor_list_sizing.html">jaxdem.utils.neighbor_list_sizing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.packing_utils.html">jaxdem.utils.packing_utils</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.particle_creation.html">jaxdem.utils.particle_creation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.post_processing.html">jaxdem.utils.post_processing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.quaternion.html">jaxdem.utils.quaternion</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.random_sphere_configuration.html">jaxdem.utils.random_sphere_configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.random_state.html">jaxdem.utils.random_state</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.randomize_orientations.html">jaxdem.utils.randomize_orientations</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.rollout_schedules.html">jaxdem.utils.rollout_schedules</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.serialization.html">jaxdem.utils.serialization</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.serialization_schema.html">jaxdem.utils.serialization_schema</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.surface_properties.html">jaxdem.utils.surface_properties</a></li>
+<li class="toctree-l3"><a class="reference internal" href="jaxdem.utils.thermal.html">jaxdem.utils.thermal</a></li>
+</ul>
+</details></li>
+<li class="toctree-l2"><a class="reference internal" href="jaxdem.writers.html">jaxdem.writers</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="jaxdem.rl.html">jaxdem.rl</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../api.html" class="nav-link">API reference</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="jaxdem.html" class="nav-link">jaxdem</a></li>
+    
+    
+    <li class="breadcrumb-item"><a href="jaxdem.utils.html" class="nav-link">jaxdem.utils</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">jaxdem.utils.jamming</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="module-jaxdem.utils.jamming">
+<span id="jaxdem-utils-jamming"></span><h1>jaxdem.utils.jamming<a class="headerlink" href="#module-jaxdem.utils.jamming" title="Link to this heading">#</a></h1>
+<p>Search for equilibrated packings using energy or pressure criteria.</p>
+<p>The drivers change the box size and minimize each trial configuration before
+classifying it. They return particle states, packing fraction, energy per
+constituent sphere, and optional convergence diagnostics.</p>
+<p class="rubric">Functions</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#jaxdem.utils.jamming.bisection_jam" title="jaxdem.utils.jamming.bisection_jam"><code class="xref py py-obj docutils literal notranslate"><span class="pre">bisection_jam</span></code></a>(state, system[, ...])</p></td>
+<td><p>Locate an energy threshold by bisecting packing fraction.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#jaxdem.utils.jamming.pe_band_jam" title="jaxdem.utils.jamming.pe_band_jam"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pe_band_jam</span></code></a>(state, system[, ...])</p></td>
+<td><p>Find an equilibrated packing within a prescribed energy band.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#jaxdem.utils.jamming.pressure_bisection_jam" title="jaxdem.utils.jamming.pressure_bisection_jam"><code class="xref py py-obj docutils literal notranslate"><span class="pre">pressure_bisection_jam</span></code></a>(state, system, *[, ...])</p></td>
+<td><p>Find an equilibrated packing within a prescribed contact pressure band.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p class="rubric">Classes</p>
+<div class="pst-scrollable-table-container"><table class="autosummary longtable table">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#jaxdem.utils.jamming.JamReason" title="jaxdem.utils.jamming.JamReason"><code class="xref py py-obj docutils literal notranslate"><span class="pre">JamReason</span></code></a>(*values)</p></td>
+<td><p>Why a jamming search stopped; bracket exhaustion is not acceptance.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#jaxdem.utils.jamming.JamResult" title="jaxdem.utils.jamming.JamResult"><code class="xref py py-obj docutils literal notranslate"><span class="pre">JamResult</span></code></a>(unjammed_state, unjammed_system, ...)</p></td>
+<td><p>Particle states and measured scalars from a jamming search.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#jaxdem.utils.jamming.JammingInfo" title="jaxdem.utils.jamming.JammingInfo"><code class="xref py py-obj docutils literal notranslate"><span class="pre">JammingInfo</span></code></a>(converged, status, steps, ...)</p></td>
+<td><p>Convergence diagnostics for a jamming search.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamReason">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.utils.jamming.</span></span><span class="sig-name descname"><span class="pre">JamReason</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">values</span></span></em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/utils/jamming.py#L36-L47"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.utils.jamming.JamReason" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">IntEnum</span></code></p>
+<p>Why a jamming search stopped; bracket exhaustion is not acceptance.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamReason.MAX_STEPS">
+<span class="sig-name descname"><span class="pre">MAX_STEPS</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></span><a class="headerlink" href="#jaxdem.utils.jamming.JamReason.MAX_STEPS" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamReason.TARGET_REACHED">
+<span class="sig-name descname"><span class="pre">TARGET_REACHED</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></span><a class="headerlink" href="#jaxdem.utils.jamming.JamReason.TARGET_REACHED" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamReason.BRACKET_CONVERGED">
+<span class="sig-name descname"><span class="pre">BRACKET_CONVERGED</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">2</span></span><a class="headerlink" href="#jaxdem.utils.jamming.JamReason.BRACKET_CONVERGED" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamReason.INITIAL_OVERCOMPRESSED">
+<span class="sig-name descname"><span class="pre">INITIAL_OVERCOMPRESSED</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">3</span></span><a class="headerlink" href="#jaxdem.utils.jamming.JamReason.INITIAL_OVERCOMPRESSED" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamReason.MINIMIZATION_FAILED">
+<span class="sig-name descname"><span class="pre">MINIMIZATION_FAILED</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">4</span></span><a class="headerlink" href="#jaxdem.utils.jamming.JamReason.MINIMIZATION_FAILED" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamReason.NONFINITE">
+<span class="sig-name descname"><span class="pre">NONFINITE</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">5</span></span><a class="headerlink" href="#jaxdem.utils.jamming.JamReason.NONFINITE" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamReason.SEARCH_OVERFLOW">
+<span class="sig-name descname"><span class="pre">SEARCH_OVERFLOW</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">6</span></span><a class="headerlink" href="#jaxdem.utils.jamming.JamReason.SEARCH_OVERFLOW" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamReason.INVALID_MEASUREMENT">
+<span class="sig-name descname"><span class="pre">INVALID_MEASUREMENT</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">7</span></span><a class="headerlink" href="#jaxdem.utils.jamming.JamReason.INVALID_MEASUREMENT" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamReason.BRACKET_EXHAUSTED">
+<span class="sig-name descname"><span class="pre">BRACKET_EXHAUSTED</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">8</span></span><a class="headerlink" href="#jaxdem.utils.jamming.JamReason.BRACKET_EXHAUSTED" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamResult">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.utils.jamming.</span></span><span class="sig-name descname"><span class="pre">JamResult</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">unjammed_state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">unjammed_system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.system.html#jaxdem.system.System" title="jaxdem.system.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">jammed_state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">jammed_system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.system.html#jaxdem.system.System" title="jaxdem.system.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">packing_fraction</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">potential_energy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">reason</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#jaxdem.utils.jamming.JammingInfo" title="jaxdem.utils.jamming.JammingInfo"><span class="pre">JammingInfo</span></a></span></em><span class="sig-paren">)</span><a class="headerlink" href="#jaxdem.utils.jamming.JamResult" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Particle states and measured scalars from a jamming search.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Variables<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>unjammed_state</strong> (<a class="reference internal" href="jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><em>State</em></a>) – Most recent equilibrated state below the driver’s energy or pressure
+threshold. Defaults to the input state if no such trial was found.</p></li>
+<li><p><strong>unjammed_system</strong> (<a class="reference internal" href="jaxdem.system.html#jaxdem.system.System" title="jaxdem.system.System"><em>System</em></a>) – System associated with <code class="docutils literal notranslate"><span class="pre">unjammed_state</span></code>.</p></li>
+<li><p><strong>jammed_state</strong> (<a class="reference internal" href="jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><em>State</em></a>) – Accepted state on success. On failure, contains a state retained by
+the driver for inspection; see its Returns section.</p></li>
+<li><p><strong>jammed_system</strong> (<a class="reference internal" href="jaxdem.system.html#jaxdem.system.System" title="jaxdem.system.System"><em>System</em></a>) – System associated with <code class="docutils literal notranslate"><span class="pre">jammed_state</span></code>, including its collider state.</p></li>
+<li><p><strong>packing_fraction</strong> (<em>jax.Array</em>) – Particle volume divided by box volume for the accepted state.
+NaN if the search failed.</p></li>
+<li><p><strong>potential_energy</strong> (<em>jax.Array</em>) – Potential energy divided by the number of constituent spheres for
+the accepted state. NaN if the search failed.</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Iteration yields six values in the order shown above. <code class="docutils literal notranslate"><span class="pre">reason</span></code> and
+<code class="docutils literal notranslate"><span class="pre">minimizer_reason</span></code> identify the termination conditions; <code class="docutils literal notranslate"><span class="pre">info</span></code>
+holds the residuals, trial count and maximum inner iteration count.
+<code class="docutils literal notranslate"><span class="pre">steps</span></code> counts trial minimizations, not cumulative inner iterations.
+Check <code class="docutils literal notranslate"><span class="pre">converged</span></code> before using its contents as a jammed packing.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamResult.unjammed_state">
+<span class="sig-name descname"><span class="pre">unjammed_state</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a></span><a class="headerlink" href="#jaxdem.utils.jamming.JamResult.unjammed_state" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamResult.unjammed_system">
+<span class="sig-name descname"><span class="pre">unjammed_system</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.system.html#jaxdem.system.System" title="jaxdem.system.System"><span class="pre">System</span></a></span><a class="headerlink" href="#jaxdem.utils.jamming.JamResult.unjammed_system" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamResult.jammed_state">
+<span class="sig-name descname"><span class="pre">jammed_state</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a></span><a class="headerlink" href="#jaxdem.utils.jamming.JamResult.jammed_state" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamResult.jammed_system">
+<span class="sig-name descname"><span class="pre">jammed_system</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.system.html#jaxdem.system.System" title="jaxdem.system.System"><span class="pre">System</span></a></span><a class="headerlink" href="#jaxdem.utils.jamming.JamResult.jammed_system" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamResult.packing_fraction">
+<span class="sig-name descname"><span class="pre">packing_fraction</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">jax.Array</span></span><a class="headerlink" href="#jaxdem.utils.jamming.JamResult.packing_fraction" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamResult.potential_energy">
+<span class="sig-name descname"><span class="pre">potential_energy</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">jax.Array</span></span><a class="headerlink" href="#jaxdem.utils.jamming.JamResult.potential_energy" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamResult.reason">
+<span class="sig-name descname"><span class="pre">reason</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">jax.Array</span></span><a class="headerlink" href="#jaxdem.utils.jamming.JamResult.reason" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamResult.info">
+<span class="sig-name descname"><span class="pre">info</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#jaxdem.utils.jamming.JammingInfo" title="jaxdem.utils.jamming.JammingInfo"><span class="pre">JammingInfo</span></a></span><a class="headerlink" href="#jaxdem.utils.jamming.JamResult.info" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamResult.converged">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">converged</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/utils/jamming.py#L92-L94"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.utils.jamming.JamResult.converged" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamResult.minimizer_reason">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">minimizer_reason</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/utils/jamming.py#L96-L98"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.utils.jamming.JamResult.minimizer_reason" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamResult.steps">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">steps</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/utils/jamming.py#L100-L103"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.utils.jamming.JamResult.steps" title="Link to this definition">#</a></dt>
+<dd><p>Number of attempted trial minimizations, including failed attempts.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JamResult.max_minimization_steps">
+<span class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">max_minimization_steps</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/utils/jamming.py#L105-L107"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.utils.jamming.JamResult.max_minimization_steps" title="Link to this definition">#</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JammingInfo">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">jaxdem.utils.jamming.</span></span><span class="sig-name descname"><span class="pre">JammingInfo</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">converged</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">status</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">steps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">minimization</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.minimizers.routines.html#jaxdem.minimizers.routines.MinimizeInfo" title="jaxdem.minimizers.routines.MinimizeInfo"><span class="pre">MinimizeInfo</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_minimization_steps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">jax.Array</span></span></em><span class="sig-paren">)</span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/utils/jamming.py#L124-L162"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.utils.jamming.JammingInfo" title="Link to this definition">#</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">NamedTuple</span></code></p>
+<p>Convergence diagnostics for a jamming search.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Variables<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>converged</strong> (<em>jax.Array</em>) – Whether the driver met its acceptance criterion.</p></li>
+<li><p><strong>status</strong> (<em>jax.Array</em>) – <p>Integer search status:</p>
+<ul>
+<li><p>0: accepted a mechanically equilibrated packing.</p></li>
+<li><p>1: the initial trial exceeded the energy threshold in
+<code class="docutils literal notranslate"><span class="pre">bisection_jam</span></code> or the upper pressure bound in
+<code class="docutils literal notranslate"><span class="pre">pressure_bisection_jam</span></code>.</p></li>
+<li><p>2: minimization failed, or the trial energy or pressure was
+nonfinite or negative.</p></li>
+<li><p>3: reached the maximum number of jamming steps.</p></li>
+<li><p>4: pressure refinement stopped outside the target band because
+the bracket in box length was too narrow or the next length was
+numerically unchanged.</p></li>
+</ul>
+</p></li>
+<li><p><strong>steps</strong> (<em>jax.Array</em>) – Number of attempted minimizations, including the initial trial and
+any failed attempt.</p></li>
+<li><p><strong>minimization</strong> (<a class="reference internal" href="jaxdem.minimizers.routines.html#jaxdem.minimizers.routines.MinimizeInfo" title="jaxdem.minimizers.routines.MinimizeInfo"><em>MinimizeInfo</em></a>) – Force and torque residuals, finiteness, convergence flag, and
+minimizer status for the accepted state on success or the last
+attempted trial on failure. Before any trial, convergence and
+finiteness are false, residuals are infinite, and the minimizer
+status is <code class="docutils literal notranslate"><span class="pre">MAX_STEPS</span></code>.</p></li>
+<li><p><strong>max_minimization_steps</strong> (<em>jax.Array</em>) – Largest number of minimizer steps taken by any trial, including
+failed attempts. Zero if no minimization was attempted.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JammingInfo.converged">
+<span class="sig-name descname"><span class="pre">converged</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.utils.jamming.JammingInfo.converged" title="Link to this definition">#</a></dt>
+<dd><p>Alias for field number 0</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JammingInfo.status">
+<span class="sig-name descname"><span class="pre">status</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.utils.jamming.JammingInfo.status" title="Link to this definition">#</a></dt>
+<dd><p>Alias for field number 1</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JammingInfo.steps">
+<span class="sig-name descname"><span class="pre">steps</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.utils.jamming.JammingInfo.steps" title="Link to this definition">#</a></dt>
+<dd><p>Alias for field number 2</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JammingInfo.minimization">
+<span class="sig-name descname"><span class="pre">minimization</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="jaxdem.minimizers.routines.html#jaxdem.minimizers.routines.MinimizeInfo" title="jaxdem.minimizers.routines.MinimizeInfo"><span class="pre">MinimizeInfo</span></a></span><a class="headerlink" href="#jaxdem.utils.jamming.JammingInfo.minimization" title="Link to this definition">#</a></dt>
+<dd><p>Alias for field number 3</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.JammingInfo.max_minimization_steps">
+<span class="sig-name descname"><span class="pre">max_minimization_steps</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">Array</span></span><a class="headerlink" href="#jaxdem.utils.jamming.JammingInfo.max_minimization_steps" title="Link to this definition">#</a></dt>
+<dd><p>Alias for field number 4</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.bisection_jam">
+<span class="sig-prename descclassname"><span class="pre">jaxdem.utils.jamming.</span></span><span class="sig-name descname"><span class="pre">bisection_jam</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.system.html#jaxdem.system.System" title="jaxdem.system.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_minimization_steps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1000000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pe_tol</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1e-16</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_jamming_steps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">packing_fraction_tolerance</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1e-10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">packing_fraction_increment</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_tol</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1e-12</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">torque_tol</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#jaxdem.utils.jamming.JamResult" title="jaxdem.utils.jamming.JamResult"><span class="pre">JamResult</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.utils.jamming.JamResult" title="jaxdem.utils.jamming.JamResult"><span class="pre">JamResult</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#jaxdem.utils.jamming.JammingInfo" title="jaxdem.utils.jamming.JammingInfo"><span class="pre">JammingInfo</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/utils/jamming.py#L384-L521"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.utils.jamming.bisection_jam" title="Link to this definition">#</a></dt>
+<dd><p>Locate an energy threshold by bisecting packing fraction.</p>
+<p>Minimize each trial with the system’s configured minimizer. A trial can
+update a bound only after its maximum net force and torque norms satisfy
+their tolerances and its energy is finite and nonnegative. Write
+<code class="docutils literal notranslate"><span class="pre">e</span> <span class="pre">=</span> <span class="pre">E</span> <span class="pre">/</span> <span class="pre">N</span></code>, where <code class="docutils literal notranslate"><span class="pre">N</span></code> is the number of constituent spheres. Trials
+with <code class="docutils literal notranslate"><span class="pre">e</span> <span class="pre">&lt;=</span> <span class="pre">pe_tol</span></code> set the lower bound; trials with <code class="docutils literal notranslate"><span class="pre">e</span> <span class="pre">&gt;</span> <span class="pre">pe_tol</span></code> set
+the upper bound.</p>
+<p>Until an upper bound is found, increase packing fraction by
+<code class="docutils literal notranslate"><span class="pre">packing_fraction_increment</span></code>. Then choose each trial packing fraction
+as the midpoint of the two bounds. Rescale the stored state at the lower
+bound to create each trial, preserving body sizes and box aspect ratio.
+Accept the stored state at the upper bound when
+<code class="docutils literal notranslate"><span class="pre">phi_hi</span> <span class="pre">/</span> <span class="pre">phi_lo</span> <span class="pre">-</span> <span class="pre">1</span> <span class="pre">&lt;=</span> <span class="pre">packing_fraction_tolerance</span></code>.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><em>State</em></a>) – Initial particle configuration. Its minimized energy must be at or
+below <code class="docutils literal notranslate"><span class="pre">pe_tol</span></code> to establish the first lower bound.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.system.html#jaxdem.system.System" title="jaxdem.system.System"><em>System</em></a>) – Domain, interactions, collider, and configured minimizer. The search
+requires a repulsive physical energy and <code class="docutils literal notranslate"><span class="pre">system.target_fn=None</span></code>.</p></li>
+<li><p><strong>n_minimization_steps</strong> (<em>int</em><em>, </em><em>optional</em>) – Maximum steps per minimization.</p></li>
+<li><p><strong>pe_tol</strong> (<em>float</em><em>, </em><em>optional</em>) – Threshold for energy per constituent sphere, applied after
+mechanical equilibration.</p></li>
+<li><p><strong>n_jamming_steps</strong> (<em>int</em><em>, </em><em>optional</em>) – Maximum number of trial minimizations, including the initial trial.</p></li>
+<li><p><strong>packing_fraction_tolerance</strong> (<em>float</em><em>, </em><em>optional</em>) – Maximum relative separation of the two bounds on packing fraction
+required for acceptance.</p></li>
+<li><p><strong>packing_fraction_increment</strong> (<em>float</em><em>, </em><em>optional</em>) – Additive step in packing fraction used before finding an upper bound.</p></li>
+<li><p><strong>verbose</strong> (<em>bool</em><em>, </em><em>optional</em>) – Print packing fraction, energy, and minimizer steps for each trial.</p></li>
+<li><p><strong>force_tol</strong> (<em>float</em><em>, </em><em>optional</em>) – Absolute tolerances on maximum net force and torque norms over free
+bodies. Reactions on fixed bodies are excluded. <code class="docutils literal notranslate"><span class="pre">torque_tol=None</span></code>
+uses the numerical value of <code class="docutils literal notranslate"><span class="pre">force_tol</span></code>.</p></li>
+<li><p><strong>torque_tol</strong> (<em>float</em><em>, </em><em>optional</em>) – Absolute tolerances on maximum net force and torque norms over free
+bodies. Reactions on fixed bodies are excluded. <code class="docutils literal notranslate"><span class="pre">torque_tol=None</span></code>
+uses the numerical value of <code class="docutils literal notranslate"><span class="pre">force_tol</span></code>.</p></li>
+<li><p><strong>return_info</strong> (<em>bool</em><em>, </em><em>optional</em>) – Return <code class="docutils literal notranslate"><span class="pre">(result,</span> <span class="pre">info)</span></code> when true; otherwise return <code class="docutils literal notranslate"><span class="pre">result</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>result</strong> (<em>JamResult</em>) – The stored lower and upper states and their systems, with the upper
+bound’s packing fraction and energy on success. State and collider
+history are retained together. On failure, the stored bounds are
+returned for inspection, with NaN packing fraction and energy.
+An unset bound contains the input state and system.</p></li>
+<li><p><strong>info</strong> (<em>JammingInfo, optional</em>) – Returned when <code class="docutils literal notranslate"><span class="pre">return_info=True</span></code>. Includes search status, force
+and torque diagnostics, trial count, and maximum minimizer steps.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ValueError</strong> – If <code class="docutils literal notranslate"><span class="pre">system.target_fn</span></code> is set.</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Failed minimization, an initial energy above the threshold, or exhaustion
+of the jamming step budget ends the search with <code class="docutils literal notranslate"><span class="pre">result.converged=False</span></code>.
+The search supports <code class="docutils literal notranslate"><span class="pre">jax.jit</span></code> and <code class="docutils literal notranslate"><span class="pre">jax.vmap</span></code>.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.pressure_bisection_jam">
+<span class="sig-prename descclassname"><span class="pre">jaxdem.utils.jamming.</span></span><span class="sig-name descname"><span class="pre">pressure_bisection_jam</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.system.html#jaxdem.system.System" title="jaxdem.system.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_minimization_steps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1000000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pressure_threshold</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1e-07</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pressure_band_factor</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.01</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">growth_rate</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fine_growth_rate</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1.000001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">length_ratio_tolerance</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1e-14</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_jamming_steps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_tol</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1e-12</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">torque_tol</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#jaxdem.utils.jamming.JamResult" title="jaxdem.utils.jamming.JamResult"><span class="pre">JamResult</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.utils.jamming.JamResult" title="jaxdem.utils.jamming.JamResult"><span class="pre">JamResult</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#jaxdem.utils.jamming.JammingInfo" title="jaxdem.utils.jamming.JammingInfo"><span class="pre">JammingInfo</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/utils/jamming.py#L524-L744"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.utils.jamming.pressure_bisection_jam" title="Link to this definition">#</a></dt>
+<dd><p>Find an equilibrated packing within a prescribed contact pressure band.</p>
+<p>The target is <code class="docutils literal notranslate"><span class="pre">P_lo</span> <span class="pre">&lt;=</span> <span class="pre">P</span> <span class="pre">&lt;=</span> <span class="pre">P_hi</span></code>, where
+<code class="docutils literal notranslate"><span class="pre">P_lo</span> <span class="pre">=</span> <span class="pre">pressure_threshold</span></code> and
+<code class="docutils literal notranslate"><span class="pre">P_hi</span> <span class="pre">=</span> <span class="pre">pressure_band_factor</span> <span class="pre">*</span> <span class="pre">pressure_threshold</span></code>. Minimize each trial,
+require force and torque convergence, then compute its contact pressure.
+Accept the first trial inside the band and return that state and system.</p>
+<p>The search variable is box length <code class="docutils literal notranslate"><span class="pre">L</span> <span class="pre">=</span> <span class="pre">prod(box_size)</span> <span class="pre">**</span> <span class="pre">(1</span> <span class="pre">/</span> <span class="pre">dim)</span></code>.
+Before finding a trial above the pressure band, compress by dividing
+<code class="docutils literal notranslate"><span class="pre">L</span></code> by <code class="docutils literal notranslate"><span class="pre">growth_rate</span></code>. A trial above the band records a shorter box
+length and sets the next trial to the midpoint between it and the stored
+length below the band. Subsequent compression uses <code class="docutils literal notranslate"><span class="pre">fine_growth_rate</span></code>
+whenever no length above the band is stored. A trial below the band uses
+any stored length above the band to choose a midpoint, then clears that
+bound.</p>
+<p>Every trial is produced by rescaling the most recent equilibrated state
+below the band. Rescaling preserves body sizes and box aspect ratio.
+Stop without acceptance if refinement exhausts the length bracket or
+the proposed box length is numerically unchanged.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><em>State</em></a>) – Initial particle configuration. Its minimized pressure must not
+exceed the upper edge of the target band.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.system.html#jaxdem.system.System" title="jaxdem.system.System"><em>System</em></a>) – Domain, interactions, collider, and configured minimizer. The search
+requires a repulsive physical energy and <code class="docutils literal notranslate"><span class="pre">system.target_fn=None</span></code>.</p></li>
+<li><p><strong>n_minimization_steps</strong> (<em>int</em><em>, </em><em>optional</em>) – Maximum steps per minimization.</p></li>
+<li><p><strong>pressure_threshold</strong> (<em>float</em><em>, </em><em>optional</em>) – Positive lower edge of the pressure band, in the system’s pressure
+units.</p></li>
+<li><p><strong>pressure_band_factor</strong> (<em>float</em><em>, </em><em>optional</em>) – Multiplier greater than one defining the upper edge of the band.</p></li>
+<li><p><strong>growth_rate</strong> (<em>float</em><em>, </em><em>optional</em>) – Compression factor for box length, greater than one. Used before
+the first trial above the pressure band.</p></li>
+<li><p><strong>fine_growth_rate</strong> (<em>float</em><em>, </em><em>optional</em>) – Compression factor for box length, greater than one. Used after
+the first trial above the band when no upper pressure bound is stored.</p></li>
+<li><p><strong>length_ratio_tolerance</strong> (<em>float</em><em>, </em><em>optional</em>) – Stop refinement outside the band when
+<code class="docutils literal notranslate"><span class="pre">abs(L_below</span> <span class="pre">/</span> <span class="pre">L_above</span> <span class="pre">-</span> <span class="pre">1)</span></code> is smaller than this value.</p></li>
+<li><p><strong>n_jamming_steps</strong> (<em>int</em><em>, </em><em>optional</em>) – Maximum number of trial minimizations, including the initial trial.</p></li>
+<li><p><strong>verbose</strong> (<em>bool</em><em>, </em><em>optional</em>) – Print box length, packing fraction, pressure, energy, and minimizer
+steps for each trial with a valid pressure measurement.</p></li>
+<li><p><strong>force_tol</strong> (<em>float</em><em>, </em><em>optional</em>) – Absolute tolerances on maximum net force and torque norms over free
+bodies. Reactions on fixed bodies are excluded. <code class="docutils literal notranslate"><span class="pre">torque_tol=None</span></code>
+uses the numerical value of <code class="docutils literal notranslate"><span class="pre">force_tol</span></code>.</p></li>
+<li><p><strong>torque_tol</strong> (<em>float</em><em>, </em><em>optional</em>) – Absolute tolerances on maximum net force and torque norms over free
+bodies. Reactions on fixed bodies are excluded. <code class="docutils literal notranslate"><span class="pre">torque_tol=None</span></code>
+uses the numerical value of <code class="docutils literal notranslate"><span class="pre">force_tol</span></code>.</p></li>
+<li><p><strong>return_info</strong> (<em>bool</em><em>, </em><em>optional</em>) – Return <code class="docutils literal notranslate"><span class="pre">(result,</span> <span class="pre">info)</span></code> when true; otherwise return <code class="docutils literal notranslate"><span class="pre">result</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>result</strong> (<em>JamResult</em>) – The most recent state below the band and the accepted state, each
+with its system. The unjammed fields contain the input if no trial
+below the band was found. On failure, the jammed fields contain the last
+evaluated state and system, or the input if no trial was attempted;
+packing fraction and energy are NaN. Reported energy is per
+constituent sphere.</p></li>
+<li><p><strong>info</strong> (<em>JammingInfo, optional</em>) – Returned when <code class="docutils literal notranslate"><span class="pre">return_info=True</span></code>. Includes search status, force
+and torque diagnostics, trial count, and maximum minimizer steps.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ValueError</strong> – If <code class="docutils literal notranslate"><span class="pre">system.target_fn</span></code> is set or contact pressure analysis reports
+    a neighbor list overflow.</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Failed minimization, invalid energy or pressure, an initial state above
+the band, or exhaustion of the jamming step budget or pressure bracket
+ends the search with <code class="docutils literal notranslate"><span class="pre">result.converged=False</span></code>. Energies and pressures
+used for classification must be finite and nonnegative.</p>
+<p>The search uses Python control flow and contact analysis on one system.
+It cannot be transformed with <code class="docutils literal notranslate"><span class="pre">jax.jit</span></code> or <code class="docutils literal notranslate"><span class="pre">jax.vmap</span></code>.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="jaxdem.utils.jamming.pe_band_jam">
+<span class="sig-prename descclassname"><span class="pre">jaxdem.utils.jamming.</span></span><span class="sig-name descname"><span class="pre">pe_band_jam</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><span class="pre">State</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">system</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="jaxdem.system.html#jaxdem.system.System" title="jaxdem.system.System"><span class="pre">System</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_minimization_steps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1000000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pe_tol</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1e-16</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">pe_band_factor</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">packing_fraction_increment</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.001</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_jamming_steps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10000</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">verbose</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">force_tol</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1e-12</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">torque_tol</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_info</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#jaxdem.utils.jamming.JamResult" title="jaxdem.utils.jamming.JamResult"><span class="pre">JamResult</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#jaxdem.utils.jamming.JamResult" title="jaxdem.utils.jamming.JamResult"><span class="pre">JamResult</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference internal" href="#jaxdem.utils.jamming.JammingInfo" title="jaxdem.utils.jamming.JammingInfo"><span class="pre">JammingInfo</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference external" href="https://github.com/cdelv/JaxDEM/blob/main/jaxdem/utils/jamming.py#L747-L997"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#jaxdem.utils.jamming.pe_band_jam" title="Link to this definition">#</a></dt>
+<dd><p>Find an equilibrated packing within a prescribed energy band.</p>
+<p>The target is <code class="docutils literal notranslate"><span class="pre">pe_tol</span> <span class="pre">&lt;=</span> <span class="pre">E</span> <span class="pre">/</span> <span class="pre">N</span> <span class="pre">&lt;=</span> <span class="pre">pe_band_factor</span> <span class="pre">*</span> <span class="pre">pe_tol</span></code>, where
+<code class="docutils literal notranslate"><span class="pre">N</span></code> is the number of constituent spheres. Minimize each trial and
+require force and torque convergence before classifying its energy.</p>
+<p>Begin with a step in packing fraction of <code class="docutils literal notranslate"><span class="pre">packing_fraction_increment</span></code>.
+Increase packing fraction when the energy is below the band and decrease
+it when the energy is above the band. Halve the step before applying it
+whenever the direction changes between compression and expansion. Each
+trial is produced by rescaling the current equilibrated state, preserving
+body sizes and box aspect ratio. Accept the first trial inside the band.
+An initial state above the band starts the search with expansion.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> (<a class="reference internal" href="jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><em>State</em></a>) – Initial particle configuration.</p></li>
+<li><p><strong>system</strong> (<a class="reference internal" href="jaxdem.system.html#jaxdem.system.System" title="jaxdem.system.System"><em>System</em></a>) – Domain, interactions, collider, and configured minimizer. The search
+requires a repulsive physical energy and <code class="docutils literal notranslate"><span class="pre">system.target_fn=None</span></code>.</p></li>
+<li><p><strong>n_minimization_steps</strong> (<em>int</em><em>, </em><em>optional</em>) – Maximum steps per minimization.</p></li>
+<li><p><strong>pe_tol</strong> (<em>float</em><em>, </em><em>optional</em>) – Lower edge of the band for energy per constituent sphere, applied after
+mechanical equilibration.</p></li>
+<li><p><strong>pe_band_factor</strong> (<em>float</em><em>, </em><em>optional</em>) – Multiplier greater than one defining the upper edge of the band.</p></li>
+<li><p><strong>packing_fraction_increment</strong> (<em>float</em><em>, </em><em>optional</em>) – Initial magnitude of the additive step in packing fraction.</p></li>
+<li><p><strong>n_jamming_steps</strong> (<em>int</em><em>, </em><em>optional</em>) – Maximum number of trial minimizations, including the initial trial.</p></li>
+<li><p><strong>verbose</strong> (<em>bool</em><em>, </em><em>optional</em>) – Print packing fraction, step size, energy, and minimizer steps for
+each trial.</p></li>
+<li><p><strong>force_tol</strong> (<em>float</em><em>, </em><em>optional</em>) – Absolute tolerances on maximum net force and torque norms over free
+bodies. Reactions on fixed bodies are excluded. <code class="docutils literal notranslate"><span class="pre">torque_tol=None</span></code>
+uses the numerical value of <code class="docutils literal notranslate"><span class="pre">force_tol</span></code>.</p></li>
+<li><p><strong>torque_tol</strong> (<em>float</em><em>, </em><em>optional</em>) – Absolute tolerances on maximum net force and torque norms over free
+bodies. Reactions on fixed bodies are excluded. <code class="docutils literal notranslate"><span class="pre">torque_tol=None</span></code>
+uses the numerical value of <code class="docutils literal notranslate"><span class="pre">force_tol</span></code>.</p></li>
+<li><p><strong>return_info</strong> (<em>bool</em><em>, </em><em>optional</em>) – Return <code class="docutils literal notranslate"><span class="pre">(result,</span> <span class="pre">info)</span></code> when true; otherwise return <code class="docutils literal notranslate"><span class="pre">result</span></code>.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p><strong>result</strong> (<em>JamResult</em>) – The most recent state below the band and the accepted state, each
+with its system. The unjammed fields contain the input if no trial
+below the band was found. On failure, the jammed fields contain the last
+evaluated state and system, or the input if no trial was attempted;
+packing fraction and energy are NaN. Reported energy is per
+constituent sphere.</p></li>
+<li><p><strong>info</strong> (<em>JammingInfo, optional</em>) – Returned when <code class="docutils literal notranslate"><span class="pre">return_info=True</span></code>. Includes search status, force
+and torque diagnostics, trial count, and maximum minimizer steps.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ValueError</strong> – If <code class="docutils literal notranslate"><span class="pre">system.target_fn</span></code> is set.</p>
+</dd>
+</dl>
+<p class="rubric">Notes</p>
+<p>Failed minimization, nonfinite or negative energy, or exhaustion of the
+jamming step budget ends the search with <code class="docutils literal notranslate"><span class="pre">result.converged=False</span></code>.
+The search supports <code class="docutils literal notranslate"><span class="pre">jax.jit</span></code> and <code class="docutils literal notranslate"><span class="pre">jax.vmap</span></code>.</p>
+</dd></dl>
+
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="jaxdem.utils.h5.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">jaxdem.utils.h5</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="jaxdem.utils.linalg.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">jaxdem.utils.linalg</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamReason"><code class="docutils literal notranslate"><span class="pre">JamReason</span></code></a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamReason.MAX_STEPS"><code class="docutils literal notranslate"><span class="pre">JamReason.MAX_STEPS</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamReason.TARGET_REACHED"><code class="docutils literal notranslate"><span class="pre">JamReason.TARGET_REACHED</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamReason.BRACKET_CONVERGED"><code class="docutils literal notranslate"><span class="pre">JamReason.BRACKET_CONVERGED</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamReason.INITIAL_OVERCOMPRESSED"><code class="docutils literal notranslate"><span class="pre">JamReason.INITIAL_OVERCOMPRESSED</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamReason.MINIMIZATION_FAILED"><code class="docutils literal notranslate"><span class="pre">JamReason.MINIMIZATION_FAILED</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamReason.NONFINITE"><code class="docutils literal notranslate"><span class="pre">JamReason.NONFINITE</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamReason.SEARCH_OVERFLOW"><code class="docutils literal notranslate"><span class="pre">JamReason.SEARCH_OVERFLOW</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamReason.INVALID_MEASUREMENT"><code class="docutils literal notranslate"><span class="pre">JamReason.INVALID_MEASUREMENT</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamReason.BRACKET_EXHAUSTED"><code class="docutils literal notranslate"><span class="pre">JamReason.BRACKET_EXHAUSTED</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamResult"><code class="docutils literal notranslate"><span class="pre">JamResult</span></code></a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamResult.unjammed_state"><code class="docutils literal notranslate"><span class="pre">JamResult.unjammed_state</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamResult.unjammed_system"><code class="docutils literal notranslate"><span class="pre">JamResult.unjammed_system</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamResult.jammed_state"><code class="docutils literal notranslate"><span class="pre">JamResult.jammed_state</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamResult.jammed_system"><code class="docutils literal notranslate"><span class="pre">JamResult.jammed_system</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamResult.packing_fraction"><code class="docutils literal notranslate"><span class="pre">JamResult.packing_fraction</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamResult.potential_energy"><code class="docutils literal notranslate"><span class="pre">JamResult.potential_energy</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamResult.reason"><code class="docutils literal notranslate"><span class="pre">JamResult.reason</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamResult.info"><code class="docutils literal notranslate"><span class="pre">JamResult.info</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamResult.converged"><code class="docutils literal notranslate"><span class="pre">JamResult.converged</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamResult.minimizer_reason"><code class="docutils literal notranslate"><span class="pre">JamResult.minimizer_reason</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamResult.steps"><code class="docutils literal notranslate"><span class="pre">JamResult.steps</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JamResult.max_minimization_steps"><code class="docutils literal notranslate"><span class="pre">JamResult.max_minimization_steps</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JammingInfo"><code class="docutils literal notranslate"><span class="pre">JammingInfo</span></code></a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JammingInfo.converged"><code class="docutils literal notranslate"><span class="pre">JammingInfo.converged</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JammingInfo.status"><code class="docutils literal notranslate"><span class="pre">JammingInfo.status</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JammingInfo.steps"><code class="docutils literal notranslate"><span class="pre">JammingInfo.steps</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JammingInfo.minimization"><code class="docutils literal notranslate"><span class="pre">JammingInfo.minimization</span></code></a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.JammingInfo.max_minimization_steps"><code class="docutils literal notranslate"><span class="pre">JammingInfo.max_minimization_steps</span></code></a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.bisection_jam"><code class="docutils literal notranslate"><span class="pre">bisection_jam()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.pressure_bisection_jam"><code class="docutils literal notranslate"><span class="pre">pressure_bisection_jam()</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#jaxdem.utils.jamming.pe_band_jam"><code class="docutils literal notranslate"><span class="pre">pe_band_jam()</span></code></a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

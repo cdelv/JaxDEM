@@ -1,0 +1,949 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Jammed rigid clumps: contacts, rattlers, dynamical matrix, and friction &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=039bb74b" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'auto_examples/clump_jamming_dynamical_matrix_and_friction';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Packing-fraction protocol: integrate with a scheduled box rescale" href="packing_fraction_protocol.html" />
+    <link rel="prev" title="Jammed bidisperse packing: contacts, rattlers, and the dynamical matrix" href="sphere_jamming_rattlers_dynamical_matrix.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar">
+  <svg class="pst-icon" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="installation_guide.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="state_guide.html">The Simulation State</a></li>
+<li class="toctree-l1"><a class="reference internal" href="system_guide.html">The Simulation System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="domain_guide.html">The Simulation Domain</a></li>
+<li class="toctree-l1"><a class="reference internal" href="collider_guide.html">Colliders</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrator_guide.html">Integrators and Minimizers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="materials_guide.html">Materials, Matchmakers, and Material Tables</a></li>
+<li class="toctree-l1"><a class="reference internal" href="force_model_guide.html">Force Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="force_manager_guide.html">The Force Manager</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clump_guide.html">Clumps (Rigid Bodies)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="facets_guide.html">Facets (Triangular &amp; Line Boundaries)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deformable_particle_guide.html">Deformable Particles</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vtk_writer_guide.html">VTK Post-Processing and Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_guide.html">Checkpoint Save and Load</a></li>
+<li class="toctree-l1"><a class="reference internal" href="custom_modules_guide.html">Custom Module Registration and System Usage</a></li>
+</ul>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sphere_construction.html">Polydisperse sphere packing in one call</a></li>
+<li class="toctree-l1"><a class="reference internal" href="general_particle_construction.html">Catch-all builder: polydisperse GA/DP packings in one call</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clump_construction_pipeline.html">Rigid geometric-asperity clumps: step-by-step pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dp_construction_pipeline.html">Geometric-asperity deformable particles: step-by-step pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="minimize_spheres.html">Minimization of bidisperse spheres (or disks).</a></li>
+<li class="toctree-l1"><a class="reference internal" href="jam_spheres.html">Jamming of bidisperse spheres (or disks).</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sphere_jamming_rattlers_dynamical_matrix.html">Jammed bidisperse packing: contacts, rattlers, and the dynamical matrix</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Jammed rigid clumps: contacts, rattlers, dynamical matrix, and friction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="packing_fraction_protocol.html">Packing-fraction protocol: integrate with a scheduled box rescale</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pseudo_log_rollout.html">Pseudo-log trajectory rollout.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sasa_calculation.html">SASA of a rigid clump via a spherical tracer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="particle_level_friction_calculation.html">Particle-level friction coefficient of a rigid clump</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="temperature_density_control.html">Temperature and density control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vicsek_model.html">Vicsek Model</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="intro_to_rl.html">Intro to JaxDEM Reinforcement Learning.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_custom_policy.html">Driving Environments with a Custom Policy.</a></li>
+<li class="toctree-l1"><a class="reference internal" href="data/index.html">Scenario data</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../examples/index.html" class="nav-link">Examples</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Jammed rigid clumps: contacts, rattlers, dynamical matrix, and friction</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-clump-jamming-dynamical-matrix-and-friction-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code.</p>
+</div>
+<section class="sphx-glr-example-title" id="jammed-rigid-clumps-contacts-rattlers-dynamical-matrix-and-friction">
+<span id="sphx-glr-auto-examples-clump-jamming-dynamical-matrix-and-friction-py"></span><h1>Jammed rigid clumps: contacts, rattlers, dynamical matrix, and friction<a class="headerlink" href="#jammed-rigid-clumps-contacts-rattlers-dynamical-matrix-and-friction" title="Link to this heading">#</a></h1>
+<p>This is the rigid-clump counterpart of
+<a class="reference internal" href="sphere_jamming_rattlers_dynamical_matrix.html#sphx-glr-auto-examples-sphere-jamming-rattlers-dynamical-matrix-py"><span class="std std-ref">Jammed bidisperse packing: contacts, rattlers, and the dynamical matrix</span></a>.
+Instead of point-like spheres, we build a 2D packing of rigid clumps
+with mixed sizes and shapes (a few different vertex-counts and bounding
+radii). We jam it and analyze the dynamical matrix in the full
+rigid-body coordinate space <span class="math notranslate nohighlight">\((\delta r, \omega)\)</span> per clump.</p>
+<p>A rigid body in 2D has <span class="math notranslate nohighlight">\(d_f = \dim + \dim_{\rm rot} = 3\)</span> degrees
+of freedom (<span class="math notranslate nohighlight">\(d_f = 6\)</span> in 3D). A rattler with <code class="docutils literal notranslate"><span class="pre">k</span></code>
+force-bearing vertex contacts contributes <span class="math notranslate nohighlight">\(\max(0, d_f - k)\)</span> zero
+modes to the hessian. These are the directions perpendicular to its
+contact constraints. The total zero-mode count is</p>
+<div class="math notranslate nohighlight">
+\[n_{\rm zero} \;=\; \dim \;+\; \sum_{\rm rattlers} \max(0, d_f - k_i)\]</div>
+<p>The leading <span class="math notranslate nohighlight">\(\dim\)</span> is the rigid-translation null space of the
+pair potential. In a periodic box the global rotation is <strong>not</strong> a
+zero mode, because rotating the configuration without rotating the
+box changes the minimum-image distances. A rattler with exactly
+<span class="math notranslate nohighlight">\(d_f\)</span> generic contacts gives no floppy modes. The default
+<code class="docutils literal notranslate"><span class="pre">zc</span> <span class="pre">=</span> <span class="pre">d_f</span> <span class="pre">+</span> <span class="pre">1</span></code> still flags it as a rattler, because at finite overlap
+the tangential softening can make it mechanically unstable.</p>
+<p>After removing the rattlers, only the <span class="math notranslate nohighlight">\(\dim\)</span> global translational
+zero modes remain.</p>
+<p>Finally, we compute the per-clump-pair friction coefficient
+<span class="math notranslate nohighlight">\(\mu_{IJ}\)</span> for every contacting clump pair with
+<a class="reference internal" href="../reference/generated/jaxdem.utils.contacts.html#jaxdem.utils.contacts.get_group_contacts" title="jaxdem.utils.contacts.get_group_contacts"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_group_contacts()</span></code></a>. It
+decomposes the total contact force between two clumps along the
+COM-to-COM axis and reports the ratio of its tangential to normal
+magnitude.</p>
+<p>Imports</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="n">jax</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s2">"jax_enable_x64"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>  <span class="c1"># type: ignore[no-untyped-call]</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="kn">import</span> <span class="n">fire</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxdem.utils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">count_clump_contacts</span><span class="p">,</span>
+    <span class="n">count_vertex_contacts</span><span class="p">,</span>
+    <span class="n">get_clump_rattler_ids</span><span class="p">,</span>
+    <span class="n">get_contacts</span><span class="p">,</span>
+    <span class="n">get_group_contacts</span><span class="p">,</span>
+    <span class="n">remove_rattlers</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxdem.utils.dynamical_matrix</span><span class="w"> </span><span class="kn">import</span> <span class="n">clump_non_bonded_hessian</span><span class="p">,</span> <span class="n">zero_mode_mask</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxdem.utils.jamming</span><span class="w"> </span><span class="kn">import</span> <span class="n">bisection_jam</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxdem.utils.particle_creation</span><span class="w"> </span><span class="kn">import</span> <span class="n">build_ga_system</span>
+</pre></div>
+</div>
+<section id="parameters">
+<h2>Parameters<a class="headerlink" href="#parameters" title="Link to this heading">#</a></h2>
+<p>20 bidisperse 2D clumps: 10 small (bounding radius 0.5, 3 vertices)
+and 10 large (bounding radius 0.7, 7 vertices). All vertex spheres
+share the same <code class="docutils literal notranslate"><span class="pre">asperity_radius</span> <span class="pre">=</span> <span class="pre">0.3</span></code> so differences in behavior
+come from the rigid-body shape, not from disparate vertex sizes.
+<code class="docutils literal notranslate"><span class="pre">particle_radius</span></code> is each clump’s bounding-sphere radius. The
+asperities sit on a circle of radius <code class="docutils literal notranslate"><span class="pre">particle_radius</span> <span class="pre">−</span> <span class="pre">asperity_radius</span></code>
+and overlap internally, which is harmless because the collider skips
+intra-clump contacts.</p>
+<p>We use a bidisperse mix of shapes and sizes for the same reason as the
+sphere example. It suppresses the crystalline packings that a
+monodisperse system would fall into. The zero-mode spectrum then stays
+cleanly “global translations + rattlers”, without extra soft shear
+modes from crystal order.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">rng</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">default_rng</span><span class="p">(</span><span class="n">seed</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">dim</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">n_small</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">n_large</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="n">asperity_radius</span> <span class="o">=</span> <span class="mf">0.3</span>
+
+<span class="n">vertex_counts</span> <span class="o">=</span> <span class="p">[</span><span class="mi">3</span><span class="p">]</span> <span class="o">*</span> <span class="n">n_small</span> <span class="o">+</span> <span class="p">[</span><span class="mi">7</span><span class="p">]</span> <span class="o">*</span> <span class="n">n_large</span>
+<span class="n">particle_radii</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.5</span><span class="p">]</span> <span class="o">*</span> <span class="n">n_small</span> <span class="o">+</span> <span class="p">[</span><span class="mf">0.7</span><span class="p">]</span> <span class="o">*</span> <span class="n">n_large</span>
+</pre></div>
+</div>
+</section>
+<section id="build-and-jam">
+<h2>Build and jam<a class="headerlink" href="#build-and-jam" title="Link to this heading">#</a></h2>
+<p><a class="reference internal" href="../reference/generated/jaxdem.utils.particle_creation.html#jaxdem.utils.particle_creation.build_ga_system" title="jaxdem.utils.particle_creation.build_ga_system"><code class="xref py py-func docutils literal notranslate"><span class="pre">build_ga_system()</span></code></a> creates each
+clump by placing <code class="docutils literal notranslate"><span class="pre">nv</span></code> asperity spheres on the clump’s bounding-sphere
+surface via the Thomson problem. In 2D the Thomson problem spaces the
+vertices evenly around a circle. It then quasistatically compresses
+the packing to the target body-volume packing fraction.
+<a class="reference internal" href="../reference/generated/jaxdem.utils.jamming.html#jaxdem.utils.jamming.bisection_jam" title="jaxdem.utils.jamming.bisection_jam"><code class="xref py py-func docutils literal notranslate"><span class="pre">bisection_jam()</span></code></a> drives the system from
+there to its nearest jammed state. For a clump system the minimization
+must relax both translations and rotations, so we pass
+<code class="docutils literal notranslate"><span class="pre">minimizer=jaxdem.minimizers.fire</span></code> together with
+<code class="docutils literal notranslate"><span class="pre">linear_integrator_type=&quot;verlet&quot;</span></code> and
+<code class="docutils literal notranslate"><span class="pre">rotation_integrator_type=&quot;verletspiral&quot;</span></code>.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">build_ga_system</span><span class="p">(</span>
+    <span class="n">particle_radii</span><span class="o">=</span><span class="n">particle_radii</span><span class="p">,</span>
+    <span class="n">vertex_counts</span><span class="o">=</span><span class="n">vertex_counts</span><span class="p">,</span>
+    <span class="n">asperity_radius</span><span class="o">=</span><span class="n">asperity_radius</span><span class="p">,</span>
+    <span class="n">phi</span><span class="o">=</span><span class="mf">0.4</span><span class="p">,</span>  <span class="c1"># loose initial target (below jamming for mixed dimers/trimers)</span>
+    <span class="n">dim</span><span class="o">=</span><span class="n">dim</span><span class="p">,</span>
+    <span class="n">particle_type</span><span class="o">=</span><span class="s2">"clump"</span><span class="p">,</span>
+    <span class="n">core_type</span><span class="o">=</span><span class="s2">"phantom"</span><span class="p">,</span>  <span class="c1"># treat the particles as if they were solid when calculating their properties</span>
+    <span class="n">domain_type</span><span class="o">=</span><span class="s2">"periodic"</span><span class="p">,</span>
+    <span class="n">randomize_orientation</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">n_property_samples</span><span class="o">=</span><span class="mi">10_000_000</span><span class="p">,</span>  <span class="c1"># the default; ~10M samples give good clump properties</span>
+    <span class="n">compression_step</span><span class="o">=</span><span class="mf">1e-2</span><span class="p">,</span>
+    <span class="n">max_n_min_steps_per_outer</span><span class="o">=</span><span class="mi">50_000</span><span class="p">,</span>
+    <span class="n">dt</span><span class="o">=</span><span class="mf">1e-2</span><span class="p">,</span>
+    <span class="n">linear_integrator_type</span><span class="o">=</span><span class="s2">"verlet"</span><span class="p">,</span>
+    <span class="n">rotation_integrator_type</span><span class="o">=</span><span class="s2">"verletspiral"</span><span class="p">,</span>
+    <span class="n">minimizer</span><span class="o">=</span><span class="n">fire</span><span class="p">,</span>
+    <span class="n">minimizer_kw</span><span class="o">=</span><span class="p">{</span><span class="s2">"dt"</span><span class="p">:</span> <span class="mf">1e-2</span><span class="p">},</span>
+    <span class="n">collider_type</span><span class="o">=</span><span class="s2">"naive"</span><span class="p">,</span>
+    <span class="n">seed</span><span class="o">=</span><span class="nb">int</span><span class="p">(</span><span class="n">rng</span><span class="o">.</span><span class="n">integers</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="o">**</span><span class="mi">31</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)),</span>
+<span class="p">)</span>
+
+<span class="n">result</span> <span class="o">=</span> <span class="n">bisection_jam</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>  <span class="c1"># returns a JamResult named tuple</span>
+<span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">jammed_state</span><span class="p">,</span> <span class="n">result</span><span class="o">.</span><span class="n">jammed_system</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">"Jammed: phi = </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">packing_fraction</span><span class="p">)</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">, "</span>
+    <span class="sa">f</span><span class="s2">"residual PE = </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">potential_energy</span><span class="p">)</span><span class="si">:</span><span class="s2">.3e</span><span class="si">}</span><span class="s2">"</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="count-contacts-vertex-vs-clump">
+<h2>Count contacts: vertex vs clump<a class="headerlink" href="#count-contacts-vertex-vs-clump" title="Link to this heading">#</a></h2>
+<p>There are two notions of “contact” for a clump system:</p>
+<ul class="simple">
+<li><p><strong>Vertex contacts</strong>: each individual sphere–sphere touch counts as
+one contact. Two clumps may touch at two vertex pairs at once. That
+is two vertex contacts.</p></li>
+<li><p><strong>Clump contacts</strong>: a contact is between two clumps, regardless of
+how many vertex pairs are involved. Two clumps touching at two
+vertex pairs still count as a single clump contact.</p></li>
+</ul>
+<p>Isostaticity is about constraints on the rigid-body degrees of
+freedom. Every vertex–vertex touch is one independent distance
+constraint, so the vertex count is what enters the Maxwell counting.
+<a class="reference internal" href="../reference/generated/jaxdem.utils.contacts.html#jaxdem.utils.contacts.get_clump_rattler_ids" title="jaxdem.utils.contacts.get_clump_rattler_ids"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_clump_rattler_ids()</span></code></a> also uses the
+vertex count internally for the default coordination threshold
+<code class="docutils literal notranslate"><span class="pre">zc</span> <span class="pre">=</span> <span class="pre">dim</span> <span class="pre">+</span> <span class="pre">dim_rot</span> <span class="pre">+</span> <span class="pre">1</span></code>. The clump count is the more intuitive
+“how many neighbors does this body have” quantity and is useful for
+visualization and coarse statistics.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Share the same contact snapshot with both counts and rattler analysis.</span>
+<span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">contacts</span> <span class="o">=</span> <span class="n">get_contacts</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+<span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">vertex_contacts_per_clump</span> <span class="o">=</span> <span class="n">count_vertex_contacts</span><span class="p">(</span>
+    <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">contacts</span><span class="o">=</span><span class="n">contacts</span>
+<span class="p">)</span>
+<span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">clump_contacts_per_clump</span> <span class="o">=</span> <span class="n">count_clump_contacts</span><span class="p">(</span>
+    <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">contacts</span><span class="o">=</span><span class="n">contacts</span>
+<span class="p">)</span>
+<span class="n">N_clumps</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="o">.</span><span class="n">max</span><span class="p">())</span> <span class="o">+</span> <span class="mi">1</span>
+<span class="n">N_vertices</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">N_clumps</span><span class="si">}</span><span class="s2"> clumps, </span><span class="si">{</span><span class="n">N_vertices</span><span class="si">}</span><span class="s2"> vertex spheres"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">"vertex contacts: total = </span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">vertex_contacts_per_clump</span><span class="p">))</span><span class="w"> </span><span class="o">//</span><span class="w"> </span><span class="mi">2</span><span class="si">}</span><span class="s2">, "</span>
+    <span class="sa">f</span><span class="s2">"mean per clump = </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">vertex_contacts_per_clump</span><span class="p">))</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">"clump contacts : total = </span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">clump_contacts_per_clump</span><span class="p">))</span><span class="w"> </span><span class="o">//</span><span class="w"> </span><span class="mi">2</span><span class="si">}</span><span class="s2">, "</span>
+    <span class="sa">f</span><span class="s2">"mean per clump = </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">clump_contacts_per_clump</span><span class="p">))</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="rattlers">
+<h2>Rattlers<a class="headerlink" href="#rattlers" title="Link to this heading">#</a></h2>
+<p>A rigid clump with <code class="docutils literal notranslate"><span class="pre">d_f</span> <span class="pre">=</span> <span class="pre">dim</span> <span class="pre">+</span> <span class="pre">dim_rot</span></code> or fewer force-bearing
+vertex contacts cannot be mechanically stable. Each contact
+contributes a positive normal stiffness and a negative tangential
+stiffness (<code class="docutils literal notranslate"><span class="pre">-k</span> <span class="pre">s</span> <span class="pre">/</span> <span class="pre">r</span></code> from the spring potential’s tangential
+softening). Only when the number of contacts strictly exceeds
+<code class="docutils literal notranslate"><span class="pre">d_f</span></code> can the sum of contributions be positive-definite for generic
+contact angles. The standard rattler threshold is therefore
+<code class="docutils literal notranslate"><span class="pre">zc</span> <span class="pre">=</span> <span class="pre">d_f</span> <span class="pre">+</span> <span class="pre">1</span> <span class="pre">=</span> <span class="pre">dim</span> <span class="pre">+</span> <span class="pre">dim_rot</span> <span class="pre">+</span> <span class="pre">1</span></code>.
+<a class="reference internal" href="../reference/generated/jaxdem.utils.contacts.html#jaxdem.utils.contacts.get_clump_rattler_ids" title="jaxdem.utils.contacts.get_clump_rattler_ids"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_clump_rattler_ids()</span></code></a> iteratively
+removes any clump with fewer than <code class="docutils literal notranslate"><span class="pre">zc</span></code> vertex contacts and re-checks
+the remaining graph. Removing one rattler may leave its neighbors
+under-coordinated, so the loop continues until the set stabilizes.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">rattler_ids</span><span class="p">,</span> <span class="n">non_rattler_ids</span> <span class="o">=</span> <span class="n">get_clump_rattler_ids</span><span class="p">(</span>
+    <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">contacts</span><span class="o">=</span><span class="n">contacts</span>
+<span class="p">)</span>
+<span class="n">n_rattlers</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">rattler_ids</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Rattlers: </span><span class="si">{</span><span class="n">n_rattlers</span><span class="si">}</span><span class="s2"> / </span><span class="si">{</span><span class="n">N_clumps</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+<span class="c1"># The number of zero modes each rattler contributes depends on its</span>
+<span class="c1"># force-bearing vertex-contact count ``k``. With ``k &lt; d_f`` it has</span>
+<span class="c1"># ``d_f - k`` floppy directions. With ``k = d_f`` generic contacts it is</span>
+<span class="c1"># rank-constrained: no floppy modes, though still mechanically marginal.</span>
+<span class="c1"># We read each rattler's contact count off the per-clump array computed</span>
+<span class="c1"># above.</span>
+<span class="n">vc_per_clump</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">vertex_contacts_per_clump</span><span class="p">)</span>
+<span class="n">rattler_contacts</span> <span class="o">=</span> <span class="n">vc_per_clump</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">rattler_ids</span><span class="p">)]</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Force-bearing vertex contacts per rattler: </span><span class="si">{</span><span class="n">rattler_contacts</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="dynamical-matrix">
+<h2>Dynamical matrix<a class="headerlink" href="#dynamical-matrix" title="Link to this heading">#</a></h2>
+<p>Now we calculate the dynamical matrix for the entire system,
+including the rattler clumps, using
+<a class="reference internal" href="../reference/generated/jaxdem.utils.dynamical_matrix.html#jaxdem.utils.dynamical_matrix.clump_non_bonded_hessian" title="jaxdem.utils.dynamical_matrix.clump_non_bonded_hessian"><code class="xref py py-func docutils literal notranslate"><span class="pre">clump_non_bonded_hessian()</span></code></a>. It
+takes the hessian of the pair potential with respect to each clump’s
+generalized coordinates <span class="math notranslate nohighlight">\((\delta r_c, \omega)\)</span>. Each clump has a
+<code class="docutils literal notranslate"><span class="pre">d_f</span></code>-dimensional coordinate (<code class="docutils literal notranslate"><span class="pre">d_f</span> <span class="pre">=</span> <span class="pre">3</span></code> in 2D, <code class="docutils literal notranslate"><span class="pre">6</span></code> in 3D), so for
+<code class="docutils literal notranslate"><span class="pre">N_clumps</span></code> clumps the matrix is <code class="docutils literal notranslate"><span class="pre">(d_f</span> <span class="pre">N_clumps,</span> <span class="pre">d_f</span> <span class="pre">N_clumps)</span></code>.
+Each rattler with <code class="docutils literal notranslate"><span class="pre">k</span></code> force-bearing vertex contacts contributes
+<code class="docutils literal notranslate"><span class="pre">max(0,</span> <span class="pre">d_f</span> <span class="pre">-</span> <span class="pre">k)</span></code> zero modes (the directions orthogonal to its
+contact constraints), giving:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">n_zero</span>  <span class="o">=</span>  <span class="n">dim</span>  <span class="o">+</span>  <span class="n">Σ_rattlers</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">d_f</span> <span class="o">-</span> <span class="n">k_i</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>on top of the <code class="docutils literal notranslate"><span class="pre">dim</span></code> global translational zero modes. The global
+translations arise because the potential only depends on differences
+between particle positions. A background potential would lift them.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">H</span> <span class="o">=</span> <span class="n">clump_non_bonded_hessian</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+<span class="n">H_np</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">H</span><span class="p">)</span>
+<span class="c1"># Make exactly symmetric before eigendecomposition. Autograd symmetry</span>
+<span class="c1"># holds to roundoff, so symmetrize to avoid complex eigenvalues from any</span>
+<span class="c1"># floating-point asymmetry.</span>
+<span class="n">H_np</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">H_np</span> <span class="o">+</span> <span class="n">H_np</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+<span class="n">eigenvalues</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">eigvalsh</span><span class="p">(</span><span class="n">H_np</span><span class="p">))</span>
+
+<span class="c1"># Zero modes will not come out exactly zero from the eigendecomposition.</span>
+<span class="c1"># They land around machine precision times the largest eigenvalue. In a</span>
+<span class="c1"># jammed packing there is typically a very large gap (many orders of</span>
+<span class="c1"># magnitude) between these numerical zeros and the smallest truly</span>
+<span class="c1"># finite mode. We identify the zero modes by finding the gap.</span>
+<span class="c1"># :func:`~jaxdem.utils.dynamical_matrix.zero_mode_mask` does this for us</span>
+<span class="c1"># and returns a boolean mask we can apply to both eigenvalues and</span>
+<span class="c1"># eigenvectors.</span>
+
+<span class="n">zero_mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">zero_mode_mask</span><span class="p">(</span><span class="n">eigenvalues</span><span class="p">))</span>
+<span class="n">n_zero</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">zero_mask</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">Eigenvalue spectrum (low end):"</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">lam</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">eigenvalues</span><span class="p">[:</span><span class="mi">12</span><span class="p">]):</span>
+    <span class="n">mark</span> <span class="o">=</span> <span class="s2">"  (zero)"</span> <span class="k">if</span> <span class="n">zero_mask</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">else</span> <span class="s2">""</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  λ[</span><span class="si">{</span><span class="n">i</span><span class="si">:</span><span class="s2">3d</span><span class="si">}</span><span class="s2">] = </span><span class="si">{</span><span class="n">lam</span><span class="si">:</span><span class="s2"> .3e</span><span class="si">}{</span><span class="n">mark</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"  ..."</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  λ[-1] = </span><span class="si">{</span><span class="n">eigenvalues</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2"> .3e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+<span class="n">rot_dim</span> <span class="o">=</span> <span class="mi">1</span>  <span class="c1"># 2D</span>
+<span class="n">d_f</span> <span class="o">=</span> <span class="n">dim</span> <span class="o">+</span> <span class="n">rot_dim</span>  <span class="c1"># 3 DOFs per clump in 2D</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2"># zero modes   : </span><span class="si">{</span><span class="n">n_zero</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="n">rattler_floppy</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">d_f</span> <span class="o">-</span> <span class="n">rattler_contacts</span><span class="p">)))</span>
+<span class="n">expected_zero</span> <span class="o">=</span> <span class="n">dim</span> <span class="o">+</span> <span class="n">rattler_floppy</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">"# expected     : </span><span class="si">{</span><span class="n">expected_zero</span><span class="si">}</span><span class="s2"> = </span><span class="si">{</span><span class="n">dim</span><span class="si">}</span><span class="s2"> (global translations) + "</span>
+    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">rattler_floppy</span><span class="si">}</span><span class="s2"> (Σ max(0, d_f - k_i) over rattlers)"</span>
+<span class="p">)</span>
+<span class="c1"># Unlike the sphere example we do not assert strict equality here. The</span>
+<span class="c1"># expected count assumes *generic* contacts, but clump vertex contacts</span>
+<span class="c1"># are often non-generic. Two vertex contacts with the same neighbor can</span>
+<span class="c1"># be nearly redundant constraints. A contact whose line of action passes</span>
+<span class="c1"># close to a clump's COM barely constrains its rotation. The spectrum can</span>
+<span class="c1"># therefore contain extra (near-)zero rotational modes that the counting</span>
+<span class="c1"># formula misses. We report any discrepancy instead.</span>
+<span class="k">if</span> <span class="n">n_zero</span> <span class="o">!=</span> <span class="n">expected_zero</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"note: zero-mode count </span><span class="si">{</span><span class="n">n_zero</span><span class="si">}</span><span class="s2"> differs from the generic-contact "</span>
+        <span class="sa">f</span><span class="s2">"estimate </span><span class="si">{</span><span class="n">expected_zero</span><span class="si">}</span><span class="s2"> (non-generic clump contacts)"</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="remove-rattlers-and-re-analyze">
+<h2>Remove rattlers and re-analyze<a class="headerlink" href="#remove-rattlers-and-re-analyze" title="Link to this heading">#</a></h2>
+<p>We now remove the rattler clumps using
+<a class="reference internal" href="../reference/generated/jaxdem.utils.contacts.html#jaxdem.utils.contacts.remove_rattlers" title="jaxdem.utils.contacts.remove_rattlers"><code class="xref py py-func docutils literal notranslate"><span class="pre">remove_rattlers()</span></code></a>. It drops their
+vertex spheres from the state and returns a matching system
+re-initialized for the reduced particle count, so no manual system
+reconstruction is needed. (For a clump system the rattler IDs are
+already clump IDs, so we pass <code class="docutils literal notranslate"><span class="pre">rattler_ids</span></code> directly.)</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state_nr</span><span class="p">,</span> <span class="n">system_nr</span> <span class="o">=</span> <span class="n">remove_rattlers</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">rattler_ids</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">"After rattler removal: </span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">state_nr</span><span class="o">.</span><span class="n">N</span><span class="p">)</span><span class="si">}</span><span class="s2"> vertex spheres "</span>
+    <span class="sa">f</span><span class="s2">"in </span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">state_nr</span><span class="o">.</span><span class="n">clump_id</span><span class="o">.</span><span class="n">max</span><span class="p">())</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> clumps"</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="recompute-the-dynamical-matrix">
+<h2>Recompute the dynamical matrix<a class="headerlink" href="#recompute-the-dynamical-matrix" title="Link to this heading">#</a></h2>
+<p>With the rattlers gone we expect only the <code class="docutils literal notranslate"><span class="pre">dim</span></code> global translational
+zero modes to remain.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state_nr</span><span class="p">,</span> <span class="n">system_nr</span><span class="p">,</span> <span class="n">H_nr</span> <span class="o">=</span> <span class="n">clump_non_bonded_hessian</span><span class="p">(</span><span class="n">state_nr</span><span class="p">,</span> <span class="n">system_nr</span><span class="p">)</span>
+<span class="n">H_nr_np</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">H_nr</span><span class="p">)</span>
+<span class="n">H_nr_np</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">H_nr_np</span> <span class="o">+</span> <span class="n">H_nr_np</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+<span class="n">eigenvalues_nr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">eigvalsh</span><span class="p">(</span><span class="n">H_nr_np</span><span class="p">))</span>
+
+<span class="n">zero_mask_nr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">zero_mode_mask</span><span class="p">(</span><span class="n">eigenvalues_nr</span><span class="p">))</span>
+<span class="n">n_zero_nr</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">zero_mask_nr</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">After removing rattlers — eigenvalue spectrum (low end):"</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">lam</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">eigenvalues_nr</span><span class="p">[:</span><span class="mi">8</span><span class="p">]):</span>
+    <span class="n">mark</span> <span class="o">=</span> <span class="s2">"  (zero)"</span> <span class="k">if</span> <span class="n">zero_mask_nr</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">else</span> <span class="s2">""</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  λ[</span><span class="si">{</span><span class="n">i</span><span class="si">:</span><span class="s2">3d</span><span class="si">}</span><span class="s2">] = </span><span class="si">{</span><span class="n">lam</span><span class="si">:</span><span class="s2"> .3e</span><span class="si">}{</span><span class="n">mark</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"  ..."</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  λ[-1] = </span><span class="si">{</span><span class="n">eigenvalues_nr</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2"> .3e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2"># zero modes (no rattlers)  : </span><span class="si">{</span><span class="n">n_zero_nr</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"# expected                   : </span><span class="si">{</span><span class="n">dim</span><span class="si">}</span><span class="s2"> (global translations only)"</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">n_zero_nr</span> <span class="o">==</span> <span class="n">dim</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"post-rattler zero-mode count </span><span class="si">{</span><span class="n">n_zero_nr</span><span class="si">}</span><span class="s2"> != </span><span class="si">{</span><span class="n">dim</span><span class="si">}</span><span class="s2">"</span>
+</pre></div>
+</div>
+</section>
+<section id="friction-in-every-contact">
+<h2>Friction in every contact<a class="headerlink" href="#friction-in-every-contact" title="Link to this heading">#</a></h2>
+<p>For each contacting clump pair <span class="math notranslate nohighlight">\((I, J)\)</span>,
+<a class="reference internal" href="../reference/generated/jaxdem.utils.contacts.html#jaxdem.utils.contacts.get_group_contacts" title="jaxdem.utils.contacts.get_group_contacts"><code class="xref py py-func docutils literal notranslate"><span class="pre">get_group_contacts()</span></code></a> sums the
+per-vertex contact forces between spheres of <span class="math notranslate nohighlight">\(I\)</span> and spheres of
+<span class="math notranslate nohighlight">\(J\)</span>, decomposes the total along the COM-to-COM direction, and
+reports the ratio <span class="math notranslate nohighlight">\(\mu_{IJ} = |F^t_{IJ}| / |F^n_{IJ}|\)</span>. For a
+single sphere-sphere contact along the center line <span class="math notranslate nohighlight">\(\mu = 0\)</span>.
+Off-axis multi-vertex contacts only arise for non-spherical clumps,
+and they can give <span class="math notranslate nohighlight">\(\mu &gt; 0\)</span>. This is the purely geometric
+“friction” a rigid clump exhibits due to its shape, with no
+tangential force law involved.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Collect contacts for the reduced state after removing rattlers.</span>
+<span class="n">state_nr</span><span class="p">,</span> <span class="n">system_nr</span><span class="p">,</span> <span class="n">group_contacts</span> <span class="o">=</span> <span class="n">get_group_contacts</span><span class="p">(</span><span class="n">state_nr</span><span class="p">,</span> <span class="n">system_nr</span><span class="p">)</span>
+<span class="n">pair_ids</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">group_contacts</span><span class="o">.</span><span class="n">pair_ids</span><span class="p">)</span>
+<span class="c1"># Select one direction of each contacting pair.</span>
+<span class="n">unique_pairs</span> <span class="o">=</span> <span class="n">pair_ids</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">pair_ids</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
+<span class="n">mu_values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">group_contacts</span><span class="o">.</span><span class="n">friction</span><span class="p">)[</span><span class="n">unique_pairs</span><span class="p">]</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">mu_values</span><span class="p">)</span><span class="si">}</span><span class="s2"> clump-clump contacts in the rattler-free contact network"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"μ statistics:"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  min    = </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">mu_values</span><span class="p">))</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  mean   = </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">mu_values</span><span class="p">))</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  median = </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">mu_values</span><span class="p">))</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"  max    = </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">mu_values</span><span class="p">))</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+<span class="c1"># Classify each contact by the (n_I, n_J) pair of how many spheres of</span>
+<span class="c1"># clump I touch any sphere of clump J and vice-versa.</span>
+<span class="n">contact_types</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">group_contacts</span><span class="o">.</span><span class="n">sphere_counts</span><span class="p">)[</span><span class="n">unique_pairs</span><span class="p">]</span>
+<span class="n">canonical</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">contact_types</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># (a, b) with a &lt;= b</span>
+<span class="n">type_labels</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="nb">int</span><span class="p">(</span><span class="n">b</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="ow">in</span> <span class="n">canonical</span><span class="p">]</span>
+<span class="n">unique_types</span><span class="p">,</span> <span class="n">type_counts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">type_labels</span><span class="p">,</span> <span class="n">return_counts</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">Contact-type distribution (n_I-n_J spheres in contact):"</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">t</span><span class="p">,</span> <span class="n">c</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">unique_types</span><span class="p">,</span> <span class="n">type_counts</span><span class="p">):</span>
+    <span class="n">members</span> <span class="o">=</span> <span class="n">mu_values</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">type_labels</span><span class="p">)</span> <span class="o">==</span> <span class="n">t</span><span class="p">]</span>
+    <span class="nb">print</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"  </span><span class="si">{</span><span class="n">t</span><span class="si">:</span><span class="s2">&gt;6</span><span class="si">}</span><span class="s2">  count=</span><span class="si">{</span><span class="n">c</span><span class="si">:</span><span class="s2">3d</span><span class="si">}</span><span class="s2">  μ median=</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">members</span><span class="p">))</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">, "</span>
+        <span class="sa">f</span><span class="s2">"max=</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">members</span><span class="p">))</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">"</span>
+    <span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-clump-jamming-dynamical-matrix-and-friction-py">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/877b0d77b8f0635267a55e2d8955d6a2/clump_jamming_dynamical_matrix_and_friction.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">clump_jamming_dynamical_matrix_and_friction.ipynb</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/4e189dd7a9ec77425660d97843178d3b/clump_jamming_dynamical_matrix_and_friction.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">clump_jamming_dynamical_matrix_and_friction.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-zip docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/565eb8b047cb7bddd40202cb2be62dbb/clump_jamming_dynamical_matrix_and_friction.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">zipped:</span> <span class="pre">clump_jamming_dynamical_matrix_and_friction.zip</span></code></a></p>
+</div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="sphere_jamming_rattlers_dynamical_matrix.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Jammed bidisperse packing: contacts, rattlers, and the dynamical matrix</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="packing_fraction_protocol.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Packing-fraction protocol: integrate with a scheduled box rescale</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#parameters">Parameters</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#build-and-jam">Build and jam</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#count-contacts-vertex-vs-clump">Count contacts: vertex vs clump</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#rattlers">Rattlers</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dynamical-matrix">Dynamical matrix</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#remove-rattlers-and-re-analyze">Remove rattlers and re-analyze</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recompute-the-dynamical-matrix">Recompute the dynamical matrix</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#friction-in-every-contact">Friction in every contact</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="copyright">
+    
+      © Copyright 2026, Carlos Andres del Valle.
+      <br/>
+    
+  </p>
+</div>
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,6 @@
+jaxdem.utils.grid\_state
+========================
+
+.. currentmodule:: jaxdem.utils
+
+.. autofunction:: grid_state

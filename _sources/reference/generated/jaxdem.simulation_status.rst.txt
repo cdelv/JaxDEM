@@ -1,0 +1,20 @@
+jaxdem.simulation\_status
+=========================
+
+.. automodule:: jaxdem.simulation_status
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      checked_steps
+      simulation_status
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      SimulationStatus
+      StepResult
+   

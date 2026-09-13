@@ -1,0 +1,12 @@
+jaxdem.utils.surface\_properties
+================================
+
+.. automodule:: jaxdem.utils.surface_properties
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      compute_surface_properties
+   

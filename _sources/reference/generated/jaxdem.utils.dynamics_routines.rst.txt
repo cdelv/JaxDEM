@@ -1,0 +1,12 @@
+jaxdem.utils.dynamics\_routines
+===============================
+
+.. automodule:: jaxdem.utils.dynamics_routines
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      run_packing_fraction_protocol
+   

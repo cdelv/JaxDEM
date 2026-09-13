@@ -1,0 +1,21 @@
+jaxdem.minimizers.routines
+==========================
+
+.. automodule:: jaxdem.minimizers.routines
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      convergence_info
+      minimize
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      MinimizationResult
+      MinimizeInfo
+      TerminationReason
+   

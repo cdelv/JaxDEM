@@ -1,0 +1,12 @@
+jaxdem.domains.lees\_edwards
+============================
+
+.. automodule:: jaxdem.domains.lees_edwards
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      LeesEdwardsDomain
+   
