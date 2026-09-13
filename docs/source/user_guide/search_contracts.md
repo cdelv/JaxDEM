@@ -113,6 +113,12 @@ count with nonempty history, or reindexing requires an explicit history reset
 (`reset_history=True`); history cannot be matched by old array indices after
 particle identities move.
 
+`remove_rattlers` maps surviving particle pairs back to their original indices
+and transfers their complete contact history into the resized cache before
+evaluating forces. This includes tangential displacement and previous contact
+normals for Cundall–Strack contacts. Newly discovered pairs use the force law's
+history initializer; removal and force evaluation do not advance pair history.
+
 ## Preparation, evaluation, and failure handling
 
 Call `state, system = System.initialize(state, system)` after construction and

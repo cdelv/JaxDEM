@@ -315,6 +315,33 @@ def check_and_rebuild(state: Any, system: Any) -> Any:
     )
 
 
+@jax.jit
+def reindex_history(state: Any, system: Any, old: Any, new_to_old: jax.Array) -> Any:
+    """Build a resized cache and transfer history by original particle index.
+
+    ``system.collider`` must be allocated for ``state``. ``new_to_old[k]`` is
+    the original index of particle ``k`` in the reduced state. Both endpoints
+    of each new directed pair are mapped to the old cache before looking up
+    history. New pairs and padding use the force law's initialized history.
+    """
+    system = check_and_rebuild(state, system)
+    if old.history.size == 0:
+        return system
+    col = system.collider
+    indices = jnp.concatenate((new_to_old, jnp.full((1,), -1, dtype=new_to_old.dtype)))
+    source = indices[pair_sources(col)]
+    target = indices[jnp.where(col.neighbor_list >= 0, col.neighbor_list, state.N)]
+    history = remap_history(
+        old.history,
+        pair_sources(old),
+        old.neighbor_list,
+        source,
+        target,
+        col.history,
+    )
+    return replace(system, collider=replace(col, history=history))
+
+
 def _row_reduce(col: Any, initial: Any, evaluate: Any) -> Any:
     """Reduce row batches with one precomputed loop bound per batch."""
     n, capacity = col.row_offsets.size - 1, col.neighbor_list.size

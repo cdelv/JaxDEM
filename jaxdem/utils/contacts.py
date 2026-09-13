@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING, Any
 import jax
 import jax.numpy as jnp
 
-from .linalg import norm, unit
 from ..colliders import valid_interaction_mask
+from .linalg import norm, unit
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -612,6 +612,10 @@ def remove_rattlers(
       through unchanged for stateless ones (``naive``). It recovers
       Create's config kwargs from the current collider via introspection
       (see :func:`jaxdem.colliders.refresh_collider`).
+      ``NeighborList`` transfers the complete history of each surviving
+      directed pair through the particle index mapping, including tangential
+      displacement and previous contact normals. New pairs use the force
+      law's history initializer. Force evaluation does not advance history.
     * The function rebuilds ``force_manager`` so that its per-particle
       buffers (``external_force``, ``external_force_com``,
       ``external_torque``) are sized for the reduced state. ``gravity``,
@@ -720,6 +724,9 @@ def remove_rattlers(
     from ..colliders import NeighborList
 
     if isinstance(new_system.collider, NeighborList):
+        from ..colliders._neighbor_cache import reindex_history
+
+        new_system = reindex_history(new_state, new_system, system.collider, idx)
         new_state, new_system = new_system.collider.compute_force(
             new_state, new_system, advance_history=False
         )
