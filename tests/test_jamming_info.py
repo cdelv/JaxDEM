@@ -127,7 +127,7 @@ def patched_minimize(monkeypatch):
         monkeypatch.setattr(
             jamming,
             "compute_contact_pressure",
-            lambda st, sy, *args: (st, sy, energies[st.vel[0, 0].astype(int) - 1]),
+            lambda st, sy: (st, sy, energies[st.vel[0, 0].astype(int) - 1]),
         )
 
     yield install
@@ -239,7 +239,7 @@ def test_pressure_bracket_exhaustion_is_a_reported_failure(patched_minimize):
 def test_nonfinite_pressure_cannot_be_accepted(monkeypatch, patched_minimize):
     patched_minimize([1.5], [4])
     monkeypatch.setattr(
-        jamming, "compute_contact_pressure", lambda st, sy, *args: (st, sy, jnp.nan)
+        jamming, "compute_contact_pressure", lambda st, sy: (st, sy, jnp.nan)
     )
     state, system = lattice()
     result, info = jamming.pressure_bisection_jam(

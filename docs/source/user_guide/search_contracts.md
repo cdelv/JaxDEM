@@ -69,6 +69,35 @@ traversal. The supported unique-image interaction regime has reach smaller than
 half each periodic box length. Queries return particle indices, not multiple
 copies of periodic images.
 
+## Contact analysis
+
+Contact diagnostics use the collider and force model configured on the state and
+system. Pressure, stress, and per-sphere contact counts support JIT compilation
+and reduce pair contributions directly.
+
+For several analyses of the same configuration, collect one contact snapshot:
+
+```python
+from jaxdem.utils import get_contacts, get_group_contacts, get_clump_rattler_ids
+
+state, system, contacts = get_contacts(state, system)
+state, system, groups = get_group_contacts(state, system, contacts=contacts)
+state, system, rattlers, non_rattlers = get_clump_rattler_ids(
+    state, system, contacts=contacts
+)
+```
+
+`ContactData` contains directed sphere-pair IDs, forces, torques about the source
+clump COM, and domain-aware displacements. `GroupContactData` contains directed
+group-pair IDs, total forces, friction ratios, and constituent contact counts.
+Both collections contain active interactions without padding; collecting them is
+a host operation with variable-length output.
+
+Diagnostics preserve contact history. Use the returned system to retain any
+refreshed collider cache. A snapshot can be reused only while the state and
+force-model inputs, including contact history, are unchanged. Collect new contacts
+after removing particles.
+
 ## Queries, cache changes, and capacity
 
 `create_neighbor_list` honors its explicit cutoff and `max_neighbors`, returning

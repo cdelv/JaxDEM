@@ -65,7 +65,7 @@ def test_pressure_nan_is_not_accepted_as_target(monkeypatch):
     )
     system = jdem.System.create(state=state, collider_type="naive")
 
-    def nan_pressure(state, system, *_args):
+    def nan_pressure(state, system):
         return state, system, jnp.asarray(jnp.nan)
 
     monkeypatch.setattr("jaxdem.utils.jamming.compute_contact_pressure", nan_pressure)
@@ -100,7 +100,7 @@ def test_accepted_pressure_trial_is_returned_without_extra_relaxation(monkeypatc
             )
         return result
 
-    def target_pressure(state, system, *_args):
+    def target_pressure(state, system):
         return state, system, jnp.asarray(1.005e-7)
 
     monkeypatch.setattr(type(system), "minimize", staticmethod(staged_minimize))

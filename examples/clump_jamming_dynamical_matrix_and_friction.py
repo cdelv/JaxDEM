@@ -31,7 +31,7 @@ zero modes remain.
 
 Finally, we compute the per-clump-pair friction coefficient
 :math:`\mu_{IJ}` for every contacting clump pair with
-:func:`~jaxdem.utils.contacts.compute_clump_pair_friction`. It
+:func:`~jaxdem.utils.contacts.get_group_contacts`. It
 decomposes the total contact force between two clumps along the
 COM-to-COM axis and reports the ratio of its tangential to normal
 magnitude.
@@ -45,11 +45,12 @@ import numpy as np
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
 from jaxdem import fire
-from jaxdem.utils.contacts import (
-    compute_clump_pair_friction,
+from jaxdem.utils import (
     count_clump_contacts,
     count_vertex_contacts,
     get_clump_rattler_ids,
+    get_contacts,
+    get_group_contacts,
     remove_rattlers,
 )
 from jaxdem.utils.dynamical_matrix import clump_non_bonded_hessian, zero_mode_mask
@@ -150,8 +151,14 @@ print(
 # "how many neighbors does this body have" quantity and is useful for
 # visualization and coarse statistics.
 
-state, system, vertex_contacts_per_clump = count_vertex_contacts(state, system)
-state, system, clump_contacts_per_clump = count_clump_contacts(state, system)
+# Share the same contact snapshot with both counts and rattler analysis.
+state, system, contacts = get_contacts(state, system)
+state, system, vertex_contacts_per_clump = count_vertex_contacts(
+    state, system, contacts=contacts
+)
+state, system, clump_contacts_per_clump = count_clump_contacts(
+    state, system, contacts=contacts
+)
 N_clumps = int(state.clump_id.max()) + 1
 N_vertices = int(state.N)
 print(f"{N_clumps} clumps, {N_vertices} vertex spheres")
@@ -181,7 +188,9 @@ print(
 # the remaining graph. Removing one rattler may leave its neighbors
 # under-coordinated, so the loop continues until the set stabilizes.
 
-state, system, rattler_ids, non_rattler_ids = get_clump_rattler_ids(state, system)
+state, system, rattler_ids, non_rattler_ids = get_clump_rattler_ids(
+    state, system, contacts=contacts
+)
 n_rattlers = int(rattler_ids.shape[0])
 print(f"Rattlers: {n_rattlers} / {N_clumps}")
 
@@ -313,7 +322,7 @@ assert n_zero_nr == dim, f"post-rattler zero-mode count {n_zero_nr} != {dim}"
 # Friction in every contact
 # -------------------------
 # For each contacting clump pair :math:`(I, J)`,
-# :func:`~jaxdem.utils.contacts.compute_clump_pair_friction` sums the
+# :func:`~jaxdem.utils.contacts.get_group_contacts` sums the
 # per-vertex contact forces between spheres of :math:`I` and spheres of
 # :math:`J`, decomposes the total along the COM-to-COM direction, and
 # reports the ratio :math:`\mu_{IJ} = |F^t_{IJ}| / |F^n_{IJ}|`. For a
@@ -323,16 +332,12 @@ assert n_zero_nr == dim, f"post-rattler zero-mode count {n_zero_nr} != {dim}"
 # "friction" a rigid clump exhibits due to its shape, with no
 # tangential force law involved.
 
-state_nr, system_nr, F_clumps, mu, contact_mask, sphere_counts = (
-    compute_clump_pair_friction(state_nr, system_nr)
-)
-mu_np = np.asarray(mu)
-mask_np = np.asarray(contact_mask)
-sc_np = np.asarray(sphere_counts)
-
-# Extract upper-triangular entries of contacting clump pairs.
-ij = np.argwhere(np.triu(mask_np, k=1))
-mu_values = mu_np[ij[:, 0], ij[:, 1]]
+# Collect contacts for the reduced state after removing rattlers.
+state_nr, system_nr, group_contacts = get_group_contacts(state_nr, system_nr)
+pair_ids = np.asarray(group_contacts.pair_ids)
+# Select one direction of each contacting pair.
+unique_pairs = pair_ids[:, 0] < pair_ids[:, 1]
+mu_values = np.asarray(group_contacts.friction)[unique_pairs]
 print(f"\n{len(mu_values)} clump-clump contacts in the rattler-free contact network")
 print("μ statistics:")
 print(f"  min    = {float(np.min(mu_values)):.4f}")
@@ -342,7 +347,7 @@ print(f"  max    = {float(np.max(mu_values)):.4f}")
 
 # Classify each contact by the (n_I, n_J) pair of how many spheres of
 # clump I touch any sphere of clump J and vice-versa.
-contact_types = sc_np[ij[:, 0], ij[:, 1]]  # (n_contacts, 2)
+contact_types = np.asarray(group_contacts.sphere_counts)[unique_pairs]
 canonical = np.sort(contact_types, axis=1)  # (a, b) with a <= b
 type_labels = [f"{int(a)}-{int(b)}" for a, b in canonical]
 unique_types, type_counts = np.unique(type_labels, return_counts=True)

@@ -1,4 +1,4 @@
-"""Analytical tests for :func:`compute_clump_pair_friction`.
+"""Analytical tests for :func:`get_group_contacts` and rattler analysis.
 
 The tests check two configurations where geometry alone gives the friction
 coefficient:
@@ -23,9 +23,9 @@ import numpy as np
 import pytest
 
 import jaxdem as jd
-from jaxdem.utils.contacts import (
-    compute_clump_pair_friction,
+from jaxdem.utils import (
     get_clump_rattler_ids,
+    get_group_contacts,
     get_sphere_rattler_ids,
 )
 
@@ -68,27 +68,20 @@ def test_radial_contact_gives_zero_friction() -> None:
     )
     system = _build_system(state, box_size=10.0)
 
-    state, system, F_clumps, mu, contact_mask, _ = compute_clump_pair_friction(
-        state, system
-    )
+    state, system, contacts = get_group_contacts(state, system)
+    np.testing.assert_array_equal(contacts.pair_ids, [[0, 1], [1, 0]])
+    np.testing.assert_array_equal(contacts.friction_valid, [True, True])
 
-    # Expect a single clump pair (0, 1) in contact; mu there is 0.
-    assert bool(contact_mask[0, 1])
-    assert bool(contact_mask[1, 0])
-    assert not bool(contact_mask[0, 0])
-    assert not bool(contact_mask[1, 1])
-
-    # F_clumps is antisymmetric and the force should be repulsive along -x.
-    F_01 = np.asarray(F_clumps[0, 1])
-    F_10 = np.asarray(F_clumps[1, 0])
+    # Pair forces are antisymmetric and repulsive along -x.
+    F_01 = np.asarray(contacts.forces[0])
+    F_10 = np.asarray(contacts.forces[1])
     np.testing.assert_allclose(F_01, -F_10, atol=1e-14)
     # Force on clump 0 from clump 1 should push 0 toward -x (away from 1).
     assert F_01[0] < 0.0
     np.testing.assert_allclose(F_01[1], 0.0, atol=1e-14)
 
     # mu == 0, and symmetric.
-    assert float(mu[0, 1]) == 0.0
-    assert float(mu[1, 0]) == 0.0
+    np.testing.assert_array_equal(contacts.friction, [0.0, 0.0])
 
 
 def test_offset_contact_gives_analytical_friction() -> None:
@@ -144,24 +137,19 @@ def test_offset_contact_gives_analytical_friction() -> None:
     np.testing.assert_allclose(world_pos[1], [2.0, 0.0], atol=1e-14)
     np.testing.assert_allclose(world_pos[2], [2.0, 0.8], atol=1e-14)
 
-    state, system, F_clumps, mu, contact_mask, _ = compute_clump_pair_friction(
-        state, system
-    )
-
-    # Exactly one clump pair in contact.
-    assert bool(contact_mask[0, 1])
-    assert bool(contact_mask[1, 0])
-    assert int(contact_mask.sum()) == 2  # two symmetric entries
+    state, system, contacts = get_group_contacts(state, system)
+    np.testing.assert_array_equal(contacts.pair_ids, [[0, 1], [1, 0]])
 
     # The only contributing sphere-pair force on clump 0 points in -y.
-    F_01 = np.asarray(F_clumps[0, 1])
+    F_01 = np.asarray(contacts.forces[0])
     np.testing.assert_allclose(F_01[0], 0.0, atol=1e-12)
     assert F_01[1] < 0.0  # sign: repulsion pushes B (and hence clump 0) toward -y
 
     # mu = 1 / 0.8 = 1.25 exactly, independent of k and overlap magnitude.
     expected_mu = 1.0 / 0.8
-    np.testing.assert_allclose(float(mu[0, 1]), expected_mu, rtol=1e-12)
-    np.testing.assert_allclose(float(mu[1, 0]), expected_mu, rtol=1e-12)
+    np.testing.assert_allclose(
+        contacts.friction, [expected_mu, expected_mu], rtol=1e-12
+    )
 
 
 def test_periodic_radial_contact_uses_minimum_image_axis() -> None:
@@ -173,22 +161,17 @@ def test_periodic_radial_contact_uses_minimum_image_axis() -> None:
     )
     system = _build_system(state, box_size=10.0)
 
-    state, system, F_clumps, mu, contact_mask, _ = compute_clump_pair_friction(
-        state, system
-    )
-
-    assert bool(contact_mask[0, 1])
-    assert bool(contact_mask[1, 0])
+    state, system, contacts = get_group_contacts(state, system)
+    np.testing.assert_array_equal(contacts.pair_ids, [[0, 1], [1, 0]])
     np.testing.assert_allclose(
-        F_clumps[0, 1],
+        contacts.forces[0],
         [-0.3071067811865475, -0.3071067811865475],
     )
-    np.testing.assert_allclose(float(mu[0, 1]), 0.0, atol=1e-12)
-    np.testing.assert_allclose(float(mu[1, 0]), 0.0, atol=1e-12)
+    np.testing.assert_allclose(contacts.friction, 0.0, atol=1e-12)
 
 
-def test_friction_queries_neighbors_without_replacing_force_cache() -> None:
-    """Diagnostics must not read the all-padding initial NeighborList cache."""
+def test_friction_builds_an_uninitialized_force_cache() -> None:
+    """Diagnostics build an uninitialized cache before reading contacts."""
     pos = jnp.array([[0.0, 0.0], [0.8, 0.0]])
     rad = jnp.array([0.5, 0.5])
     state = jd.State.create(
@@ -207,14 +190,11 @@ def test_friction_queries_neighbors_without_replacing_force_cache() -> None:
         },
     )
 
-    state, system, F_clumps, mu, contact_mask, _ = compute_clump_pair_friction(
-        state, system
-    )
-
-    assert bool(contact_mask[0, 1])
-    np.testing.assert_allclose(F_clumps[0, 1], [-0.2, 0.0], atol=1e-14)
-    np.testing.assert_allclose(float(mu[0, 1]), 0.0, atol=1e-14)
-    assert int(system.collider.n_build_times) == 0
+    state, system, contacts = get_group_contacts(state, system)
+    np.testing.assert_array_equal(contacts.pair_ids, [[0, 1], [1, 0]])
+    np.testing.assert_allclose(contacts.forces[0], [-0.2, 0.0], atol=1e-14)
+    np.testing.assert_allclose(contacts.friction, 0.0, atol=1e-14)
+    assert int(system.collider.n_build_times) == 1
 
 
 def test_sphere_counts_preserve_cancelling_vertex_contacts() -> None:
@@ -245,14 +225,11 @@ def test_sphere_counts_preserve_cancelling_vertex_contacts() -> None:
     )
     system = _build_system(state, box_size=10.0)
 
-    state, system, F_clumps, mu, contact_mask, sphere_counts = (
-        compute_clump_pair_friction(state, system)
-    )
-
-    np.testing.assert_allclose(F_clumps[0, 1], [0.0, 0.0], atol=1e-14)
-    np.testing.assert_allclose(float(mu[0, 1]), 0.0, atol=1e-14)
-    assert not bool(contact_mask[0, 1])
-    np.testing.assert_array_equal(np.asarray(sphere_counts[0, 1]), [2, 2])
+    state, system, contacts = get_group_contacts(state, system)
+    np.testing.assert_array_equal(contacts.pair_ids, [[0, 1], [1, 0]])
+    np.testing.assert_allclose(contacts.forces, 0.0, atol=1e-14)
+    np.testing.assert_allclose(contacts.friction, 0.0, atol=1e-14)
+    np.testing.assert_array_equal(contacts.sphere_counts, [[2, 2], [2, 2]])
 
 
 def test_sphere_rattlers_include_particles_disconnected_by_removal() -> None:

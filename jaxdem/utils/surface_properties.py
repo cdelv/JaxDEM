@@ -591,7 +591,7 @@ def compute_surface_properties(
               shape ``(n_points, *orientation_shape)``. ``F`` is the *total*
               force on the central clump, so this is the clump-level
               coefficient (the same quantity as
-              :func:`~jaxdem.utils.contacts.compute_clump_pair_friction`).
+              :func:`~jaxdem.utils.contacts.get_group_contacts`).
               Reported as ``NaN`` for any probe that fails to establish
               contact (no normal force). This is deliberately distinct from a
               genuine frictionless ``mu == 0``.

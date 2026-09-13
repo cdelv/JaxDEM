@@ -68,8 +68,10 @@ def _history_system() -> tuple[jd.State, jd.System]:
 def test_relaxation_preserves_history_loads_and_dynamics_state(optimizer) -> None:
     state, system = _history_system()
     state = dataclasses.replace(
-        state, fixed=jnp.zeros_like(state.fixed),
-        vel=jnp.ones_like(state.vel), ang_vel=jnp.ones_like(state.ang_vel),
+        state,
+        fixed=jnp.zeros_like(state.fixed),
+        vel=jnp.ones_like(state.vel),
+        ang_vel=jnp.ones_like(state.ang_vel),
     )
     system = dataclasses.replace(system, minimizer=optimizer(dt=1e-4))
     queued = jnp.array([[3.0, 4.0], [-2.0, 1.0]])
@@ -187,12 +189,9 @@ def test_pair_force_analysis_reads_current_history_without_advancing_it() -> Non
     state, system = jd.System.step(state, system)
     before = np.asarray(system.collider.history).copy()
 
-    _, returned, pair_ids, forces = jd.utils.get_pair_forces_and_ids(
-        state, system, cutoff=1.0, max_neighbors=2
-    )
-    valid = np.asarray(pair_ids[:, 1]) >= 0
-
-    assert np.all(np.linalg.norm(np.asarray(forces)[valid], axis=-1) > 0.0)
+    _, returned, contacts = jd.utils.get_contacts(state, system)
+    np.testing.assert_array_equal(contacts.pair_ids, [[0, 1], [1, 0]])
+    assert np.all(np.linalg.norm(np.asarray(contacts.forces), axis=-1) > 0.0)
     np.testing.assert_array_equal(system.collider.history, before)
     np.testing.assert_array_equal(returned.collider.history, before)
 

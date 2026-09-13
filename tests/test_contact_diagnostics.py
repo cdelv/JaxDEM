@@ -7,10 +7,10 @@ import numpy as np
 import pytest
 
 import jaxdem as jd
-from jaxdem.utils.contacts import (
+from jaxdem.utils import (
     compute_contact_pressure,
     compute_contact_stress_tensor,
-    get_pair_forces_and_ids,
+    get_contacts,
 )
 
 
@@ -56,13 +56,10 @@ def test_diagnostics_follow_force_reach(collider, composition, cutoff_ratio, dis
         domain_kw={"box_size": jnp.full(2, 16.0)},
     )
 
-    _, updated, pair_ids, forces = get_pair_forces_and_ids(
-        state, system, max_neighbors=3
-    )
-    valid = np.asarray(pair_ids[:, 1]) >= 0
-    assert np.count_nonzero(valid) == 2
+    _, updated, contacts = get_contacts(state, system)
+    np.testing.assert_array_equal(contacts.pair_ids, [[0, 1], [1, 0]])
     totals = np.zeros((2, 2))
-    np.add.at(totals, np.asarray(pair_ids)[valid, 0], np.asarray(forces)[valid])
+    np.add.at(totals, np.asarray(contacts.pair_ids)[:, 0], np.asarray(contacts.forces))
     force_on_zero = (
         -24.0 / distance * (2.0 / distance**12 - 1.0 / distance**6) * direction
     )
@@ -70,13 +67,8 @@ def test_diagnostics_follow_force_reach(collider, composition, cutoff_ratio, dis
     evaluated, _ = jd.System.evaluate_forces(state, updated)
     np.testing.assert_allclose(totals, evaluated.force, rtol=3e-6)
 
-    _, _, stress = compute_contact_stress_tensor(state, system, max_neighbors=3)
+    _, _, stress = compute_contact_stress_tensor(state, updated)
     expected_stress = np.outer(-distance * direction, force_on_zero) / 16.0**2
     np.testing.assert_allclose(stress, expected_stress, rtol=3e-6)
-    _, _, pressure = compute_contact_pressure(state, system, max_neighbors=3)
+    _, _, pressure = compute_contact_pressure(state, updated)
     np.testing.assert_allclose(pressure, np.trace(expected_stress) / 2, rtol=3e-6)
-
-    _, _, _, restricted = get_pair_forces_and_ids(
-        state, system, cutoff=1.5, max_neighbors=3
-    )
-    np.testing.assert_array_equal(restricted, 0.0)

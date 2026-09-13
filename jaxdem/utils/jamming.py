@@ -532,8 +532,6 @@ def pressure_bisection_jam(
     fine_growth_rate: float = 1.000001,
     length_ratio_tolerance: float = 1e-14,
     n_jamming_steps: int = 10_000,
-    pressure_cutoff: float | None = None,
-    pressure_max_neighbors: int | None = None,
     verbose: bool = True,
     force_tol: float = 1e-12,
     torque_tol: float | None = None,
@@ -587,10 +585,6 @@ def pressure_bisection_jam(
         ``abs(L_below / L_above - 1)`` is smaller than this value.
     n_jamming_steps : int, optional
         Maximum number of trial minimizations, including the initial trial.
-    pressure_cutoff : float or None, optional
-        Neighbor search cutoff passed to ``compute_contact_pressure``.
-    pressure_max_neighbors : int or None, optional
-        Neighbor capacity passed to ``compute_contact_pressure``.
     verbose : bool, optional
         Print box length, packing fraction, pressure, energy, and minimizer
         steps for each trial with a valid pressure measurement.
@@ -677,9 +671,7 @@ def pressure_bisection_jam(
             status = 2
             break
 
-        state, system, pressure_value = compute_contact_pressure(
-            state, system, pressure_cutoff, pressure_max_neighbors
-        )
+        state, system, pressure_value = compute_contact_pressure(state, system)
         pressure = float(pressure_value)
         if not math.isfinite(pressure) or pressure < 0:
             status = 2

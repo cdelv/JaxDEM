@@ -1,598 +1,756 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Utility functions for analyzing particle contacts and identifying rattlers."""
+"""Contact forces, stress, coordination, friction, and rattler analysis.
+
+Diagnostics use the configured collider and evaluate the force law without
+advancing contact history. Scalar and per-particle summaries traverse pairs
+directly. Individual contacts are collected only for analyses that need them.
+"""
 
 from __future__ import annotations
 
+import math
 import warnings
 from dataclasses import replace
-from typing import TYPE_CHECKING, Any
+from functools import partial
+from typing import TYPE_CHECKING, NamedTuple, cast
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from ..colliders import valid_interaction_mask
-from .linalg import norm, unit
+from .linalg import cross
 
-if TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:
     from ..state import State
     from ..system import System
 
 
-def get_pair_forces_and_ids(
+class ContactData(NamedTuple):
+    """Directed active contacts for one configuration, without padding.
+
+    Attributes
+    ----------
+    pair_ids : jax.Array
+        Sphere indices ``(i, j)``, shape ``(M, 2)``. Each entry describes
+        the force and torque on ``i`` from ``j``. Reciprocal interactions
+        have entries in both directions.
+    forces : jax.Array
+        Pair forces, shape ``(M, dim)``.
+    torques : jax.Array
+        Pair torques about the clump COM of ``i``, shape ``(M, 1 | 3)``.
+        Includes the force law's intrinsic torque and the member offset moment.
+    displacements : jax.Array
+        Domain-aware displacement from sphere ``j`` to sphere ``i``,
+        shape ``(M, dim)``.
+
+    Notes
+    -----
+    An entry is active when its force or torque is nonzero. Skin-only
+    candidates and excluded interactions are absent. This is a snapshot;
+    reuse it only with the configuration from which it was collected.
+    """
+
+    pair_ids: jax.Array
+    forces: jax.Array
+    torques: jax.Array
+    displacements: jax.Array
+
+
+class GroupContactData(NamedTuple):
+    """Sparse directed group interactions, with one row per contacting pair.
+
+    Attributes
+    ----------
+    group_ids : jax.Array
+        Sorted group labels, including groups with no contacts.
+    pair_ids : jax.Array
+        Original group labels ``(I, J)``, shape ``(K, 2)``.
+    forces : jax.Array
+        Total force on group ``I`` from group ``J``, shape ``(K, dim)``.
+    friction : jax.Array
+        Magnitude ratio ``|F_t| / |F_n|`` relative to the group-centroid
+        axis, shape ``(K,)``. A purely tangential nonzero force has ratio
+        infinity. Zero net force has ratio zero.
+    friction_valid : jax.Array
+        Whether the centroid axis and net force are nonzero, shape ``(K,)``.
+        Contact existence does not depend on this flag.
+    sphere_counts : jax.Array
+        Number of distinct participating spheres on each side, shape ``(K, 2)``.
+    contact_counts : jax.Array
+        Number of directed constituent contacts contributing to each row.
+    """
+
+    group_ids: jax.Array
+    pair_ids: jax.Array
+    forces: jax.Array
+    friction: jax.Array
+    friction_valid: jax.Array
+    sphere_counts: jax.Array
+    contact_counts: jax.Array
+
+
+def _validate_state(state: State) -> None:
+    if state.pos_c.ndim != 2 or state.dim not in (2, 3):
+        raise ValueError("Contact analysis requires one 2D or 3D configuration.")
+
+
+def _check_search(system: System) -> None:
+    overflow = system.collider.overflow
+    if not isinstance(overflow, jax.core.Tracer) and bool(overflow):
+        raise ValueError(
+            "The configured collider overflowed during contact analysis. "
+            "Correct its search configuration before using these results."
+        )
+
+
+def _prepare_system(state: State, system: System) -> System:
+    from ..colliders import (
+        Collider,
+        DynamicCellList,
+        DynamicMultiCellList,
+        NeighborList,
+    )
+    from ..colliders.naive import NaiveSimulator
+
+    collider = system.collider
+    if (
+        not isinstance(
+            collider,
+            (NeighborList, DynamicCellList, DynamicMultiCellList, NaiveSimulator),
+        )
+        and type(collider) is not Collider
+    ):
+        raise NotImplementedError(
+            f"Contact traversal is unavailable for {type(collider).__name__}."
+        )
+    if state.N:
+        reach = jnp.max(system.force_model.search_radii(state, system), initial=0.0)
+        system = system.domain.update_bounds(state.pos, system, padding=reach)
+    if isinstance(collider, NeighborList):
+        from ..colliders._neighbor_cache import check_and_rebuild
+
+        system = check_and_rebuild(state, system)
+    return system
+
+
+def _record_overflow(system: System, overflow: jax.Array) -> System:
+    return replace(
+        system,
+        collider=replace(system.collider, overflow=overflow),
+        search_overflow=system.search_overflow | overflow,
+    )
+
+
+def _pair_values(
     state: State,
     system: System,
-    cutoff: float | None = None,
-    max_neighbors: int | None = None,
-) -> tuple[State, System, jax.Array, jax.Array]:
-    """Compute pairwise contact forces and their associated particle IDs.
-
-    Parameters
-    ----------
-    state : State
-        Current simulation state.
-    system : System
-        System definition containing the collider and force model.
-    cutoff : float, optional
-        Neighbor search cutoff distance. Defaults to twice the largest radius
-        returned by the force model's ``search_radii``. An explicitly smaller
-        cutoff restricts the diagnostic to those pairs.
-    max_neighbors : int, optional
-        Maximum number of neighbors per particle (default 100).
-
-    Returns
-    -------
-    state : State
-        Potentially updated state (after neighbor-list rebuild).
-    system : System
-        Potentially updated system.
-    pair_ids : jax.Array
-        ``(N * max_neighbors, 2)`` array of ``(i, j)`` sphere index pairs —
-        the full neighbor-list grid, *including* the padding rows where
-        ``j == -1`` (whose force is zero). Filter on ``pair_ids[:, 1] != -1``
-        to keep only real pairs.
-    forces : jax.Array
-        ``(N * max_neighbors, dim)`` array of pairwise force vectors, one
-        per pair (zero for padding rows).
-
-    """
-    if cutoff is None:
-        cutoff = float(2.0 * jnp.max(system.force_model.search_radii(state, system)))
-    if max_neighbors is None:
-        max_neighbors = 100
-
-    state, system, nl, overflow = system.collider.create_neighbor_list(
-        state, system, cutoff, max_neighbors
-    )
-    if overflow:
-        raise ValueError("Neighbor list overflowed. Increase max_neighbors.")
-
-    sphere_ids = jax.lax.iota(dtype=int, size=state.N)
+    i: jax.Array,
+    j: jax.Array,
+    history: jax.Array,
+    valid: jax.Array,
+) -> tuple[jax.Array, jax.Array, jax.Array]:
+    """Evaluate one pair block with moments about the source clump COM."""
     pos = state.pos
+    i = jnp.broadcast_to(i, j.shape)
+    safe_i = jnp.clip(i, 0, state.N - 1)
+    safe_j = jnp.clip(j, 0, state.N - 1)
+    force, torque, _ = jax.vmap(
+        lambda a, b, h: system.force_model.force(
+            a, b, pos, state, system, h, advance_history=False
+        )
+    )(safe_i, safe_j, history)
+    force = jnp.where(valid[:, None], force, 0.0)
+    torque = jnp.where(valid[:, None], torque, 0.0)
+    torque = torque + cross(state._pos_p_rot[safe_i], force)
+    displacement = system.domain.displacement(pos[safe_i], pos[safe_j], system)
+    return force, torque, jnp.where(valid[:, None], displacement, 0.0)
 
-    history = system.collider.get_history(state, system, nl)
 
-    def per_pair_force(
-        i: jnp.ndarray, neighbors: jnp.ndarray, pair_history: jax.Array
-    ) -> jnp.ndarray:
-        def per_neighbor_force(
-            j_id: jnp.ndarray, contact_history: jax.Array
-        ) -> jnp.ndarray:
-            valid = j_id != -1
-            safe_j = jnp.maximum(j_id, 0)
-            valid = valid & valid_interaction_mask(
+def _summary_values(
+    state: State,
+    system: System,
+    i: jax.Array,
+    j: jax.Array,
+    history: jax.Array,
+    valid: jax.Array,
+    quantity: str,
+) -> jax.Array:
+    force, _, displacement = _pair_values(state, system, i, j, history, valid)
+    if quantity == "count":
+        return (jnp.any(force != 0, axis=-1) & valid).astype(int)
+    virial = displacement[:, :, None] * force[:, None, :]
+    return jnp.where((valid & (i < j))[:, None, None], virial, 0.0)
+
+
+def _cell_summary(
+    acc: jax.Array,
+    i: jax.Array,
+    j: jax.Array,
+    pos: jax.Array,
+    state: State,
+    valid: jax.Array,
+    *,
+    system: System,
+    quantity: str,
+) -> jax.Array:
+    history = system.force_model.init_history(j.shape, state.dim)
+    return acc + _summary_values(state, system, i, j, history, valid > 0, quantity)
+
+
+@partial(jax.jit, static_argnames=("quantity",))
+def _reduce_contacts(
+    state: State, system: System, quantity: str
+) -> tuple[System, jax.Array]:
+    """Reduce the collider's native traversal without collecting a pair array."""
+    from ..colliders import (
+        Collider,
+        DynamicCellList,
+        DynamicMultiCellList,
+        NeighborList,
+    )
+    from ..colliders._neighbor_cache import _row_reduce, _valid_pairs
+    from ..colliders.cell_list import _traverse_pairs as cell_traverse
+    from ..colliders.multi_cell_list import _traverse_pairs as multi_traverse
+
+    system = _prepare_system(state, system)
+    collider = system.collider
+    initial = (
+        jnp.asarray(0, dtype=int)
+        if quantity == "count"
+        else jnp.zeros((state.dim, state.dim), dtype=state.pos_c.dtype)
+    )
+    if not state.N or type(collider) is Collider:
+        rows = jnp.zeros((state.N, *initial.shape), dtype=initial.dtype)
+        overflow = jnp.asarray(False)
+    elif isinstance(collider, NeighborList):
+
+        def evaluate(i: jax.Array, neighbors: jax.Array, slots: jax.Array) -> jax.Array:
+            j, valid = _valid_pairs(state, system, i, neighbors)
+            return _summary_values(
+                state, system, i, j, collider.history[slots], valid, quantity
+            )
+
+        rows = _row_reduce(collider, initial, evaluate)
+        overflow = collider.overflow
+    elif isinstance(collider, (DynamicCellList, DynamicMultiCellList)):
+        reach = jnp.max(system.force_model.search_radii(state, system), initial=0.0)
+        search_range = jnp.maximum(jnp.max(jnp.abs(collider.neighbor_mask)), 1)
+        cell_size = jnp.maximum(collider.cell_size, 2 * reach / search_range)
+        traverse = (
+            multi_traverse
+            if isinstance(collider, DynamicMultiCellList)
+            else cell_traverse
+        )
+        rows, overflow = traverse(
+            state,
+            system,
+            cell_size,
+            collider.neighbor_mask,
+            partial(_cell_summary, system=system, quantity=quantity),
+            initial,
+        )
+    else:
+        neighbors = jnp.arange(state.N)
+        history = system.force_model.init_history(neighbors.shape, state.dim)
+
+        def row(i: jax.Array) -> jax.Array:
+            valid = valid_interaction_mask(
                 state.clump_id[i],
-                state.clump_id[safe_j],
+                state.clump_id,
                 state.bond_id[i],
-                safe_j,
+                neighbors,
                 system.interact_same_bond_id,
             ).astype(bool)
-            f, _, _ = system.force_model.force(
-                i,
-                safe_j,
-                pos,
-                state,
-                system,
-                contact_history,
-                advance_history=False,
-            )
-            return f * valid
+            return _summary_values(
+                state, system, i, neighbors, history, valid, quantity
+            ).sum(axis=0)
 
-        return jax.vmap(per_neighbor_force)(neighbors, pair_history)
+        rows = jax.lax.map(row, neighbors, batch_size=min(state.N, 32))
+        overflow = jnp.asarray(False)
+    rows = jnp.where(overflow, -1 if quantity == "count" else jnp.nan, rows)
+    return _record_overflow(system, overflow), rows
 
-    neigh_force = jax.vmap(per_pair_force)(sphere_ids, nl, history)
 
-    n_neighbors = nl.shape[1]
-    i_ids = jnp.repeat(sphere_ids[:, None], n_neighbors, axis=1).ravel()
-    j_ids = nl.ravel()
-    neigh_force = neigh_force.reshape(-1, state.dim)
+@jax.jit
+def _cached_pairs(
+    state: State, system: System
+) -> tuple[System, jax.Array, jax.Array, jax.Array]:
+    from ..colliders import NeighborList
+    from ..colliders._neighbor_cache import _valid_pairs, pair_sources
 
-    return state, system, jnp.column_stack((i_ids, j_ids)), neigh_force
+    system = _prepare_system(state, system)
+    collider = cast(NeighborList, system.collider)
+    i, j = pair_sources(collider), collider.neighbor_list
+    valid = jnp.arange(j.size) < collider.row_offsets[-1]
+    if state.N:
+        _, mask = _valid_pairs(state, system, jnp.minimum(i, state.N - 1), j)
+        valid = valid & mask
+    return (
+        _record_overflow(system, collider.overflow),
+        jnp.stack((i, j), axis=1),
+        valid,
+        collider.history,
+    )
+
+
+@partial(jax.jit, static_argnames=("capacity",))
+def _uncached_pairs(
+    state: State, system: System, cutoff: jax.Array, capacity: int
+) -> tuple[jax.Array, jax.Array]:
+    from ..colliders._neighbor_cache import build_pairs
+    from ..colliders.naive import NaiveSimulator
+
+    neighbors, offsets, overflow = build_pairs(state, system, cutoff, capacity)
+    sources = jnp.repeat(
+        jnp.arange(state.N), jnp.diff(offsets), total_repeat_length=capacity
+    )
+    # The packed builder's bond mask follows the cell traversal's destination
+    # convention. Naive force traversal applies the source adjacency instead.
+    pairs = jnp.stack((sources, neighbors), axis=1)
+    if isinstance(system.collider, NaiveSimulator):
+        pairs = pairs[:, ::-1]
+    return pairs, overflow
+
+
+@jax.jit
+def _evaluate_contacts(
+    state: State,
+    system: System,
+    pairs: jax.Array,
+    history: jax.Array,
+    valid: jax.Array,
+) -> ContactData:
+    if not pairs.shape[0]:
+        return _empty_contacts(state)
+
+    def evaluate(args: tuple[jax.Array, jax.Array, jax.Array]) -> tuple[jax.Array, ...]:
+        pair, pair_history, pair_valid = args
+        f, t, dr = _pair_values(
+            state, system, pair[:1], pair[1:], pair_history[None], pair_valid[None]
+        )
+        return f[0], t[0], dr[0]
+
+    force, torque, displacement = jax.lax.map(
+        evaluate, (pairs, history, valid), batch_size=min(pairs.shape[0], 4096)
+    )
+    return ContactData(pairs, force, torque, displacement)
+
+
+def _empty_contacts(state: State) -> ContactData:
+    return ContactData(
+        jnp.empty((0, 2), dtype=int),
+        jnp.empty((0, state.dim), dtype=state.pos_c.dtype),
+        jnp.empty((0, state.ang_vel.shape[-1]), dtype=state.pos_c.dtype),
+        jnp.empty((0, state.dim), dtype=state.pos_c.dtype),
+    )
+
+
+def get_contacts(state: State, system: System) -> tuple[State, System, ContactData]:
+    """Collect active directed contacts from the configured collider.
+
+    NeighborList uses its current cache, rebuilding when invalid. Cell and
+    naive colliders use an automatically sized packed output buffer. No dense
+    per-particle neighbor array is constructed and no query capacity is needed.
+    The input state and contact history are not advanced. Use the returned
+    system to retain any refreshed cache.
+
+    This host-side operation returns variable-length arrays. Reuse the returned
+    ContactData through the ``contacts`` keyword of other diagnostics while
+    the configuration is unchanged. Pressure and count reductions can instead
+    traverse directly without collecting contacts.
+
+    Raises
+    ------
+    ValueError
+        Search results are incomplete or pair forces/torques are nonfinite.
+    """
+    from ..colliders import Collider, NeighborList
+    from ..colliders._neighbor_cache import count_pairs
+
+    _validate_state(state)
+    if not state.N or type(system.collider) is Collider:
+        return state, system, _empty_contacts(state)
+    if isinstance(system.collider, NeighborList):
+        system, pairs, valid, history = _cached_pairs(state, system)
+    else:
+        system = _prepare_system(state, system)
+        cutoff = 2 * jnp.max(
+            system.force_model.search_radii(state, system), initial=0.0
+        )
+        counts, overflow = count_pairs(state, system, cutoff)
+        system = _record_overflow(system, overflow)
+        _check_search(system)
+        capacity = int(np.sum(np.asarray(counts), dtype=np.int64))
+        pairs, overflow = _uncached_pairs(state, system, cutoff, capacity)
+        system = _record_overflow(system, overflow)
+        valid = jnp.ones((capacity,), dtype=bool)
+        history = system.force_model.init_history((capacity,), state.dim)
+    _check_search(system)
+    data = _evaluate_contacts(state, system, pairs, history, valid)
+    active = valid & (
+        jnp.any(data.forces != 0, axis=1) | jnp.any(data.torques != 0, axis=1)
+    )
+    data = jax.tree.map(lambda x: x[active], data)
+    if not bool(
+        jnp.all(jnp.isfinite(data.forces)) & jnp.all(jnp.isfinite(data.torques))
+    ):
+        raise ValueError("Contact forces and torques must be finite.")
+    order = jnp.lexsort((data.pair_ids[:, 1], data.pair_ids[:, 0]))
+    return state, system, jax.tree.map(lambda x: x[order], data)
+
+
+def _contacts_or_collect(
+    state: State, system: System, contacts: ContactData | None
+) -> tuple[State, System, ContactData]:
+    _validate_state(state)
+    return (
+        get_contacts(state, system) if contacts is None else (state, system, contacts)
+    )
 
 
 def compute_contact_stress_tensor(
     state: State,
     system: System,
-    cutoff: float | None = None,
-    max_neighbors: int | None = None,
+    *,
     volume: float | jax.Array | None = None,
+    contacts: ContactData | None = None,
 ) -> tuple[State, System, jax.Array]:
-    r"""Compute the contact virial stress tensor.
+    r"""Return the sphere-contact virial stress ``sum(i < j, rij outer Fij) / V``.
 
-    The function computes the stress from force-bearing sphere-sphere contacts
-    as
+    ``rij`` points from sphere ``j`` to ``i`` using the domain's image rule;
+    ``Fij`` acts on ``i``. Compression has positive diagonal stress. Clump
+    contributions use the constituent sphere displacements. Volume defaults
+    to the product of the current domain's box lengths.
 
-    .. math::
-        \sigma = \frac{1}{V}\sum_{i < j} \mathbf{r}_{ij}\otimes\mathbf{F}_{ij},
-
-    where ``F_ij`` is the force on sphere ``i`` from sphere ``j`` and
-    ``r_ij`` is the domain-aware displacement from ``j`` to ``i``. This
-    convention gives positive diagonal stress, and therefore positive
-    pressure, for repulsive compression.
-
-    For rigid clumps, the sum remains over the vertex-sphere contacts
-    because those are the force-bearing contacts in the simulation.
-
-    Parameters
-    ----------
-    state, system, cutoff, max_neighbors
-        Same as :func:`get_pair_forces_and_ids`.
-    volume : float or jax.Array, optional
-        Volume/area used for normalization. Defaults to
-        ``prod(system.domain.box_size)``.
-
-    Returns
-    -------
-    state : State
-        Potentially updated state (after neighbor-list rebuild).
-    system : System
-        Potentially updated system.
-    stress : jax.Array
-        ``(dim, dim)`` contact stress tensor.
+    This reduction is JIT-compatible and does not collect a contact list.
+    An optional ContactData snapshot avoids reevaluating the force law.
+    History and particle dynamics are unchanged. An incomplete search raises
+    on the host; compiled calls return NaN and set the returned system's
+    search-overflow flag.
     """
-    state, system, pair_ids, forces = get_pair_forces_and_ids(
-        state, system, cutoff, max_neighbors
-    )
-
-    i = pair_ids[:, 0]
-    j = pair_ids[:, 1]
-    safe_j = jnp.maximum(j, 0)
-
-    pos = state.pos
-    rij = system.domain.displacement(pos[i], pos[safe_j], system)
-
-    valid = (j >= 0) & (i < safe_j) & (jnp.sum(forces * forces, axis=-1) > 0)
-    virial = jnp.einsum("ni,nj->nij", rij, forces)
-    virial = jnp.sum(virial * valid[:, None, None], axis=0)
-
+    _validate_state(state)
+    if contacts is None:
+        system, rows = _reduce_contacts(state, system, "stress")
+        _check_search(system)
+        virial = rows.sum(axis=0)
+    else:
+        i, j = contacts.pair_ids.T
+        virial = jnp.einsum("ni,nj->nij", contacts.displacements, contacts.forces)
+        virial = jnp.where((i < j)[:, None, None], virial, 0.0).sum(axis=0)
     if volume is None:
         volume = jnp.prod(system.domain.box_size)
-
     return state, system, virial / volume
 
 
 def compute_contact_pressure(
     state: State,
     system: System,
-    cutoff: float | None = None,
-    max_neighbors: int | None = None,
+    *,
     volume: float | jax.Array | None = None,
+    contacts: ContactData | None = None,
 ) -> tuple[State, System, jax.Array]:
-    """Compute scalar contact pressure from the contact stress tensor.
+    """Return contact pressure, ``trace(stress) / dim``, positive in compression.
 
-    Pressure is ``trace(stress) / dim`` and is positive for repulsive
-    compression under :func:`compute_contact_stress_tensor`'s sign convention.
+    Search settings and history come from the system. See
+    :func:`compute_contact_stress_tensor` for normalization and overflow rules.
     """
     state, system, stress = compute_contact_stress_tensor(
-        state, system, cutoff, max_neighbors, volume
+        state, system, volume=volume, contacts=contacts
     )
     return state, system, jnp.trace(stress) / state.dim
 
 
-def _generalized_contact_force_rows(
+def count_sphere_contacts(
+    state: State, system: System, *, contacts: ContactData | None = None
+) -> tuple[State, System, jax.Array]:
+    """Return force-bearing contact counts per constituent sphere, shape ``(N,)``.
+
+    The direct reduction is JIT-compatible and allocates no contact list.
+    Incomplete searches raise on the host; compiled calls return -1 counts
+    and set the returned system's search-overflow flag.
+    """
+    _validate_state(state)
+    if contacts is None:
+        system, counts = _reduce_contacts(state, system, "count")
+        _check_search(system)
+    else:
+        counts = (
+            jnp.zeros(state.N, dtype=int)
+            .at[contacts.pair_ids[:, 0]]
+            .add(jnp.any(contacts.forces != 0, axis=1).astype(int))
+        )
+    return state, system, counts
+
+
+def _clump_count(state: State) -> int:
+    return int(jnp.max(state.clump_id, initial=-1)) + 1
+
+
+def count_vertex_contacts(
+    state: State, system: System, *, contacts: ContactData | None = None
+) -> tuple[State, System, jax.Array]:
+    """Count force-bearing sphere contacts per clump, indexed by clump ID.
+
+    Each reciprocal physical contact increments both participating clumps.
+    Different constituent contacts between the same clumps count separately.
+    """
+    state, system, counts = count_sphere_contacts(state, system, contacts=contacts)
+    result = jax.ops.segment_sum(
+        counts, state.clump_id, num_segments=_clump_count(state)
+    )
+    return state, system, result
+
+
+def _group_labels(state: State, group_by: str | jax.Array) -> np.ndarray:
+    if isinstance(group_by, str) and group_by == "bond_id":
+        parent = np.arange(state.N)
+
+        def root(i: int) -> int:
+            while parent[i] != i:
+                parent[i] = parent[parent[i]]
+                i = int(parent[i])
+            return i
+
+        bonds = np.asarray(state.bond_id)
+        for i, row in enumerate(bonds):
+            for j in row:
+                if j >= 0:
+                    if j >= state.N:
+                        raise ValueError(
+                            "Bond adjacency contains an invalid particle index."
+                        )
+                    a, b = root(i), root(int(j))
+                    parent[max(a, b)] = min(a, b)
+        labels = np.array([root(i) for i in range(state.N)], dtype=int)
+        return np.unique(labels, return_inverse=True)[1]
+    labels = np.asarray(
+        getattr(state, group_by) if isinstance(group_by, str) else group_by
+    )
+    if labels.shape != (state.N,) or not np.issubdtype(labels.dtype, np.integer):
+        raise ValueError(
+            "Group labels must be a one-dimensional integer array of length N."
+        )
+    if np.any(labels < 0):
+        raise ValueError("Group labels must be nonnegative.")
+    return labels
+
+
+def get_group_contacts(
     state: State,
     system: System,
-    pair_ids: jax.Array,
-    forces: jax.Array,
-    normalize: bool = True,
-) -> jax.Array:
-    """Return ``[force, torque]`` contact rows for the first sphere in each pair.
+    *,
+    group_by: str | jax.Array = "clump_id",
+    contacts: ContactData | None = None,
+) -> tuple[State, System, GroupContactData]:
+    """Aggregate sparse contact forces, friction, and sphere participation by group.
 
-    The torque lever arm runs from the clump center of mass to the *contact
-    point* (sphere center plus ``rad * n_hat`` toward the other sphere), so
-    tangential (frictional) force components produce the correct torque rows.
+    ``group_by`` is an integer particle-label array or a state attribute name.
+    ``clump_id`` groups rigid bodies. ``bond_id`` groups connected components
+    of the bond adjacency, treating bonds as undirected. Isolated particles
+    each form a component. Group labels need not be consecutive.
+
+    Group contact existence means at least one constituent force-bearing
+    contact exists. Net-force cancellation does not erase the interaction or
+    its sphere participation counts. Centroids are unwrapped relative to one
+    group member before averaging, then compared with the domain's image rule.
+    Output storage scales with the groups and contacting pairs.
     """
-    if normalize:
-        forces = forces / norm(forces)[:, None]
+    state, system, data = _contacts_or_collect(state, system, contacts)
+    labels = _group_labels(state, group_by)
+    group_ids, members = np.unique(labels, return_inverse=True)
+    ng = len(group_ids)
+    pairs = np.asarray(data.pair_ids)
+    force_bearing = np.any(np.asarray(data.forces) != 0, axis=1)
+    gi, gj = members[pairs[:, 0]], members[pairs[:, 1]]
+    mask = force_bearing & (gi != gj)
+    slots = np.flatnonzero(mask)
+    group_pairs, inverse, counts = np.unique(
+        np.column_stack((gi[mask], gj[mask])),
+        axis=0,
+        return_inverse=True,
+        return_counts=True,
+    )
+    k = group_pairs.shape[0]
+    force = jax.ops.segment_sum(
+        data.forces[slots], jnp.asarray(inverse), num_segments=k
+    )
+    sphere_counts = np.zeros((k, 2), dtype=int)
+    for side in (0, 1):
+        participation = np.unique(np.column_stack((inverse, pairs[mask, side])), axis=0)
+        sphere_counts[:, side] = np.bincount(participation[:, 0], minlength=k)
 
-    i = pair_ids[:, 0]
-    j = pair_ids[:, 1]
-    pos = state.pos
-    # Domain-aware displacement from j to i; the contact point sits at
-    # rad_i along the i -> j direction (-rij) from sphere i's center.
-    rij = system.domain.displacement(pos[i], pos[j], system)
-    n_hat = unit(-rij)
-    lever_arms = pos[i] - state.pos_c[i] + state.rad[i][:, None] * n_hat
-    torques = jnp.cross(lever_arms, forces)
-    if torques.ndim == 1:
-        torques = torques[:, None]
-
-    return jnp.concatenate([forces, torques], axis=1)
-
-
-def _matrix_ranks_by_group(
-    rows: jax.Array,
-    group_ids: jax.Array,
-    n_groups: int,
-    tol: float | None = None,
-) -> jax.Array:
-    """Compute the rank of variable-length row blocks grouped by integer ID."""
-    if rows.shape[0] == 0:
-        return jnp.zeros(n_groups, dtype=int)
-
-    counts = jnp.bincount(group_ids, length=n_groups)
-    max_rows = int(jnp.max(counts))
-
-    order = jnp.argsort(group_ids)
-    group_sorted = group_ids[order]
-    rows_sorted = rows[order]
-
-    starts = jnp.concatenate([jnp.array([0]), jnp.cumsum(counts[:-1])])
-    slot = jnp.arange(rows_sorted.shape[0]) - jnp.repeat(starts, counts)
-
-    padded = jnp.zeros((n_groups, max_rows, rows.shape[1]), dtype=rows.dtype)
-    padded = padded.at[group_sorted, slot].set(rows_sorted)
-
-    return jax.vmap(lambda block: jnp.linalg.matrix_rank(block, tol=tol))(padded)
+    if ng:
+        _, first = np.unique(members, return_index=True)
+        anchors = state.pos_c[first]
+        member_slots = jnp.asarray(members)
+        dr = system.domain.displacement(state.pos_c, anchors[member_slots], system)
+        center = (
+            anchors
+            + jax.ops.segment_sum(dr, member_slots, num_segments=ng)
+            / jnp.asarray(np.bincount(members), dtype=state.pos_c.dtype)[:, None]
+        )
+        displacement = system.domain.displacement(
+            center[group_pairs[:, 0]], center[group_pairs[:, 1]], system
+        )
+    else:
+        displacement = jnp.empty((0, state.dim), dtype=state.pos_c.dtype)
+    distance = jnp.linalg.norm(displacement, axis=-1)
+    axis = displacement / jnp.where(distance > 0, distance, 1.0)[:, None]
+    normal = jnp.sum(force * axis, axis=-1)
+    tangent = jnp.linalg.norm(force - normal[:, None] * axis, axis=-1)
+    valid = (distance > 0) & jnp.any(force != 0, axis=-1)
+    mu = jnp.where(
+        jnp.abs(normal) > 0,
+        tangent / jnp.where(normal != 0, jnp.abs(normal), 1.0),
+        jnp.inf,
+    )
+    mu = jnp.where(valid, mu, 0.0)
+    result = GroupContactData(
+        jnp.asarray(group_ids),
+        jnp.asarray(group_ids[group_pairs]),
+        force,
+        mu,
+        valid,
+        jnp.asarray(sphere_counts),
+        jnp.asarray(counts),
+    )
+    return state, system, result
 
 
-def _iterative_rattler_prune(
-    group_i: jax.Array,
-    group_j: jax.Array,
-    n_groups: int,
+def count_clump_contacts(
+    state: State, system: System, *, contacts: ContactData | None = None
+) -> tuple[State, System, jax.Array]:
+    """Count distinct force-bearing neighboring clumps, indexed by clump ID.
+
+    A neighboring clump counts once even when several constituent contacts
+    exist or their forces cancel. This differs from vertex contact counts.
+    """
+    state, system, data = _contacts_or_collect(state, system, contacts)
+    pair_ids = np.asarray(data.pair_ids)
+    labels = np.asarray(state.clump_id)
+    force_bearing = np.any(np.asarray(data.forces) != 0, axis=1)
+    pairs = labels[pair_ids[force_bearing]]
+    pairs = np.unique(pairs[pairs[:, 0] != pairs[:, 1]], axis=0)
+    result = np.bincount(pairs[:, 0], minlength=_clump_count(state))
+    return state, system, jnp.asarray(result)
+
+
+def _prune_rattlers(
+    group_i: np.ndarray,
+    group_j: np.ndarray,
+    group_ids: np.ndarray,
+    rows: np.ndarray,
     zc: int,
     dof: int,
-    rows_fn: Any,
-    check_contact_rank: bool,
-    contact_rank_tol: float | None,
+    check_rank: bool,
+    rank_tol: float | None,
 ) -> tuple[jax.Array, jax.Array]:
-    """Iteratively remove under-coordinated / under-ranked contact groups.
-
-    ``group_i`` / ``group_j`` are the group ids of the two endpoints of every
-    force-bearing contact. ``rows_fn(keep_mask)`` returns the generalized
-    force rows of the contacts selected by ``keep_mask`` (used only when
-    ``check_contact_rank`` is True). Returns ``(rattler_ids,
-    non_rattler_ids)``.
-    """
-    all_ids = jnp.arange(n_groups)
-    rattler_ids = jnp.setdiff1d(
-        all_ids, jnp.unique(jnp.concatenate([group_i, group_j]))
-    )
-
-    while True:
-        remaining = jnp.setdiff1d(all_ids, rattler_ids)
-        if len(remaining) == 0:
+    if isinstance(zc, bool) or not isinstance(zc, (int, np.integer)) or zc < 0:
+        raise ValueError("zc must be a nonnegative integer.")
+    if rank_tol is not None and (not math.isfinite(rank_tol) or rank_tol < 0):
+        raise ValueError("contact_rank_tol must be finite and nonnegative.")
+    active = np.ones(len(group_ids), dtype=bool)
+    order = np.argsort(group_i, kind="stable")
+    counts = np.bincount(group_i, minlength=len(group_ids))
+    starts = np.concatenate(([0], np.cumsum(counts)))
+    while np.any(active):
+        keep = active[group_i] & active[group_j]
+        counts = np.bincount(group_i[keep], minlength=len(group_ids))
+        remove = active & ((counts < zc) | (counts == 0))
+        if check_rank:
+            for group in np.flatnonzero(active & ~remove):
+                indices = order[starts[group] : starts[group + 1]]
+                block = rows[indices[keep[indices]]]
+                if np.linalg.matrix_rank(block, tol=rank_tol) < dof:
+                    remove[group] = True
+        if not np.any(remove):
             break
-
-        keep = jnp.isin(group_i, remaining) & jnp.isin(group_j, remaining)
-        active_group_i = group_i[keep]
-        groups_in_contacts = jnp.unique(
-            jnp.concatenate([active_group_i, group_j[keep]])
-        )
-        disconnected = jnp.setdiff1d(remaining, groups_in_contacts)
-        contact_counts = jnp.bincount(active_group_i, length=n_groups)
-        active = jnp.unique(active_group_i)
-        under_coordinated = active[contact_counts[active] < zc]
-        under_ranked = jnp.asarray([], dtype=active.dtype)
-        if check_contact_rank:
-            rows = rows_fn(keep)
-            contact_ranks = _matrix_ranks_by_group(
-                rows, active_group_i, n_groups, contact_rank_tol
-            )
-            under_ranked = active[contact_ranks[active] < dof]
-        new_rattlers = jnp.union1d(
-            disconnected,
-            jnp.union1d(
-                jnp.setdiff1d(under_coordinated, rattler_ids),
-                jnp.setdiff1d(under_ranked, rattler_ids),
-            ),
-        )
-
-        if len(new_rattlers) == 0:
-            break
-
-        rattler_ids = jnp.union1d(rattler_ids, new_rattlers)
-
-    non_rattler_ids = jnp.setdiff1d(all_ids, rattler_ids)
-    return rattler_ids, non_rattler_ids
+        active[remove] = False
+    if group_ids.size and not np.any(active):
+        warnings.warn("No valid particles remain after rattler pruning.", stacklevel=3)
+    return jnp.asarray(group_ids[~active]), jnp.asarray(group_ids[active])
 
 
 def get_clump_rattler_ids(
     state: State,
     system: System,
-    cutoff: float | None = None,
-    max_neighbors: int | None = None,
+    *,
     zc: int | None = None,
     check_contact_rank: bool = False,
     contact_rank_tol: float | None = None,
+    contacts: ContactData | None = None,
 ) -> tuple[State, System, jax.Array, jax.Array]:
-    """Identify rattler clumps by iteratively removing under-coordinated clumps.
+    """Return rattler and non-rattler clump IDs after iterative contact pruning.
 
-    A clump is a rattler if its total vertex-contact count is below the
-    coordination threshold *zc*. Optionally, the function also treats
-    clumps whose contacts do not span their rigid-body generalized force
-    space as rattlers.
+    Clumps with fewer than ``zc`` active constituent contacts are removed,
+    followed by clumps disconnected or under-coordinated by those removals.
+    ``zc`` defaults to ``dim + angular_dof + 1``. The optional rank criterion
+    requires contact force/torque rows to span ``dim + angular_dof`` dimensions.
+    Torques include the force law's intrinsic moment and the clump lever arm.
+    ``contact_rank_tol`` is the absolute singular-value threshold for that check.
 
-    Parameters
-    ----------
-    state : State
-        Current simulation state.
-    system : System
-        System definition.
-    cutoff : float, optional
-        Neighbor search cutoff distance.
-    max_neighbors : int, optional
-        Maximum number of neighbors per particle.
-    zc : int, optional
-        Minimum contact count. Defaults to ``dim + angular_dof + 1`` —
-        the mechanical stability threshold for a rigid body. A clump
-        with ``dim + angular_dof`` or fewer force-bearing vertex contacts
-        is unstable (the tangential softening of each contact at finite
-        overlap can give the sub-hessian a negative eigenvalue), so
-        ``dim + angular_dof + 1`` non-degenerate contacts are needed for
-        a positive-definite local hessian.
-    check_contact_rank : bool, optional
-        If ``True``, also remove clumps whose active force-bearing contacts
-        have generalized force rank below ``dim + angular_dof``.
-    contact_rank_tol : float, optional
-        Absolute tolerance passed to ``jax.numpy.linalg.matrix_rank`` for
-        the optional generalized force rank check.
-
-    Returns
-    -------
-    state : State
-        Potentially updated state.
-    system : System
-        Potentially updated system.
-    rattler_ids : jax.Array
-        1-D array of rattler clump IDs.
-    non_rattler_ids : jax.Array
-        1-D array of non-rattler clump IDs.
-
+    This host-side analysis does not remove particles or alter contact history.
+    Use :func:`remove_rattlers` to construct a reduced state afterward.
     """
-    state, system, pair_ids, neigh_force = get_pair_forces_and_ids(
-        state, system, cutoff, max_neighbors
+    state, system, data = _contacts_or_collect(state, system, contacts)
+    group_ids, groups = np.unique(np.asarray(state.clump_id), return_inverse=True)
+    pairs = np.asarray(data.pair_ids)
+    force, torque = np.asarray(data.forces), np.asarray(data.torques)
+    scale = np.linalg.norm(force, axis=1)
+    scale = np.where(scale > 0, scale, np.linalg.norm(torque, axis=1))
+    rows = (
+        np.concatenate((force, torque), axis=1) / np.where(scale > 0, scale, 1)[:, None]
     )
-
-    force_norm = norm(neigh_force)
-    active_force_mask = force_norm > 0
-    pair_ids = pair_ids[active_force_mask]
-    neigh_force = neigh_force[active_force_mask]
-
-    N_clumps = int(jnp.max(state.clump_id)) + 1
-
-    if zc is None:
-        zc = state.ang_vel.shape[-1] + state.dim + 1
-
-    clump_i = state.clump_id[pair_ids[:, 0]]
-    clump_j = state.clump_id[pair_ids[:, 1]]
-
-    def rows_fn(keep: jax.Array) -> jax.Array:
-        return _generalized_contact_force_rows(
-            state, system, pair_ids[keep], neigh_force[keep]
-        )
-
-    rattler_ids, non_rattler_ids = _iterative_rattler_prune(
-        clump_i,
-        clump_j,
-        N_clumps,
-        zc,
-        state.dim + state.ang_vel.shape[-1],
-        rows_fn,
+    dof = state.dim + state.ang_vel.shape[-1]
+    rattlers, non_rattlers = _prune_rattlers(
+        groups[pairs[:, 0]],
+        groups[pairs[:, 1]],
+        group_ids,
+        rows,
+        dof + 1 if zc is None else zc,
+        dof,
         check_contact_rank,
         contact_rank_tol,
     )
-
-    if non_rattler_ids.size == 0:
-        warnings.warn("No valid particles remain after rattler pruning.", stacklevel=2)
-
-    return state, system, rattler_ids, non_rattler_ids
+    return state, system, rattlers, non_rattlers
 
 
 def get_sphere_rattler_ids(
     state: State,
     system: System,
-    cutoff: float | None = None,
-    max_neighbors: int | None = None,
+    *,
     zc: int | None = None,
     check_contact_rank: bool = False,
     contact_rank_tol: float | None = None,
+    contacts: ContactData | None = None,
 ) -> tuple[State, System, jax.Array, jax.Array]:
-    """Identify rattler spheres by iteratively removing under-coordinated particles.
+    """Return rattler and non-rattler sphere indices after iterative pruning.
 
-    Parameters
-    ----------
-    state : State
-        Current simulation state.
-    system : System
-        System definition.
-    cutoff : float, optional
-        Neighbor search cutoff distance.
-    max_neighbors : int, optional
-        Maximum number of neighbors per particle.
-    zc : int, optional
-        Minimum contact count. Defaults to ``dim + 1`` — the mechanical
-        stability threshold for a point particle. A sphere with ``dim`` or
-        fewer force-bearing contacts is unstable: the tangential softening
-        of each contact at finite overlap can give the sub-hessian a
-        negative eigenvalue, so ``dim + 1`` non-degenerate contacts are
-        needed for a positive-definite local hessian.
-    check_contact_rank : bool, optional
-        If ``True``, also remove particles whose active force-bearing contacts
-        have force-direction rank below ``dim``.
-    contact_rank_tol : float, optional
-        Absolute tolerance passed to ``jax.numpy.linalg.matrix_rank`` for
-        the optional force-direction rank check.
-
-    Returns
-    -------
-    state : State
-        Potentially updated state.
-    system : System
-        Potentially updated system.
-    rattler_ids : jax.Array
-        1-D array of rattler sphere indices.
-    non_rattler_ids : jax.Array
-        1-D array of non-rattler sphere indices.
-
+    ``zc`` defaults to ``dim + 1`` force-bearing contacts. The optional rank
+    check requires the normalized force rows to span ``dim`` dimensions;
+    ``contact_rank_tol`` specifies its absolute singular-value threshold.
+    This is a translational sphere criterion. Clump force/torque analysis is
+    provided by :func:`get_clump_rattler_ids`.
     """
-    state, system, pair_ids, neigh_force = get_pair_forces_and_ids(
-        state, system, cutoff, max_neighbors
-    )
-
-    force_norm = norm(neigh_force)
-    active_force_mask = force_norm > 0
-    pair_ids = pair_ids[active_force_mask]
-    neigh_force = neigh_force[active_force_mask]
-    force_norm = force_norm[active_force_mask]
-
-    N = state.N
-    if zc is None:
-        zc = state.dim + 1
-
-    def rows_fn(keep: jax.Array) -> jax.Array:
-        return neigh_force[keep] / force_norm[keep][:, None]
-
-    rattler_ids, non_rattler_ids = _iterative_rattler_prune(
-        pair_ids[:, 0],
-        pair_ids[:, 1],
-        N,
-        zc,
+    state, system, data = _contacts_or_collect(state, system, contacts)
+    force = np.asarray(data.forces)
+    scale = np.linalg.norm(force, axis=1)
+    active = scale > 0
+    pairs = np.asarray(data.pair_ids)[active]
+    rows = force[active] / scale[active, None]
+    rattlers, non_rattlers = _prune_rattlers(
+        pairs[:, 0],
+        pairs[:, 1],
+        np.arange(state.N),
+        rows,
+        state.dim + 1 if zc is None else zc,
         state.dim,
-        rows_fn,
         check_contact_rank,
         contact_rank_tol,
     )
-
-    if non_rattler_ids.size == 0:
-        warnings.warn("No valid particles remain after rattler pruning.", stacklevel=2)
-
-    return state, system, rattler_ids, non_rattler_ids
-
-
-def count_vertex_contacts(
-    state: State,
-    system: System,
-    cutoff: float | None = None,
-    max_neighbors: int | None = None,
-) -> tuple[State, System, jax.Array]:
-    """Count force-bearing vertex-level contacts per clump.
-
-    For each clump, returns the number of sphere-sphere contacts with
-    nonzero contact force that involve one of the clump's vertex spheres.
-    Each unique physical contact between clumps :math:`I` and :math:`J`
-    increments both clump :math:`I`'s and clump :math:`J`'s count by one
-    (the neighbor list lists the pair in both directions).
-
-    This is the contact-count quantity entering the Maxwell / isostaticity
-    condition: the sum over clumps equals twice the number of distinct
-    force-bearing vertex contacts, so the mean over clumps is the average
-    coordination number :math:`Z`.
-
-    Parameters
-    ----------
-    state : State
-        Current simulation state.
-    system : System
-        System definition.
-    cutoff : float, optional
-        Neighbor search cutoff distance.
-    max_neighbors : int, optional
-        Maximum number of neighbors per particle.
-
-    Returns
-    -------
-    state : State
-        Potentially updated state.
-    system : System
-        Potentially updated system.
-    contacts : jax.Array
-        ``(N_clumps,)`` integer array of force-bearing vertex contacts
-        per clump.
-    """
-    state, system, pair_ids, forces = get_pair_forces_and_ids(
-        state, system, cutoff, max_neighbors
-    )
-    force_norm = norm(forces)
-    N_clumps = int(jnp.max(state.clump_id)) + 1
-    counts = jnp.bincount(
-        state.clump_id[pair_ids[:, 0]],
-        weights=(force_norm > 0).astype(forces.dtype),
-        length=N_clumps,
-    )
-    return state, system, counts.astype(int)
-
-
-def count_clump_contacts(
-    state: State,
-    system: System,
-    cutoff: float | None = None,
-    max_neighbors: int | None = None,
-) -> tuple[State, System, jax.Array]:
-    """Count force-bearing clump-level neighbors per clump.
-
-    For every pair of clumps, sums the sphere-sphere contact forces into
-    the clump-clump total and marks the pair as "in contact" iff the
-    resulting total force has nonzero norm. Returns, per clump, the
-    number of such neighbors. This matches the clump-pair convention
-    used by :func:`compute_clump_pair_friction`: two clumps count as
-    in contact when their net contact interaction is nonzero.
-
-    Parameters
-    ----------
-    state : State
-        Current simulation state.
-    system : System
-        System definition.
-    cutoff : float, optional
-        Neighbor search cutoff distance.
-    max_neighbors : int, optional
-        Maximum number of neighbors per particle.
-
-    Returns
-    -------
-    state : State
-        Potentially updated state.
-    system : System
-        Potentially updated system.
-    contacts : jax.Array
-        ``(N_clumps,)`` integer array of force-bearing clump-level
-        neighbors per clump.
-    """
-    state, system, pair_ids, forces = get_pair_forces_and_ids(
-        state, system, cutoff, max_neighbors
-    )
-    N_clumps = int(jnp.max(state.clump_id)) + 1
-    # Mask out padding (j == -1) and intra-clump pairs; safe-index into
-    # clump_id for padding so the scatter target is always valid.
-    valid_pad = pair_ids[:, 1] != -1
-    safe_j = jnp.maximum(pair_ids[:, 1], 0)
-    clump_i = state.clump_id[pair_ids[:, 0]]
-    clump_j = state.clump_id[safe_j]
-    valid = valid_pad & (clump_i != clump_j)
-    if not bool(jnp.any(valid)):
-        return state, system, jnp.zeros((N_clumps,), dtype=int)
-
-    # Sparse accumulation over the directed clump pairs that actually appear,
-    # instead of a dense (N_clumps, N_clumps, dim) tensor.
-    keys = clump_i[valid] * N_clumps + clump_j[valid]
-    unique_keys, inverse = jnp.unique(keys, return_inverse=True)
-    F_pairs = jax.ops.segment_sum(
-        forces[valid], inverse, num_segments=unique_keys.shape[0]
-    )
-    has_contact = jnp.sum(F_pairs**2, axis=-1) > 0
-    counts = jnp.bincount((unique_keys // N_clumps)[has_contact], length=N_clumps)
-    return state, system, counts.astype(int)
+    return state, system, rattlers, non_rattlers
 
 
 def remove_rattlers(
@@ -655,8 +813,8 @@ def remove_rattlers(
     **Custom collider settings.** Any collider Create-kwarg whose name
     is not a field on the current collider (e.g. ``number_density`` and
     ``safety_factor`` on :class:`NeighborList`) gets Create's default
-    value, not the value originally used. If you need to preserve such
-    settings, rebuild the system yourself.
+    value. Preserving those settings requires explicitly supplying them
+    when reconstructing the collider.
     """
     from ..colliders import refresh_collider
     from ..forces.force_manager import ForceManager
@@ -741,201 +899,17 @@ def remove_rattlers(
     return new_state, new_system
 
 
-def compute_group_pair_friction(
-    state: State,
-    system: System,
-    cutoff: float | None = None,
-    max_neighbors: int | None = None,
-    group_by: str = "clump_id",
-) -> tuple[State, System, jax.Array, jax.Array, jax.Array, jax.Array]:
-    r"""Per-group-pair friction coefficient from decomposed total contact force.
-
-    A "group" is the set of spheres that share a value of the integer
-    state attribute named by ``group_by``. For every unique pair of
-    groups :math:`(I, J)`, this function sums the per-sphere-pair forces
-    returned by :func:`get_pair_forces_and_ids` between spheres of group
-    :math:`I` and spheres of group :math:`J`. It then decomposes the
-    resulting total force along the centroid-to-centroid axis and reports
-
-    .. math::
-        \mu_{IJ} \;=\; \frac{|\mathbf{F}^{t}_{IJ}|}{|\mathbf{F}^{n}_{IJ}|}
-
-    where :math:`\mathbf{F}^{n}_{IJ}` is the component of the total
-    group-group force along the domain-aware minimum-image centroid
-    axis and :math:`\mathbf{F}^{t}_{IJ}` is the remainder. The group
-    centroid :math:`\mathbf{r}^{\rm c}_{I}` is the mean of
-    ``state.pos_c`` over spheres sharing the group id.
-
-    ``group_by`` is the attribute name on :class:`State` whose values
-    define the grouping:
-
-    * ``"clump_id"`` (default) groups by rigid clump, which is what you
-      want for a rigid-clump system. For bodies where one clump owns a
-      single vertex (bare spheres, DP nodes), the centroid collapses to
-      the vertex position and the result is the per-sphere friction,
-      which is trivially zero for radial pair forces.
-    * ``"bond_id"`` groups by bonded body, which is what you want for
-      a deformable-particle (DP) system: the centroid becomes the DP's
-      vertex centroid, and the returned matrix is indexed by unique DP
-      ids.
-    * Any other integer state attribute is accepted if you want a
-      custom grouping.
-
-    Parameters
-    ----------
-    state, system, cutoff, max_neighbors
-        Same as :func:`get_pair_forces_and_ids`.
-    group_by : str, optional
-        Name of the integer state attribute used to group spheres.
-        Default ``"clump_id"``.
-
-    Returns
-    -------
-    state : State
-        Potentially updated state (after neighbor-list rebuild).
-    system : System
-        Potentially updated system.
-    F_groups : jax.Array
-        ``(n_groups, n_groups, dim)`` antisymmetric tensor.
-        ``F_groups[I, J]`` is the total contact force on group :math:`I`
-        from group :math:`J`. By Newton's third law
-        ``F_groups[J, I] = -F_groups[I, J]``.
-    mu : jax.Array
-        ``(n_groups, n_groups)`` symmetric matrix of friction
-        coefficients. Zero where the directed total group-pair force is
-        zero or the group centroid axis is degenerate.
-    contact_mask : jax.Array
-        ``(n_groups, n_groups)`` symmetric bool matrix, ``True`` where
-        the directed total group-pair force is nonzero and the group
-        centroid axis is well-defined.
-    sphere_counts : jax.Array
-        ``(n_groups, n_groups, 2)`` integer tensor.
-        ``sphere_counts[I, J, 0]`` is the number of distinct spheres in
-        group :math:`I` that have at least one force-bearing contact
-        with some sphere in group :math:`J`.
-        ``sphere_counts[I, J, 1]`` is the symmetric count for spheres
-        in :math:`J` contacting :math:`I`. Together they classify the
-        contact "type" — e.g., a ``(1, 1)`` entry is a single
-        sphere-sphere touch, a ``(2, 1)`` entry is two spheres of
-        :math:`I` touching one sphere of :math:`J`, and so on.
-
-    Notes
-    -----
-    - For rigid clumps, ``state.pos_c`` is constant within a clump and
-      the group centroid equals the clump COM exactly. For DP nodes,
-      ``pos_c`` equals the node position, so the centroid is the
-      geometric mean of the DP's vertex positions.
-    - Sphere pairs whose endpoints share the same group id are excluded.
-    - The sphere-pair list from :func:`get_pair_forces_and_ids` contains
-      both ``(i, j)`` and ``(j, i)`` directions. Aggregation keeps the
-      directed totals so ``F_groups[I, J]`` is the force on group
-      :math:`I` from group :math:`J`.
-    """
-    state, system, pair_ids, forces = get_pair_forces_and_ids(
-        state, system, cutoff, max_neighbors
-    )
-
-    group_ids = getattr(state, group_by)
-    n_groups = int(jnp.max(group_ids)) + 1
-
-    group_pair_ids = group_ids[pair_ids]
-    # Preserve padding sentinels. Indexing with -1 above temporarily maps
-    # padded entries to the final group id; map them back to -1 before
-    # building segment ids.
-    group_pair_ids += -(group_pair_ids + 1) * (pair_ids == -1)
-
-    i_sphere = pair_ids[:, 0]
-    i_group = group_pair_ids[:, 0]
-    j_group = group_pair_ids[:, 1]
-    valid_entry = (i_group >= 0) & (j_group >= 0) & (i_group != j_group)
-
-    # Accumulate directed per-group-pair forces. F_groups[I, J] is the
-    # total force on group I from group J.
-    pair_ids_group_flat = i_group[valid_entry] * n_groups + j_group[valid_entry]
-    F_groups = jax.ops.segment_sum(
-        forces[valid_entry],
-        pair_ids_group_flat,
-        num_segments=n_groups * n_groups,
-    ).reshape(n_groups, n_groups, state.dim)
-
-    # Group centroids. Segment-mean of ``pos_c`` works for all body
-    # types: rigid clumps (all pos_c equal -> mean = pos_c), single
-    # spheres (one value -> mean = pos_c), DPs (distinct pos_c per node
-    # -> mean = geometric centroid).
-    counts = jnp.bincount(group_ids, length=n_groups).astype(state.pos_c.dtype)
-    sums = jax.ops.segment_sum(state.pos_c, group_ids, num_segments=n_groups)
-    group_centroid = sums / jnp.maximum(counts[:, None], 1.0)
-
-    diff = system.domain.displacement(
-        group_centroid[:, None, :],
-        group_centroid[None, :, :],
-        system,
-    )
-    diff_mag = jnp.linalg.norm(diff, axis=-1, keepdims=True)
-    valid_pair = (diff_mag[..., 0] > 0) & (counts[:, None] > 0) & (counts[None, :] > 0)
-    n_hat = diff / jnp.where(valid_pair[..., None], diff_mag, 1.0)
-
-    # Decompose the directed F_groups along the centroid axis.
-    Fn_scalar = jnp.sum(F_groups * n_hat, axis=-1)
-    Fn_vec = Fn_scalar[..., None] * n_hat
-    Ft_vec = F_groups - Fn_vec
-    Ft_mag = jnp.linalg.norm(Ft_vec, axis=-1)
-
-    F_mag = jnp.linalg.norm(F_groups, axis=-1)
-    force_mask = F_mag > 0
-    contact_mask = (force_mask | force_mask.T) & valid_pair
-    mu = Ft_mag / (jnp.abs(Fn_scalar) + 1e-16)
-    mu = jnp.where(force_mask & valid_pair, mu, 0.0)
-    mu = jnp.where(contact_mask, jnp.maximum(mu, mu.T), 0.0)
-
-    # Per-(group, group) sphere participation count. Mark each
-    # force-bearing inter-group pair (a, b) with a in group I, b in
-    # group J as "sphere a contacts group J", then count the distinct
-    # spheres per group that contact each other group.
-    fnonzero = norm(forces) > 0
-    inter_group = valid_entry & fnonzero
-    safe_j_group = jnp.maximum(j_group, 0)
-    contact_membership = jnp.zeros((state.N, n_groups), dtype=int)
-    contact_membership = contact_membership.at[i_sphere, safe_j_group].add(
-        inter_group.astype(int)
-    )
-    contact_membership = (contact_membership > 0).astype(int)
-    # n_spheres_in_I_contacting_J[I, J] = sum over s in I of in_contact[s, J].
-    n_in_I_contact_J = jax.ops.segment_sum(
-        contact_membership, group_ids, num_segments=n_groups
-    )
-    sphere_counts = jnp.stack([n_in_I_contact_J, n_in_I_contact_J.T], axis=-1)
-
-    return state, system, F_groups, mu, contact_mask, sphere_counts
-
-
-def compute_clump_pair_friction(
-    state: State,
-    system: System,
-    cutoff: float | None = None,
-    max_neighbors: int | None = None,
-) -> tuple[State, System, jax.Array, jax.Array, jax.Array, jax.Array]:
-    r"""Per-clump-pair friction coefficient from decomposed total contact force.
-
-    Convenience alias for
-    :func:`compute_group_pair_friction` with ``group_by="clump_id"`` —
-    see that function for the full description and return shapes. The
-    returned ``F_groups`` and ``mu`` are indexed by clump id.
-    """
-    return compute_group_pair_friction(
-        state, system, cutoff, max_neighbors, group_by="clump_id"
-    )
-
-
 __all__ = [
-    "compute_clump_pair_friction",
+    "ContactData",
+    "GroupContactData",
     "compute_contact_pressure",
     "compute_contact_stress_tensor",
-    "compute_group_pair_friction",
     "count_clump_contacts",
+    "count_sphere_contacts",
     "count_vertex_contacts",
     "get_clump_rattler_ids",
-    "get_pair_forces_and_ids",
+    "get_contacts",
+    "get_group_contacts",
     "get_sphere_rattler_ids",
     "remove_rattlers",
 ]

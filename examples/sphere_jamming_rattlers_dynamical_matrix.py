@@ -37,8 +37,9 @@ jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 from jaxdem import fire
 from jaxdem.utils.particle_creation import build_sphere_system
 from jaxdem.utils.jamming import bisection_jam
-from jaxdem.utils.contacts import (
-    count_vertex_contacts,
+from jaxdem.utils import (
+    count_sphere_contacts,
+    get_contacts,
     get_sphere_rattler_ids,
     remove_rattlers,
 )
@@ -100,14 +101,16 @@ print(
 # Count contacts
 # --------------
 # A contact is a sphere pair with nonzero force.
-# :func:`~jaxdem.utils.contacts.count_vertex_contacts` returns the
-# force-bearing contact count for each clump. For a pure sphere system
-# each sphere is its own clump of size 1, so this is the contact count
-# per sphere. The function counts each unique sphere-pair contact once
-# per endpoint, so the sum over clumps divided by 2 gives the number of
-# distinct inter-particle contacts.
+# :func:`~jaxdem.utils.contacts.count_sphere_contacts` returns the
+# force-bearing contact count for each sphere. Each unique sphere-pair
+# contact counts once per endpoint, so the sum divided by 2 gives the
+# number of distinct inter-particle contacts. Collect one snapshot to
+# share between contact counting and rattler analysis.
 
-state, system, contacts_per_sphere = count_vertex_contacts(state, system)
+state, system, contacts = get_contacts(state, system)
+state, system, contacts_per_sphere = count_sphere_contacts(
+    state, system, contacts=contacts
+)
 contacts_per_sphere = np.asarray(contacts_per_sphere)
 n_contacts = int(contacts_per_sphere.sum()) // 2
 print(f"{N} particles, {n_contacts} inter-particle contacts")
@@ -128,7 +131,9 @@ print(f"{N} particles, {n_contacts} inter-particle contacts")
 # the remaining graph, because removing one rattler can leave its
 # neighbors under-coordinated. It stops when the set stabilizes.
 
-state, system, rattler_ids, non_rattler_ids = get_sphere_rattler_ids(state, system)
+state, system, rattler_ids, non_rattler_ids = get_sphere_rattler_ids(
+    state, system, contacts=contacts
+)
 n_rattlers = int(rattler_ids.shape[0])
 print(f"Rattlers: {n_rattlers} / {N}")
 
