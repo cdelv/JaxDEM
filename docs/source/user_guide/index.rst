@@ -16,6 +16,8 @@ User guide
     ../auto_examples/force_manager_guide
     ../auto_examples/collider_guide
     search_contracts
+    packing_analysis
+    ../auto_examples/packing_analysis_guide
     ../auto_examples/checkpoint_guide
     ../auto_examples/vtk_writer_guide
     ../auto_examples/clump_guide

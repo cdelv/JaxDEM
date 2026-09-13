@@ -87,7 +87,8 @@ state, system, rattlers, non_rattlers = get_clump_rattler_ids(
 
 `ContactData` contains directed sphere-pair IDs, forces, torques about the source
 clump COM, and domain-aware displacements. `GroupContactData` contains directed
-group-pair IDs, total forces, friction ratios, and constituent contact counts.
+group-pair IDs, total forces and moments, centroid displacements, friction
+ratios, and constituent contact counts.
 Both collections contain active interactions without padding; collecting them is
 a host operation with variable-length output.
 

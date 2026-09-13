@@ -74,6 +74,13 @@ from .packing_utils import (
     scale_to_packing_fraction,
 )
 from .quaternion import Quaternion
+from .post_processing import (
+    ClumpContactNetwork,
+    PackingAnalysis,
+    PackingData,
+    SphereContactNetwork,
+    analyze_packing,
+)
 from .random_state import random_state
 from .randomize_orientations import randomize_orientations
 from .rollout_schedules import make_save_steps_linear, make_save_steps_pseudolog
@@ -92,6 +99,7 @@ from .thermal import (
 
 __all__ = [
     "CandidateStatistics",
+    "ClumpContactNetwork",
     "CompressionReason",
     "CompressionResult",
     "ContactData",
@@ -100,7 +108,11 @@ __all__ = [
     "JamResult",
     "JammingInfo",
     "NeighborCapacityEstimate",
+    "PackingAnalysis",
+    "PackingData",
     "Quaternion",
+    "SphereContactNetwork",
+    "analyze_packing",
     "angle",
     "angle_x",
     "bisection_jam",

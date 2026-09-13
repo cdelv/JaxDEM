@@ -76,13 +76,17 @@ class GroupContactData(NamedTuple):
         Original group labels ``(I, J)``, shape ``(K, 2)``.
     forces : jax.Array
         Total force on group ``I`` from group ``J``, shape ``(K, dim)``.
+    torques : jax.Array
+        Total moment about the source group centroid, shape ``(K, 1 | 3)``.
+        Includes intrinsic torques and force lever arms.
+    displacements : jax.Array
+        Domain-aware displacement from centroid ``J`` to centroid ``I``,
+        shape ``(K, dim)``. For clumps these are COM displacements.
     friction : jax.Array
         Magnitude ratio ``|F_t| / |F_n|`` relative to the group-centroid
         axis, shape ``(K,)``. A purely tangential nonzero force has ratio
-        infinity. Zero net force has ratio zero.
-    friction_valid : jax.Array
-        Whether the centroid axis and net force are nonzero, shape ``(K,)``.
-        Contact existence does not depend on this flag.
+        infinity. Zero net force has ratio zero. Coincident centroids with
+        nonzero net force have ratio NaN because the axis is undefined.
     sphere_counts : jax.Array
         Number of distinct participating spheres on each side, shape ``(K, 2)``.
     contact_counts : jax.Array
@@ -92,8 +96,9 @@ class GroupContactData(NamedTuple):
     group_ids: jax.Array
     pair_ids: jax.Array
     forces: jax.Array
+    torques: jax.Array
+    displacements: jax.Array
     friction: jax.Array
-    friction_valid: jax.Array
     sphere_counts: jax.Array
     contact_counts: jax.Array
 
@@ -430,6 +435,16 @@ def _group_labels(state: State, group_by: str | jax.Array) -> np.ndarray:
     return labels
 
 
+@jax.jit
+def _pair_friction(forces: jax.Array, displacements: jax.Array) -> jax.Array:
+    """Return ``|r cross F| / |r dot F|`` without normalizing the pair axis."""
+    normal = jnp.abs(jnp.sum(forces * displacements, axis=-1))
+    tangent = jnp.linalg.norm(cross(displacements, forces), axis=-1)
+    ratio = jnp.where(normal > 0, tangent / jnp.where(normal > 0, normal, 1), jnp.inf)
+    ratio = jnp.where(jnp.any(displacements != 0, axis=-1), ratio, jnp.nan)
+    return jnp.where(jnp.any(forces != 0, axis=-1), ratio, 0.0)
+
+
 def get_group_contacts(
     state: State,
     system: System,
@@ -437,15 +452,15 @@ def get_group_contacts(
     group_by: str | jax.Array = "clump_id",
     contacts: ContactData | None = None,
 ) -> tuple[State, System, GroupContactData]:
-    """Aggregate sparse contact forces, friction, and sphere participation by group.
+    """Aggregate contact forces, moments, geometry, and sphere participation.
 
     ``group_by`` is an integer particle-label array or a state attribute name.
     ``clump_id`` groups rigid bodies. ``bond_id`` groups connected components
     of the bond adjacency, treating bonds as undirected. Isolated particles
     each form a component. Group labels need not be consecutive.
 
-    Group contact existence means at least one constituent force-bearing
-    contact exists. Net-force cancellation does not erase the interaction or
+    Group contact existence means at least one constituent force or torque is
+    nonzero. Net-force cancellation does not erase the interaction or
     its sphere participation counts. Centroids are unwrapped relative to one
     group member before averaging, then compared with the domain's image rule.
     Output storage scales with the groups and contacting pairs.
@@ -455,9 +470,11 @@ def get_group_contacts(
     group_ids, members = np.unique(labels, return_inverse=True)
     ng = len(group_ids)
     pairs = np.asarray(data.pair_ids)
-    force_bearing = np.any(np.asarray(data.forces) != 0, axis=1)
+    active = np.any(np.asarray(data.forces) != 0, axis=1) | np.any(
+        np.asarray(data.torques) != 0, axis=1
+    )
     gi, gj = members[pairs[:, 0]], members[pairs[:, 1]]
-    mask = force_bearing & (gi != gj)
+    mask = active & (gi != gj)
     slots = np.flatnonzero(mask)
     group_pairs, inverse, counts = np.unique(
         np.column_stack((gi[mask], gj[mask])),
@@ -487,25 +504,24 @@ def get_group_contacts(
         displacement = system.domain.displacement(
             center[group_pairs[:, 0]], center[group_pairs[:, 1]], system
         )
+        lever = system.domain.displacement(
+            state.pos_c[pairs[slots, 0]], center[gi[slots]], system
+        )
     else:
         displacement = jnp.empty((0, state.dim), dtype=state.pos_c.dtype)
-    distance = jnp.linalg.norm(displacement, axis=-1)
-    axis = displacement / jnp.where(distance > 0, distance, 1.0)[:, None]
-    normal = jnp.sum(force * axis, axis=-1)
-    tangent = jnp.linalg.norm(force - normal[:, None] * axis, axis=-1)
-    valid = (distance > 0) & jnp.any(force != 0, axis=-1)
-    mu = jnp.where(
-        jnp.abs(normal) > 0,
-        tangent / jnp.where(normal != 0, jnp.abs(normal), 1.0),
-        jnp.inf,
+        lever = jnp.empty((0, state.dim), dtype=state.pos_c.dtype)
+    torque = jax.ops.segment_sum(
+        data.torques[slots] + cross(lever, data.forces[slots]),
+        jnp.asarray(inverse),
+        num_segments=k,
     )
-    mu = jnp.where(valid, mu, 0.0)
     result = GroupContactData(
         jnp.asarray(group_ids),
         jnp.asarray(group_ids[group_pairs]),
         force,
-        mu,
-        valid,
+        torque,
+        displacement,
+        _pair_friction(force, displacement),
         jnp.asarray(sphere_counts),
         jnp.asarray(counts),
     )

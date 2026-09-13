@@ -70,7 +70,6 @@ def test_radial_contact_gives_zero_friction() -> None:
 
     state, system, contacts = get_group_contacts(state, system)
     np.testing.assert_array_equal(contacts.pair_ids, [[0, 1], [1, 0]])
-    np.testing.assert_array_equal(contacts.friction_valid, [True, True])
 
     # Pair forces are antisymmetric and repulsive along -x.
     F_01 = np.asarray(contacts.forces[0])
