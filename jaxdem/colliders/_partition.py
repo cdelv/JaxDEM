@@ -22,6 +22,9 @@ if TYPE_CHECKING:  # pragma: no cover
 # outputs, and those queries have no neighbor buffers to bound.
 NEIGHBOR_QUERY_BATCH_SIZE = 65_536
 
+# Bound force/energy traversal workspaces and the longest-lane loop per batch.
+PAIR_TRAVERSAL_BATCH_SIZE = 16_384
+
 
 @jax.jit(inline=True)
 def _cell_starts(sorted_hashes: jax.Array, queries: jax.Array) -> jax.Array:

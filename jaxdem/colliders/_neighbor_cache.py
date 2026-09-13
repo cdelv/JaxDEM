@@ -21,6 +21,7 @@ from . import valid_interaction_mask
 from ._partition import _cell_starts
 from .cell_list import _dedup_stencil_hashes, _get_spatial_partition
 
+_SEARCH_BATCH_SIZE = 16_384
 _ROW_FORCE_UNROLL = 4
 # Bound force temporaries while retaining enough parallel work per GPU launch.
 _ROW_BATCH_SIZE = 128 * 1024
@@ -85,70 +86,94 @@ def build_pairs(state: Any, system: Any, cutoff: Any, capacity: int) -> tuple[An
         starts = jnp.zeros((n, 1), dtype=int)
         hash_overflow = jnp.asarray(False)
 
-    width = stencil.shape[1]
     lanes = jnp.arange(4)
     cutoff_sq = cutoff**2
+    batch_size = min(n, _SEARCH_BATCH_SIZE)
+    padded_n = (n + batch_size - 1) // batch_size * batch_size
+    batches = jnp.arange(padded_n).reshape(-1, batch_size)
 
-    def candidates(cell: Any, cursor: Any) -> tuple[Any, ...]:
-        target = stencil[rows, jnp.minimum(cell, width - 1)]
-        indices = cursor[:, None] + lanes
+    def candidates(rows: Any, cursor: Any, target: Any) -> tuple[Any, Any]:
+        indices = cursor[..., None] + lanes
         safe = jnp.minimum(indices, n - 1)
+        src = jnp.minimum(rows, n - 1)
         dst = perm[safe]
         in_cell = (
-            (cell[:, None] < width) & (indices < n) & (hashes[safe] == target[:, None])
+            (rows[:, None, None] < n)
+            & (indices < n)
+            & (hashes[safe] == target[..., None])
         )
-        dr = system.domain.displacement(pos[:, None, :], pos[dst], system)
+        dr = system.domain.displacement(pos[src, None, None, :], pos[dst], system)
         valid = (
             in_cell
             & (norm2(dr) <= cutoff_sq)
             & valid_interaction_mask(
                 state.clump_id[dst],
-                state.clump_id[:, None],
+                state.clump_id[src, None, None],
                 state.bond_id[dst],
-                rows[:, None],
+                src[:, None, None],
                 system.interact_same_bond_id,
             ).astype(bool)
         )
-        next_cursor = cursor + 4
-        remains = (next_cursor < n) & (
-            hashes[jnp.minimum(next_cursor, n - 1)] == target
-        )
-        next_cell = cell + (~remains).astype(cell.dtype)
-        next_cursor = jnp.where(
-            remains, next_cursor, starts[rows, jnp.minimum(next_cell, width - 1)]
-        )
-        return next_cell, next_cursor, dst, valid
+        return dst, valid
 
-    initial = (jnp.zeros(n, dtype=int), starts[:, 0], jnp.zeros(n, dtype=int))
+    def count_batch(rows: Any) -> Any:
+        safe_rows = jnp.minimum(rows, n - 1)
+        target = stencil[safe_rows]
 
-    def count_step(carry: Any) -> Any:
-        cell, cursor, count = carry
-        cell, cursor, _, valid = candidates(cell, cursor)
-        return cell, cursor, count + jnp.sum(valid, axis=1)
+        def step(carry: Any) -> Any:
+            cursor, count = carry
+            _, valid = candidates(rows, cursor, target)
+            return cursor + 4, count + valid.sum(axis=-1)
 
-    _, _, counts = jax.lax.while_loop(
-        lambda x: jnp.any(x[0] < width), count_step, initial
-    )
-    offsets, overflow = _capacity_offsets(counts, capacity)
+        return jax.lax.while_loop(
+            lambda x: jnp.any(
+                (rows[:, None] < n)
+                & (x[0] < n)
+                & (hashes[jnp.minimum(x[0], n - 1)] == target)
+            ),
+            step,
+            (starts[safe_rows], jnp.zeros(target.shape, dtype=int)),
+        )[1]
+
+    counts = jax.lax.map(count_batch, batches).reshape(padded_n, -1)[:n]
+    offsets, overflow = _capacity_offsets(counts.sum(axis=1), capacity)
     overflow = overflow | hash_overflow
     neighbors = jnp.full((capacity,), -1, dtype=int)
     if capacity == 0:
         return neighbors, offsets, overflow
 
-    def fill_step(carry: Any) -> Any:
-        cell, cursor, count, neighbors = carry
-        cell, cursor, dst, valid = candidates(cell, cursor)
-        ranks = jnp.cumsum(valid, axis=1) - 1
-        slots = offsets[:-1, None] + count[:, None] + ranks
-        slots = jnp.where(valid & (slots < offsets[1:, None]), slots, capacity)
-        neighbors = neighbors.at[slots].set(dst, mode="drop")
-        return cell, cursor, count + jnp.sum(valid, axis=1), neighbors
+    def fill_batch(neighbors: Any, rows: Any) -> Any:
+        safe_rows = jnp.minimum(rows, n - 1)
+        target = stencil[safe_rows]
+        # Each cell owns a disjoint interval within its particle's pooled row.
+        # Clip before adding the base; padded particles receive no slots.
+        base = offsets[safe_rows, None]
+        budget = jnp.where(rows < n, offsets[safe_rows + 1] - offsets[safe_rows], 0)
+        ends = base + jnp.minimum(counts[safe_rows].cumsum(axis=1), budget[:, None])
+        slot_starts = jnp.concatenate((base, ends[:, :-1]), axis=1)
 
-    *_, neighbors = jax.lax.while_loop(
-        lambda x: jnp.any((x[0] < width) & (offsets[:-1] + x[2] < offsets[1:])),
-        fill_step,
-        (*initial, neighbors),
-    )
+        def step(carry: Any) -> Any:
+            cursor, slots, neighbors = carry
+            dst, valid = candidates(rows, cursor, target)
+            ranks = jnp.cumsum(valid, axis=-1) - 1
+            remaining = ends - slots
+            writes = slots[..., None] + jnp.minimum(ranks, remaining[..., None])
+            writes = jnp.where(valid & (ranks < remaining[..., None]), writes, capacity)
+            neighbors = neighbors.at[writes].set(dst, mode="drop")
+            return (
+                cursor + 4,
+                slots + jnp.minimum(valid.sum(axis=-1), remaining),
+                neighbors,
+            )
+
+        *_, neighbors = jax.lax.while_loop(
+            lambda x: jnp.any(x[1] < ends),
+            step,
+            (starts[safe_rows], slot_starts, neighbors),
+        )
+        return neighbors, None
+
+    neighbors, _ = jax.lax.scan(fill_batch, neighbors, batches)
     return neighbors, offsets, overflow
 
 

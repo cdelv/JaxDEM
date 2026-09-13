@@ -1,0 +1,471 @@
+[
+  {
+    "case": "CellList-uniform-energy-before",
+    "expected_pid": 482832,
+    "time": 1789271589.6780138,
+    "processes": "",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-uniform-energy-before",
+    "expected_pid": 482832,
+    "time": 1789271590.69941,
+    "processes": "482832, /home/wind/.python3/bin/python, 316",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-uniform-energy-before",
+    "expected_pid": 482832,
+    "time": 1789271591.7210872,
+    "processes": "482832, /home/wind/.python3/bin/python, 446",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-uniform-energy-before",
+    "expected_pid": 482832,
+    "time": 1789271592.742648,
+    "processes": "482832, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-uniform-energy-before",
+    "expected_pid": 482832,
+    "time": 1789271593.7625747,
+    "processes": "482832, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-uniform-energy-before",
+    "expected_pid": 482832,
+    "time": 1789271594.7835479,
+    "processes": "482832, /home/wind/.python3/bin/python, 3264",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-uniform-energy-before",
+    "expected_pid": 482832,
+    "time": 1789271595.809272,
+    "processes": "482832, /home/wind/.python3/bin/python, 3264",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-uniform-energy-before",
+    "expected_pid": 482832,
+    "time": 1789271596.8349187,
+    "processes": "482832, /home/wind/.python3/bin/python, 3264",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-uniform-energy-after",
+    "expected_pid": 483263,
+    "time": 1789271597.8556101,
+    "processes": "",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-uniform-energy-after",
+    "expected_pid": 483263,
+    "time": 1789271598.8771036,
+    "processes": "483263, /home/wind/.python3/bin/python, 318",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-uniform-energy-after",
+    "expected_pid": 483263,
+    "time": 1789271599.9006345,
+    "processes": "483263, /home/wind/.python3/bin/python, 446",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-uniform-energy-after",
+    "expected_pid": 483263,
+    "time": 1789271600.9216514,
+    "processes": "483263, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-uniform-energy-after",
+    "expected_pid": 483263,
+    "time": 1789271601.9435258,
+    "processes": "483263, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-uniform-energy-after",
+    "expected_pid": 483263,
+    "time": 1789271602.964542,
+    "processes": "483263, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-uniform-energy-after",
+    "expected_pid": 483263,
+    "time": 1789271603.9851656,
+    "processes": "483263, /home/wind/.python3/bin/python, 1732",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-uniform-energy-after",
+    "expected_pid": 483263,
+    "time": 1789271605.0067108,
+    "processes": "483263, /home/wind/.python3/bin/python, 1732",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-clustered-energy-before",
+    "expected_pid": 483706,
+    "time": 1789271606.0275488,
+    "processes": "",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-clustered-energy-before",
+    "expected_pid": 483706,
+    "time": 1789271607.0497777,
+    "processes": "483706, /home/wind/.python3/bin/python, 318",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-clustered-energy-before",
+    "expected_pid": 483706,
+    "time": 1789271608.0711997,
+    "processes": "483706, /home/wind/.python3/bin/python, 446",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-clustered-energy-before",
+    "expected_pid": 483706,
+    "time": 1789271609.0945315,
+    "processes": "483706, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-clustered-energy-before",
+    "expected_pid": 483706,
+    "time": 1789271610.1148956,
+    "processes": "483706, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-clustered-energy-before",
+    "expected_pid": 483706,
+    "time": 1789271611.1353664,
+    "processes": "483706, /home/wind/.python3/bin/python, 3264",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-clustered-energy-before",
+    "expected_pid": 483706,
+    "time": 1789271612.1595054,
+    "processes": "483706, /home/wind/.python3/bin/python, 3264",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-clustered-energy-before",
+    "expected_pid": 483706,
+    "time": 1789271613.1844652,
+    "processes": "483706, /home/wind/.python3/bin/python, 3264",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-clustered-energy-after",
+    "expected_pid": 484120,
+    "time": 1789271614.210922,
+    "processes": "",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-clustered-energy-after",
+    "expected_pid": 484120,
+    "time": 1789271615.231788,
+    "processes": "484120, /home/wind/.python3/bin/python, 318",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-clustered-energy-after",
+    "expected_pid": 484120,
+    "time": 1789271616.2527664,
+    "processes": "484120, /home/wind/.python3/bin/python, 446",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-clustered-energy-after",
+    "expected_pid": 484120,
+    "time": 1789271617.273367,
+    "processes": "484120, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-clustered-energy-after",
+    "expected_pid": 484120,
+    "time": 1789271618.2933133,
+    "processes": "484120, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-clustered-energy-after",
+    "expected_pid": 484120,
+    "time": 1789271619.31486,
+    "processes": "484120, /home/wind/.python3/bin/python, 1730",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-clustered-energy-after",
+    "expected_pid": 484120,
+    "time": 1789271620.3362942,
+    "processes": "484120, /home/wind/.python3/bin/python, 1732",
+    "query_returncode": 0
+  },
+  {
+    "case": "CellList-clustered-energy-after",
+    "expected_pid": 484120,
+    "time": 1789271621.358087,
+    "processes": "484120, /home/wind/.python3/bin/python, 1732",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-uniform-energy-before",
+    "expected_pid": 484597,
+    "time": 1789271622.379357,
+    "processes": "",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-uniform-energy-before",
+    "expected_pid": 484597,
+    "time": 1789271623.4066107,
+    "processes": "484597, /home/wind/.python3/bin/python, 318",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-uniform-energy-before",
+    "expected_pid": 484597,
+    "time": 1789271624.4312863,
+    "processes": "484597, /home/wind/.python3/bin/python, 446",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-uniform-energy-before",
+    "expected_pid": 484597,
+    "time": 1789271625.4519382,
+    "processes": "484597, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-uniform-energy-before",
+    "expected_pid": 484597,
+    "time": 1789271626.4726295,
+    "processes": "484597, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-uniform-energy-before",
+    "expected_pid": 484597,
+    "time": 1789271627.4939003,
+    "processes": "484597, /home/wind/.python3/bin/python, 3272",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-uniform-energy-before",
+    "expected_pid": 484597,
+    "time": 1789271628.518332,
+    "processes": "484597, /home/wind/.python3/bin/python, 3282",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-uniform-energy-before",
+    "expected_pid": 484597,
+    "time": 1789271629.5425103,
+    "processes": "484597, /home/wind/.python3/bin/python, 3282",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-uniform-energy-after",
+    "expected_pid": 485285,
+    "time": 1789271630.5651386,
+    "processes": "",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-uniform-energy-after",
+    "expected_pid": 485285,
+    "time": 1789271631.5870724,
+    "processes": "485285, /home/wind/.python3/bin/python, 316",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-uniform-energy-after",
+    "expected_pid": 485285,
+    "time": 1789271632.6112177,
+    "processes": "485285, /home/wind/.python3/bin/python, 446",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-uniform-energy-after",
+    "expected_pid": 485285,
+    "time": 1789271633.6335642,
+    "processes": "485285, /home/wind/.python3/bin/python, 448",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-uniform-energy-after",
+    "expected_pid": 485285,
+    "time": 1789271634.6534803,
+    "processes": "485285, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-uniform-energy-after",
+    "expected_pid": 485285,
+    "time": 1789271635.6746294,
+    "processes": "485285, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-uniform-energy-after",
+    "expected_pid": 485285,
+    "time": 1789271636.698231,
+    "processes": "485285, /home/wind/.python3/bin/python, 1732",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-uniform-energy-after",
+    "expected_pid": 485285,
+    "time": 1789271637.7211828,
+    "processes": "485285, /home/wind/.python3/bin/python, 1732",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-uniform-energy-after",
+    "expected_pid": 485285,
+    "time": 1789271638.7417777,
+    "processes": "485285, /home/wind/.python3/bin/python, 1730",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-clustered-energy-before",
+    "expected_pid": 485849,
+    "time": 1789271639.7645698,
+    "processes": "",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-clustered-energy-before",
+    "expected_pid": 485849,
+    "time": 1789271640.7866092,
+    "processes": "485849, /home/wind/.python3/bin/python, 316",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-clustered-energy-before",
+    "expected_pid": 485849,
+    "time": 1789271641.8096747,
+    "processes": "485849, /home/wind/.python3/bin/python, 446",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-clustered-energy-before",
+    "expected_pid": 485849,
+    "time": 1789271642.8310683,
+    "processes": "485849, /home/wind/.python3/bin/python, 448",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-clustered-energy-before",
+    "expected_pid": 485849,
+    "time": 1789271643.8525167,
+    "processes": "485849, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-clustered-energy-before",
+    "expected_pid": 485849,
+    "time": 1789271644.8729954,
+    "processes": "485849, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-clustered-energy-before",
+    "expected_pid": 485849,
+    "time": 1789271645.9006224,
+    "processes": "485849, /home/wind/.python3/bin/python, 3282",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-clustered-energy-before",
+    "expected_pid": 485849,
+    "time": 1789271646.927909,
+    "processes": "485849, /home/wind/.python3/bin/python, 3282",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-clustered-energy-before",
+    "expected_pid": 485849,
+    "time": 1789271647.9571779,
+    "processes": "485849, /home/wind/.python3/bin/python, 3282",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-clustered-energy-after",
+    "expected_pid": 486440,
+    "time": 1789271648.9779806,
+    "processes": "",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-clustered-energy-after",
+    "expected_pid": 486440,
+    "time": 1789271649.9989076,
+    "processes": "486440, /home/wind/.python3/bin/python, 318",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-clustered-energy-after",
+    "expected_pid": 486440,
+    "time": 1789271651.0189984,
+    "processes": "486440, /home/wind/.python3/bin/python, 446",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-clustered-energy-after",
+    "expected_pid": 486440,
+    "time": 1789271652.0401943,
+    "processes": "486440, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-clustered-energy-after",
+    "expected_pid": 486440,
+    "time": 1789271653.0608442,
+    "processes": "486440, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-clustered-energy-after",
+    "expected_pid": 486440,
+    "time": 1789271654.107699,
+    "processes": "486440, /home/wind/.python3/bin/python, 704",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-clustered-energy-after",
+    "expected_pid": 486440,
+    "time": 1789271655.1317725,
+    "processes": "486440, /home/wind/.python3/bin/python, 1732",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-clustered-energy-after",
+    "expected_pid": 486440,
+    "time": 1789271656.1534905,
+    "processes": "486440, /home/wind/.python3/bin/python, 1732",
+    "query_returncode": 0
+  },
+  {
+    "case": "MultiCellList-clustered-energy-after",
+    "expected_pid": 486440,
+    "time": 1789271657.173118,
+    "processes": "486440, [No data], 194",
+    "query_returncode": 0
+  }
+]

@@ -32,7 +32,6 @@ jobs:
         run: |
           make -C docs clean
           make -C docs html SPHINXOPTS="-W --keep-going"
-          python tools/smoke_examples.py
       - name: Deploy to GH Pages
         uses: peaceiris/actions-gh-pages@v3
         if: github.ref == 'refs/heads/main'

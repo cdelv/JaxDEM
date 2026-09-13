@@ -23,6 +23,7 @@ from ..domains import SearchGeometry
 from . import Collider, valid_interaction_mask
 from ._partition import (
     NEIGHBOR_QUERY_BATCH_SIZE,
+    PAIR_TRAVERSAL_BATCH_SIZE,
     _cell_starts,
     _energy_pair_fn,
     _force_pair_fn,
@@ -105,6 +106,9 @@ def _traverse_pairs(
         the partition's ``hash_overflow`` flag.
     """
     N = state.N
+    if N == 0:
+        empty = jax.tree.map(lambda x: jnp.empty((0,) + x.shape, x.dtype), init_acc)
+        return empty, jnp.asarray(False)
     pos = state.pos
     search_rad = system.force_model.search_radii(state, system)
     j_arr = jax.lax.iota(dtype=int, size=PAIR_UNROLL)
@@ -127,10 +131,6 @@ def _traverse_pairs(
     xmax_sorted = xmax[perm]
     cell_center, cell_half = _loose_cell_aabbs(xmin_sorted, xmax_sorted, p_cell_hash)
 
-    # However, per_particle receives orig_idx, so it needs aabb_center in ORIGINAL order
-    aabb_center = 0.5 * (xmin + xmax)
-    aabb_half = 0.5 * (xmax - xmin)
-
     def per_particle(
         orig_idx: jax.Array,
         neighbor_hashes: jax.Array,
@@ -139,8 +139,8 @@ def _traverse_pairs(
         if system.domain.periodic:
             neighbor_hashes = _dedup_stencil_hashes(neighbor_hashes)
 
-        center_i = aabb_center[orig_idx]
-        half_i = aabb_half[orig_idx]
+        center_i = pos[orig_idx]
+        half_i = search_rad[orig_idx]
 
         def per_cell(target_hash: jax.Array, start_idx: jax.Array) -> Any:
             safe_start = jnp.minimum(start_idx, N - 1)
@@ -198,7 +198,11 @@ def _traverse_pairs(
         cell_results = jax.vmap(per_cell)(neighbor_hashes, neighbor_starts)
         return jax.tree.map(lambda x: x.sum(axis=0), cell_results)
 
-    acc = jax.vmap(per_particle)(iota, p_neighbor_cell_hashes, p_neighbor_cell_starts)
+    acc = jax.lax.map(
+        lambda row: per_particle(*row),
+        (iota, p_neighbor_cell_hashes, p_neighbor_cell_starts),
+        batch_size=min(N, PAIR_TRAVERSAL_BATCH_SIZE),
+    )
     return acc, hash_overflow
 
 
@@ -374,21 +378,22 @@ class DynamicMultiCellList(Collider):
             A tuple containing the updated state and unmodified system.
         """
         collider = cast(DynamicMultiCellList, system.collider)
-        search_radii = system.force_model.search_radii(state, system)
-        system = system.domain.update_bounds(
-            state.pos, system, padding=jnp.max(search_radii)
+        search_radius = jnp.max(
+            system.force_model.search_radii(state, system), initial=0.0
         )
+        system = system.domain.update_bounds(state.pos, system, padding=search_radius)
         search_range = jnp.maximum(jnp.max(jnp.abs(collider.neighbor_mask)), 1)
-        cell_size = jnp.maximum(
-            collider.cell_size, 2.0 * jnp.max(search_radii) / search_range
-        )
+        cell_size = jnp.maximum(collider.cell_size, 2.0 * search_radius / search_range)
         (sum_f, sum_t), hash_overflow = _traverse_pairs(
             state,
             system,
             cell_size,
             collider.neighbor_mask,
             partial(_force_pair_fn, system=system),
-            (jnp.zeros_like(state.force[0]), jnp.zeros_like(state.torque[0])),
+            (
+                jnp.zeros(state.force.shape[1:], dtype=state.force.dtype),
+                jnp.zeros(state.torque.shape[1:], dtype=state.torque.dtype),
+            ),
         )
         state.force = sum_f
         state.torque = sum_t + cross(state._pos_p_rot, sum_f)
@@ -416,14 +421,12 @@ class DynamicMultiCellList(Collider):
             Tuple of (state, system, energy).
         """
         collider = cast(DynamicMultiCellList, system.collider)
-        search_radii = system.force_model.search_radii(state, system)
-        system = system.domain.update_bounds(
-            state.pos, system, padding=jnp.max(search_radii)
+        search_radius = jnp.max(
+            system.force_model.search_radii(state, system), initial=0.0
         )
+        system = system.domain.update_bounds(state.pos, system, padding=search_radius)
         search_range = jnp.maximum(jnp.max(jnp.abs(collider.neighbor_mask)), 1)
-        cell_size = jnp.maximum(
-            collider.cell_size, 2.0 * jnp.max(search_radii) / search_range
-        )
+        cell_size = jnp.maximum(collider.cell_size, 2.0 * search_radius / search_range)
         energy, hash_overflow = _traverse_pairs(
             state,
             system,

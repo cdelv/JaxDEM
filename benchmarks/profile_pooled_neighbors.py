@@ -22,6 +22,11 @@ def main():
     p.add_argument("--n", type=int, default=1_000_000)
     p.add_argument("--scenario", choices=("uniform", "clustered"), default="clustered")
     p.add_argument("--capacity", type=int, default=24)
+    p.add_argument(
+        "--collider",
+        choices=("NeighborList", "CellList", "MultiCellList"),
+        default="NeighborList",
+    )
     p.add_argument("--force-law", choices=("spring", "cundallstrack"), default="spring")
     p.add_argument(
         "--phase",
@@ -33,7 +38,18 @@ def main():
     p.add_argument("--hlo", action="store_true", help="Also save the compiled HLO")
     p.add_argument("--row-width", type=int)
     p.add_argument("--row-batch", type=int)
+    p.add_argument("--cell-batch", type=int)
+    p.add_argument("--search-batch", type=int)
     a = p.parse_args()
+    if a.cell_batch is not None:
+        from jaxdem.colliders import cell_list, multi_cell_list
+
+        cell_list.PAIR_TRAVERSAL_BATCH_SIZE = a.cell_batch
+        multi_cell_list.PAIR_TRAVERSAL_BATCH_SIZE = a.cell_batch
+    if a.search_batch is not None:
+        from jaxdem.colliders import _neighbor_cache
+
+        _neighbor_cache._SEARCH_BATCH_SIZE = a.search_batch
     if a.row_width is not None:
         from jaxdem.colliders import _neighbor_cache
 
@@ -43,6 +59,8 @@ def main():
 
         _neighbor_cache._ROW_BATCH_SIZE = a.row_batch
     s, y = make_case(a.n, a.capacity, a.scenario)
+    if a.collider != "NeighborList":
+        y = replace(y, collider=jd.Collider.create(a.collider, state=s, cell_size=1.15))
     if a.force_law == "cundallstrack":
         material = jd.Material.create(
             "elasticfrict",
@@ -95,11 +113,14 @@ def main():
         "n": a.n,
         "scenario": a.scenario,
         "capacity": a.capacity,
+        "collider": a.collider,
         "force_law": a.force_law,
         "phase": a.phase,
         "module": jd.__file__,
         "row_width_override": a.row_width,
         "row_batch_override": a.row_batch,
+        "cell_batch_override": a.cell_batch,
+        "search_batch_override": a.search_batch,
         "minimum_warmup_seconds": 2.0,
         "devices": [str(device) for device in jax.devices()],
         "memory": {
