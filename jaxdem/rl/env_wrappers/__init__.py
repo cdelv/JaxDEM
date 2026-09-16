@@ -14,6 +14,7 @@ import jax
 import jax.numpy as jnp
 
 from ..environments import Environment
+from ...utils.environment import _mask_agent_actions
 
 # Cache of generated wrapper classes keyed by (base class, prefix, extra key).
 # Reusing the class keeps pytree treedefs identical across repeated wrapping,
@@ -112,8 +113,13 @@ def vectorise_env(env: Environment, n: int | None = None) -> Environment:
 def clip_action_env(
     env: Environment, min_val: float = -1.0, max_val: float = 1.0
 ) -> Environment:
-    """Wrap an environment so that its `step` method clips the action to
-    [min_val, max_val] before calling the original step.
+    """Clip actions consistently for checkpointing and physics steps.
+
+    Both ``checkpoint(env, action)`` and ``step(env, action)`` receive the
+    action clipped to ``[min_val, max_val]``. This keeps action-dependent
+    historical baselines consistent with the applied dynamics. Inactive slots
+    stay zero even when zero lies outside the clipping interval. This wrapper
+    requires floating-point continuous actions; integer categories are rejected.
     """
 
     if not math.isfinite(min_val) or not math.isfinite(max_val) or min_val > max_val:
@@ -121,15 +127,23 @@ def clip_action_env(
             "Action clipping requires finite bounds with min_val <= max_val."
         )
 
+    # Capture this wrapper layer's method, rather than looking it up on the
+    # final class: a later vmap wrapper passes scalar slices with that class.
+    agent_mask_fn = env.agent_mask
+
     def transform(name: str, fn: Callable[..., Any]) -> Callable[..., Any]:
-        if name == "step":
+        if name in {"step", "checkpoint"}:
 
             @jax.jit
-            def clipped_step(env_obj: Environment, action: jax.Array) -> Environment:
-                clipped_action = jnp.clip(action, min_val, max_val)
+            def clipped_action_call(env_obj: Environment, action: jax.Array) -> Environment:
+                if not jnp.issubdtype(action.dtype, jnp.floating):
+                    raise TypeError("clip_action_env requires continuous floating-point actions")
+                clipped_action = _mask_agent_actions(
+                    jnp.clip(action, min_val, max_val), agent_mask_fn(env_obj)
+                )
                 return fn(env_obj, clipped_action)
 
-            return clipped_step
+            return clipped_action_call
         return fn
 
     return _wrap_env(

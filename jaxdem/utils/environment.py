@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from functools import partial
+from numbers import Integral
 from typing import TYPE_CHECKING, Any
 
 import jax
@@ -16,6 +17,74 @@ from .linalg import norm
 if TYPE_CHECKING:
     from .. import State, System
     from ..rl.environments import Environment
+
+
+def _step_count(name: str, value: int, *, minimum: int = 0) -> int:
+    if isinstance(value, bool) or not isinstance(value, Integral) or value < minimum:
+        raise ValueError(f"{name} must be an integer >= {minimum}")
+    return int(value)
+
+
+def _mask_agent_actions(action: jax.Array, mask: jax.Array) -> jax.Array:
+    """Zero inactive agents without changing categorical or continuous dtypes."""
+    action = jnp.asarray(action)
+    mask = mask.reshape(mask.shape + (1,) * (action.ndim - mask.ndim))
+    return jnp.where(mask, action, jnp.zeros_like(action))
+
+
+@partial(jax.jit, static_argnames=("skip_frames",), inline=True)
+def advance_action(
+    env: Environment, action: jax.Array, *, skip_frames: int = 0,
+    terminated: jax.Array | None = None, truncated: jax.Array | None = None,
+) -> tuple[Environment, jax.Array, jax.Array]:
+    """Snapshot the action baseline once, then advance physics to its endpoint.
+
+    Evaluates ``1 + skip_frames`` physics steps for the full batch. Updates
+    after each environment's first termination/truncation are discarded,
+    preserving its boundary state independently of the other batch entries.
+    Calls ``env.checkpoint(env, action)`` before the first physics step and
+    preserves that historical baseline throughout the action. Returns the live
+    endpoint and the two boundary flags without a second checkpoint. It does not reset
+    episodes or accumulate intermediate rewards. Read endpoint reward before
+    starting another action or resetting the environment.
+    By default this starts a new transition (the caller must reset completed
+    episodes). Optional incoming boundary masks keep already finished members
+    frozen when continuing an evaluation rollout without automatic resets.
+    Inactive agent actions are zeroed before checkpointing and stepping,
+    preserving integer categorical indices and floating-point continuous actions.
+    """
+    skip_frames = _step_count("skip_frames", skip_frames)
+    action = _mask_agent_actions(action, env.agent_mask(env))
+    shape = jnp.shape(env.done(env))
+    if terminated is None:
+        terminated = jnp.zeros(shape, dtype=bool)
+    if truncated is None:
+        truncated = jnp.zeros(shape, dtype=bool)
+
+    # Refresh history even for frozen entries: their difference reward is zero.
+    env = env.checkpoint(env, action)
+
+    def step_fn(carry, _):
+        current, terminated, truncated = carry
+        done_before = terminated | truncated
+        # Slots can disappear between repeated physics steps. They must not
+        # keep receiving the action sampled while they were active.
+        stepped = current.step(current, _mask_agent_actions(action, current.agent_mask(current)))
+        current = jax.tree.map(
+            lambda new, old: jnp.where(
+                done_before.reshape(done_before.shape + (1,)*(new.ndim-done_before.ndim)),
+                old, new,
+            ), stepped, current,
+        )
+        terminated = terminated | current.terminated(current)
+        truncated = truncated | current.truncated(current)
+        return (current, terminated, truncated), None
+
+    (env, terminated, truncated), _ = jax.lax.scan(
+        step_fn, (env, terminated, truncated),
+        None, length=1 + skip_frames,
+    )
+    return env, terminated, truncated
 
 
 @jax.jit(inline=True, static_argnames=("model", "n", "stride", "skip_frames"))
@@ -34,6 +103,10 @@ def env_trajectory_rollout(
     """Roll out a trajectory by applying `model` in chunks of `stride` steps and
     collecting the environment after each chunk.
 
+    This performs ``n * stride`` policy decisions with the same action/key
+    sequence as one ``env_step(..., n=n*stride)`` call. Recording boundaries
+    do not consume additional random keys.
+
     Parameters
     ----------
     env : Environment
@@ -50,8 +123,9 @@ def env_trajectory_rollout(
         Number of steps to perform before recording the environment state.
     skip_frames : int
         Number of *additional* physics frames to repeat each action, so every
-        logical step advances ``1 + skip_frames`` physics frames. Defaults to
-        0 (one physics frame per logical step).
+        logical step requests ``1 + skip_frames`` physics frames. State
+        updates after a boundary are discarded; completed episodes stay
+        frozen until the caller resets them. Defaults to 0.
     **kw : Any
         Extra keyword arguments passed to `model` on every step.
 
@@ -68,14 +142,16 @@ def env_trajectory_rollout(
 
     """
 
+    n = _step_count("n", n)
+    stride = _step_count("stride", stride, minimum=1)
+    skip_frames = _step_count("skip_frames", skip_frames)
+
     def body(
         carry: tuple[Environment, jax.Array, Any], _: None
     ) -> tuple[tuple[Environment, jax.Array, Any], Environment]:
         env, key, gs = carry
-        key, subkey = jax.random.split(key)
-
         env, key, gs = env_step(
-            env, model, subkey, gs, n=stride, skip_frames=skip_frames, **kw
+            env, model, key, gs, n=stride, skip_frames=skip_frames, **kw
         )
         return (env, key, gs), env
 
@@ -99,6 +175,13 @@ def env_step(
 ) -> tuple[Environment, jax.Array, Any]:
     """Advance the environment `n` steps using actions from `model`.
 
+    Each policy action begins with one historical checkpoint. Observations
+    and rewards read the resulting live state; no endpoint checkpoint is
+    needed. Finished batch entries remain physically frozen, with their
+    baseline refreshed for each requested action. This helper does not reset
+    episodes or recurrent carry. The model is still called for each requested
+    logical step, even for frozen environments; its state may therefore advance.
+
     Parameters
     ----------
     env : Environment
@@ -114,8 +197,9 @@ def env_step(
         Number of steps to perform.
     skip_frames : int
         Number of *additional* physics frames to repeat each action, so every
-        logical step advances ``1 + skip_frames`` physics frames. Defaults to
-        0 (one physics frame per logical step).
+        logical step requests ``1 + skip_frames`` physics frames. State
+        updates after a boundary are discarded; completed episodes stay
+        frozen until the caller resets them. Defaults to 0.
     **kw : Any
         Extra keyword arguments forwarded to `model`.
 
@@ -129,6 +213,9 @@ def env_step(
     >>> env, key, graphstate = env_step(env, model, key, graphstate, n=10, objective=goal)
 
     """
+
+    n = _step_count("n", n)
+    skip_frames = _step_count("skip_frames", skip_frames)
 
     def body(
         carry: tuple[Environment, jax.Array, Any], _: None
@@ -184,10 +271,10 @@ def _env_step(
 
     action, graphstate = model(obs, key, graphstate, **kw)
 
-    def step_fn(carry_env: Environment, _: None) -> tuple[Environment, None]:
-        return carry_env.step(carry_env, action), None
-
-    env, _ = jax.lax.scan(step_fn, env, None, length=1 + skip_frames)
+    env, _, _ = advance_action(
+        env, action, skip_frames=skip_frames,
+        terminated=env.terminated(env), truncated=env.truncated(env),
+    )
 
     return env, graphstate
 
@@ -661,6 +748,7 @@ def cross_lidar_3d(
 
 
 __all__ = [
+    "advance_action",
     "cross_lidar_2d",
     "cross_lidar_3d",
     "env_step",

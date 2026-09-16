@@ -22,7 +22,10 @@ class MinGRUActorCritic(Model):
     """A recurrent actor-critic with an MLP encoder and a MinGRU torso.
 
     This model uses the MinGRU architecture (https://arxiv.org/abs/2410.01201)
-    and a parallel associative scan for sequence-mode training.
+    and a parallel associative scan for sequence-mode training. Sequence mode
+    uses ``initial_carry`` when provided, otherwise zeros. ``done[t]`` cuts
+    the carry connection into step ``t+1``; the mask is shifted internally.
+    Sequence evaluation leaves the persistent rollout carry unchanged.
 
     Parameters
     ----------
@@ -161,7 +164,7 @@ class MinGRUActorCritic(Model):
             return
 
         if mask is None:
-            self.h.value *= 0.0
+            self.h.value = jnp.zeros_like(self.h.value)
             return
 
         mask = mask.reshape(mask.shape + (1,) * (self.h.value.ndim - mask.ndim))

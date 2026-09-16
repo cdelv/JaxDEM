@@ -32,7 +32,9 @@ class LSTMActorCritic(Model):
     - **Sequence mode (training)**: time-major input ``x`` with shape
       ``(T, B, obs_dim)`` produces a distribution and value for **every**
       step: policy outputs ``(T, B, action_space_size)`` and values
-      ``(T, B, 1)``.  The model initializes the LSTM carry to zeros.
+      ``(T, B, 1)``. The carry starts from ``initial_carry`` when supplied,
+      otherwise zeros. ``done[t]`` clears carry after step ``t``. Sequence
+      evaluation does not overwrite the persistent rollout carry.
 
     - **Single-step mode (evaluation/rollout)**: input ``x`` with shape
       ``(..., obs_dim)`` uses and updates a persistent LSTM carry stored
@@ -85,15 +87,13 @@ class LSTMActorCritic(Model):
     cell : rnn.OptimizedLSTMCell
         LSTM cell with ``in_features = hidden_features`` and
         ``hidden_features = lstm_features``.
-    actor_mu : nnx.Linear
-        Linear layer mapping LSTM features to the policy distribution
-        means (continuous) or logits (discrete).
+    fused_head : nnx.Linear
+        Linear layer whose first ``action_space_size`` outputs are policy
+        means (continuous) or logits (discrete), and whose last output is value.
     actor_sigma : Callable[[jax.Array], jax.Array]
         Maps LSTM features to the policy standard deviations (learned
         head when ``actor_sigma_head=True``, else independent
         parameter). Only used for continuous actions.
-    critic : nnx.Linear
-        Linear head mapping LSTM features to a scalar value.
     bij : distrax.Bijector
         Action-space bijector. Scalar bijectors are automatically
         lifted with ``Block(ndims=1)`` for vector actions (continuous only).
@@ -202,14 +202,15 @@ class LSTMActorCritic(Model):
 
         - Otherwise, zero in-place:
             * if `mask is None`: zero everything
-            * if `mask` is provided: zero masked entries along axis=0
+            * if `mask` is provided: zero selected environment/agent entries
 
         Parameters
         ----------
         shape : tuple[int, ...]
             Shape of the observation (input) tensor.
         mask : optional bool array
-            Mask per environment (axis=0) to conditionally reset the carry.
+            Boolean mask over leading environment/agent axes, broadcast over
+            the remaining carry axes.
 
         """
         H = self.lstm_features
@@ -223,8 +224,8 @@ class LSTMActorCritic(Model):
 
         # If shape matches and everything needs resetting
         if mask is None:
-            self.h.value *= 0.0
-            self.c.value *= 0.0
+            self.h.value = jnp.zeros_like(self.h.value)
+            self.c.value = jnp.zeros_like(self.c.value)
             return
 
         # If shapes matches and masked reset
@@ -249,7 +250,8 @@ class LSTMActorCritic(Model):
         sequence : bool
             If ``True``, run in sequence (training) mode. The carry starts
             from ``initial_carry`` if provided (typically the rollout-initial
-            snapshot, see :meth:`sequence_initial_carry`), otherwise zeros.
+            snapshot), otherwise zeros. ``done[t]`` resets carry after step
+            ``t``; the sequence call leaves the persistent carry unchanged.
             If ``False``, use and update the persistent carry stored on the
             module.  Remember to call :meth:`reset` when starting a new
             trajectory in single-step mode.

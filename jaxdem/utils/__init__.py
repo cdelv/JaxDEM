@@ -33,6 +33,7 @@ from .dynamical_matrix import (
 )
 from .dynamics_routines import run_packing_fraction_protocol
 from .environment import (
+    advance_action,
     cross_lidar_2d,
     cross_lidar_3d,
     env_step,
@@ -98,6 +99,7 @@ from .thermal import (
 )
 
 __all__ = [
+    "advance_action",
     "CandidateStatistics",
     "ClumpContactNetwork",
     "CompressionReason",

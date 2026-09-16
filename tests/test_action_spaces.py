@@ -119,3 +119,14 @@ def test_max_norm_entropy_rejects_high_dimension_before_tensor_allocation() -> N
     space = MaxNormSpace()
     with pytest.raises(ValueError, match="dimensions up to 6"):
         space.log_det_expectation(jnp.zeros(7), jnp.ones(7))
+
+
+@pytest.mark.parametrize('eps', [1e-6, .1])
+def test_box_margin_does_not_prematurely_clip_inverse(eps):
+    space = BoxSpace(-3., 5., width=.7, eps=eps)
+    # tanh(8) lies beyond the old inverse cutoff even in float64.
+    x = jnp.array([-5.6, 0., 5.6], dtype=jnp.float64)
+    y, ld = space.forward_and_log_det(x)
+    restored, ild = space.inverse_and_log_det(y)
+    assert jnp.allclose(restored, x, rtol=1e-8, atol=1e-8)
+    assert jnp.allclose(ild, -ld, rtol=1e-8, atol=1e-8)

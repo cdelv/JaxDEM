@@ -84,9 +84,13 @@ class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
         Parameters
         ----------
         shape : tuple[int, ...]
-            Leading dims for the carry, e.g. (num_envs, num_agents).
+            Observation-shaped tuple, e.g. ``(num_envs, num_agents, obs_dim)``.
+            Recurrent models use ``shape[:-1]`` as the carry leading shape;
+            the final feature dimension may be a placeholder.
         mask : optional bool array
-            True where to reset entries. Shape (num_envs)
+            True where to reset entries, e.g. ``(num_envs,)`` or
+            ``(num_envs, num_agents)``. Trailing singleton axes are added
+            to broadcast over carry features. ``None`` resets all entries.
 
         """
         return

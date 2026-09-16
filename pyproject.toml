@@ -18,7 +18,7 @@ urls = {Repository = "https://github.com/cdelv/JaxDEM"}
 dependencies = [
     "jax>=0.8.1",
     "numpy",
-    "optax>=0.2.6",
+    "optax>=0.2.8",
 ]
 
 [project.optional-dependencies]

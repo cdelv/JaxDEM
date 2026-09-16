@@ -51,18 +51,38 @@ class ActionSpace(Factory):
 
 
 class Transformed(distrax.Transformed):  # type: ignore[misc]
-    r"""```distrax.Transformed``` with analytical entropy support.
+    r"""``distrax.Transformed`` with entropy support for action-space bijectors.
 
     For :math:`Y = f(X)` where :math:`X \sim \text{base}`,
 
     .. math::
         H(Y) = H(X) + \mathbb{E}_X[\log|\det J_f(X)|].
 
-    The bijector's :meth:`~ActionSpace.log_det_expectation` method computes
-    the expectation with Gauss--Hermite quadrature. The quadrature is exact
-    for polynomial integrands and accurate for smooth bijectors such as
-    scaled tanh.
+    This is the differential-entropy identity for an invertible differentiable
+    transform. For the diagonal-Gaussian policies used here, the bijector's
+    :meth:`~ActionSpace.log_det_expectation` supplies the correction.
+    FreeSpace returns it analytically; BoxSpace and MaxNormSpace approximate
+    it with finite Gauss--Hermite quadrature. Those nonlinear integrands are
+    not generally integrated exactly, and accuracy depends on the policy
+    parameters and quadrature order.
     """
+
+    def sample_and_log_prob_with_latent(
+        self, *, seed: jax.Array, sample_shape: tuple[int, ...] = ()
+    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+        """Sample an action and retain its latent and base log-probability.
+
+        PPO can compute same-transform likelihood ratios in base coordinates,
+        where the Jacobian cancels, without inverting a rounded/saturated action.
+        Returns action, transformed log-probability, latent, base log-probability.
+        """
+        latent = self.distribution.sample(seed=seed, sample_shape=sample_shape)
+        # Some Normal samplers compute density from the unrounded noise used
+        # to generate x. Store density at the actual, representable x instead,
+        # matching learner re-evaluation (important for large means/small std).
+        base_log_prob = self.distribution.log_prob(latent)
+        action, log_det = self.bijector.forward_and_log_det(latent)
+        return action, base_log_prob - log_det, latent, base_log_prob
 
     def entropy(self, input_hint: Array | None = None) -> jax.Array:  # type: ignore[override, unused-ignore]
         bij = self.bijector

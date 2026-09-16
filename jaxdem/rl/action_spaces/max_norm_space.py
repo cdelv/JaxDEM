@@ -42,7 +42,7 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
 
     **Jacobian determinant**
 
-    For an isotropic radial map :math:`f(x)=b(r)` with :math:`x \in \mathbb{R}^d`, the Jacobian
+    For an isotropic radial map :math:`f(x)=b(r)x` with :math:`x \in \mathbb{R}^d`, the Jacobian
     eigenvalues are :math:`b` (multiplicity d-1) on the tangent subspace and :math:`b + r\,b'(r)` on the radial direction. Therefore
 
     .. math::
@@ -68,9 +68,9 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     Parameters
     ----------
     max_norm : float
-        Maximum radius after squashing (default 1.0). The bijector uses \(s=(1-\varepsilon)\,\text{max\_norm}\) to stay off the exact boundary.
+        Maximum radius after squashing (default 1.0). The bijector uses :math:`s=(1-\varepsilon)\,\text{max\_norm}` to stay off the exact boundary.
     eps : float
-        Numerical safety margin near \(r=0\) and \(r\to\infty\).
+        Numerical safety margin used for the output-radius margin and inverse clipping.
     event_ndims_in : int
         Dimensionality of a *single event* seen by the bijector (default 1).
     event_ndims_out : Optional[int]
@@ -83,7 +83,7 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     Note
     ----
     This bijector is **vector-valued** with ``event_ndims_in = 1``. It treats
-    a length-\(d\) action vector as a single event. Do **not** wrap it in
+    a length-:math:`d` action vector as a single event. Do **not** wrap it in
     `Block` unless you want to apply it independently to multiple last-axis blocks.
 
     """

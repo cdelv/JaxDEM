@@ -15,6 +15,7 @@ from flax import nnx
 from jax.typing import ArrayLike
 
 from ...factory import Factory
+from ...utils.environment import _mask_agent_actions, advance_action
 
 if TYPE_CHECKING:
     from ..environments import Environment
@@ -32,12 +33,13 @@ class TrajectoryData:
 
     action: jax.Array
     """
-    Actions sampled from the policy.
+    Actions sampled from the policy; inactive agent entries are zeroed.
     """
 
     value: jax.Array
     r"""
-    Baseline value estimates :math:`V(s_t)`.
+    Immutable behavior-policy value estimates :math:`V_b(s_t)` used as the
+    PPO value-clipping reference. Current learner values are computed separately.
     """
 
     log_prob: jax.Array
@@ -47,13 +49,14 @@ class TrajectoryData:
 
     ratio: jax.Array
     r"""
-    Probability ratio between the current policy and the old policy:
-    :math:`\exp\big( \log \pi_\theta(a_t \mid s_t) - \log \pi_{\theta_\text{old}}(a_t \mid s_t) \big)`.
+    Collection-time probability ratio (one). Retained for trajectory consumers;
+    PPO computes current importance ratios locally without overwriting this field.
     """
 
     reward: jax.Array
     r"""
-    Immediate rewards :math:`r_t`.
+    Post-action rewards :math:`r_t` during collection. PPO epoch output
+    contains DRIP-transformed rewards when that option is enabled.
     """
 
     done: jax.Array
@@ -65,13 +68,24 @@ class TrajectoryData:
     """Terminal flags; these suppress value bootstrapping."""
 
     truncated: jax.Array
-    """Time-limit/external boundary flags; these retain bootstrapping."""
+    """Time-limit/external boundary flags; these retain bootstrapping unless
+    the same transition is also terminal."""
 
     agent_mask: jax.Array
     """Boolean flags selecting active agents in padded environments."""
 
     bootstrap_value: jax.Array
-    """Value of the final observation for truncated transitions."""
+    """Collection-time value of the final pre-reset observation for truncations."""
+
+    latent_action: jax.Array | None = None
+    """Pre-bijector sample for transformed continuous policies, otherwise None."""
+
+    latent_log_prob: jax.Array | None = None
+    """Behavior base-distribution log-probability of ``latent_action``.
+
+    Ratios for a fixed bijector are evaluated in base coordinates to avoid
+    inverting saturated actions. ``log_prob`` still records transformed density.
+    """
 
 
 @jax.tree_util.register_dataclass
@@ -177,6 +191,12 @@ class Trainer(Factory, ABC):
         Finished environments are reset before the next transition. Frame
         skipping stops each environment at its first boundary. Truncations
         retain a value estimate of their final observation for bootstrapping.
+        ``advance_action`` calls ``checkpoint(env, action)`` once with the
+        masked policy action before its physics loop. Action wrappers apply
+        the same transformation at the checkpoint and at each physics step.
+        Reward and truncation bootstrap observations read the live endpoint
+        before reset, with no endpoint checkpoint.
+        Intermediate rewards are not accumulated.
 
         """
         key, subkey, reset_root = jax.random.split(key, 3)
@@ -185,50 +205,22 @@ class Trainer(Factory, ABC):
         obs = env.observation(env)  # shape: (N_envs, N_agents, *)
         agent_mask = env.agent_mask(env)
         pi, value = model(obs, sequence=False)
-        action, log_prob = pi.sample_and_log_prob(seed=subkey)
-        action_mask = agent_mask.reshape(
-            agent_mask.shape + (1,) * (action.ndim - agent_mask.ndim)
-        )
-        action = jnp.where(action_mask, action, 0.0)
+        from ..action_spaces import Transformed
 
-        @partial(jax.named_call, name="Trainer.step_fn")
-        def step_fn(
-            carry: tuple[Environment, jax.Array, jax.Array], _: None
-        ) -> tuple[tuple[Environment, jax.Array, jax.Array], None]:
-            env, terminated, truncated = carry
-            done_before = terminated | truncated
-            stepped = jax.lax.cond(
-                jnp.all(done_before),
-                lambda current: current,
-                lambda current: current.step(current, action),
-                env,
+        latent_action = latent_log_prob = None
+        if isinstance(pi, Transformed):
+            action, log_prob, latent_action, latent_log_prob = (
+                pi.sample_and_log_prob_with_latent(seed=subkey)
             )
-            mask = done_before
-            env = jax.tree.map(
-                lambda new, old: jnp.where(
-                    mask.reshape(mask.shape + (1,) * (new.ndim - mask.ndim)),
-                    old,
-                    new,
-                ),
-                stepped,
-                env,
-            )
-            terminated = terminated | env.terminated(env)
-            truncated = truncated | env.truncated(env)
-            return (env, terminated, truncated), None
+        else:
+            action, log_prob = pi.sample_and_log_prob(seed=subkey)
+        action = _mask_agent_actions(action, agent_mask)
 
-        boundary_shape = jnp.shape(env.done(env))
-        (env, terminated, truncated), _ = jax.lax.scan(
-            step_fn,
-            (
-                env,
-                jnp.zeros(boundary_shape, dtype=bool),
-                jnp.zeros(boundary_shape, dtype=bool),
-            ),
-            None,
-            length=1 + skip_frames,
+        env, terminated, truncated = advance_action(
+            env, action, skip_frames=skip_frames
         )
         done = terminated | truncated
+        # Consume the live endpoint against the saved action-start baseline.
         reward = env.reward(env)
         next_agent_mask = env.agent_mask(env)
         agent_terminated = agent_mask & ~next_agent_mask
@@ -238,7 +230,11 @@ class Trainer(Factory, ABC):
         )
 
         def evaluate_truncation(_: None) -> jax.Array:
-            boot_model, *_ = nnx.merge(graphdef, nnx.state((model, *rest)))
+            # Bootstrap evaluation must not mutate the live rollout carry.
+            # Copy variables here so they belong to this conditional trace.
+            boot_model, *_ = nnx.merge(
+                graphdef, nnx.state((model, *rest)), copy=True
+            )
             boot_model.eval()
             _, bootstrap = boot_model(env.observation(env), sequence=False)
             return jnp.squeeze(bootstrap, -1)
@@ -263,6 +259,8 @@ class Trainer(Factory, ABC):
             truncated=jnp.broadcast_to(truncated[..., None], reward.shape),
             agent_mask=jnp.broadcast_to(agent_mask, reward.shape),
             bootstrap_value=jnp.broadcast_to(bootstrap_value, reward.shape),
+            latent_action=latent_action,
+            latent_log_prob=latent_log_prob,
         )
 
         # Reset recurrent state and environments before the next transition.
@@ -293,7 +291,7 @@ class Trainer(Factory, ABC):
         unroll: int = 8,
         skip_frames: int = 0,
     ) -> tuple[Environment, nnx.GraphState, jax.Array, TrajectoryData]:
-        r"""Roll out :math:`T = \text{num\_steps\_epoch}` environment steps using :func:`jax.lax.scan`.
+        r"""Roll out :math:`T = \text{num\_steps\_epoch}` policy decisions using :func:`jax.lax.scan`.
 
         Parameters
         ----------
@@ -306,11 +304,11 @@ class Trainer(Factory, ABC):
         key : jax.Array
             Jax random key.
         num_steps_epoch : int
-            Number of steps to roll out.
+            Number of policy decisions to roll out per agent slot.
         unroll : int
             Number of loop iterations to unroll for compilation speed.
         skip_frames : int
-            Number of frames to skip (repeat action) per observation.
+            Number of additional physics frames requested per policy action.
 
         Returns
         -------
@@ -361,69 +359,76 @@ class Trainer(Factory, ABC):
         agent_mask: jax.Array | None = None,
         unroll: int = 8,
     ) -> tuple[jax.Array, jax.Array]:
-        r"""Compute V-trace/GAE advantages and return targets.
+        r"""Return detached targets and GAE/V-trace-style advantages.
 
-        Given a policy :math:`\pi`, define per-step importance ratios:
-
-        .. math::
-
-            \rho_t = \exp\big( \log \pi_\theta(a_t \mid s_t) - \log \pi_{\theta_\text{old}}(a_t \mid s_t) \big)
-
-        and their clipped versions :math:`\hat{\rho}, \hat{c}`:
+        All transition arrays have leading time dimension :math:`T`.
+        For active-agent indicator :math:`m_t`, terminal flag :math:`z_t`,
+        and episode-boundary flag :math:`d_t`, the recurrence is
 
         .. math::
 
-            \hat{\rho}_t = \min(\rho_t, \bar{\rho}), \quad
-            \hat{c}_t = \min(\rho_t, \bar{c}).
+            \widehat\rho_t &= \min(\mathrm{ratio}_t, \bar\rho), \qquad
+            \widehat c_t = \min(\mathrm{ratio}_t, \bar c),\\
+            \delta_t &= m_t\widehat\rho_t
+                [r_t+\gamma(1-z_t)B_t-V_t],\\
+            A_t &= \delta_t+\gamma\lambda m_t(1-d_t)\widehat c_t A_{t+1},
+                \qquad A_T=0,\\
+            R_t &= V_t + m_t A_t.
 
-        We form a TD-like residual with an off-policy correction:
+        Here :math:`B_t` is ``bootstrap_value[t]`` at a truncation,
+        ``last_value`` at the final non-truncated transition, and
+        ``value[t+1]`` otherwise. A terminal flag suppresses bootstrapping
+        even if the same transition is also truncated. Inputs must be finite,
+        including inactive padding; multiplication by zero does not mask NaNs.
 
-        .. math::
-
-            \delta_t = \hat{\rho}_t \big( r_t + \gamma V(s_{t+1})(1 - \text{terminated}_t) - V(s_t) \big)
-
-        and propagate a GAE-style trace using :math:`\hat{c}_t`:
-
-        .. math::
-
-            A_t = \delta_t + \gamma \lambda (1 - \text{done}_t) \hat{c}_t A_{t+1}
-
-        Finally, the return targets are:
-
-        .. math::
-
-            \text{returns}_t = A_t + V(s_t)
-
-        Notes
-        -----
-            When :math:`\pi_\theta = \pi_{\theta_\text{old}}` (i.e. ``ratio==1``) and
-            :math:`\bar{\rho} = \bar{c} = 1`, this function reduces to standard GAE.
+        Unit ratios and unit clipping caps give ordinary GAE. Otherwise this
+        is a clipped-importance lambda trace. PPO uses the resulting detached
+        :math:`A_t` in its clipped actor objective, rather than the separate
+        policy-gradient advantage from the IMPALA algorithm.
 
         Parameters
         ----------
+        value, reward, ratio : jax.Array
+            Per-transition values, post-action rewards, and importance ratios.
+            PPO supplies its current learner values and, with ``vtrace=True``,
+            current-to-behavior policy ratios. Otherwise it supplies unit
+            ratios and unit caps, regardless of the configured trace caps.
+        done : jax.Array
+            Episode boundaries, consistent with ``terminated | truncated``.
+            These cut the trace after the current transition.
+        advantage_rho_clip, advantage_c_clip : jax.Array
+            Upper caps on the TD residual and trace importance weights.
+        advantage_gamma, advantage_lambda : jax.Array
+            Discount and trace decay per recorded policy transition.
         last_value : jax.Array | None
-            Bootstrap value :math:`V(s_T)` evaluated on the *post-rollout*
-            observation. If ``None``, falls back to ``value[-1]`` (i.e.
-            :math:`V(s_{T-1})`), which biases the advantage of the last
-            transition; callers should provide it whenever possible.
+            Bootstrap on the post-rollout observation, without a time axis.
+            If omitted, ``value[-1]`` is reused; this is generally biased at
+            a continuing horizon boundary. PPO provides a collection-time
+            estimate and holds it fixed during minibatch updates.
         terminated, truncated : jax.Array | None
-            Separate episode-boundary causes. Both cut the temporal trace;
-            only ``terminated`` suppresses value bootstrapping. When omitted,
-            legacy ``done`` values are treated as terminal.
+            Supply both to distinguish terminal from truncated transitions.
+            If ``terminated`` is omitted it defaults to ``done``; if
+            ``truncated`` is omitted it defaults to false. Passing only
+            ``truncated`` therefore does not enable time-limit bootstrapping.
         bootstrap_value : jax.Array | None
-            Value of each truncation's final observation.
+            Values of final pre-reset observations at truncations, zero if
+            omitted. PPO records these during collection.
         agent_mask : jax.Array | None
-            Active-agent mask. Inactive padded entries return zero advantage.
+            Active-agent mask, all true if omitted. Inactive entries have
+            zero advantage and return target equal to their input value.
+        unroll : int
+            Unroll factor for the reverse scan.
 
         Returns
         -------
         Tuple[jax.Array, jax.Array]
-            Computed advantage and returns.
+            ``(returns, advantages)``, both with gradients stopped and the
+            same shape as ``value``.
 
         References
         ----------
-        - Schulman et al., *High-Dimensional Continuous Control Using Generalized Advantage Estimation*, 2015/2016
-        - Espeholt et al., *IMPALA: Scalable Distributed Deep-RL with Importance Weighted Actor-Learner Architectures*, 2018
+        - Schulman et al., *High-Dimensional Continuous Control Using Generalized Advantage Estimation*, 2015/2016.
+        - Espeholt et al., *IMPALA: Scalable Distributed Deep-RL with Importance Weighted Actor-Learner Architectures*, 2018.
 
         """
         if last_value is None:

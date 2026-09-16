@@ -50,7 +50,7 @@ def _require_int(name: str, value: Any, *, minimum: int | None = None) -> int:
 def _epoch_learning_rate_schedule(
     learning_rate: float, num_epochs: int, updates_per_epoch: int
 ) -> Any:
-    """Return a cosine schedule which is constant within each PPO epoch."""
+    """Return cosine decay indexed by groups of planned optimizer updates."""
     epoch_schedule = optax.cosine_decay_schedule(
         init_value=float(learning_rate), decay_steps=int(num_epochs)
     )
@@ -63,10 +63,25 @@ def _build_optimizer(
     max_grad_norm: float,
     accumulate_n_gradients: int,
 ) -> Any:
-    """Build an optimizer which clips and transforms averaged raw gradients."""
+    """Clip averaged raw gradients, then apply the requested Optax optimizer.
+
+    Default Muon treats stacked MinGRU layers as independent matrices while
+    retaining Optax's usual routing elsewhere. Explicit dimension overrides
+    supplied through a partial factory take precedence.
+    """
+    factory = optimizer
+    configured_dims = None
+    while isinstance(factory, partial):
+        configured_dims = factory.keywords.get(
+            "muon_weight_dimension_numbers", configured_dims
+        )
+        factory = factory.func
+    kwargs = {}
+    if factory is optax.contrib.muon and configured_dims is None:
+        kwargs["muon_weight_dimension_numbers"] = _muon_dimensions
     inner_tx = optax.chain(
         optax.clip_by_global_norm(float(max_grad_norm)),
-        optimizer(schedule, eps=1e-12),
+        optimizer(schedule, eps=1e-12, **kwargs),
     )
     if accumulate_n_gradients == 1:
         return inner_tx
@@ -77,38 +92,18 @@ def _build_optimizer(
     )
 
 
-def _priority_probabilities(
-    priority: jax.Array, alpha: jax.Array, support: jax.Array | None = None
-) -> jax.Array:
-    """Normalize priorities over a nonempty active support (all slots by default)."""
-    priority = jnp.nan_to_num(priority, nan=0.0, posinf=0.0, neginf=0.0)
-    priority = jnp.maximum(priority, 0.0)
-    log_priority = jnp.where(priority > 0.0, jnp.log(priority), -jnp.inf)
-    log_power = jnp.where(alpha == 0.0, 0.0, alpha * log_priority)
-    epsilon = jnp.asarray(1e-6, dtype=priority.dtype)
-    log_weights = jnp.logaddexp(log_power, jnp.log(epsilon))
-    if support is not None:
-        log_weights = jnp.where(support, log_weights, -jnp.inf)
-    probabilities = jax.nn.softmax(log_weights)
+def _muon_dimensions(params: Any) -> Any:
+    """Keep Optax's matrix routing, with independent stacked MinGRU layers."""
 
-    # The exact epsilon-supported probability can lie below the dtype's range.
-    # Use the smallest normal value because accelerators may flush subnormals;
-    # this preserves categorical support at the precision the backend can honor.
-    probability_floor = jnp.asarray(jnp.finfo(priority.dtype).tiny, priority.dtype)
-    if support is None:
-        probabilities = jnp.maximum(probabilities, probability_floor)
-    else:
-        probabilities = jnp.where(
-            support, jnp.maximum(probabilities, probability_floor), 0.0
-        )
-    return probabilities / probabilities.sum()
+    def dimensions(path: Any, value: jax.Array) -> Any:
+        if value.ndim == 3 and any(
+            getattr(entry, "key", None) == "mingru_kernel" for entry in path
+        ):
+            # [layers, input, output]: unspecified axis 0 is a batch axis.
+            return optax.contrib.MuonDimensionNumbers(1, 2)
+        return optax.contrib.MuonDimensionNumbers() if value.ndim == 2 else None
 
-
-def _last_occurrence_indices(indices: jax.Array, size: int) -> jax.Array:
-    """Keep the last repeated draw and map earlier duplicates out of bounds."""
-    positions = jnp.arange(indices.size, dtype=indices.dtype)
-    last = jnp.full((size,), -1, dtype=indices.dtype).at[indices].max(positions)
-    return jnp.where(last[indices] == positions, indices, size)
+    return jax.tree_util.tree_map_with_path(dimensions, params)
 
 
 def _hparam_dict_from_tr(tr: PPOTrainer) -> dict[str, Any]:
@@ -128,9 +123,7 @@ def _hparam_dict_from_tr(tr: PPOTrainer) -> dict[str, Any]:
         "ppo_clip_eps": float(tr.ppo_clip_eps),
         "value_coeff": float(tr.ppo_value_coeff),
         "entropy_coeff": float(tr.ppo_entropy_coeff),
-        "is_alpha": float(tr.importance_sampling_alpha),
-        "is_beta0": float(tr.importance_sampling_beta),
-        "is_beta_anneal": bool(tr.anneal_importance_sampling_beta),
+        "vtrace": bool(tr.vtrace),
         # optionally optimizer info if accessible
     }
 
@@ -148,7 +141,8 @@ class PPOTrainer(Trainer):
 
     This trainer implements the PPO algorithm with
     clipped surrogate objectives, value-function loss, entropy regularization,
-    and prioritized experience replay (PER).
+    and sequential minibatches of fixed-horizon agent segments. A segment may
+    contain episode boundaries; it need not contain a complete episode.
 
     **Loss function**
 
@@ -171,7 +165,10 @@ class PPOTrainer(Trainer):
               - \mathbb{E}_t \Big[ \min\big( \rho_t(\theta) A_t,\;
                                              \text{clip}(\rho_t(\theta), 1-\epsilon, 1+\epsilon) A_t \big) \Big]
 
-      where :math:`\epsilon` is the PPO clipping parameter.
+      where :math:`\epsilon` is the PPO clipping parameter and :math:`A_t`
+      is detached. Throughout these losses, :math:`\mathbb{E}_t[f_t]` means
+      :math:`\sum_t m_t f_t / \max(1, \sum_t m_t)` over all time/agent
+      entries in the minibatch, with active-agent indicator :math:`m_t`.
 
     - **Value-function loss (with clipping)**:
 
@@ -182,7 +179,9 @@ class PPOTrainer(Trainer):
                                                        (\text{clip}(V_\theta(s_t), V_{\theta_\text{old}}(s_t) - \epsilon,
                                                                     V_{\theta_\text{old}}(s_t) + \epsilon) - R_t)^2 \big) \Big]
 
-      where :math:`R_t = A_t + V_{\theta_\text{old}}(s_t)` are return targets.
+      where :math:`R_t = \operatorname{stop\_gradient}(A_t + V_\theta(s_t))`
+      are detached return targets.
+      The clipping reference remains the immutable rollout value.
 
     - **Entropy bonus**:
 
@@ -202,84 +201,36 @@ class PPOTrainer(Trainer):
 
       where :math:`c_v` and :math:`c_e` are coefficients for the value and entropy terms.
 
-    **Prioritized Experience Replay (PER)**
+    **Minibatch updates**
 
-    This trainer uses a prioritized categorical distribution over segments (environments x agents) to
-    form minibatches. Let :math:`N` be the number of segments containing at least
-    one active sample. For each such segment index :math:`i \in \{1,\dots,N\}`,
-    we define a *priority* from the trajectory advantages:
+    Fixed-horizon agent segments are selected in contiguous blocks, cycling through
+    the rollout when ``num_minibatches`` exceeds one pass. Each update runs the
+    current model before computing detached advantages and returns. Policy
+    advantages are used directly, without normalization or sampling weights.
+    Rollout values and behavior log-probabilities remain fixed for PPO clipping.
 
-    .. math::
-
-        \tilde{p}_i \;=\; \Big\| A_{\cdot,i} \Big\|_1^{\,\alpha}
-        \quad\text{with}\quad
-        \Big\| A_{\cdot,i} \Big\|_1 \;=\; \sum_{t=1}^{T} \big|A_{t,i}\big|,
-
-    where :math:`\alpha \ge 0` (:attr:`importance_sampling_alpha`) controls the
-    strength of prioritization. We then form a categorical sampling distribution
-
-    .. math::
-
-        P(i) \;=\; \frac{\tilde{p}_i + \varepsilon}
-                              {\sum_{k=1}^{N} (\tilde{p}_k + \varepsilon)},
-
-    and sample indices :math:`\{i\}` with replacement to create each minibatch
-    (:func:`jax.random.choice` with probabilities :math:`P(i)`). The positive
-    :math:`\varepsilon` keeps every active segment in the sampling support and makes
-    zero priorities uniform. Normalization is evaluated in log space. Probabilities
-    below the dtype's smallest normal value are floored and renormalized to retain
-    representable support; importance weights use these resulting probabilities.
-    This mirrors Prioritized Experience Replay (PER), where :math:`\tilde{p}` comes
-    from the TD-error magnitude. Here we use the per-trajectory advantage
-    magnitude as a proxy for learning progress. Recent large-scale self-play
-    systems for autonomous driving use the same design. We use the absolute
-    value of the advantage so that the sampler keeps both the best and the
-    worst samples.
-
-    To correct sampling bias we apply PER-style importance weights
-    (:attr:`importance_sampling_beta` with optional linear annealing):
-
-    .. math::
-
-        w_i(\beta_t) \;=\; \Big(N \, P(i)\Big)^{-\beta_t},
-        \qquad \beta_t \in [0,1].
-
-    Classical PER often normalizes :math:`w_i` by :math:`\max_j w_j` to keep
-    the scale bounded. This implementation omits that normalization and uses
-    :math:`w_i` directly. The minibatch advantages are standardized and *reweighted*
-    with these IS weights before the PPO loss:
-
-    .. math::
-
-        \hat{A}_{t,i}
-        \;=\;
-        w_i(\beta_t)\;
-        \frac{A_{t,i} - \mu_{\text{mb}}(A)}{\sigma_{\text{mb}}(A)+\varepsilon}.
-
-    If :attr:`importance_sampling_alpha` = 0, we get uniform sampling. At
-    :attr:`importance_sampling_beta` = 1, the weights fully correct the
-    categorical segment draws for a fixed priority distribution. Advantage
-    standardization and priority recomputation remain nonlinear parts of PPO,
-    so this is not a claim that the complete training estimator is unbiased.
-
-    **Off-policy correction of advantages (V-trace)**
-
-    The trainer recomputes the advantages on each minibatch iteration with
-    fresh values and probability ratios. When a minibatch reuses a sample,
-    the V-trace off-policy correction in :meth:`Trainer.compute_advantages`
-    recomputes the advantages. This matters because the policy changes during
-    each minibatch update, which makes the rollout off-policy and the value
-    stale.
+    With ``vtrace=False`` (default), targets use ordinary GAE. With
+    ``vtrace=True``, a V-trace-style lambda trace uses the clipped
+    current importance ratios in :meth:`Trainer.compute_advantages`. This
+    still uses the PPO actor objective, not the IMPALA actor objective. Final-horizon and
+    truncation bootstraps retain their collection-time estimates; episode
+    boundary handling is independent of this choice.
 
     **Distributed Reward Information Processing (DRIP)**
 
-    DRIP addresses the credit assignment problem in environments with sparse
-    or delayed feedback. It runs a recursive backward pass over the trajectory
-    that distributes terminal or delayed rewards back to the past causal
-    states. The implementation uses an exponential smoothing filter bounded
-    by episode terminations, so rewards do not bleed across episodes.
-    - **To activate:** Set :attr:`drip_decay` to a value between ``(0.0, 1.0]`` (e.g., ``0.8``).
-    - **To deactivate:** Set :attr:`drip_decay` to ``0.0`` (the default behavior).
+    Before target calculation, rewards are replaced by the backward sum
+
+    .. math::
+
+        \widetilde r_t = r_t + d(1-\mathrm{done}_t)\widetilde r_{t+1},
+        \qquad \widetilde r_T = 0.
+
+    Here :math:`d` is ``drip_decay`` and ``done`` includes termination and
+    truncation. This is an unnormalized sum of future rewards within the
+    current rollout and episode. It changes reward scale and the learning
+    objective; it does not conserve total reward or remove horizon dependence.
+    Use :math:`0 < d \leq 1` to enable it; ``0.0`` leaves rewards unchanged.
+    Rewards are not clipped or normalized by this trainer.
 
     ---
     **References**
@@ -287,14 +238,12 @@ class PPOTrainer(Trainer):
     - Schulman et al., *Proximal Policy Optimization Algorithms*, 2017.
     - Espeholt et al., *IMPALA: Scalable Distributed Deep-RL with Importance Weighted Actor-Learner Architectures*, ICML 2018.
     - Schulman et al., *High-Dimensional Continuous Control Using Generalized Advantage Estimation*, 2015/2016.
-    - Schaul et al., *Prioritized Experience Replay*, ICLR 2016.
-    - Cusumano-Towner et al., *Robust Autonomy Emerges from Self-Play*, ICML 2025.
     """
 
     drip_decay: jax.Array
     r"""
     Decay factor :math:`\lambda_{DRIP}` for Distributed Reward Information Processing (DRIP).
-    Drips delayed/sparse rewards backward through time to assign credit to past actions.
+    Adds decayed future rewards backward within each rollout and episode.
     Set to 0.0 to disable (default).
     """
 
@@ -314,27 +263,13 @@ class PPOTrainer(Trainer):
     Coefficient :math:`c_e` scaling the entropy bonus (encourages exploration).
     """
 
-    importance_sampling_alpha: jax.Array
-    r"""
-    Prioritization strength :math:`\alpha \ge 0` for minibatch sampling.
-    Higher values put more probability mass on envs with larger advantages.
-    """
-
-    importance_sampling_beta: jax.Array
-    r"""
-    Initial PER importance-weight exponent :math:`\beta \in [0,1]` used in
-    :math:`w_i(\beta) = (N P(i))^{-\beta}`. It compensates the sampling bias.
-    """
-
-    anneal_importance_sampling_beta: jax.Array
-    r"""
-    If True, the trainer linearly anneals :math:`\beta` toward 1 during
-    training (more correction later in training).
-    """
+    vtrace: jax.Array
+    """Use current policy ratios in advantage estimation; otherwise use GAE."""
 
     num_epochs: int
     """
-    Number of PPO training epochs (outer loop count).
+    Planned number of rollout-and-update iterations, also used by the LR schedule.
+    This is not the number of replay passes over one rollout.
     """
 
     stop_at_epoch: int
@@ -344,23 +279,30 @@ class PPOTrainer(Trainer):
 
     num_steps_epoch: int = jax.tree.static()
     r"""
-    Rollout horizon :math:`T` per epoch. Total collected steps = :math:`N \times T`.
+    Rollout horizon :math:`T` in policy decisions per outer iteration. The
+    rollout contains :math:`ST` slots, where
+    :math:`S=\text{num\_envs}\times\text{max\_num\_agents}`, including padding.
     """
 
     num_minibatches: int = jax.tree.static()
     """
-    Number of minibatches per epoch used for PPO updates.
+    Number of sequential minibatch iterations per rollout. With an explicit
+    minibatch size, iterations beyond a complete pass replay from the start.
+    Inactive-only blocks do not advance optimizer state or accumulation.
     """
 
     minibatch_size: int = jax.tree.static()
     r"""
-    Minibatch size (number of env indices sampled per update). Typically
-    :math:`N / \text{num\_minibatches}`.
+    Number of transition slots per minibatch, including full horizon segments
+    and any inactive padding.
+    Must be divisible by the horizon and divide the rollout size.
     """
 
     skip_frames: int = jax.tree.static()
     """
-    Number of frames to skip (repeat action) for each observation.
+    Number of additional physics frames requested for each policy action.
+    State advances by at most ``1 + skip_frames`` frames, ending at a boundary;
+    intermediate physics-frame rewards are not accumulated.
     """
 
     @classmethod
@@ -386,12 +328,9 @@ class PPOTrainer(Trainer):
         advantage_lambda: float = 0.95,
         advantage_rho_clip: float = 1.0,
         advantage_c_clip: float = 1.0,
+        vtrace: bool = False,
         # DRIP parameters
         drip_decay: float = 0.0,
-        # PER parameters
-        importance_sampling_alpha: float = 0.8,
-        importance_sampling_beta: float = 0.2,
-        anneal_importance_sampling_beta: bool = True,
         # Batches
         num_envs: int = 1024,
         num_steps_epoch: int = 64,
@@ -410,10 +349,14 @@ class PPOTrainer(Trainer):
 
         Vectorizes the environment, builds the optimizer chain, and
         initializes the model carry. When enabled, learning-rate annealing is
-        cosine decay over ``num_epochs`` and remains constant within an epoch.
+        cosine decay over the planned optimizer updates in ``num_epochs``.
+        With no inactive-only blocks it remains constant within an epoch;
+        skipped empty blocks also pause the optimizer's schedule counter.
         Gradient accumulation averages raw minibatch gradients before clipping
         and the stateful optimizer. See the class-level field docstrings for
-        parameter descriptions.
+        parameter descriptions. Minibatches visit contiguous agent segments;
+        set ``minibatch_size`` explicitly to control replay independently of
+        ``num_minibatches``. The former PER constructor arguments were removed.
 
         Parameters
         ----------
@@ -473,6 +416,8 @@ class PPOTrainer(Trainer):
 
         # --- Vectorize envs before sizing math ---
         if clip_actions:
+            if getattr(model, "discrete", False):
+                raise ValueError("clip_actions is only supported for continuous policies")
             min_val, max_val = clip_range
             env = clip_action_env(env, min_val=float(min_val), max_val=float(max_val))
         env = vectorise_env(env, n=num_envs)
@@ -488,24 +433,22 @@ class PPOTrainer(Trainer):
         total_steps_per_epoch = int(num_segments * num_steps_epoch)
 
         if minibatch_size is None:
+            if num_segments % num_minibatches != 0:
+                raise ValueError(
+                    "num_envs * max_num_agents must be divisible by "
+                    "num_minibatches when minibatch_size is omitted; "
+                    "set minibatch_size explicitly to configure replay."
+                )
             minibatch_size = total_steps_per_epoch // num_minibatches
-        if minibatch_size > total_steps_per_epoch:
+        if not num_steps_epoch <= minibatch_size <= total_steps_per_epoch:
             raise ValueError(
-                f"minibatch_size={minibatch_size} must be in "
-                f"[1, {total_steps_per_epoch}]"
+                f"minibatch_size must be in [{num_steps_epoch}, "
+                f"{total_steps_per_epoch}] to contain complete trajectories"
             )
-
-        # Each minibatch samples `minibatch_size // num_steps_epoch` whole
-        # segments; if that is 0 the minibatch is empty and the loss is NaN.
-        num_sampled_segments = minibatch_size // num_steps_epoch
-        if num_sampled_segments < 1:
-            raise ValueError(
-                f"minibatch_size={minibatch_size} must be at least "
-                f"num_steps_epoch={num_steps_epoch}: each minibatch samples "
-                f"minibatch_size // num_steps_epoch = {num_sampled_segments} "
-                "segments, which would produce an empty minibatch and NaN losses. "
-                "Increase minibatch_size (or num_envs) or decrease num_steps_epoch."
-            )
+        if minibatch_size % num_steps_epoch != 0:
+            raise ValueError("minibatch_size must be divisible by num_steps_epoch")
+        if total_steps_per_epoch % minibatch_size != 0:
+            raise ValueError("minibatch_size must divide the total rollout size")
         # --- Epoch count ---
         if total_timesteps is not None:
             if total_timesteps % total_steps_per_epoch != 0:
@@ -563,13 +506,7 @@ class PPOTrainer(Trainer):
             ppo_clip_eps=jnp.asarray(ppo_clip_eps, dtype=float),
             ppo_value_coeff=jnp.asarray(ppo_value_coeff, dtype=float),
             ppo_entropy_coeff=jnp.asarray(ppo_entropy_coeff, dtype=float),
-            importance_sampling_alpha=jnp.asarray(
-                importance_sampling_alpha, dtype=float
-            ),
-            importance_sampling_beta=jnp.asarray(importance_sampling_beta, dtype=float),
-            anneal_importance_sampling_beta=jnp.asarray(
-                anneal_importance_sampling_beta, dtype=float
-            ),
+            vtrace=jnp.asarray(vtrace, dtype=bool),
             num_epochs=num_epochs,
             stop_at_epoch=stop_at_epoch,
             num_steps_epoch=num_steps_epoch,
@@ -602,12 +539,14 @@ class PPOTrainer(Trainer):
         directory : Path | str
             Root directory for TensorBoard logs.
         save_every : int
-            Positive integer interval for syncing metrics and logging epochs.
+            Positive integer interval for syncing metrics and logging iterations
+            when verbose output or logging is enabled. Does not save checkpoints.
         start_epoch : int
             Resume epoch counter for logging and rollout numbering. Exact
             learning-rate and momentum continuation also requires the restored
             trainer ``graphstate``; changing this label alone does not restore
-            optimizer state.
+            optimizer state. Exact trajectory continuation also requires the
+            environment, PRNG key, and recurrent carry.
             Must lie in ``[0, stop_at_epoch]``. At ``stop_at_epoch``, returns
             the trainer unchanged without opening a writer or running an epoch.
         debug_overflow_checks : bool
@@ -737,18 +676,25 @@ class PPOTrainer(Trainer):
     def loss_fn(
         model: Model,
         td: TrajectoryData,  # [T, M, ...] minibatch view
-        returns: jax.Array,
-        advantage: jax.Array,
         ppo_clip_eps: jax.Array,
         ppo_value_coeff: jax.Array,
         ppo_entropy_coeff: jax.Array,
+        advantage_gamma: jax.Array,
+        advantage_lambda: jax.Array,
+        advantage_rho_clip: jax.Array,
+        advantage_c_clip: jax.Array,
+        last_value: jax.Array,
+        vtrace: jax.Array,
         initial_carry: Any | None = None,
     ) -> tuple[jax.Array, dict[str, jax.Array]]:
         r"""Compute the clipped PPO loss for a minibatch.
 
-        Runs a forward pass through *model* and returns the composite
-        loss (policy + value + entropy) together with diagnostic
-        scalars.
+        Evaluate the current policy, form detached GAE/V-trace targets, and
+        compute the composite loss. ``td.value`` and ``td.log_prob`` are frozen
+        behavior-policy data. This function does not mutate the trajectory.
+        Boundary bootstrap estimates come from the rollout. Transformed
+        continuous policies use stored latent actions and base log-probabilities
+        for the ratio; this assumes the bijector is fixed during replay.
 
         Parameters
         ----------
@@ -756,10 +702,10 @@ class PPOTrainer(Trainer):
             Actor–critic model (called with ``sequence=True``).
         td : TrajectoryData
             Minibatch trajectory slice ``[T, M, ...]``.
-        returns : jax.Array
-            Return targets, shape ``[T, M]``.
-        advantage : jax.Array
-            Normalized, IS-weighted advantages, shape ``[T, M]``.
+        last_value : jax.Array
+            Rollout-end bootstrap values, shape ``[M]``.
+        vtrace : jax.Array
+            Whether to use current importance ratios in target calculation.
         ppo_clip_eps : jax.Array
             Clipping parameter :math:`\epsilon`.
         ppo_value_coeff : jax.Array
@@ -770,45 +716,68 @@ class PPOTrainer(Trainer):
         Returns
         -------
         tuple[jax.Array, dict[str, jax.Array]]
-            Scalar total loss and a dictionary of diagnostic metrics.
+            Scalar total loss and diagnostics. ``ratio``, ``value``,
+            ``target_values``, and ``advantages`` are detached ``[T, M]``
+            arrays; the other entries are scalar minibatch statistics.
 
         """
-        # 1) Forward.
-        old_value = td.value
-        pi, td.value = model(
+        # Current predictions are shared by target calculation and the loss.
+        pi, value = model(
             td.obs,
             sequence=True,
             initial_carry=initial_carry,
             done=td.done | ~td.agent_mask,
         )
-        new_log_prob = pi.log_prob(td.action)
-        td.value = jnp.squeeze(td.value, -1)
-        log_ratio = new_log_prob - td.log_prob
-        td.ratio = jnp.exp(log_ratio)
+        value = jnp.squeeze(value, -1)
+        if td.latent_action is not None:
+            from ..action_spaces import Transformed
 
-        mask = td.agent_mask.astype(td.value.dtype)
+            if not isinstance(pi, Transformed) or td.latent_log_prob is None:
+                raise ValueError(
+                    "Latent actions require a transformed policy and base log-probabilities"
+                )
+            log_ratio = pi.distribution.log_prob(td.latent_action) - td.latent_log_prob
+        else:
+            log_ratio = pi.log_prob(td.action) - td.log_prob
+        ratio = jnp.exp(log_ratio)
+        returns, advantage = Trainer.compute_advantages(
+            value=value,
+            reward=td.reward,
+            ratio=jnp.where(vtrace, ratio, jnp.ones_like(ratio)),
+            done=td.done,
+            advantage_rho_clip=jnp.where(vtrace, advantage_rho_clip, 1.0),
+            advantage_c_clip=jnp.where(vtrace, advantage_c_clip, 1.0),
+            advantage_gamma=advantage_gamma,
+            advantage_lambda=advantage_lambda,
+            last_value=last_value,
+            terminated=td.terminated,
+            truncated=td.truncated,
+            bootstrap_value=td.bootstrap_value,
+            agent_mask=td.agent_mask,
+        )
+        mask = td.agent_mask.astype(value.dtype)
         count = jnp.maximum(mask.sum(), 1.0)
 
         def masked_mean(x: jax.Array) -> jax.Array:
             return jnp.sum(x * mask) / count
 
         # 2) Value loss (clipped).
-        value_pred_clipped = old_value + (td.value - old_value).clip(
+        value_pred_clipped = td.value + (value - td.value).clip(
             -ppo_clip_eps, ppo_clip_eps
         )
-        v_diff = jnp.abs(td.value - returns)
+        v_diff = jnp.abs(value - returns)
         v_clip_diff = jnp.abs(value_pred_clipped - returns)
         value_loss = 0.5 * masked_mean(jnp.square(jnp.maximum(v_diff, v_clip_diff)))
 
         # 3) Policy loss (clipped).
         ratio_bounded = jnp.where(
             advantage >= 0,
-            jnp.minimum(td.ratio, 1.0 + ppo_clip_eps),
-            jnp.maximum(td.ratio, 1.0 - ppo_clip_eps),
+            jnp.minimum(ratio, 1.0 + ppo_clip_eps),
+            jnp.maximum(ratio, 1.0 - ppo_clip_eps),
         )
         actor_loss = -masked_mean(advantage * ratio_bounded)
 
-        # 4) Entropy (via Gauss-Hermite quadrature on the transformed distribution).
+        # 4) Entropy (analytic or quadrature-based, depending on the distribution).
         entropy = masked_mean(pi.entropy())
 
         # 5) Total Loss.
@@ -820,7 +789,7 @@ class PPOTrainer(Trainer):
         approx_kl = jax.lax.stop_gradient(0.5 * masked_mean(jnp.square(log_ratio)))
         returns_mean = masked_mean(returns)
         return_variance = masked_mean(jnp.square(returns - returns_mean))
-        residual = returns - td.value
+        residual = returns - value
         residual_mean = masked_mean(residual)
         residual_variance = masked_mean(jnp.square(residual - residual_mean))
         explained_var = jax.lax.stop_gradient(
@@ -833,8 +802,10 @@ class PPOTrainer(Trainer):
             "entropy": entropy,
             "approx_KL": approx_kl,
             "explained_variance": explained_var,
-            "ratio": jax.lax.stop_gradient(td.ratio),
-            "value": jax.lax.stop_gradient(td.value),
+            "ratio": jax.lax.stop_gradient(ratio),
+            "value": jax.lax.stop_gradient(value),
+            "target_values": returns,
+            "advantages": advantage,
             "returns": masked_mean(returns),
             "score": masked_mean(td.reward),
         }
@@ -846,43 +817,45 @@ class PPOTrainer(Trainer):
     def epoch(
         tr: PPOTrainer, epoch: ArrayLike
     ) -> tuple[PPOTrainer, TrajectoryData, dict[str, jax.Array]]:
-        r"""Execute one PPO epoch: rollout → advantage → minibatch updates.
+        r"""Collect a rollout and train sequential minibatches with fresh targets.
 
         Steps:
-        0. Split PRNG keys (boundary resets occur inside each rollout step).
+        0. Save initial recurrent carry (resets occur inside each rollout step).
         1. Collect a trajectory of length ``num_steps_epoch``.
         2. Flatten the agent axis and apply DRIP if enabled.
-        3. Compute PER priorities.
-        4. Scan over ``num_minibatches`` updates, each recomputing V-trace advantages and applying the clipped PPO loss.
+        3. Visit contiguous segment blocks, wrapping for additional passes.
+        4. Run the current model, calculate targets, and update parameters.
+        Rollout values and log-probabilities remain unchanged.
 
         Parameters
         ----------
         tr : PPOTrainer
             Current trainer state.
         epoch : ArrayLike
-            Zero-based epoch index (used for :math:`\beta` annealing).
+            Zero-based outer iteration index (retained for caller compatibility).
 
         Returns
         -------
         Tuple[PPOTrainer, TrajectoryData, dict[str, jax.Array]]
-            Updated trainer, full trajectory data, and epoch-averaged metrics.
+            Updated trainer, trajectory data shaped ``[T, S, ...]`` with
+            DRIP-transformed rewards, and metrics averaged equally over
+            nonempty minibatches. An all-empty rollout yields zero metrics.
+            Parameter updates occur according to gradient accumulation;
+            empty minibatches do not advance the optimizer.
 
 
         """
-        beta_t = tr.importance_sampling_beta + tr.anneal_importance_sampling_beta * (
-            1.0 - tr.importance_sampling_beta
-        ) * (epoch / tr.num_epochs)
-        # 0) Split rollout and minibatch keys. Trainer.step resets boundaries.
-        rollout_key, mb_root = jax.random.split(tr.key)
-        model, optimizer = nnx.merge(tr.graphdef, tr.graphstate)
+        del epoch
+        # Trainer.step advances the PRNG key and resets episode boundaries.
+        model, _ = nnx.merge(tr.graphdef, tr.graphstate)
         initial_carry = model.carry
 
         # 1) Roll out trajectories; td has shape [T, E, A, ...].
-        tr.env, tr.graphstate, rollout_key, td = tr.trajectory_rollout(
+        tr.env, tr.graphstate, tr.key, td = tr.trajectory_rollout(
             tr.env,
             tr.graphdef,
             tr.graphstate,
-            rollout_key,
+            tr.key,
             tr.num_steps_epoch,
             skip_frames=tr.skip_frames,
         )
@@ -890,7 +863,7 @@ class PPOTrainer(Trainer):
         # 1.5) Bootstrap value V(s_T): one extra critic pass on the
         # post-rollout observation. The merged model is discarded afterwards so
         # this pass does not advance the persistent recurrent carry.
-        boot_model, *_ = nnx.merge(tr.graphdef, tr.graphstate)
+        boot_model, *_ = nnx.merge(tr.graphdef, tr.graphstate, copy=True)
         boot_model.eval()
         _, last_value = boot_model(tr.env.observation(tr.env), sequence=False)
         last_value = jax.lax.stop_gradient(jnp.squeeze(last_value, -1))  # [E, A]
@@ -937,124 +910,64 @@ class PPOTrainer(Trainer):
         td.reward = apply_drip(td.reward, td.done, tr.drip_decay)
         # ------------------------------------------------------
 
-        # Initial compute_advantages over all S segments
-        returns, advantage = tr.compute_advantages(
-            td.value,
-            td.reward,
-            td.ratio,
-            td.done,
-            tr.advantage_rho_clip,
-            tr.advantage_c_clip,
-            tr.advantage_gamma,
-            tr.advantage_lambda,
-            last_value=last_value,
-            terminated=td.terminated,
-            truncated=td.truncated,
-            bootstrap_value=td.bootstrap_value,
-            agent_mask=td.agent_mask,
-        )
+        segments_per_batch = tr.minibatch_size // T
 
-        @jax.jit(inline=True)
         @partial(jax.named_call, name="PPOTrainer.train_batch")
         def train_batch(
-            carry: tuple[Any, Any, TrajectoryData, jax.Array, jax.Array, jax.Array],
-            _: None,
-        ) -> tuple[
-            tuple[Any, Any, TrajectoryData, jax.Array, jax.Array, jax.Array],
-            dict[str, jax.Array],
-        ]:
-            # 3.0) Unpack carry and model, then split keys.
-            graphdef, graphstate, td, key, returns, advantage = carry
-            key, samp_key = jax.random.split(key)
-            model, optimizer = nnx.merge(graphdef, graphstate)
-
-            # 3.2) Compute PER sampling probabilities.
-            priority = jnp.sum(jnp.abs(advantage), axis=0)
-            active_segments = jnp.any(td.agent_mask, axis=0)
-            active_population = jnp.sum(active_segments)
-            prio_p = _priority_probabilities(
-                priority, tr.importance_sampling_alpha, active_segments
+            graphstate: nnx.GraphState, batch_index: jax.Array
+        ) -> tuple[nnx.GraphState, dict[str, jax.Array]]:
+            start = (batch_index * segments_per_batch) % S
+            mb_td = jax.tree.map(
+                lambda x: jax.lax.dynamic_slice_in_dim(
+                    x, start, segments_per_batch, axis=1
+                ),
+                td,
             )
-
-            # Independent categorical draws match the probabilities used by
-            # the PER importance weights below.
-            idx = jax.random.choice(
-                samp_key,
-                a=S,
-                shape=(tr.minibatch_size // T,),
-                p=prio_p,
-                replace=True,
-            )  # [M]
-            write_idx = _last_occurrence_indices(idx, S)
-
-            # Use the active population for importance weights; padding has no support.
-            seg_w = jnp.power(active_population * prio_p[idx], -beta_t)  # [M]
-
-            # 3.3) Normalize and slice advantages.
-            adv = jnp.take(advantage, idx, axis=1)
-            sampled_mask = jnp.take(td.agent_mask, idx, axis=1).astype(adv.dtype)
-            active_count = jnp.maximum(sampled_mask.sum(), 1.0)
-            adv_mean = jnp.sum(adv * sampled_mask) / active_count
-            adv_variance = (
-                jnp.sum(jnp.square(adv - adv_mean) * sampled_mask) / active_count
-            )
-            adv = (
-                seg_w
-                * (adv - adv_mean)
-                / (jnp.sqrt(adv_variance) + 1e-8)
-                * sampled_mask
-            )
-
-            # 3.4) Slice trajectory data to [T, M].
-            mb_td = jax.tree.map(lambda x: jnp.take(x, idx, axis=1), td)
             mb_initial_carry = jax.tree.map(
-                lambda x: jnp.take(x, idx, axis=0), initial_carry
+                lambda x: jax.lax.dynamic_slice_in_dim(
+                    x, start, segments_per_batch, axis=0
+                ),
+                initial_carry,
             )
-
-            # 3.5) Compute loss and gradients.
+            mb_last_value = jax.lax.dynamic_slice_in_dim(
+                last_value, start, segments_per_batch, axis=0
+            )
+            model, optimizer = nnx.merge(tr.graphdef, graphstate)
             model.eval()
             (loss, aux), grads = nnx.value_and_grad(tr.loss_fn, has_aux=True)(
                 model,
                 mb_td,
-                jnp.take(returns, idx, axis=1),
-                adv,
                 tr.ppo_clip_eps,
                 tr.ppo_value_coeff,
                 tr.ppo_entropy_coeff,
-                initial_carry=mb_initial_carry,
-            )
-
-            # 3.6) Apply optimizer step.
-            model.train()
-            optimizer.update(model, grads)
-
-            # Write back value and ratio to global buffers.
-            td.value = td.value.at[:, write_idx].set(aux["value"], mode="drop")
-            td.ratio = td.ratio.at[:, write_idx].set(aux["ratio"], mode="drop")
-
-            # 3.6.5) Recompute advantages ONLY for the updated minibatch segments.
-            # This is mathematically identical to recomputing over all S segments
-            # since only the value/ratio of idx changed, but it reduces work from O(S) to O(M).
-            mb_returns, mb_advantage = tr.compute_advantages(
-                aux["value"],
-                mb_td.reward,
-                aux["ratio"],
-                mb_td.done,
-                tr.advantage_rho_clip,
-                tr.advantage_c_clip,
                 tr.advantage_gamma,
                 tr.advantage_lambda,
-                last_value=last_value[idx],
-                terminated=mb_td.terminated,
-                truncated=mb_td.truncated,
-                bootstrap_value=mb_td.bootstrap_value,
-                agent_mask=mb_td.agent_mask,
+                tr.advantage_rho_clip,
+                tr.advantage_c_clip,
+                mb_last_value,
+                tr.vtrace,
+                initial_carry=mb_initial_carry,
             )
-            returns = returns.at[:, write_idx].set(mb_returns, mode="drop")
-            advantage = advantage.at[:, write_idx].set(mb_advantage, mode="drop")
+            model.train()
 
-            # 3.7) Collect scalar metrics (averaged after scan).
+            def apply_update(state: nnx.GraphState) -> nnx.GraphState:
+                current_model, current_optimizer = nnx.merge(tr.graphdef, state)
+                current_optimizer.update(current_model, grads)
+                return nnx.state((current_model, current_optimizer))
+
+            # Sequential blocks may consist entirely of inactive padding.
+            # Even zero gradients would otherwise advance optimizer momentum.
+            graphstate = jax.lax.cond(
+                jnp.any(mb_td.agent_mask),
+                apply_update,
+                lambda state: state,
+                nnx.state((model, optimizer)),
+            )
+
+            # No target cache or rollout-value writeback: every next minibatch
+            # computes its targets from its own current forward pass.
             mb_metrics = {
+                "_has_samples": jnp.any(mb_td.agent_mask),
                 "loss": loss,
                 "actor_loss": aux["actor_loss"],
                 "value_loss": aux["value_loss"],
@@ -1067,24 +980,20 @@ class PPOTrainer(Trainer):
                 "returns": aux["returns"],
                 "score": aux["score"],
             }
+            return graphstate, mb_metrics
 
-            graphstate = nnx.state((model, optimizer))
-            return (graphdef, graphstate, td, key, returns, advantage), mb_metrics
-
-        # 3) Scan over minibatches.
-        scan_train_batch = cast(Any, train_batch)
-        (tr.graphdef, tr.graphstate, td, tr.key, returns, advantage), epoch_metrics = (
-            jax.lax.scan(
-                scan_train_batch,
-                cast(
-                    Any, (tr.graphdef, tr.graphstate, td, mb_root, returns, advantage)
-                ),
-                xs=None,
-                length=tr.num_minibatches,
-                unroll=tr.num_minibatches,
-            )
-        )  # Reduce metrics inside JIT (avoids 10 tiny kernel dispatches outside).
-        data = jax.tree.map(jnp.mean, epoch_metrics)
+        tr.graphstate, epoch_metrics = jax.lax.scan(
+            train_batch,
+            tr.graphstate,
+            xs=jnp.arange(tr.num_minibatches),
+            unroll=tr.num_minibatches,
+        )
+        has_samples = epoch_metrics.pop("_has_samples")
+        count = jnp.maximum(jnp.sum(has_samples), 1)
+        data = jax.tree.map(
+            lambda x: jnp.sum(jnp.where(has_samples, x, 0.0)) / count,
+            epoch_metrics,
+        )
         return tr, td, data
 
 

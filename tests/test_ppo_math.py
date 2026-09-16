@@ -12,8 +12,6 @@ from jaxdem.rl.trainers.ppo_trainer import (
     PPOTrainer,
     _build_optimizer,
     _epoch_learning_rate_schedule,
-    _last_occurrence_indices,
-    _priority_probabilities,
 )
 from jaxdem.rl.environments import Environment
 from jaxdem.rl.models import Model
@@ -94,74 +92,6 @@ def test_ppo_accumulates_raw_gradient_mean_before_clipping():
     assert all(jnp.allclose(x, y) for x, y in zip(inner_leaves, reference_leaves))
 
 
-def test_ppo_priority_probabilities_are_normalized():
-    uniform = _priority_probabilities(jnp.zeros(4), jnp.array(0.8))
-    unequal = _priority_probabilities(jnp.array([0.0, 1.0, 9.0]), jnp.array(1.0))
-
-    assert jnp.allclose(uniform, jnp.full(4, 0.25))
-    assert jnp.all(unequal > 0.0)
-    assert jnp.allclose(unequal[1:], jnp.array([0.1, 0.9]), atol=1e-6)
-    assert jnp.allclose(unequal.sum(), 1.0)
-
-    uniform_weights = jnp.power(4 * uniform, -1.0)
-    assert jnp.allclose(uniform_weights, jnp.ones(4))
-
-    values = jnp.array([2.0, 5.0, 11.0])
-    correction = jnp.power(3 * unequal, -1.0)
-    corrected_expectation = jnp.sum(unequal * correction * values)
-    assert jnp.allclose(corrected_expectation, values.mean())
-
-
-def test_ppo_priority_probabilities_are_stable_in_float32():
-    dtype = jnp.float32
-
-    dominant = _priority_probabilities(
-        jnp.array([1.0, 1e30], dtype=dtype), jnp.array(2.0, dtype=dtype)
-    )
-    equal_large = _priority_probabilities(
-        jnp.array([2e38, 2e38], dtype=dtype), jnp.array(1.0, dtype=dtype)
-    )
-    zero_priority = _priority_probabilities(
-        jnp.array([0.0, 1.0], dtype=dtype), jnp.array(1.0, dtype=dtype)
-    )
-    alpha_zero = _priority_probabilities(
-        jnp.array([0.0, 1.0, 1e30], dtype=dtype), jnp.array(0.0, dtype=dtype)
-    )
-
-    assert dominant.dtype == dtype
-    assert dominant[1] > dominant[0] > 0.0
-    assert jnp.allclose(dominant.sum(), 1.0)
-    assert jnp.all(jnp.isfinite(jnp.power(2 * dominant, -1.0)))
-    assert jnp.allclose(equal_large, jnp.array([0.5, 0.5], dtype=dtype))
-    assert zero_priority[0] > 0.0
-    expected_zero = jnp.array([1e-6, 1.0 + 1e-6], dtype=dtype) / (1.0 + 2e-6)
-    assert jnp.allclose(zero_priority, expected_zero)
-    assert jnp.allclose(alpha_zero, jnp.full(3, 1.0 / 3.0, dtype=dtype))
-
-
-def test_ppo_priority_probabilities_are_invariant_to_inactive_padding():
-    priority = jnp.array([2.0, 5.0], dtype=jnp.float32)
-    base = _priority_probabilities(priority, jnp.array(0.7))
-    padded = _priority_probabilities(
-        jnp.array([2.0, 5.0, 1e30, 1e30], dtype=jnp.float32),
-        jnp.array(0.7),
-        jnp.array([True, True, False, False]),
-    )
-
-    assert jnp.allclose(padded[:2], base)
-    assert jnp.array_equal(padded[2:], jnp.zeros(2))
-
-
-def test_ppo_duplicate_segment_writeback_is_coherent():
-    current = jnp.array([[10.0, 20.0, 30.0]])
-    sampled = jnp.array([[2.0, 4.0, 8.0]])
-    write_idx = _last_occurrence_indices(jnp.array([1, 1, 2]), size=3)
-    result = current.at[:, write_idx].set(sampled, mode="drop")
-
-    assert jnp.array_equal(write_idx, jnp.array([3, 1, 2]))
-    assert jnp.allclose(result, jnp.array([[10.0, 4.0, 8.0]]))
-
-
 def test_gae_analytical():
     rewards = jnp.array([[1.0], [2.0]])
     values = jnp.array([[0.5], [0.5]])
@@ -214,7 +144,7 @@ def test_truncation_bootstraps_but_termination_does_not():
     assert jnp.allclose(truncated_advantage, jnp.array([[4.0]]))
 
 
-def test_inactive_agents_do_not_contribute_advantages_or_sampling_support():
+def test_inactive_agents_do_not_contribute_advantages():
     mask = jnp.array([[True, False], [True, False]])
     _, advantage = Trainer.compute_advantages(
         value=jnp.zeros((2, 2)),
@@ -229,11 +159,7 @@ def test_inactive_agents_do_not_contribute_advantages_or_sampling_support():
         agent_mask=mask,
         unroll=1,
     )
-    probabilities = _priority_probabilities(
-        jnp.sum(jnp.abs(advantage), axis=0), jnp.array(1.0), jnp.any(mask, axis=0)
-    )
     assert jnp.allclose(advantage[:, 1], 0.0)
-    assert jnp.array_equal(probabilities, jnp.array([1.0, 0.0]))
 
 
 def test_policy_heads_do_not_create_unused_sigma_parameters():
@@ -253,6 +179,40 @@ def test_policy_heads_do_not_create_unused_sigma_parameters():
     )
     assert not hasattr(discrete, "actor_sigma")
     assert not hasattr(continuous_head.actor_sigma, "log_std")
+
+
+@pytest.mark.parametrize("model_name", ["lstm", "mingru"])
+def test_recurrent_full_reset_clears_nonfinite_carry(model_name):
+    from jaxdem.rl.models.lstm import LSTMActorCritic
+    from jaxdem.rl.models.mingru import MinGRUActorCritic
+
+    if model_name == "lstm":
+        model = LSTMActorCritic(
+            2, 1, nnx.Rngs(2), hidden_features=4, lstm_features=4,
+            carry_leading_shape=(2, 3),
+        )
+        carry_variables = (model.h, model.c)
+    else:
+        model = MinGRUActorCritic(
+            2, 1, nnx.Rngs(3), hidden_features=4, gru_features=4,
+            num_layers=1, carry_leading_shape=(2, 3),
+        )
+        carry_variables = (model.h,)
+
+    expected = []
+    for carry in carry_variables:
+        carry[...] = jnp.broadcast_to(
+            jnp.asarray([jnp.nan, jnp.inf, -jnp.inf, 7.0], dtype=carry[...].dtype),
+            carry[...].shape,
+        )
+        expected.append((carry[...].shape, carry[...].dtype))
+
+    # Same shape exercises the full-reset branch, rather than allocation.
+    model.reset((2, 3, 2))
+    for carry, (shape, dtype) in zip(carry_variables, expected, strict=True):
+        assert carry[...].shape == shape
+        assert carry[...].dtype == dtype
+        assert jnp.all(carry[...] == 0.0)
 
 
 def test_recurrent_reset_masks_individual_agents():
@@ -320,11 +280,15 @@ def test_recurrent_replay_matches_online_rollout_across_inactive_gap(model_name)
         _, aux = PPOTrainer.loss_fn(
             replay,
             td,
-            returns=zeros,
-            advantage=zeros,
             ppo_clip_eps=jnp.array(0.2),
             ppo_value_coeff=jnp.array(0.5),
             ppo_entropy_coeff=jnp.array(0.0),
+            advantage_gamma=jnp.array(0.99),
+            advantage_lambda=jnp.array(0.95),
+            advantage_rho_clip=jnp.array(1.0),
+            advantage_c_clip=jnp.array(1.0),
+            last_value=jnp.zeros(1),
+            vtrace=jnp.array(False),
             initial_carry=replay.carry,
         )
         assert jnp.allclose(aux["value"], jnp.squeeze(jnp.stack(online_values), -1))
@@ -725,3 +689,62 @@ def test_deterministic_corridor():
 
     # Should strongly prefer moving right
     assert mean[0, 0] > 0.55
+
+
+@pytest.mark.parametrize("counts", [(-1, -1), (0, 0), (-1, 0)])
+def test_lstm_truncation_bootstrap_preserves_rollout_carry(counts):
+    from jaxdem.rl.models.lstm import LSTMActorCritic
+
+    env = vectorise_env(TimeLimitCounterEnv.Create(), n=2)
+    env = replace(env, env_params={"count": jnp.asarray(counts)})
+    model = LSTMActorCritic(
+        1, 1, nnx.Rngs(7), hidden_features=8, lstm_features=8,
+        carry_leading_shape=(2, 1),
+    )
+    model.eval()
+    model.c[...] = jnp.full_like(model.c[...], 0.25)
+    model.h[...] = jnp.full_like(model.h[...], 0.5)
+    graphdef, graphstate = nnx.split((model,))
+
+    # Independently evaluate the policy observation and final observation.
+    reference = nnx.clone(model)
+    reference(env.observation(env), sequence=False)
+    expected_c, expected_h = reference.c[...], reference.h[...]
+    _, expected_bootstrap = reference(env.observation(env) + 1, sequence=False)
+    truncated = jnp.asarray(counts) >= 0
+
+    (next_env, next_state, _), trajectory = Trainer.step(
+        env, graphdef, graphstate, jax.random.key(9)
+    )
+    (next_model,) = nnx.merge(graphdef, next_state)
+    assert jnp.array_equal(trajectory.truncated[:, 0], truncated)
+    assert jnp.allclose(
+        trajectory.bootstrap_value,
+        jnp.where(jnp.any(truncated), expected_bootstrap[..., 0], 0.0),
+    )
+    reset_mask = truncated[:, None, None]
+    assert jnp.allclose(next_model.c[...], jnp.where(reset_mask, 0.0, expected_c))
+    assert jnp.allclose(next_model.h[...], jnp.where(reset_mask, 0.0, expected_h))
+    assert jnp.array_equal(next_env.env_params["count"], jnp.zeros(2, dtype=int))
+    assert jnp.all(model.c[...] == 0.25)
+    assert jnp.all(model.h[...] == 0.5)
+
+
+def test_lstm_epoch_bootstrap_does_not_advance_saved_carry():
+    from jaxdem.rl.models.lstm import LSTMActorCritic
+
+    model = LSTMActorCritic(1, 1, nnx.Rngs(11), hidden_features=8, lstm_features=8)
+    # Ensure a pass over a zero observation changes the recurrent state.
+    model.encoder.layers[0].bias[...] = jnp.full((8,), 0.2)
+    tr = PPOTrainer.Create(
+        env=TimeLimitCounterEnv.Create(), model=model, key=jax.random.key(12),
+        num_epochs=2, num_envs=2, num_steps_epoch=2, num_minibatches=1,
+    )
+    tr, trajectory, metrics = tr.epoch(tr, jnp.asarray(0))
+    jax.block_until_ready(metrics)
+    (trained_model, _) = nnx.merge(tr.graphdef, tr.graphstate)
+    assert jnp.all(trajectory.truncated)
+    # Every transition truncates, so the rollout carry must stay reset.
+    assert jnp.all(trained_model.c[...] == 0)
+    assert jnp.all(trained_model.h[...] == 0)
+    assert all(bool(jnp.all(jnp.isfinite(v))) for v in metrics.values())

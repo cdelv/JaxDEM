@@ -37,7 +37,8 @@ num_envs = 32
 # RL is an experimental optional subsystem installed with ``JaxDEM[rl]``. A
 # scalar environment uses fixed agent slots: observations are
 # ``(max_num_agents, observation_space_size)``, actions are
-# ``(max_num_agents, action_space_size)``, and rewards and ``agent_mask`` are
+# ``(max_num_agents, action_space_size)`` for continuous policies; categorical
+# policies sample one action index per agent. Rewards and ``agent_mask`` are
 # ``(max_num_agents,)``. Vectorization prepends an environment axis.
 
 env = rl.Environment.create(
@@ -51,8 +52,11 @@ env = rl.Environment.create(
 # only for truncation. Inactive agent slots are masked from actions and the
 # learning objective. Recurrent state is cleared at episode and agent-mask
 # boundaries. ``skip_frames=k`` repeats an action for at most ``1 + k`` physics
-# frames and stops at the first boundary; its reward is the last accepted
-# frame's reward rather than a sum over repeated frames.
+# frames and stops at the first boundary. SingleNavigator measures reward
+# from the action-start checkpoint to the live endpoint: exp(-2 * distance)
+# minus exp(-2 * starting_distance), covering the full accepted action interval.
+# The helper checkpoints once before physics; observations and rewards read
+# the live state without an endpoint checkpoint.
 
 # %%
 # Model
@@ -75,6 +79,13 @@ model = rl.Model.create(
 # (:py:class:`~jaxdem.rl.trainers.PPOTrainer`).
 # We choose these parameters so training runs fast, not for quality. With a bijector, we do not need to clip actions.
 # To clip actions anyway, pass that option to the trainer.
+# The default ``vtrace=False`` computes GAE from current minibatch predictions,
+# using fixed collection-time bootstraps at truncation and horizon boundaries.
+# Advantages are used without normalization. With 32 single-agent environments,
+# horizon 100, and the default four minibatches, each minibatch contains eight
+# complete horizon segments (800 transition slots), visited in contiguous order.
+# ``num_epochs`` counts rollout/update iterations, not replay passes. See
+# :doc:`/user_guide/ppo` for the equations, boundary rules, and optimizer details.
 
 key = jax.random.key(6)
 tr = rl.Trainer.create(
@@ -121,8 +132,10 @@ writer.save(state, env.system)
 # %%
 # JaxDEM has utilities that drive the environment. To use them, we create a policy function.
 # Each :py:func:`~jaxdem.utils.env_step` call advances ``n`` logical steps. Each logical step runs
-# ``1 + skip_frames`` physics frames. The loop below calls ``env_step`` with ``n=10``, so each saved
-# frame covers 10 logical steps, and the objective moves every 20 calls (200 logical steps).
+# up to ``1 + skip_frames`` accepted physics frames, freezing at an episode boundary.
+# This evaluator does not automatically reset completed episodes or recurrent carry.
+# Each saved frame follows 10 requested logical steps, and the objective moves
+# every 20 calls (200 requested logical steps).
 @jax.jit
 def policy_model(obs, key, graphstate, graphdef):
     model = nnx.merge(graphdef, graphstate)
