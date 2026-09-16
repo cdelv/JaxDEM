@@ -259,7 +259,7 @@ class System:
         time: float = 0.0,
         linear_integrator_type: str | None = "verlet",
         rotation_integrator_type: str | None = "verletspiral",
-        collider_type: str = "naive",
+        collider_type: str | None = "naive",
         domain_type: str = "free",
         bonded_force_model_type: str | None = None,
         bonded_force_model_kw: dict[str, Any] | None = None,
@@ -325,8 +325,11 @@ class System:
             The registered type string for the :class:`jaxdem.integrators.RotationIntegrator`
             used to evolve angular degrees of freedom. ``None`` (or the empty
             string) disables rotational integration (no-op integrator).
-        collider_type : str, optional
+        collider_type : str or None, optional
             The registered type string for the :class:`jaxdem.Collider` to use.
+            ``None`` (or the empty string) disables non-bonded particle
+            interactions by selecting the no-op collider. Bonded forces,
+            external forces, and domain boundaries remain active.
         domain_type : str, optional
             The registered type string for the :class:`jaxdem.Domain` to use.
         bonded_force_model_type : str or None, optional
@@ -457,11 +460,13 @@ class System:
             raise TypeError("System.create requires either `state_shape` or `state`.")
 
         dim = state_shape[-1]
-        # `None` disables an integrator (registered as the no-op "" integrator).
+        # Disabled components use their registered empty-string no-op types.
         if linear_integrator_type is None:
             linear_integrator_type = ""
         if rotation_integrator_type is None:
             rotation_integrator_type = ""
+        if collider_type is None:
+            collider_type = ""
 
         if bonded_force_manager_kw is not None:
             import warnings
