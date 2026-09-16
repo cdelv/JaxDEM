@@ -11,8 +11,6 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-import jaxdem.utils.thermal as thermal
-
 from ...state import State
 from ...system import System
 from ...utils.linalg import norm, unit
@@ -27,30 +25,25 @@ class SingleNavigator(Environment):
 
     The agent controls a force vector that acts directly on a sphere
     inside a reflective box. Each step adds viscous drag
-    ``-friction * vel``. The reward uses potential-based shaping with a
-    proximity-gated kinetic-energy term:
+    ``-friction * vel``. The reward uses an exponential distance potential
+    measured at consecutive action checkpoints:
 
     .. math::
 
-       \varphi(d, K) = \exp\!\left(-2 d - \frac{K}{\text{ke\_tau}}\,e^{-\text{ke\_gate} \cdot d}\right)
+       \varphi(d) = \exp\!\left(-2 d \right)
 
-    where :math:`d` is the distance to the objective and :math:`K` is the
-    translational kinetic energy. ``ke_tau`` is the KE scale that sets the
-    overall strength of the penalty. ``ke_gate`` controls how sharply KE
-    sensitivity falls off with distance. A larger ``ke_gate`` means KE
-    only matters very close to the objective.
+    where :math:`d` is the distance to the objective.
 
-    The shaping credit is :math:`F_t = \varphi(d_t, K_t) - \varphi(d_{t-1}, K_{t-1})`,
-    so kinetic energy is penalized only near the objective. Far away the
-    gate :math:`e^{-\text{ke\_gate} \cdot d} \to 0` and fast motion is free.
+    The shaping credit is :math:`F_t = \varphi(d_t) - \varphi(d_{t-1})`,
+    which is positive when moving closer, negative when moving farther
+    away, and zero when the distance is unchanged. Reset initializes both
+    checkpoint distances to the same value.
 
-    Per-step reward:
+    Per-action-checkpoint reward:
 
     .. math::
 
-       \mathrm{rew}_t = \frac{F_t + b \cdot \mathbb{1}[d_t \le r]}{b}
-
-    where :math:`b` is the near-goal bonus and :math:`r` is the agent radius.
+       \mathrm{rew}_t = F_t
 
     Notes
     -----
@@ -64,9 +57,9 @@ class SingleNavigator(Environment):
     Velocity                      ``dim``
     ============================  =========
 
-    For realistic training parameters, ``skip_frames = 50`` gives a response
-    rate of 200 Hz, so ``num_steps_epoch = 100`` gives a horizon of 0.5
-    seconds.
+    With ``dt = 0.002`` and ``skip_frames = 50``, each action spans 51
+    physics steps (0.102 seconds). Reward shaping compares consecutive
+    action checkpoints, including all of those physics steps.
     """
 
     @classmethod
@@ -78,9 +71,6 @@ class SingleNavigator(Environment):
         max_box_size: float = 40.0,
         max_steps: int = 20000,
         friction: float = 0.2,
-        near_goal_bonus: float = 0.1,
-        ke_tau: float = 2.0,
-        ke_gate: float = 6.0,
     ) -> SingleNavigator:
         """Create a single-agent navigator environment.
 
@@ -94,15 +84,6 @@ class SingleNavigator(Environment):
             Episode length in physics steps.
         friction : float
             Viscous drag coefficient applied as ``-friction * vel``.
-        near_goal_bonus : float
-            Reward bonus applied when the agent is within one radius of
-            the objective.
-        ke_tau : float
-            Overall strength of the KE term in the potential (larger =
-            less important). See class docstring.
-        ke_gate : float
-            Distance decay rate of KE sensitivity (larger = KE only
-            matters very close to the goal). See class docstring.
 
         Returns
         -------
@@ -112,7 +93,9 @@ class SingleNavigator(Environment):
         """
         N = 1
         state = State.create(pos=jnp.zeros((N, dim)))
-        system = System.create(state.shape, rotation_integrator_type=None)
+        system = System.create(
+            state.shape, rotation_integrator_type=None, collider_type=None
+        )
 
         env_params = {
             "objective": jnp.zeros_like(state.pos),
@@ -120,13 +103,10 @@ class SingleNavigator(Environment):
             "max_box_size": jnp.asarray(max_box_size, dtype=float),
             "max_steps": jnp.asarray(max_steps, dtype=int),
             "friction": jnp.asarray(friction, dtype=float),
-            "near_goal_bonus": jnp.asarray(near_goal_bonus, dtype=float),
-            "ke_tau": jnp.asarray(ke_tau, dtype=float),
-            "ke_gate": jnp.asarray(ke_gate, dtype=float),
             "delta": jnp.zeros_like(state.pos),
+            "curr_dist": jnp.zeros_like(state.rad),
             "prev_dist": jnp.zeros_like(state.rad),
-            "prev_ke": jnp.zeros_like(state.rad),
-            "action": jnp.zeros_like(state.pos),
+            "curr_vel": jnp.zeros_like(state.vel),
         }
 
         return cls(
@@ -143,7 +123,7 @@ class SingleNavigator(Environment):
 
         Parameters
         ----------
-        env: 'SingleNavigator'
+        env : SingleNavigator
             The current environment.
 
         key : jax.random.PRNGKey
@@ -190,25 +170,27 @@ class SingleNavigator(Environment):
             rotation_integrator_type=None,
             domain_type="reflectsphere",
             domain_kw={"box_size": box, "anchor": jnp.zeros_like(box)},
+            collider_type=None,
         )
         delta = env.system.domain.displacement(
             env.state.pos_c, env.env_params["objective"], env.system
         )
         dist = norm(delta)
         env.env_params["delta"] = delta
+        env.env_params["curr_dist"] = dist
         env.env_params["prev_dist"] = dist
+        env.env_params["curr_vel"] = env.state.vel
 
-        ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
-        env.env_params["prev_ke"] = ke_t
-
-        env.env_params["action"] = jnp.zeros_like(env.state.pos)
         return env
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.step")
     def step(env: SingleNavigator, action: jax.Array) -> Environment:
-        """Advance one step. Actions are forces. The step also applies drag ``-friction * vel``.
+        """Advance physics with force actions and drag ``-friction * vel``.
+
+        Measurements remain at the preceding action checkpoint. Use
+        ``utils.advance_action`` to finish an action and refresh them.
 
         Parameters
         ----------
@@ -225,25 +207,57 @@ class SingleNavigator(Environment):
 
         """
         reshaped_action = action.reshape(env.max_num_agents, *env.action_space_shape)
-        env.env_params["action"] = reshaped_action
         force = reshaped_action - env.state.vel * env.env_params["friction"]
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
-        env.env_params["prev_dist"] = norm(env.env_params["delta"])
-        env.env_params["prev_ke"] = (
-            thermal.compute_translational_kinetic_energy_per_particle(env.state)
-        )
         env.state, env.system = env.system.step(env.state, env.system)
+        return env
+
+    @staticmethod
+    @jax.jit(inline=True)
+    @partial(jax.named_call, name="SingleNavigator.checkpoint")
+    def checkpoint(env: SingleNavigator) -> Environment:
+        """Refresh navigation measurements at the end of an action interval.
+
+        Store the preceding checkpoint's distance in ``prev_dist``, then
+        update ``delta``, ``curr_dist``, and ``curr_vel`` from the current
+        physical state. The reward therefore measures progress over the
+        complete action interval, including any repeated physics steps.
+
+        Parameters
+        ----------
+        env : SingleNavigator
+            The environment at the action endpoint, with measurements from
+            the preceding checkpoint retained in ``env_params``.
+
+        Returns
+        -------
+        Environment
+            The environment with refreshed observation measurements and the
+            preceding checkpoint preserved as the reward baseline.
+
+        Notes
+        -----
+        Called once by :func:`jaxdem.utils.advance_action` after the repeated
+        physics steps, including a final interval shortened by truncation.
+        This method does not advance physics or reset the episode. Calling it
+        again without advancing physics replaces the reward baseline with the
+        same endpoint, making the potential-based shaping contribution zero.
+
+        """
+        env.env_params["prev_dist"] = env.env_params["curr_dist"]
         delta = env.system.domain.displacement(
             env.state.pos_c, env.env_params["objective"], env.system
         )
         env.env_params["delta"] = delta
+        env.env_params["curr_dist"] = norm(delta)
+        env.env_params["curr_vel"] = env.state.vel
         return env
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.observation")
     def observation(env: SingleNavigator) -> jax.Array:
-        """Build per-agent observations.
+        """Build per-agent observations from the latest action checkpoint.
 
         Contents per agent
         ------------------
@@ -262,7 +276,7 @@ class SingleNavigator(Environment):
             [
                 unit(delta),
                 jnp.clip(delta, -3.0, 3.0),
-                env.state.vel,
+                env.env_params["curr_vel"],
             ],
             axis=-1,
         )
@@ -271,59 +285,36 @@ class SingleNavigator(Environment):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.reward")
     def reward(env: SingleNavigator) -> jax.Array:
-        r"""Return the per-agent rewards.
-
-        Potential-based shaping with a proximity-gated KE term:
+        r"""Return the change in distance potential between action checkpoints.
 
         .. math::
 
-           \varphi(d, K) = \exp\!\left(-2 d - \frac{K}{\text{ke\_tau}}\,e^{-\text{ke\_gate} \cdot d}\right)
+           \mathrm{rew}_t = e^{-2d_t} - e^{-2d_{t-1}}
 
-        The gate :math:`e^{-\text{ke\_gate} \cdot d}` suppresses the KE
-        term away from the objective, so fast motion is free until the
-        agent is close. ``ke_tau`` sets the overall strength of the
-        penalty.
-
-        Per-step reward:
-
-        .. math::
-
-           \mathrm{rew}_t = \frac{\varphi(d_t, K_t) - \varphi(d_{t-1}, K_{t-1}) + b \cdot \mathbb{1}[d_t \le r]}{b}
-
-        where :math:`b` is the near-goal bonus and :math:`r` is the agent radius.
+        Here :math:`d_t` and :math:`d_{t-1}` are the current and preceding
+        checkpoint distances from the agent's center to its objective.
+        The reward is positive for progress toward the objective and zero
+        after reset or when the distance is unchanged. This accessor reads
+        the stored measurements without advancing the checkpoint.
 
         Parameters
         ----------
         env : Environment
-            Current environment.
+            The environment with measurements from the latest checkpoint.
 
         Returns
         -------
         jax.Array
-            Shape ``(N,)``.
+            Per-agent rewards of shape ``(N,)``, where ``N = 1``.
 
         """
-        curr_dist = norm(env.env_params["delta"])
-        prev_dist = env.env_params["prev_dist"]
-
-        tau = env.env_params["ke_tau"]
-        alpha = env.env_params["ke_gate"]
-        ke_curr = thermal.compute_translational_kinetic_energy_per_particle(env.state)
-
-        phi_curr = jnp.exp(-2 * curr_dist - ke_curr * jnp.exp(-alpha * curr_dist) / tau)
-        phi_prev = jnp.exp(
-            -2 * prev_dist
-            - env.env_params["prev_ke"] * jnp.exp(-alpha * prev_dist) / tau
-        )
-        shaping = phi_curr - phi_prev
-        near = env.env_params["near_goal_bonus"] * (
-            curr_dist <= env.state.rad[0]
-        ).astype(float)
-        return (shaping + near) / env.env_params["near_goal_bonus"]
+        phi_curr = jnp.exp(-2 * env.env_params["curr_dist"])
+        phi_prev = jnp.exp(-2 * env.env_params["prev_dist"])
+        return phi_curr - phi_prev
 
     @staticmethod
     @jax.jit(inline=True)
-    @partial(jax.named_call, name="SingleNavigator.done")
+    @partial(jax.named_call, name="SingleNavigator.truncated")
     def truncated(env: SingleNavigator) -> jax.Array:
         """Return whether the episode has ended.
 
