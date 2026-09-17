@@ -24,8 +24,8 @@ import jaxdem.rl as rl
 from jaxdem import utils
 
 num_steps_epoch = 100
-reset_every = 40
-skip_frames = 50
+reset_every = 4
+skip_frames = 49
 num_envs = 32
 
 # %%
@@ -43,7 +43,7 @@ num_envs = 32
 
 env = rl.Environment.create(
     "single_navigator",
-    max_steps=num_steps_epoch * reset_every * skip_frames,
+    max_steps=num_steps_epoch * reset_every * (skip_frames + 1),
 )
 
 # %%
@@ -95,10 +95,11 @@ tr = rl.Trainer.create(
     key=key,
     num_steps_epoch=num_steps_epoch,
     num_envs=num_envs,
-    num_epochs=1080,  # We anneal the learning rate
-    stop_at_epoch=reset_every * 6,
+    num_epochs=1080 * 2,  # controls the annealed learning rate
+    stop_at_epoch=reset_every * 30, # true epoch count
     skip_frames=skip_frames,
-    learning_rate=2e-3,
+    num_minibatches=4,
+    learning_rate=1e-3,
 )
 
 # %%
