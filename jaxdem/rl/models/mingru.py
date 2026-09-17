@@ -194,8 +194,11 @@ class MinGRUActorCritic(Model):
             return jnp.where(x_val >= 0, x_val + 0.5, jax.nn.sigmoid(x_val))
 
         def _log_g(x_val: jax.Array) -> jax.Array:
+            # Keep the x >= 0 branch's derivative at zero, matching _g.
+            # ReLU would give zero there. Keep the unused log branch finite.
+            positive_arg = jnp.where(x_val >= 0, x_val + 0.5, 1.0)
             return jnp.where(
-                x_val >= 0, jnp.log(jax.nn.relu(x_val) + 0.5), -jax.nn.softplus(-x_val)
+                x_val >= 0, jnp.log(positive_arg), -jax.nn.softplus(-x_val)
             )
 
         def _highway(
@@ -231,10 +234,13 @@ class MinGRUActorCritic(Model):
                     log_coeffs = jnp.where(d_shifted, -jnp.inf, log_coeffs)
 
                 log_a0 = jnp.zeros_like(layer_carry)
+                # Preserve every positive carry, including values below 1e-8.
+                # Substitute inside log too, so a zero carry has finite AD.
+                positive_carry = layer_carry > 0
                 log_b0 = jnp.where(
-                    layer_carry <= 1e-8,
+                    positive_carry,
+                    jnp.log(jnp.where(positive_carry, layer_carry, 1.0)),
                     -jnp.inf,
-                    jnp.log(jnp.maximum(layer_carry, 1e-8)),
                 )
 
                 log_a_seq = jnp.concatenate([log_a0[None], log_coeffs], axis=0)
