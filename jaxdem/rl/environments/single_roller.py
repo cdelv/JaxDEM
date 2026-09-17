@@ -11,8 +11,6 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-import jaxdem.utils.thermal as thermal
-
 from ...state import State
 from ...system import System
 from ...utils.linalg import cross, norm, unit
@@ -91,30 +89,25 @@ class SingleRoller(Environment):
     Each step applies a viscous drag ``-friction * vel`` and an angular
     damping ``-friction * ang_vel``.
 
-    The reward uses potential-based shaping with a proximity-gated
-    kinetic-energy term:
+    The reward uses an exponential distance potential measured from the
+    action-start checkpoint to the live endpoint:
 
     .. math::
 
-       \varphi(d, K) = \exp\!\left(-2 d - \frac{K}{\text{ke\_tau}}\,e^{-\text{ke\_gate} \cdot d}\right)
+       \varphi(d) = \exp\!\left(-2 d\right)
 
-    where :math:`d` is the distance to the objective and :math:`K` is the
-    total (translational + rotational) kinetic energy. ``ke_tau`` is the
-    KE scale that sets the overall strength of the penalty. ``ke_gate``
-    controls how sharply KE sensitivity falls off with distance. A larger
-    ``ke_gate`` means KE only matters very close to the objective.
+    where :math:`d` is the distance to the objective.
 
-    The shaping credit is :math:`F_t = \varphi(d_t, K_t) - \varphi(d_{t-1}, K_{t-1})`,
-    so kinetic energy is penalized only near the objective. Far away the
-    gate :math:`e^{-\text{ke\_gate} \cdot d} \to 0` and fast motion is free.
+    The shaping credit is :math:`F_t = \varphi(d_t) - \varphi(d_{t-1})`,
+    which is positive when moving closer, negative when moving farther
+    away, and zero when the distance is unchanged. Reset initializes the
+    historical distance from the initial physical state, giving zero reward.
 
-    Per-step reward:
+    Per-action reward:
 
     .. math::
 
-       \mathrm{rew}_t = \frac{F_t + b \cdot \mathbb{1}[d_t \le r]}{b}
-
-    where :math:`b` is the near-goal bonus and :math:`r` is the agent radius.
+       \mathrm{rew}_t = F_t
 
     Notes
     -----
@@ -129,9 +122,10 @@ class SingleRoller(Environment):
     Angular velocity              3
     ============================  =========
 
-    For realistic training parameters, ``skip_frames = 50`` gives a response
-    rate of 200 Hz, so ``num_steps_epoch = 100`` gives a horizon of 0.5
-    seconds.
+    With ``dt = 0.002`` and ``skip_frames = 49``, each action spans 50
+    physics steps (0.1 seconds). One checkpoint captures the distance
+    before the action; the reward uses the live distance after all accepted
+    physics steps. Only ``prev_dist`` is stored as reward history.
     """
 
     @classmethod
@@ -142,9 +136,6 @@ class SingleRoller(Environment):
         max_box_size: float = 40.0,
         max_steps: int = 20000,
         friction: float = 0.2,
-        near_goal_bonus: float = 0.1,
-        ke_tau: float = 5.0,
-        ke_gate: float = 4.0,
     ) -> SingleRoller:
         """Create a single-agent roller environment.
 
@@ -157,15 +148,6 @@ class SingleRoller(Environment):
         friction : float
             Damping coefficient applied as ``-friction * vel`` and
             ``-friction * ang_vel``.
-        near_goal_bonus : float
-            Reward bonus applied when the agent is within one radius of
-            the objective.
-        ke_tau : float
-            Overall strength of the KE term in the potential (larger =
-            less important). See class docstring.
-        ke_gate : float
-            Distance decay rate of KE sensitivity (larger = KE only
-            matters very close to the goal). See class docstring.
 
         Returns
         -------
@@ -175,7 +157,7 @@ class SingleRoller(Environment):
         dim = 3
         N = 1
         state = State.create(pos=jnp.zeros((N, dim)))
-        system = System.create(state.shape)
+        system = System.create(state.shape, collider_type=None)
 
         env_params = {
             "objective": jnp.zeros_like(state.pos),
@@ -183,13 +165,7 @@ class SingleRoller(Environment):
             "max_box_size": jnp.asarray(max_box_size, dtype=float),
             "max_steps": jnp.asarray(max_steps, dtype=int),
             "friction": jnp.asarray(friction, dtype=float),
-            "near_goal_bonus": jnp.asarray(near_goal_bonus, dtype=float),
-            "ke_tau": jnp.asarray(ke_tau, dtype=float),
-            "ke_gate": jnp.asarray(ke_gate, dtype=float),
-            "delta": jnp.zeros_like(state.pos),
             "prev_dist": jnp.zeros_like(state.rad),
-            "prev_ke": jnp.zeros_like(state.rad),
-            "action": jnp.zeros_like(state.ang_vel),
         }
 
         return cls(
@@ -250,26 +226,20 @@ class SingleRoller(Environment):
         env.state = State.create(pos=pos, rad=rad, mass=jnp.ones(N))
         env.system = System.create(
             env.state.shape,
-            domain_type="reflect",
+            dt=2e-3,
+            domain_type="reflectsphere",
             domain_kw={"box_size": box, "anchor": [0.0, 0.0, -1.0 * rad_val]},
             force_manager_kw={
                 "gravity": [0.0, 0.0, -1.0],
                 "force_functions": (frictional_wall_force,),
             },
-            dt=2e-3,
+            collider_type=None,
         )
         delta = env.system.domain.displacement(
             env.state.pos_c, env.env_params["objective"], env.system
         )
-        dist = norm(delta)
-        env.env_params["delta"] = delta
-        env.env_params["prev_dist"] = dist
+        env.env_params["prev_dist"] = norm(delta)
 
-        ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
-        ke_r = thermal.compute_rotational_kinetic_energy_per_particle(env.state)
-        env.env_params["prev_ke"] = ke_t + ke_r
-
-        env.env_params["action"] = jnp.zeros_like(env.state.ang_vel)
         return env
 
     @staticmethod
@@ -277,6 +247,10 @@ class SingleRoller(Environment):
     @partial(jax.named_call, name="SingleRoller.step")
     def step(env: SingleRoller, action: jax.Array) -> Environment:
         """Apply a torque action and advance the physics by one step.
+
+        The historical distance remains fixed throughout the action. Use
+        ``utils.advance_action`` to checkpoint once before repeating physics
+        steps. Observations and rewards always read the live state.
 
         Parameters
         ----------
@@ -292,27 +266,48 @@ class SingleRoller(Environment):
 
         """
         reshaped_action = action.reshape(env.max_num_agents, *env.action_space_shape)
-        env.env_params["action"] = reshaped_action
         torque = reshaped_action - env.env_params["friction"] * env.state.ang_vel
         force = -env.env_params["friction"] * env.state.vel
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
         env.system = env.system.force_manager.add_torque(env.state, env.system, torque)
-        env.env_params["prev_dist"] = norm(env.env_params["delta"])
-        ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
-        ke_r = thermal.compute_rotational_kinetic_energy_per_particle(env.state)
-        env.env_params["prev_ke"] = ke_t + ke_r
         env.state, env.system = env.system.step(env.state, env.system)
+        return env
+
+    @staticmethod
+    @jax.jit(inline=True)
+    @partial(jax.named_call, name="SingleRoller.checkpoint")
+    def checkpoint(env: SingleRoller, action: jax.Array) -> Environment:
+        """Save the starting distance before the next action interval.
+
+        Store the live distance in ``prev_dist``. Physics steps preserve it,
+        and reward compares it with the live endpoint after all repeated
+        physics steps. Current quantities are computed directly from state.
+
+        Parameters
+        ----------
+        env : SingleRoller
+            The environment immediately before the next action.
+        action : jax.Array
+            The per-agent action about to be applied. This distance-only
+            baseline does not depend on its value.
+
+        Returns
+        -------
+        Environment
+            The environment with the action-start distance saved. Read reward
+            before the next checkpoint or reset replaces this baseline.
+        """
         delta = env.system.domain.displacement(
             env.state.pos_c, env.env_params["objective"], env.system
         )
-        env.env_params["delta"] = delta
+        env.env_params["prev_dist"] = norm(delta)
         return env
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleRoller.observation")
     def observation(env: SingleRoller) -> jax.Array:
-        """Per-agent observation vector.
+        """Build per-agent observations directly from the live physical state.
 
         Contents per agent:
 
@@ -327,7 +322,9 @@ class SingleRoller(Environment):
             Shape ``(N, 9)``.
 
         """
-        delta = env.env_params["delta"]
+        delta = env.system.domain.displacement(
+            env.state.pos_c, env.env_params["objective"], env.system
+        )
         delta_2d = delta[..., :2]
         vel_2d = env.state.vel[..., :2]
         return jnp.concatenate(
@@ -344,26 +341,22 @@ class SingleRoller(Environment):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleRoller.reward")
     def reward(env: SingleRoller) -> jax.Array:
-        r"""Return the per-agent rewards.
-
-        Potential-based shaping with a proximity-gated KE term:
+        r"""Return the distance-potential change since the action-start checkpoint.
 
         .. math::
 
-           \varphi(d, K) = \exp\!\left(-2 d - \frac{K}{\text{ke\_tau}}\,e^{-\text{ke\_gate} \cdot d}\right)
+           \mathrm{rew}_t = e^{-2d_t} - e^{-2d_{t-1}}
 
-        The gate :math:`e^{-\text{ke\_gate} \cdot d}` suppresses the KE
-        term away from the objective, so fast motion is free until the
-        agent is close. ``ke_tau`` sets the overall strength of the
-        penalty.
+        Here :math:`d_t` is the live distance from the agent's center to its
+        objective, and :math:`d_{t-1}` is the distance saved before the action.
+        The reward is positive for progress toward the objective and zero
+        after reset or when the distance is unchanged. This accessor reads
+        the live state and saved baseline without advancing the checkpoint.
 
-        Per-step reward:
-
-        .. math::
-
-           \mathrm{rew}_t = \frac{\varphi(d_t, K_t) - \varphi(d_{t-1}, K_{t-1}) + b \cdot \mathbb{1}[d_t \le r]}{b}
-
-        where :math:`b` is the near-goal bonus and :math:`r` is the agent radius.
+        Parameters
+        ----------
+        env : Environment
+            The live environment with its action-start distance baseline.
 
         Returns
         -------
@@ -371,29 +364,16 @@ class SingleRoller(Environment):
             Shape ``(N,)``.
 
         """
-        curr_dist = norm(env.env_params["delta"])
-        prev_dist = env.env_params["prev_dist"]
-
-        tau = env.env_params["ke_tau"]
-        alpha = env.env_params["ke_gate"]
-        ke_t = thermal.compute_translational_kinetic_energy_per_particle(env.state)
-        ke_r = thermal.compute_rotational_kinetic_energy_per_particle(env.state)
-        ke_curr = ke_t + ke_r
-
-        phi_curr = jnp.exp(-2 * curr_dist - ke_curr * jnp.exp(-alpha * curr_dist) / tau)
-        phi_prev = jnp.exp(
-            -2 * prev_dist
-            - env.env_params["prev_ke"] * jnp.exp(-alpha * prev_dist) / tau
+        delta = env.system.domain.displacement(
+            env.state.pos_c, env.env_params["objective"], env.system
         )
-        shaping = phi_curr - phi_prev
-        near = env.env_params["near_goal_bonus"] * (
-            curr_dist <= env.state.rad[0]
-        ).astype(float)
-        return (shaping + near) / env.env_params["near_goal_bonus"]
+        phi_curr = jnp.exp(-2 * norm(delta))
+        phi_prev = jnp.exp(-2 * env.env_params["prev_dist"])
+        return phi_curr - phi_prev
 
     @staticmethod
     @jax.jit(inline=True)
-    @partial(jax.named_call, name="SingleRoller.done")
+    @partial(jax.named_call, name="SingleRoller.truncated")
     def truncated(env: SingleRoller) -> jax.Array:
         """``True`` when ``step_count`` reaches ``max_steps``."""
         return jnp.asarray(env.system.step_count >= env.env_params["max_steps"])
