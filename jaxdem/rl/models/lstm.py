@@ -113,7 +113,7 @@ class LSTMActorCritic(Model):
         observation_space_size: int,
         action_space_size: int,
         key: nnx.Rngs,
-        hidden_features: int = 64,
+        hidden_features: int = 128,
         lstm_features: int = 128,
         activation: Callable[..., Any] = nnx.gelu,
         action_space: distrax.Bijector | ActionSpace | None = None,

@@ -57,6 +57,25 @@ def _epoch_learning_rate_schedule(
     return lambda update: epoch_schedule(update // int(updates_per_epoch))
 
 
+def _minibatch_selection(
+    horizon: int, num_segments: int, batch_size: int, batch_index: jax.Array
+) -> tuple[jax.Array, jax.Array]:
+    """Select cyclic transitions and retain their full sequence context."""
+    total = horizon * num_segments
+    start = (batch_index * batch_size) % total
+    # Aligned batches contain only full sequences. Otherwise include enough
+    # sequences for a partial first and last sequence, without duplicate agents.
+    count = (
+        batch_size // horizon
+        if batch_size % horizon == 0
+        else min(num_segments, (batch_size + 2 * horizon - 2) // horizon)
+    )
+    indices = (start // horizon + jnp.arange(count)) % num_segments
+    positions = indices[None, :] * horizon + jnp.arange(horizon)[:, None]
+    loss_mask = (positions - start) % total < batch_size
+    return indices, loss_mask
+
+
 def _build_optimizer(
     optimizer: Any,
     schedule: Any,
@@ -203,8 +222,9 @@ class PPOTrainer(Trainer):
 
     **Minibatch updates**
 
-    Fixed-horizon agent segments are selected in contiguous blocks, cycling through
-    the rollout when ``num_minibatches`` exceeds one pass. Each update runs the
+    Transitions are selected in contiguous agent-major blocks, cycling through
+    the rollout when ``num_minibatches`` exceeds one pass. Full fixed-horizon
+    sequences provide context, with a loss mask for partial sequences. Each update runs the
     current model before computing detached advantages and returns. Policy
     advantages are used directly, without normalization or sampling weights.
     Rollout values and behavior log-probabilities remain fixed for PPO clipping.
@@ -293,9 +313,12 @@ class PPOTrainer(Trainer):
 
     minibatch_size: int = jax.tree.static()
     r"""
-    Number of transition slots per minibatch, including full horizon segments
-    and any inactive padding.
-    Must be divisible by the horizon and divide the rollout size.
+    Number of transition slots selected per minibatch, including inactive slots.
+    Must be between ``num_steps_epoch`` and
+    ``num_envs * max_num_agents * num_steps_epoch``. Selection wraps at the
+    rollout end. Full sequences are evaluated for recurrent context and targets;
+    only selected transitions contribute to the loss. If omitted, defaults to
+    rollout size divided exactly by ``num_minibatches``.
     """
 
     skip_frames: int = jax.tree.static()
@@ -332,7 +355,7 @@ class PPOTrainer(Trainer):
         # DRIP parameters
         drip_decay: float = 0.0,
         # Batches
-        num_envs: int = 1024,
+        num_envs: int = 64,
         num_steps_epoch: int = 64,
         num_minibatches: int = 4,
         minibatch_size: int | None = None,
@@ -354,7 +377,7 @@ class PPOTrainer(Trainer):
         skipped empty blocks also pause the optimizer's schedule counter.
         Gradient accumulation averages raw minibatch gradients before clipping
         and the stateful optimizer. See the class-level field docstrings for
-        parameter descriptions. Minibatches visit contiguous agent segments;
+        parameter descriptions. Minibatch size counts transition slots;
         set ``minibatch_size`` explicitly to control replay independently of
         ``num_minibatches``. The former PER constructor arguments were removed.
 
@@ -433,22 +456,30 @@ class PPOTrainer(Trainer):
         total_steps_per_epoch = int(num_segments * num_steps_epoch)
 
         if minibatch_size is None:
-            if num_segments % num_minibatches != 0:
+            if total_steps_per_epoch % num_minibatches != 0:
                 raise ValueError(
-                    "num_envs * max_num_agents must be divisible by "
-                    "num_minibatches when minibatch_size is omitted; "
-                    "set minibatch_size explicitly to configure replay."
+                    "With minibatch_size=None, rollout size = "
+                    f"num_envs ({num_envs}) * num_steps_epoch ({num_steps_epoch}) "
+                    f"* env.max_num_agents ({env.max_num_agents}) = "
+                    f"{total_steps_per_epoch} transitions must be divisible "
+                    f"by num_minibatches={num_minibatches}. "
+                    "Supply an explicit minibatch_size in "
+                    f"[{num_steps_epoch}, {total_steps_per_epoch}], or choose "
+                    "num_minibatches that divides the rollout size and is at "
+                    f"most {num_segments}."
                 )
             minibatch_size = total_steps_per_epoch // num_minibatches
         if not num_steps_epoch <= minibatch_size <= total_steps_per_epoch:
             raise ValueError(
-                f"minibatch_size must be in [{num_steps_epoch}, "
-                f"{total_steps_per_epoch}] to contain complete trajectories"
+                f"minibatch_size={minibatch_size} must be in "
+                f"[{num_steps_epoch}, {total_steps_per_epoch}] transitions. "
+                f"Minimum = num_steps_epoch ({num_steps_epoch}); maximum = "
+                f"num_envs ({num_envs}) * num_steps_epoch ({num_steps_epoch}) "
+                f"* env.max_num_agents ({env.max_num_agents}) = "
+                f"{total_steps_per_epoch}. When minibatch_size=None, it is "
+                f"computed as {total_steps_per_epoch} / "
+                f"num_minibatches ({num_minibatches})."
             )
-        if minibatch_size % num_steps_epoch != 0:
-            raise ValueError("minibatch_size must be divisible by num_steps_epoch")
-        if total_steps_per_epoch % minibatch_size != 0:
-            raise ValueError("minibatch_size must divide the total rollout size")
         # --- Epoch count ---
         if total_timesteps is not None:
             if total_timesteps % total_steps_per_epoch != 0:
@@ -686,6 +717,7 @@ class PPOTrainer(Trainer):
         last_value: jax.Array,
         vtrace: jax.Array,
         initial_carry: Any | None = None,
+        loss_mask: jax.Array | None = None,
     ) -> tuple[jax.Array, dict[str, jax.Array]]:
         r"""Compute the clipped PPO loss for a minibatch.
 
@@ -702,6 +734,10 @@ class PPOTrainer(Trainer):
             Actor–critic model (called with ``sequence=True``).
         td : TrajectoryData
             Minibatch trajectory slice ``[T, M, ...]``.
+        loss_mask : jax.Array, optional
+            Selected transitions, shape ``[T, M]``. Only these contribute to
+            losses and metrics; all active context still participates in RNN
+            evaluation and GAE/V-trace target calculation.
         last_value : jax.Array
             Rollout-end bootstrap values, shape ``[M]``.
         vtrace : jax.Array
@@ -755,11 +791,14 @@ class PPOTrainer(Trainer):
             bootstrap_value=td.bootstrap_value,
             agent_mask=td.agent_mask,
         )
-        mask = td.agent_mask.astype(value.dtype)
+        selected = td.agent_mask
+        if loss_mask is not None:
+            selected = selected & loss_mask
+        mask = selected.astype(value.dtype)
         count = jnp.maximum(mask.sum(), 1.0)
 
         def masked_mean(x: jax.Array) -> jax.Array:
-            return jnp.sum(x * mask) / count
+            return jnp.sum(jnp.where(selected, x, 0.0)) / count
 
         # 2) Value loss (clipped).
         value_pred_clipped = td.value + (value - td.value).clip(
@@ -910,28 +949,22 @@ class PPOTrainer(Trainer):
         td.reward = apply_drip(td.reward, td.done, tr.drip_decay)
         # ------------------------------------------------------
 
-        segments_per_batch = tr.minibatch_size // T
-
         @partial(jax.named_call, name="PPOTrainer.train_batch")
         def train_batch(
             graphstate: nnx.GraphState, batch_index: jax.Array
         ) -> tuple[nnx.GraphState, dict[str, jax.Array]]:
-            start = (batch_index * segments_per_batch) % S
+            indices, loss_mask = _minibatch_selection(
+                T, S, tr.minibatch_size, batch_index
+            )
             mb_td = jax.tree.map(
-                lambda x: jax.lax.dynamic_slice_in_dim(
-                    x, start, segments_per_batch, axis=1
-                ),
+                lambda x: jnp.take(x, indices, axis=1),
                 td,
             )
             mb_initial_carry = jax.tree.map(
-                lambda x: jax.lax.dynamic_slice_in_dim(
-                    x, start, segments_per_batch, axis=0
-                ),
+                lambda x: jnp.take(x, indices, axis=0),
                 initial_carry,
             )
-            mb_last_value = jax.lax.dynamic_slice_in_dim(
-                last_value, start, segments_per_batch, axis=0
-            )
+            mb_last_value = jnp.take(last_value, indices, axis=0)
             model, optimizer = nnx.merge(tr.graphdef, graphstate)
             model.eval()
             (loss, aux), grads = nnx.value_and_grad(tr.loss_fn, has_aux=True)(
@@ -947,8 +980,10 @@ class PPOTrainer(Trainer):
                 mb_last_value,
                 tr.vtrace,
                 initial_carry=mb_initial_carry,
+                loss_mask=loss_mask,
             )
             model.train()
+            selected = mb_td.agent_mask & loss_mask
 
             def apply_update(state: nnx.GraphState) -> nnx.GraphState:
                 current_model, current_optimizer = nnx.merge(tr.graphdef, state)
@@ -958,7 +993,7 @@ class PPOTrainer(Trainer):
             # Sequential blocks may consist entirely of inactive padding.
             # Even zero gradients would otherwise advance optimizer momentum.
             graphstate = jax.lax.cond(
-                jnp.any(mb_td.agent_mask),
+                jnp.any(selected),
                 apply_update,
                 lambda state: state,
                 nnx.state((model, optimizer)),
@@ -967,7 +1002,7 @@ class PPOTrainer(Trainer):
             # No target cache or rollout-value writeback: every next minibatch
             # computes its targets from its own current forward pass.
             mb_metrics = {
-                "_has_samples": jnp.any(mb_td.agent_mask),
+                "_has_samples": jnp.any(selected),
                 "loss": loss,
                 "actor_loss": aux["actor_loss"],
                 "value_loss": aux["value_loss"],
@@ -975,8 +1010,8 @@ class PPOTrainer(Trainer):
                 "approx_KL": aux["approx_KL"],
                 "explained_variance": aux["explained_variance"],
                 "grad_norm": optax.tree.norm(grads),
-                "ratio": jnp.sum(aux["ratio"] * mb_td.agent_mask)
-                / jnp.maximum(jnp.sum(mb_td.agent_mask), 1),
+                "ratio": jnp.sum(jnp.where(selected, aux["ratio"], 0.0))
+                / jnp.maximum(jnp.sum(selected), 1),
                 "returns": aux["returns"],
                 "score": aux["score"],
             }
