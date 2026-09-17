@@ -26,3 +26,5 @@ User guide
     ../auto_examples/custom_modules_guide
     ../auto_examples/intro_to_rl
     ppo
+    multi_navigator
+    multi_roller

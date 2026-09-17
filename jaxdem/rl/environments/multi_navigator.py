@@ -6,19 +6,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
+from math import isfinite
 
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-import jaxdem.utils.thermal as thermal
-
 from ...material_matchmakers import MaterialMatchmaker
 from ...materials import Material, MaterialTable
 from ...state import State
 from ...system import System
-from ...utils import lidar_2d
-from ...utils.linalg import norm
+from ...utils import lidar_2d, thermal
+from ...utils.linalg import norm, unit
 from . import Environment
 
 
@@ -59,20 +58,55 @@ class MultiNavigator(Environment):
     The environment samples objectives and assigns them one-to-one with a
     random permutation.
 
-    The reward uses potential-based shaping with a proximity-gated
-    kinetic-energy term:
+    Each physics step smooths each requested force:
 
     .. math::
 
-        \varphi_i(d, K) = \exp\!\left(-2 d^{\mathrm{eff}} - \frac{K}{\text{ke\_tau}}\,e^{-\text{ke\_gate} \cdot d^{\mathrm{eff}}}\right)
+       \mathbf{u}_t = \alpha\,\mathbf{a}_t
+           + (1 - \alpha)\,\mathbf{u}_{t-1}
 
-    where :math:`d^{\mathrm{eff}} = \max(0, d - 0.5 r)`, :math:`d` is the
-    distance to the assigned objective, and :math:`K` is the translational
-    kinetic energy. ``ke_tau`` sets the overall strength of the KE penalty.
-    ``ke_gate`` controls how sharply KE sensitivity falls off with distance.
-    A larger ``ke_gate`` means KE only matters very close to the objective.
-    The per-agent shaping credit is
-    :math:`F_i = \varphi_i(d^{\mathrm{eff}}_t, K_t) - \varphi_i(d^{\mathrm{eff}}_{t-1}, K_{t-1})`.
+    Here :math:`\mathbf{a}_t` is the requested force at physics step
+    :math:`t`, :math:`\mathbf{u}_t` is the applied force before drag, and
+    :math:`\mathbf{u}_{t-1}` is the immediately preceding applied force.
+    The parameter :math:`\alpha` is ``action_alpha``. Reset initializes
+    :math:`\mathbf{u}_0 = \mathbf{0}`; checkpoints preserve this actuator
+    state. With :math:`\alpha = 0.22`,
+    a constant request completes 99% of its transition in 19 physics steps.
+
+    The reward uses a quartic exponential potential measured from the
+    action-start checkpoint to the live endpoint:
+
+    .. math::
+
+       R_i = 2\,\mathrm{rad}_i,
+       \qquad
+       K_i = \tfrac12 m_i \|\mathbf{v}_i\|^2,
+       \qquad
+       \Phi_i(d,K) = \exp\!\left[-\left(\frac{d}{R_i}\right)^4
+           - \beta\frac{K}{K_{\mathrm{ref}}}\right].
+
+    Here :math:`d` is the distance from agent :math:`i`'s center to its
+    assigned objective, and :math:`\mathrm{rad}_i` is its particle radius.
+    The potential is flat near the objective, making small departures
+    inexpensive, and decays rapidly far away. Its scale follows each
+    particle's own radius. ``kinetic_energy_coeff`` sets :math:`\beta`
+    (default zero), and ``kinetic_energy_scale`` sets :math:`K_{\mathrm{ref}}`
+    (default one). Rotation is disabled, so only translational energy enters.
+    At fixed distance, slowing down earns credit near the objective and has
+    little effect far away. This is a potential difference, not a per-step
+    cost for maintaining constant speed.
+
+    Per-action reward:
+
+    .. math::
+
+       r_{i,t} = \Phi_i(d_{i,t},K_{i,t})
+           - \Phi_i(d_{i,\mathrm{checkpoint}},K_{i,\mathrm{checkpoint}}).
+
+    At fixed energy, moving closer gives positive credit and moving farther
+    gives negative credit. Unchanged distance and energy give zero. Reset
+    initializes the historical potential from the initial state, giving zero reward.
+    There are no additional neighbor, occupancy, or collision reward terms.
 
     Notes
     -----
@@ -84,12 +118,14 @@ class MultiNavigator(Environment):
     Unit direction to objective   ``dim``
     Clamped displacement          ``dim``
     Velocity                      ``dim``
-    LiDAR proximity (normalized)  ``n_lidar_rays``
+    Normalized agent/wall LiDAR    ``n_lidar_rays``
     ============================  =================
 
-    For realistic training parameters, ``skip_frames = 50`` gives a response
-    rate of 200 Hz, so ``num_steps_epoch = 100`` gives a horizon of 0.5
-    seconds.
+    With ``dt = 0.002`` and ``skip_frames = 49``, each action spans 50
+    physics steps (0.1 seconds). One checkpoint captures each agent's
+    ``prev_potential`` before the action; reward uses the live endpoint after
+    all accepted physics steps. ``prev_dist`` retains the starting distance
+    for inspection.
     """
 
     n_lidar_rays: int = jax.tree.static()
@@ -103,13 +139,13 @@ class MultiNavigator(Environment):
         min_box_size: float = 20.0,
         max_box_size: float = 20.0,
         box_padding: float = 5.0,
-        max_steps: int = 10000 * 10,
+        max_steps: int = 100000,
         friction: float = 0.2,
-        ke_tau: float = 5.0,
-        ke_gate: float = 4.0,
-        near_goal_bonus: float = 0.1,
+        action_alpha: float = 0.22,
         lidar_range: float = 10.0,
         n_lidar_rays: int = 16,
+        kinetic_energy_coeff: float = 0.0,
+        kinetic_energy_scale: float = 1.0,
     ) -> MultiNavigator:
         r"""Create a multi-agent navigator environment.
 
@@ -127,20 +163,21 @@ class MultiNavigator(Environment):
             Episode length in physics steps.
         friction : float
             Viscous drag coefficient applied as ``-friction * vel``.
-        ke_tau : float
-            Overall strength of the KE term in the potential (larger =
-            less important). See class docstring.
-        ke_gate : float
-            Distance decay rate of KE sensitivity (larger = KE only
-            matters very close to the goal). See class docstring.
-        near_goal_bonus : float
-            Reward bonus applied when an agent is within one radius of
-            its objective.
+        action_alpha : float
+            Fraction of the requested force applied by the smoothing update
+            each physics step, in ``[0, 1]``. One disables smoothing.
         lidar_range : float
             Maximum detection range for the LiDAR sensor.
         n_lidar_rays : int
             Number of angular LiDAR bins spanning
             :math:`[-\pi, \pi)`.
+
+        kinetic_energy_coeff : float
+            Nonnegative dimensionless strength of the kinetic-energy factor.
+            Zero preserves the distance-only potential.
+        kinetic_energy_scale : float
+            Positive reference kinetic energy in simulation units. The energy
+            factor is ``exp(-kinetic_energy_coeff * K / kinetic_energy_scale)``.
 
         Returns
         -------
@@ -148,6 +185,12 @@ class MultiNavigator(Environment):
             The constructed environment. Call :meth:`reset` before use.
 
         """
+        if not 0.0 <= action_alpha <= 1.0:
+            raise ValueError("action_alpha must be in [0, 1]")
+        if not isfinite(kinetic_energy_coeff) or kinetic_energy_coeff < 0:
+            raise ValueError("kinetic_energy_coeff must be finite and nonnegative")
+        if not isfinite(kinetic_energy_scale) or kinetic_energy_scale <= 0:
+            raise ValueError("kinetic_energy_scale must be finite and positive")
         dim = 2
         state = State.create(pos=jnp.zeros((N, dim)))
         system = System.create(state.shape, rotation_integrator_type=None)
@@ -155,19 +198,18 @@ class MultiNavigator(Environment):
         env_params = {
             "objective": jnp.zeros_like(state.pos),
             "permutation": jnp.arange(N, dtype=int),
-            "delta": jnp.zeros_like(state.pos),
             "prev_dist": jnp.zeros_like(state.rad),
-            "prev_ke": jnp.zeros(state.N, dtype=float),
+            "prev_potential": jnp.zeros_like(state.rad),
+            "kinetic_energy_coeff": jnp.asarray(kinetic_energy_coeff, dtype=float),
+            "kinetic_energy_scale": jnp.asarray(kinetic_energy_scale, dtype=float),
             "min_box_size": jnp.asarray(min_box_size, dtype=float),
             "max_box_size": jnp.asarray(max_box_size, dtype=float),
             "box_padding": jnp.asarray(box_padding, dtype=float),
             "max_steps": jnp.asarray(max_steps, dtype=int),
             "friction": jnp.asarray(friction, dtype=float),
-            "ke_tau": jnp.asarray(ke_tau, dtype=float),
-            "ke_gate": jnp.asarray(ke_gate, dtype=float),
-            "near_goal_bonus": jnp.asarray(near_goal_bonus, dtype=float),
+            "action_alpha": jnp.asarray(action_alpha, dtype=float),
+            "applied_action": jnp.zeros_like(state.force),
             "lidar_range": jnp.asarray(lidar_range, dtype=float),
-            "lidar": jnp.zeros((state.N, int(n_lidar_rays)), dtype=float),
         }
 
         return cls(
@@ -199,7 +241,6 @@ class MultiNavigator(Environment):
         key_box, key_pos, key_objective, key_shuffle = jax.random.split(key, 4)
         N = env.max_num_agents
         dim = env.state.dim
-        n_rays = env.n_lidar_rays
         rad = 1.0
 
         box = jax.random.uniform(
@@ -245,35 +286,40 @@ class MultiNavigator(Environment):
         delta = env.system.domain.displacement(
             env.state.pos_c, env.env_params["objective"], env.system
         )
-        dist = norm(delta)
-        env.env_params["delta"] = delta
-        env.env_params["prev_dist"] = dist
-
-        env.env_params["prev_ke"] = (
-            thermal.compute_translational_kinetic_energy_per_particle(env.state)
+        env.env_params["prev_dist"] = norm(delta)
+        scale = 2 * env.state.rad
+        kinetic_energy = thermal.compute_translational_kinetic_energy_per_particle(
+            env.state
         )
-
-        _, _, lidar, _, _ = lidar_2d(
-            env.state,
-            env.system,
-            env.env_params["lidar_range"],
-            n_rays,
-            sense_edges=True,
+        energy_cost = (
+            env.env_params["kinetic_energy_coeff"]
+            * kinetic_energy
+            / env.env_params["kinetic_energy_scale"]
         )
-        env.env_params["lidar"] = lidar
-
+        env.env_params["prev_potential"] = jnp.exp(
+            -((env.env_params["prev_dist"] / scale) ** 4) - energy_cost
+        )
+        env.env_params["applied_action"] = jnp.zeros_like(env.state.force)
         return env
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiNavigator.step")
     def step(env: MultiNavigator, action: jax.Array) -> Environment:
-        """Advance one step. Actions are forces. The step also applies drag ``-friction * vel``.
+        """Smooth the requested force, then advance physics with viscous drag.
+
+        Smoothing uses the applied action from the immediately preceding
+        physics step, including across policy actions and checkpoints.
+
+        The historical potential remains fixed throughout the action. Use
+        ``utils.advance_action`` to checkpoint once before repeating physics
+        steps. Observations and rewards always read the live state.
 
         Parameters
         ----------
         env : Environment
             The current environment.
+
         action : jax.Array
             The per-agent action vectors.
 
@@ -283,47 +329,75 @@ class MultiNavigator(Environment):
             The updated environment state.
 
         """
-        N = env.max_num_agents
-        n_rays = env.n_lidar_rays
-
-        reshaped_action = action.reshape(N, *env.action_space_shape)
-        force = reshaped_action - env.env_params["friction"] * env.state.vel
-        env.system = env.system.force_manager.add_force(env.state, env.system, force)
-
-        env.env_params["prev_dist"] = norm(env.env_params["delta"])
-        env.env_params["prev_ke"] = (
-            thermal.compute_translational_kinetic_energy_per_particle(env.state)
+        reshaped_action = action.reshape(env.max_num_agents, *env.action_space_shape)
+        alpha = env.env_params["action_alpha"]
+        applied_action = (
+            alpha * reshaped_action + (1 - alpha) * env.env_params["applied_action"]
         )
+        env.env_params["applied_action"] = applied_action
+        force = applied_action - env.state.vel * env.env_params["friction"]
+        env.system = env.system.force_manager.add_force(env.state, env.system, force)
         env.state, env.system = env.system.step(env.state, env.system)
+        return env
 
+    @staticmethod
+    @jax.jit(inline=True)
+    @partial(jax.named_call, name="MultiNavigator.checkpoint")
+    def checkpoint(env: MultiNavigator, action: jax.Array) -> Environment:
+        """Save the starting potential before the next action interval.
+
+        Store the live distance in ``prev_dist`` and the full distance/energy
+        potential in ``prev_potential``. Physics steps preserve both; reward
+        subtracts the saved potential from the live endpoint's potential.
+
+        Parameters
+        ----------
+        env : MultiNavigator
+            The environment immediately before the next action.
+        action : jax.Array
+            The per-agent action about to be applied. This potential
+            baseline does not depend on its value.
+
+        Returns
+        -------
+        Environment
+            The environment with the action-start potential saved. Read reward
+            before the next checkpoint or reset replaces this baseline.
+        """
         delta = env.system.domain.displacement(
             env.state.pos_c, env.env_params["objective"], env.system
         )
-        env.env_params["delta"] = delta
-
-        _, _, lidar, _, _ = lidar_2d(
-            env.state,
-            env.system,
-            env.env_params["lidar_range"],
-            n_rays,
-            sense_edges=True,
+        env.env_params["prev_dist"] = norm(delta)
+        scale = 2 * env.state.rad
+        kinetic_energy = thermal.compute_translational_kinetic_energy_per_particle(
+            env.state
         )
-        env.env_params["lidar"] = lidar
-
+        energy_cost = (
+            env.env_params["kinetic_energy_coeff"]
+            * kinetic_energy
+            / env.env_params["kinetic_energy_scale"]
+        )
+        env.env_params["prev_potential"] = jnp.exp(
+            -((env.env_params["prev_dist"] / scale) ** 4) - energy_cost
+        )
         return env
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiNavigator.observation")
     def observation(env: MultiNavigator) -> jax.Array:
-        """Build per-agent observations.
+        r"""Build per-agent observations and LiDAR from the live physical state.
 
         Contents per agent
         ------------------
         - Unit vector to objective (shape (dim,))  --> Direction
         - Clamped delta to objective (shape (dim,)) --> Local precision
         - Velocity (shape (dim,))
-        - LiDAR proximity, normalized by ``lidar_range`` (shape (n_lidar_rays,))
+        - Agent/wall LiDAR proximity (shape (n_lidar_rays,))
+
+        LiDAR reports normalized proximity
+        :math:`p_k = \max(0, 1 - d_{\min,k} / r_{\max})`, with zero for
+        empty bins. Readings use live positions rather than checkpointed values.
 
         Returns
         -------
@@ -331,15 +405,23 @@ class MultiNavigator(Environment):
             Array of shape ``(N, 3 * dim + n_lidar_rays)``
 
         """
-        delta = env.env_params["delta"]
-        dist = norm(delta)
-        direction = delta / jnp.where(dist > 0, dist, 1.0)[:, None]
+        delta = env.system.domain.displacement(
+            env.state.pos_c, env.env_params["objective"], env.system
+        )
+        lr = env.env_params["lidar_range"]
+        _, _, lidar, _, _ = lidar_2d(
+            env.state,
+            env.system,
+            lr,
+            env.n_lidar_rays,
+            sense_edges=True,
+        )
         return jnp.concatenate(
             [
-                direction,
+                unit(delta),
                 jnp.clip(delta, -3.0, 3.0),
                 env.state.vel,
-                env.env_params["lidar"] / env.env_params["lidar_range"],
+                lidar / lr,
             ],
             axis=-1,
         )
@@ -348,68 +430,42 @@ class MultiNavigator(Environment):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="MultiNavigator.reward")
     def reward(env: MultiNavigator) -> jax.Array:
-        r"""Return the per-agent rewards.
-
-        Potential-based shaping with a proximity-gated KE term:
+        r"""Return the potential change over the complete action interval.
 
         .. math::
 
-           \varphi(d, K) = \exp\!\left(-2 d^{\mathrm{eff}} - \frac{K}{\text{ke\_tau}}\,e^{-\text{ke\_gate} \cdot d^{\mathrm{eff}}}\right)
+           \Phi_i(d,K) = \exp\!\left[-\left(
+               \frac{d}{2\,\mathrm{rad}_i}\right)^4
+               - \beta\frac{K}{K_{\mathrm{ref}}}\right],
+           \qquad
+           r_{i,t} = \Phi_i(d_{i,t},K_{i,t})
+               - \Phi_i(d_{i,\mathrm{checkpoint}},K_{i,\mathrm{checkpoint}}).
 
-        The gate :math:`e^{-\text{ke\_gate} \cdot d^{\mathrm{eff}}}` suppresses
-        the KE term away from the objective, so fast motion is free until the
-        agent is close. ``ke_tau`` sets the overall strength of the penalty.
-
-        Per-step reward:
-
-        .. math::
-
-           \mathrm{rew}_t = \frac{F_t + w_{\text{near}} \cdot \mathbf{1}[d_t \le r]}{w_{\text{near}}}
-
-        where :math:`F_t = \varphi(d^{\mathrm{eff}}_t, K_t) - \varphi(d^{\mathrm{eff}}_{t-1}, K_{t-1})`,
-        :math:`d^{\mathrm{eff}}_t = \max(0, d_t - 0.5 r)`, and
-        :math:`w_{\text{near}}` weights a near-goal bonus.
-
-        Parameters
-        ----------
-        env : Environment
-            Current environment.
-
-        Returns
-        -------
-        jax.Array
-            Shape ``(N,)``.
-
+        ``kinetic_energy_coeff`` is :math:`\beta` and ``kinetic_energy_scale``
+        is :math:`K_{\mathrm{ref}}`. Energy is translational because navigator
+        rotation is disabled. With the default zero coefficient, this is the
+        distance-only quartic potential. The complete starting potential is
+        saved by reset/checkpoint; physics steps preserve that baseline.
+        Returns per-agent rewards of shape ``(N,)``.
         """
-        curr_dist = norm(env.env_params["delta"])
-        prev_dist = env.env_params["prev_dist"]
-
-        flat_rad = 0.5 * env.state.rad
-        curr_eff_dist = jnp.maximum(0.0, curr_dist - flat_rad)
-        prev_eff_dist = jnp.maximum(0.0, prev_dist - flat_rad)
-
-        tau = env.env_params["ke_tau"]
-        alpha = env.env_params["ke_gate"]
-        ke_curr = thermal.compute_translational_kinetic_energy_per_particle(env.state)
-
-        phi_curr = jnp.exp(
-            -2 * curr_eff_dist - ke_curr * jnp.exp(-alpha * curr_eff_dist) / tau
+        delta = env.system.domain.displacement(
+            env.state.pos_c, env.env_params["objective"], env.system
         )
-        phi_prev = jnp.exp(
-            -2 * prev_eff_dist
-            - env.env_params["prev_ke"] * jnp.exp(-alpha * prev_eff_dist) / tau
+        scale = 2 * env.state.rad
+        kinetic_energy = thermal.compute_translational_kinetic_energy_per_particle(
+            env.state
         )
-        shaping_reward = phi_curr - phi_prev
-
-        near_goal_bonus = env.env_params["near_goal_bonus"] * jnp.where(
-            curr_dist <= 1.0 * env.state.rad, 1.0, 0.0
+        energy_cost = (
+            env.env_params["kinetic_energy_coeff"]
+            * kinetic_energy
+            / env.env_params["kinetic_energy_scale"]
         )
-
-        return (shaping_reward + near_goal_bonus) / env.env_params["near_goal_bonus"]
+        potential = jnp.exp(-((norm(delta) / scale) ** 4) - energy_cost)
+        return potential - env.env_params["prev_potential"]
 
     @staticmethod
     @jax.jit(inline=True)
-    @partial(jax.named_call, name="MultiNavigator.done")
+    @partial(jax.named_call, name="MultiNavigator.truncated")
     def truncated(env: MultiNavigator) -> jax.Array:
         """Return whether the episode has ended.
 
