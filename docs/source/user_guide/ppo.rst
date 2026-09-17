@@ -229,6 +229,74 @@ sequence. Discount and
 trace decay are per recorded policy transition, regardless of its actual
 physics duration.
 
+Optional policy smoothness (CAPS)
+---------------------------------
+
+``caps_temporal_coeff`` and ``caps_spatial_coeff`` default to ``0.0``.
+When both are zero, PPO uses its original policy evaluation and random-key
+sequence; no perturbations or extra policy evaluations are compiled. These
+two coefficients are static configuration, so changing them recompiles the
+training update. Environment action filtering remains independent of CAPS.
+
+This implementation uses a squared-distance variant of Conditioning for
+Action Policy Smoothness (CAPS):
+
+.. math::
+
+   L = L_{\mathrm{PPO}} + \lambda_T L_T + \lambda_S L_S,
+
+   L_T = \mathbb{E}\!\left[
+       \|u_\theta(o_{t+1},h_{t+1})-u_\theta(o_t,h_t)\|_2^2\right],
+   \qquad
+   L_S = \mathbb{E}\!\left[
+       \|u_\theta(o_t+\epsilon,h_t)-u_\theta(o_t,h_t)\|_2^2\right].
+
+For continuous policies, :math:`u_\theta` is the base Gaussian mean passed
+through the configured bijector (Free, Box, or MaxNorm). This is generally
+different from the transformed distribution's mean. Categorical policies
+compare probability vectors, rather than integer action labels. Penalties
+are sums over output coordinates, averaged over valid samples, with no
+automatic action-scale normalization. Neither penalty uses sampled actions
+or changes rewards, advantages, or PPO likelihood ratios.
+
+Temporal comparisons use adjacent **policy decisions**, not physics frames.
+The earlier transition must be selected by the minibatch loss mask; the
+successor must be active and in the same episode, but may be unselected
+sequence context. Pairs across resets, inactive slots, and the end of the
+rollout are excluded. Gradients flow through both current-policy outputs.
+
+Spatial noise is Gaussian, with scalar or per-observation-feature standard
+deviation ``caps_noise_std`` (default ``0.05``), in model-input units. Choose
+scales that reflect meaningful observation tolerances; a zero entry leaves
+that feature unchanged. For LSTM and MinGRU, both observations use the same
+clean incoming recurrent state. Perturbed states never propagate to later
+timesteps or overwrite rollout carry. MinGRU retains its parallel scan over
+time. Spatial noise uses a fresh key per minibatch update.
+
+For example, the following enables both penalties; the weights and noise
+scale are tuning parameters rather than environment-independent defaults:
+
+.. code-block:: python
+
+   trainer = rl.Trainer.create(
+       "PPO", env=env, model=model, key=key,
+       caps_temporal_coeff=0.01,
+       caps_spatial_coeff=0.01,
+       caps_noise_std=0.05,
+   )
+
+Monitor ``caps_temporal_loss`` and ``caps_spatial_loss`` alongside task
+performance. These metrics report the unweighted losses (zero when disabled).
+Increasing weights can reduce responsiveness; smooth deterministic outputs
+also do not eliminate stochastic exploration noise.
+
+Reference: Mysore, S., Mabsout, B., Mancuso, R., and Saenko, K. (ICRA 2021),
+`Regularizing Action Policies for Smooth Control with Reinforcement Learning
+<https://arxiv.org/abs/2012.06644>`_. The original paper uses unsquared
+Euclidean distances; squared distances here give finite gradients at
+identical outputs. Comparing categorical probabilities extends the original
+continuous-control formulation.
+
 Optimization, schedules, and metrics
 ----------------------------------------
 

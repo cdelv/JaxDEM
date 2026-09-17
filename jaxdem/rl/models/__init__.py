@@ -78,6 +78,44 @@ class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
     def carry(self) -> Any:
         return None
 
+    @staticmethod
+    def policy_output(pi: distrax.Distribution) -> jax.Array:
+        """Return differentiable policy outputs for smoothness regularization.
+
+        Continuous policies use the base mean passed through the action
+        bijector, rather than the mean of the transformed distribution.
+        Categorical policies use probabilities, avoiding an ordering of
+        category labels and the zero gradients of argmax actions.
+        """
+        if isinstance(pi, distrax.Transformed):
+            return pi.bijector.forward(Model.policy_output(pi.distribution))
+        if isinstance(pi, distrax.Categorical):
+            return pi.probs
+        return pi.mean()
+
+    def policy_with_perturbation(
+        self, x: jax.Array, perturbed_x: jax.Array, **kwargs: Any
+    ) -> tuple[distrax.Distribution, jax.Array, jax.Array]:
+        """Evaluate a clean sequence and locally perturbed policy outputs.
+
+        Returns the clean policy, clean values, and perturbed outputs as
+        defined by :meth:`policy_output`. Recurrent implementations must
+        compare both observations with the same clean incoming carry at each
+        timestep, without changing persistent rollout state. This default
+        implementation supports feedforward models.
+
+        Used for spatial CAPS: Mysore et al., *Regularizing Action Policies
+        for Smooth Control with Reinforcement Learning*, ICRA 2021,
+        https://arxiv.org/abs/2012.06644.
+        """
+        if self.carry is not None:
+            raise NotImplementedError(
+                "Recurrent models must implement policy_with_perturbation"
+            )
+        pi, value = self(x, sequence=True, **kwargs)
+        perturbed_pi, _ = self(perturbed_x, sequence=True, **kwargs)
+        return pi, value, self.policy_output(perturbed_pi)
+
     def reset(self, shape: tuple[int, ...], mask: jax.Array | None = None) -> None:
         """Reset the persistent recurrent carry.
 

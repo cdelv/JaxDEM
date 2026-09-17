@@ -18,8 +18,9 @@ except ImportError:
 
 import datetime
 import json
+import math
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
 from numbers import Integral
 from pathlib import Path
@@ -143,6 +144,9 @@ def _hparam_dict_from_tr(tr: PPOTrainer) -> dict[str, Any]:
         "value_coeff": float(tr.ppo_value_coeff),
         "entropy_coeff": float(tr.ppo_entropy_coeff),
         "vtrace": bool(tr.vtrace),
+        "caps_temporal_coeff": tr.caps_temporal_coeff,
+        "caps_spatial_coeff": tr.caps_spatial_coeff,
+        "caps_noise_std": jax.device_get(tr.caps_noise_std).tolist(),
         # optionally optimizer info if accessible
     }
 
@@ -217,8 +221,38 @@ class PPOTrainer(Trainer):
           L(\theta) = L^{\text{policy}}(\theta)
                       + c_v L^{\text{value}}(\theta)
                       - c_e L^{\text{entropy}}(\theta)
+                      + \lambda_T L_T(\theta) + \lambda_S L_S(\theta)
 
       where :math:`c_v` and :math:`c_e` are coefficients for the value and entropy terms.
+
+    **Optional CAPS regularization**
+
+    Both coefficients default to zero, removing CAPS computations from the
+    compiled update. We use a squared-Euclidean variant of CAPS:
+
+    .. math::
+
+        L_T = \mathbb{E}\!\left[\|u_\theta(o_{t+1},h_{t+1})
+              - u_\theta(o_t,h_t)\|_2^2\right],\qquad
+        L_S = \mathbb{E}\!\left[\|u_\theta(o_t+\epsilon,h_t)
+              - u_\theta(o_t,h_t)\|_2^2\right],
+        \quad \epsilon\sim\mathcal{N}(0,\operatorname{diag}(\sigma^2)).
+
+    Continuous outputs are the Gaussian mean transformed through the action
+    bijector; categorical outputs are probability vectors. No exploration
+    samples or environment rewards enter these penalties. Distances are in
+    action units and are not automatically normalized. Temporal pairs use
+    consecutive policy decisions from the same active agent and episode;
+    rollout-end pairs are omitted. Spatial comparisons share clean incoming
+    recurrent state. Both branches remain differentiable.
+
+    References
+    ----------
+    Mysore, S., Mabsout, B., Mancuso, R., and Saenko, K. (2021).
+    *Regularizing Action Policies for Smooth Control with Reinforcement
+    Learning*. ICRA. https://arxiv.org/abs/2012.06644.
+    The paper uses unsquared Euclidean distances; this implementation uses
+    squared distances with finite gradients at identical outputs.
 
     **Minibatch updates**
 
@@ -328,6 +362,15 @@ class PPOTrainer(Trainer):
     intermediate physics-frame rewards are not accumulated.
     """
 
+    caps_temporal_coeff: float = jax.tree.static(default=0.0)
+    """Nonnegative temporal CAPS weight. Static: changing it recompiles updates."""
+
+    caps_spatial_coeff: float = jax.tree.static(default=0.0)
+    """Nonnegative spatial CAPS weight. Zero skips perturbations and extra forwards."""
+
+    caps_noise_std: jax.Array = field(default_factory=lambda: jnp.asarray(0.05))
+    """Spatial noise standard deviation in observation units, scalar or per feature."""
+
     @classmethod
     @partial(jax.named_call, name="PPOTrainer.Create")
     def Create(
@@ -367,6 +410,10 @@ class PPOTrainer(Trainer):
         # Env wrappers
         clip_actions: bool = False,
         clip_range: tuple[float, float] = (-0.2, 0.2),
+        # Optional action-policy smoothness
+        caps_temporal_coeff: float = 0.0,
+        caps_spatial_coeff: float = 0.0,
+        caps_noise_std: ArrayLike = 0.05,
     ) -> Self:
         r"""Construct a PPO trainer from an environment and a model.
 
@@ -394,6 +441,14 @@ class PPOTrainer(Trainer):
         key : jax.Array, optional
             PRNG key. When provided, it takes precedence over ``seed``
             (same rule as :meth:`jaxdem.System.create`).
+        caps_temporal_coeff, caps_spatial_coeff : float
+            Nonnegative CAPS loss weights, disabled by default. These are
+            static configuration: changing either recompiles training.
+        caps_noise_std : ArrayLike
+            Nonnegative finite Gaussian perturbation standard deviation,
+            scalar or shape ``(observation_space_size,)``. Expressed in the
+            model's input units; use zero for features that must not vary.
+            See the class docstring for the CAPS equations and paper citation.
 
         Returns
         -------
@@ -424,6 +479,22 @@ class PPOTrainer(Trainer):
                 f"accumulate_n_gradients={accumulate_n_gradients}"
             )
 
+        for name, coefficient in (
+            ("caps_temporal_coeff", caps_temporal_coeff),
+            ("caps_spatial_coeff", caps_spatial_coeff),
+        ):
+            if not math.isfinite(coefficient) or coefficient < 0.0:
+                raise ValueError(f"{name} must be finite and nonnegative")
+        caps_noise_std = jnp.asarray(caps_noise_std, dtype=float)
+        if not bool(jnp.all(jnp.isfinite(caps_noise_std) & (caps_noise_std >= 0))):
+            raise ValueError("caps_noise_std must be finite and nonnegative")
+        if caps_noise_std.ndim != 0 and caps_noise_std.shape != (
+            model.observation_space_size,
+        ):
+            raise ValueError(
+                "caps_noise_std must be scalar or have one entry per observation feature"
+            )
+
         # --- RNG split ---
         initial_agent_mask = jnp.asarray(env.agent_mask(env), dtype=bool)
         if initial_agent_mask.shape != (env.max_num_agents,):
@@ -440,7 +511,9 @@ class PPOTrainer(Trainer):
         # --- Vectorize envs before sizing math ---
         if clip_actions:
             if getattr(model, "discrete", False):
-                raise ValueError("clip_actions is only supported for continuous policies")
+                raise ValueError(
+                    "clip_actions is only supported for continuous policies"
+                )
             min_val, max_val = clip_range
             env = clip_action_env(env, min_val=float(min_val), max_val=float(max_val))
         env = vectorise_env(env, n=num_envs)
@@ -544,6 +617,9 @@ class PPOTrainer(Trainer):
             num_minibatches=num_minibatches,
             minibatch_size=minibatch_size,
             skip_frames=skip_frames,
+            caps_temporal_coeff=float(caps_temporal_coeff),
+            caps_spatial_coeff=float(caps_spatial_coeff),
+            caps_noise_std=caps_noise_std,
         )
 
     @staticmethod
@@ -718,6 +794,10 @@ class PPOTrainer(Trainer):
         vtrace: jax.Array,
         initial_carry: Any | None = None,
         loss_mask: jax.Array | None = None,
+        caps_temporal_coeff: float = 0.0,
+        caps_spatial_coeff: float = 0.0,
+        caps_noise_std: ArrayLike = 0.05,
+        caps_key: jax.Array | None = None,
     ) -> tuple[jax.Array, dict[str, jax.Array]]:
         r"""Compute the clipped PPO loss for a minibatch.
 
@@ -748,6 +828,15 @@ class PPOTrainer(Trainer):
             Value-loss coefficient :math:`c_v`.
         ppo_entropy_coeff : jax.Array
             Entropy-bonus coefficient :math:`c_e`.
+        caps_temporal_coeff, caps_spatial_coeff : float
+            Static weights of the squared-distance CAPS losses. Both zero
+            preserves the original forward pass without extra RNG use.
+        caps_noise_std : ArrayLike
+            Scalar or per-feature perturbation standard deviation.
+        caps_key : jax.Array, optional
+            Required when spatial CAPS is enabled; fresh for each update.
+            For the method and citation, see Mysore et al. (ICRA 2021),
+            https://arxiv.org/abs/2012.06644, and the class docstring.
 
         Returns
         -------
@@ -758,12 +847,25 @@ class PPOTrainer(Trainer):
 
         """
         # Current predictions are shared by target calculation and the loss.
-        pi, value = model(
-            td.obs,
-            sequence=True,
-            initial_carry=initial_carry,
-            done=td.done | ~td.agent_mask,
-        )
+        perturbed_output = None
+        if caps_spatial_coeff > 0.0:
+            if caps_key is None:
+                raise ValueError("caps_key is required when spatial CAPS is enabled")
+            noise = jax.random.normal(caps_key, td.obs.shape, dtype=td.obs.dtype)
+            perturbed_obs = td.obs + noise * jnp.asarray(caps_noise_std, td.obs.dtype)
+            pi, value, perturbed_output = model.policy_with_perturbation(
+                td.obs,
+                perturbed_obs,
+                initial_carry=initial_carry,
+                done=td.done | ~td.agent_mask,
+            )
+        else:
+            pi, value = model(
+                td.obs,
+                sequence=True,
+                initial_carry=initial_carry,
+                done=td.done | ~td.agent_mask,
+            )
         value = jnp.squeeze(value, -1)
         if td.latent_action is not None:
             from ..action_spaces import Transformed
@@ -823,6 +925,22 @@ class PPOTrainer(Trainer):
         total_loss = (
             actor_loss + ppo_value_coeff * value_loss - ppo_entropy_coeff * entropy
         )
+        temporal_loss = jnp.zeros((), dtype=value.dtype)
+        spatial_loss = jnp.zeros((), dtype=value.dtype)
+        if caps_temporal_coeff > 0.0 or caps_spatial_coeff > 0.0:
+            output = model.policy_output(pi)
+            if caps_temporal_coeff > 0.0:
+                # Select the first transition; its successor may be context
+                # outside this minibatch's loss mask, but not another episode.
+                pairs = selected[:-1] & td.agent_mask[1:] & ~td.done[:-1]
+                delta = jnp.where(pairs[..., None], output[1:] - output[:-1], 0.0)
+                temporal_loss = jnp.sum(jnp.square(delta)) / jnp.maximum(pairs.sum(), 1)
+                total_loss = total_loss + caps_temporal_coeff * temporal_loss
+            if caps_spatial_coeff > 0.0:
+                assert perturbed_output is not None
+                delta = jnp.where(selected[..., None], perturbed_output - output, 0.0)
+                spatial_loss = jnp.sum(jnp.square(delta)) / count
+                total_loss = total_loss + caps_spatial_coeff * spatial_loss
 
         # 6) Diagnostics.
         approx_kl = jax.lax.stop_gradient(0.5 * masked_mean(jnp.square(log_ratio)))
@@ -839,6 +957,8 @@ class PPOTrainer(Trainer):
             "actor_loss": actor_loss,
             "value_loss": value_loss,
             "entropy": entropy,
+            "caps_temporal_loss": temporal_loss,
+            "caps_spatial_loss": spatial_loss,
             "approx_KL": approx_kl,
             "explained_variance": explained_var,
             "ratio": jax.lax.stop_gradient(ratio),
@@ -949,6 +1069,10 @@ class PPOTrainer(Trainer):
         td.reward = apply_drip(td.reward, td.done, tr.drip_decay)
         # ------------------------------------------------------
 
+        caps_key = None
+        if tr.caps_spatial_coeff > 0.0:
+            tr.key, caps_key = jax.random.split(tr.key)
+
         @partial(jax.named_call, name="PPOTrainer.train_batch")
         def train_batch(
             graphstate: nnx.GraphState, batch_index: jax.Array
@@ -981,6 +1105,14 @@ class PPOTrainer(Trainer):
                 tr.vtrace,
                 initial_carry=mb_initial_carry,
                 loss_mask=loss_mask,
+                caps_temporal_coeff=tr.caps_temporal_coeff,
+                caps_spatial_coeff=tr.caps_spatial_coeff,
+                caps_noise_std=tr.caps_noise_std,
+                caps_key=(
+                    None
+                    if caps_key is None
+                    else jax.random.fold_in(caps_key, batch_index)
+                ),
             )
             model.train()
             selected = mb_td.agent_mask & loss_mask
@@ -1007,6 +1139,8 @@ class PPOTrainer(Trainer):
                 "actor_loss": aux["actor_loss"],
                 "value_loss": aux["value_loss"],
                 "entropy": aux["entropy"],
+                "caps_temporal_loss": aux["caps_temporal_loss"],
+                "caps_spatial_loss": aux["caps_spatial_loss"],
                 "approx_KL": aux["approx_KL"],
                 "explained_variance": aux["explained_variance"],
                 "grad_norm": optax.tree.norm(grads),

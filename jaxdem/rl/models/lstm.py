@@ -265,10 +265,36 @@ class LSTMActorCritic(Model):
             - A value estimate tensor with trailing dimension 1.
 
         """
+        pi, value, _ = self._forward(x, sequence=sequence, **kwargs)
+        return pi, value
+
+    def policy_with_perturbation(
+        self, x: jax.Array, perturbed_x: jax.Array, **kwargs: Any
+    ) -> tuple[distrax.Distribution, jax.Array, jax.Array]:
+        """Evaluate spatial CAPS with the same clean incoming recurrent state.
+
+        See :meth:`Model.policy_with_perturbation` for the contract and
+        the CAPS paper citation. Perturbations never advance the clean carry.
+        """
+        pi, value, perturbed_output = self._forward(
+            x, sequence=True, perturbed_x=perturbed_x, **kwargs
+        )
+        assert perturbed_output is not None
+        return pi, value, perturbed_output
+
+    def _forward(
+        self,
+        x: jax.Array,
+        sequence: bool = False,
+        perturbed_x: jax.Array | None = None,
+        **kwargs: Any,
+    ) -> tuple[distrax.Distribution, jax.Array, jax.Array | None]:
         if x.shape[-1] != self.obs_dim:
             raise ValueError(f"Expected last dim {self.obs_dim}, got {x.shape}")
 
         feats = self.encoder(x)  # (..., hidden)
+        perturbed_feats = None if perturbed_x is None else self.encoder(perturbed_x)
+        perturbed_features = None
         if sequence:
             initial_carry = kwargs.get("initial_carry", None)
             if initial_carry is not None:
@@ -287,7 +313,9 @@ class LSTMActorCritic(Model):
 
             def scan_body(
                 c: tuple[jax.Array, jax.Array], x_in: Any
-            ) -> tuple[tuple[jax.Array, jax.Array], jax.Array]:
+            ) -> tuple[tuple[jax.Array, jax.Array], Any]:
+                if perturbed_feats is not None:
+                    x_in, perturbed_feat = x_in
                 if done is not None:
                     feat, d = x_in
                 else:
@@ -295,6 +323,9 @@ class LSTMActorCritic(Model):
                     d = None
 
                 c_out, y_out = cell_fn(c, feat)
+                if perturbed_feats is not None:
+                    _, perturbed_y = cell_fn(c, perturbed_feat)
+                    y_out = (y_out, perturbed_y)
 
                 if d is not None:
                     d = jnp.expand_dims(d, -1)
@@ -304,10 +335,12 @@ class LSTMActorCritic(Model):
                     )
                 return c_out, y_out
 
-            if done is not None:
-                carry, y = jax.lax.scan(scan_body, carry, (feats, done))
-            else:
-                carry, y = jax.lax.scan(scan_body, carry, feats)
+            inputs = (feats, done) if done is not None else feats
+            if perturbed_feats is not None:
+                inputs = (inputs, perturbed_feats)
+            carry, y = jax.lax.scan(scan_body, carry, inputs)
+            if perturbed_feats is not None:
+                y, perturbed_features = y
         else:
             batch = feats.shape[:-1]
             target = (*batch, self.lstm_features)
@@ -325,14 +358,23 @@ class LSTMActorCritic(Model):
         h = y
         fused = self.fused_head(h)
 
+        perturbed_output = None
+        if perturbed_features is not None:
+            perturbed_logits = self.fused_head(perturbed_features)[..., :-1]
+            if self.discrete:
+                perturbed_output = jax.nn.softmax(perturbed_logits, axis=-1)
+            else:
+                assert self.bij is not None
+                perturbed_output = self.bij.forward(perturbed_logits)
+
         from ..action_spaces import Transformed
 
         if self.discrete:
             pi = distrax.Categorical(logits=fused[..., :-1])
-            return pi, fused[..., -1:]
+            return pi, fused[..., -1:], perturbed_output
         else:
             pi = distrax.MultivariateNormalDiag(fused[..., :-1], self.actor_sigma(h))
-            return Transformed(pi, self.bij), fused[..., -1:]
+            return Transformed(pi, self.bij), fused[..., -1:], perturbed_output
 
 
 __all__ = ["LSTMActorCritic"]

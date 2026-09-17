@@ -181,6 +181,30 @@ class MinGRUActorCritic(Model):
         sequence: bool = False,
         **kwargs: Any,
     ) -> tuple[distrax.Distribution, jax.Array]:
+        pi, value, _ = self._forward(x, sequence=sequence, **kwargs)
+        return pi, value
+
+    def policy_with_perturbation(
+        self, x: jax.Array, perturbed_x: jax.Array, **kwargs: Any
+    ) -> tuple[distrax.Distribution, jax.Array, jax.Array]:
+        """Evaluate spatial CAPS with the same clean incoming recurrent state.
+
+        See :meth:`Model.policy_with_perturbation` for the contract and
+        the CAPS paper citation. Perturbations never advance the clean carry.
+        """
+        pi, value, perturbed_output = self._forward(
+            x, sequence=True, perturbed_x=perturbed_x, **kwargs
+        )
+        assert perturbed_output is not None
+        return pi, value, perturbed_output
+
+    def _forward(
+        self,
+        x: jax.Array,
+        sequence: bool = False,
+        perturbed_x: jax.Array | None = None,
+        **kwargs: Any,
+    ) -> tuple[distrax.Distribution, jax.Array, jax.Array | None]:
         if x.shape[-1] != self.obs_dim:
             raise ValueError(f"Expected last dim {self.obs_dim}, got {x.shape}")
 
@@ -189,6 +213,11 @@ class MinGRUActorCritic(Model):
             feats = self.proj_in(feats)
 
         h = feats
+        perturbed_features = None
+        if perturbed_x is not None:
+            perturbed_features = self.encoder(perturbed_x)
+            if self.proj_in is not None:
+                perturbed_features = self.proj_in(perturbed_features)
 
         def _g(x_val: jax.Array) -> jax.Array:
             return jnp.where(x_val >= 0, x_val + 0.5, jax.nn.sigmoid(x_val))
@@ -207,6 +236,7 @@ class MinGRUActorCritic(Model):
             g_val = jax.nn.sigmoid(proj_val)
             return g_val * out_val + (1.0 - g_val) * x_val
 
+        h_out: Any
         if sequence:
             initial_carry = kwargs.get("initial_carry", None)
             done = kwargs.get("done", None)
@@ -219,8 +249,10 @@ class MinGRUActorCritic(Model):
                 return log_a1 + log_a2, jnp.logaddexp(log_a2 + log_b1, log_b2)
 
             def scan_layer_seq(
-                out_h_seq: jax.Array, xs: tuple[jax.Array, jax.Array]
-            ) -> tuple[jax.Array, jax.Array]:
+                out_h_seq: Any, xs: tuple[jax.Array, jax.Array]
+            ) -> tuple[Any, jax.Array]:
+                if perturbed_x is not None:
+                    out_h_seq, perturbed_h_seq = out_h_seq
                 layer_kernel, layer_carry = xs
                 layer_out = out_h_seq @ layer_kernel
                 hidden, gate, proj = jnp.split(layer_out, 3, axis=-1)
@@ -254,6 +286,19 @@ class MinGRUActorCritic(Model):
                 out = jnp.exp(log_out)
 
                 out_h_seq = _highway(out_h_seq, out, proj)
+                if perturbed_x is not None:
+                    # Each perturbation sees only clean history. The ordinary
+                    # associative scan remains the sole scan over time.
+                    previous = jnp.concatenate([layer_carry[None], out[:-1]], axis=0)
+                    if done is not None:
+                        previous = jnp.where(d_shifted, 0.0, previous)
+                    noisy_hidden, noisy_gate, noisy_proj = jnp.split(
+                        perturbed_h_seq @ layer_kernel, 3, axis=-1
+                    )
+                    weight = jax.nn.sigmoid(noisy_gate)
+                    noisy_out = (1.0 - weight) * previous + weight * _g(noisy_hidden)
+                    perturbed_h_seq = _highway(perturbed_h_seq, noisy_out, noisy_proj)
+                    return (out_h_seq, perturbed_h_seq), out[-1]
                 return out_h_seq, out[-1]
 
             if initial_carry is not None:
@@ -265,10 +310,12 @@ class MinGRUActorCritic(Model):
 
             h_out, _ = jax.lax.scan(
                 scan_layer_seq,
-                h,
+                h if perturbed_x is None else (h, perturbed_features),
                 (self.mingru_kernel.value, carry_in_t),
                 unroll=self.num_layers,
             )
+            if perturbed_x is not None:
+                h_out, perturbed_features = h_out
 
         else:
             batch = h.shape[:-1]
@@ -304,13 +351,22 @@ class MinGRUActorCritic(Model):
 
         fused = self.fused_head(h_out)
 
+        perturbed_output = None
+        if perturbed_features is not None:
+            perturbed_logits = self.fused_head(perturbed_features)[..., :-1]
+            if self.discrete:
+                perturbed_output = jax.nn.softmax(perturbed_logits, axis=-1)
+            else:
+                assert self.bij is not None
+                perturbed_output = self.bij.forward(perturbed_logits)
+
         from ..action_spaces import Transformed
 
         if self.discrete:
             pi = distrax.Categorical(logits=fused[..., :-1])
-            return pi, fused[..., -1:]
+            return pi, fused[..., -1:], perturbed_output
         else:
             pi = distrax.MultivariateNormalDiag(
                 fused[..., :-1], self.actor_sigma(h_out)
             )
-            return Transformed(pi, self.bij), fused[..., -1:]
+            return Transformed(pi, self.bij), fused[..., -1:], perturbed_output
