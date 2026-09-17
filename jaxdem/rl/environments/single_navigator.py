@@ -25,7 +25,22 @@ class SingleNavigator(Environment):
 
     The agent controls a force vector that acts directly on a sphere
     inside a reflective box. Each step adds viscous drag
-    ``-friction * vel``. The reward uses an exponential distance potential
+    ``-friction * vel``. Each physics step smooths the requested force:
+
+    .. math::
+
+       \mathbf{u}_t = \alpha\,\mathbf{a}_t
+           + (1 - \alpha)\,\mathbf{u}_{t-1}
+
+    Here :math:`\mathbf{a}_t` is the requested force at physics step
+    :math:`t`, :math:`\mathbf{u}_t` is the applied force before drag, and
+    :math:`\mathbf{u}_{t-1}` is the immediately preceding applied force.
+    The parameter :math:`\alpha` is ``action_alpha``. Reset initializes
+    :math:`\mathbf{u}_0 = \mathbf{0}`; checkpoints preserve this actuator
+    state. With :math:`\alpha = 0.22`,
+    a constant request completes 99% of its transition in 19 physics steps.
+
+    The reward uses an exponential distance potential
     measured from the action-start checkpoint to the live endpoint:
 
     .. math::
@@ -72,6 +87,7 @@ class SingleNavigator(Environment):
         max_box_size: float = 40.0,
         max_steps: int = 20000,
         friction: float = 0.2,
+        action_alpha: float = 0.22,
     ) -> SingleNavigator:
         """Create a single-agent navigator environment.
 
@@ -85,6 +101,9 @@ class SingleNavigator(Environment):
             Episode length in physics steps.
         friction : float
             Viscous drag coefficient applied as ``-friction * vel``.
+        action_alpha : float
+            Fraction of the requested force applied by the smoothing update
+            each physics step, in ``[0, 1]``. One disables smoothing.
 
         Returns
         -------
@@ -92,6 +111,8 @@ class SingleNavigator(Environment):
             The constructed environment. Call :meth:`reset` before use.
 
         """
+        if not 0.0 <= action_alpha <= 1.0:
+            raise ValueError("action_alpha must be in [0, 1]")
         N = 1
         state = State.create(pos=jnp.zeros((N, dim)))
         system = System.create(
@@ -104,6 +125,8 @@ class SingleNavigator(Environment):
             "max_box_size": jnp.asarray(max_box_size, dtype=float),
             "max_steps": jnp.asarray(max_steps, dtype=int),
             "friction": jnp.asarray(friction, dtype=float),
+            "action_alpha": jnp.asarray(action_alpha, dtype=float),
+            "applied_action": jnp.zeros_like(state.force),
             "prev_dist": jnp.zeros_like(state.rad),
         }
 
@@ -174,6 +197,7 @@ class SingleNavigator(Environment):
             env.state.pos_c, env.env_params["objective"], env.system
         )
         env.env_params["prev_dist"] = norm(delta)
+        env.env_params["applied_action"] = jnp.zeros_like(env.state.force)
 
         return env
 
@@ -181,7 +205,10 @@ class SingleNavigator(Environment):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.step")
     def step(env: SingleNavigator, action: jax.Array) -> Environment:
-        """Advance physics with force actions and drag ``-friction * vel``.
+        """Smooth the requested force, then advance physics with viscous drag.
+
+        Smoothing uses the applied action from the immediately preceding
+        physics step, including across policy actions and checkpoints.
 
         The historical distance remains fixed throughout the action. Use
         ``utils.advance_action`` to checkpoint once before repeating physics
@@ -202,7 +229,12 @@ class SingleNavigator(Environment):
 
         """
         reshaped_action = action.reshape(env.max_num_agents, *env.action_space_shape)
-        force = reshaped_action - env.state.vel * env.env_params["friction"]
+        alpha = env.env_params["action_alpha"]
+        applied_action = (
+            alpha * reshaped_action + (1 - alpha) * env.env_params["applied_action"]
+        )
+        env.env_params["applied_action"] = applied_action
+        force = applied_action - env.state.vel * env.env_params["friction"]
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
         env.state, env.system = env.system.step(env.state, env.system)
         return env

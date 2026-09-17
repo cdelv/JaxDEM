@@ -89,6 +89,21 @@ class SingleRoller(Environment):
     Each step applies a viscous drag ``-friction * vel`` and an angular
     damping ``-friction * ang_vel``.
 
+    Each physics step smooths the requested torque:
+
+    .. math::
+
+       \mathbf{u}_t = \alpha\,\mathbf{a}_t
+           + (1 - \alpha)\,\mathbf{u}_{t-1}
+
+    Here :math:`\mathbf{a}_t` is the requested torque at physics step
+    :math:`t`, :math:`\mathbf{u}_t` is the applied torque before damping, and
+    :math:`\mathbf{u}_{t-1}` is the immediately preceding applied torque.
+    The parameter :math:`\alpha` is ``action_alpha``. Reset initializes
+    :math:`\mathbf{u}_0 = \mathbf{0}`; checkpoints preserve this actuator
+    state. With :math:`\alpha = 0.22`,
+    a constant request completes 99% of its transition in 19 physics steps.
+
     The reward uses an exponential distance potential measured from the
     action-start checkpoint to the live endpoint:
 
@@ -136,6 +151,7 @@ class SingleRoller(Environment):
         max_box_size: float = 40.0,
         max_steps: int = 20000,
         friction: float = 0.2,
+        action_alpha: float = 0.22,
     ) -> SingleRoller:
         """Create a single-agent roller environment.
 
@@ -148,12 +164,17 @@ class SingleRoller(Environment):
         friction : float
             Damping coefficient applied as ``-friction * vel`` and
             ``-friction * ang_vel``.
+        action_alpha : float
+            Fraction of the requested torque applied by the smoothing update
+            each physics step, in ``[0, 1]``. One disables smoothing.
 
         Returns
         -------
         SingleRoller
             The constructed environment. Call :meth:`reset` before use.
         """
+        if not 0.0 <= action_alpha <= 1.0:
+            raise ValueError("action_alpha must be in [0, 1]")
         dim = 3
         N = 1
         state = State.create(pos=jnp.zeros((N, dim)))
@@ -165,6 +186,8 @@ class SingleRoller(Environment):
             "max_box_size": jnp.asarray(max_box_size, dtype=float),
             "max_steps": jnp.asarray(max_steps, dtype=int),
             "friction": jnp.asarray(friction, dtype=float),
+            "action_alpha": jnp.asarray(action_alpha, dtype=float),
+            "applied_action": jnp.zeros_like(state.torque),
             "prev_dist": jnp.zeros_like(state.rad),
         }
 
@@ -239,6 +262,7 @@ class SingleRoller(Environment):
             env.state.pos_c, env.env_params["objective"], env.system
         )
         env.env_params["prev_dist"] = norm(delta)
+        env.env_params["applied_action"] = jnp.zeros_like(env.state.torque)
 
         return env
 
@@ -246,7 +270,10 @@ class SingleRoller(Environment):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleRoller.step")
     def step(env: SingleRoller, action: jax.Array) -> Environment:
-        """Apply a torque action and advance the physics by one step.
+        """Smooth the requested torque and advance the physics by one step.
+
+        Smoothing uses the applied action from the immediately preceding
+        physics step, including across policy actions and checkpoints.
 
         The historical distance remains fixed throughout the action. Use
         ``utils.advance_action`` to checkpoint once before repeating physics
@@ -266,7 +293,12 @@ class SingleRoller(Environment):
 
         """
         reshaped_action = action.reshape(env.max_num_agents, *env.action_space_shape)
-        torque = reshaped_action - env.env_params["friction"] * env.state.ang_vel
+        alpha = env.env_params["action_alpha"]
+        applied_action = (
+            alpha * reshaped_action + (1 - alpha) * env.env_params["applied_action"]
+        )
+        env.env_params["applied_action"] = applied_action
+        torque = applied_action - env.env_params["friction"] * env.state.ang_vel
         force = -env.env_params["friction"] * env.state.vel
         env.system = env.system.force_manager.add_force(env.state, env.system, force)
         env.system = env.system.force_manager.add_torque(env.state, env.system, torque)
