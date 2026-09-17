@@ -26,7 +26,7 @@ class SingleNavigator(Environment):
     The agent controls a force vector that acts directly on a sphere
     inside a reflective box. Each step adds viscous drag
     ``-friction * vel``. The reward uses an exponential distance potential
-    measured at consecutive action checkpoints:
+    measured from the action-start checkpoint to the live endpoint:
 
     .. math::
 
@@ -36,10 +36,10 @@ class SingleNavigator(Environment):
 
     The shaping credit is :math:`F_t = \varphi(d_t) - \varphi(d_{t-1})`,
     which is positive when moving closer, negative when moving farther
-    away, and zero when the distance is unchanged. Reset initializes both
-    checkpoint distances to the same value.
+    away, and zero when the distance is unchanged. Reset initializes the
+    historical distance from the initial physical state, giving zero reward.
 
-    Per-action-checkpoint reward:
+    Per-action reward:
 
     .. math::
 
@@ -57,9 +57,10 @@ class SingleNavigator(Environment):
     Velocity                      ``dim``
     ============================  =========
 
-    With ``dt = 0.002`` and ``skip_frames = 50``, each action spans 51
-    physics steps (0.102 seconds). Reward shaping compares consecutive
-    action checkpoints, including all of those physics steps.
+    With ``dt = 0.002`` and ``skip_frames = 49``, each action spans 50
+    physics steps (0.1 seconds). One checkpoint captures the distance
+    before the action; the reward uses the live distance after all accepted
+    physics steps. Only ``prev_dist`` is stored as reward history.
     """
 
     @classmethod
@@ -103,10 +104,7 @@ class SingleNavigator(Environment):
             "max_box_size": jnp.asarray(max_box_size, dtype=float),
             "max_steps": jnp.asarray(max_steps, dtype=int),
             "friction": jnp.asarray(friction, dtype=float),
-            "delta": jnp.zeros_like(state.pos),
-            "curr_dist": jnp.zeros_like(state.rad),
             "prev_dist": jnp.zeros_like(state.rad),
-            "curr_vel": jnp.zeros_like(state.vel),
         }
 
         return cls(
@@ -175,11 +173,7 @@ class SingleNavigator(Environment):
         delta = env.system.domain.displacement(
             env.state.pos_c, env.env_params["objective"], env.system
         )
-        dist = norm(delta)
-        env.env_params["delta"] = delta
-        env.env_params["curr_dist"] = dist
-        env.env_params["prev_dist"] = dist
-        env.env_params["curr_vel"] = env.state.vel
+        env.env_params["prev_dist"] = norm(delta)
 
         return env
 
@@ -189,8 +183,9 @@ class SingleNavigator(Environment):
     def step(env: SingleNavigator, action: jax.Array) -> Environment:
         """Advance physics with force actions and drag ``-friction * vel``.
 
-        Measurements remain at the preceding action checkpoint. Use
-        ``utils.advance_action`` to finish an action and refresh them.
+        The historical distance remains fixed throughout the action. Use
+        ``utils.advance_action`` to checkpoint once before repeating physics
+        steps. Observations and rewards always read the live state.
 
         Parameters
         ----------
@@ -215,49 +210,38 @@ class SingleNavigator(Environment):
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.checkpoint")
-    def checkpoint(env: SingleNavigator) -> Environment:
-        """Refresh navigation measurements at the end of an action interval.
+    def checkpoint(env: SingleNavigator, action: jax.Array) -> Environment:
+        """Save the starting distance before the next action interval.
 
-        Store the preceding checkpoint's distance in ``prev_dist``, then
-        update ``delta``, ``curr_dist``, and ``curr_vel`` from the current
-        physical state. The reward therefore measures progress over the
-        complete action interval, including any repeated physics steps.
+        Store the live distance in ``prev_dist``. Physics steps preserve it,
+        and reward compares it with the live endpoint after all repeated
+        physics steps. Current quantities are computed directly from state.
 
         Parameters
         ----------
         env : SingleNavigator
-            The environment at the action endpoint, with measurements from
-            the preceding checkpoint retained in ``env_params``.
+            The environment immediately before the next action.
+        action : jax.Array
+            The per-agent action about to be applied. This distance-only
+            baseline does not depend on its value.
 
         Returns
         -------
         Environment
-            The environment with refreshed observation measurements and the
-            preceding checkpoint preserved as the reward baseline.
-
-        Notes
-        -----
-        Called once by :func:`jaxdem.utils.advance_action` after the repeated
-        physics steps, including a final interval shortened by truncation.
-        This method does not advance physics or reset the episode. Calling it
-        again without advancing physics replaces the reward baseline with the
-        same endpoint, making the potential-based shaping contribution zero.
-
+            The environment with the action-start distance saved. Read reward
+            before the next checkpoint or reset replaces this baseline.
         """
-        env.env_params["prev_dist"] = env.env_params["curr_dist"]
         delta = env.system.domain.displacement(
             env.state.pos_c, env.env_params["objective"], env.system
         )
-        env.env_params["delta"] = delta
-        env.env_params["curr_dist"] = norm(delta)
-        env.env_params["curr_vel"] = env.state.vel
+        env.env_params["prev_dist"] = norm(delta)
         return env
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.observation")
     def observation(env: SingleNavigator) -> jax.Array:
-        """Build per-agent observations from the latest action checkpoint.
+        """Build per-agent observations directly from the live physical state.
 
         Contents per agent
         ------------------
@@ -271,12 +255,14 @@ class SingleNavigator(Environment):
             Array of shape ``(N, 3 * dim)``
 
         """
-        delta = env.env_params["delta"]
+        delta = env.system.domain.displacement(
+            env.state.pos_c, env.env_params["objective"], env.system
+        )
         return jnp.concatenate(
             [
                 unit(delta),
                 jnp.clip(delta, -3.0, 3.0),
-                env.env_params["curr_vel"],
+                env.state.vel,
             ],
             axis=-1,
         )
@@ -285,22 +271,22 @@ class SingleNavigator(Environment):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SingleNavigator.reward")
     def reward(env: SingleNavigator) -> jax.Array:
-        r"""Return the change in distance potential between action checkpoints.
+        r"""Return the distance-potential change since the action-start checkpoint.
 
         .. math::
 
            \mathrm{rew}_t = e^{-2d_t} - e^{-2d_{t-1}}
 
-        Here :math:`d_t` and :math:`d_{t-1}` are the current and preceding
-        checkpoint distances from the agent's center to its objective.
+        Here :math:`d_t` is the live distance from the agent's center to its
+        objective, and :math:`d_{t-1}` is the distance saved before the action.
         The reward is positive for progress toward the objective and zero
         after reset or when the distance is unchanged. This accessor reads
-        the stored measurements without advancing the checkpoint.
+        the live state and saved baseline without advancing the checkpoint.
 
         Parameters
         ----------
         env : Environment
-            The environment with measurements from the latest checkpoint.
+            The live environment with its action-start distance baseline.
 
         Returns
         -------
@@ -308,7 +294,10 @@ class SingleNavigator(Environment):
             Per-agent rewards of shape ``(N,)``, where ``N = 1``.
 
         """
-        phi_curr = jnp.exp(-2 * env.env_params["curr_dist"])
+        delta = env.system.domain.displacement(
+            env.state.pos_c, env.env_params["objective"], env.system
+        )
+        phi_curr = jnp.exp(-2 * norm(delta))
         phi_prev = jnp.exp(-2 * env.env_params["prev_dist"])
         return phi_curr - phi_prev
 
