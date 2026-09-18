@@ -28,3 +28,4 @@ User guide
     ppo
     multi_navigator
     multi_roller
+    swarm_environments

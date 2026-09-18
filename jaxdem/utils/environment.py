@@ -286,8 +286,10 @@ def _bin_azimuth(rij: jax.Array, n_bins: int) -> jax.Array:
     r"""Azimuthal bin index from a displacement vector projected onto XY.
 
     Maps :math:`\theta \in [-\pi, \pi)` to an integer in ``[0, n_bins)``.
+    Coincident points use angle zero, independently of floating-point zero signs.
     """
     theta = jnp.arctan2(rij[..., 1], rij[..., 0])
+    theta = jnp.where((rij[..., 0] == 0) & (rij[..., 1] == 0), 0.0, theta)
     bins = jnp.floor((theta + jnp.pi) * (n_bins / (2.0 * jnp.pi))).astype(int)
     return bins % n_bins
 
