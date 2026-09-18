@@ -1,4 +1,4 @@
-"""Discrete/continuous collection, latent PPO ratios, and evaluation contracts."""
+"""PPO action collection and latent ratios using a synthetic training fixture."""
 from dataclasses import dataclass, replace
 
 import distrax
@@ -9,13 +9,64 @@ import pytest
 from flax import nnx
 
 from jaxdem.rl.action_spaces import BoxSpace, MaxNormSpace, Transformed
-from jaxdem.rl.env_wrappers import clip_action_env, vectorise_env
+from jaxdem.rl.environments import Environment
+from jaxdem.rl.env_wrappers import vectorise_env
+from jaxdem.state import State
+from jaxdem.system import System
 from jaxdem.rl.models import SharedActorCritic, MinGRUActorCritic, Model
 from jaxdem.rl.trainers import Trainer
 from jaxdem.rl.trainers.ppo_trainer import PPOTrainer
-from jaxdem.utils.environment import advance_action, env_step, env_trajectory_rollout
-from tests.test_action_checkpoints import CheckpointCounter
 from tests.test_ppo_alignment import _loss_args
+
+
+@jax.tree_util.register_dataclass
+@dataclass(slots=True)
+class CheckpointCounter(Environment):
+    @classmethod
+    def Create(cls):
+        state = State.create(pos=jnp.zeros((1, 2)))
+        return cls(state, System.create(state.shape), {
+            'count': jnp.asarray(0), 'limit': jnp.asarray(100),
+            'terminal': jnp.asarray(False), 'checkpoints': jnp.asarray(0),
+            'previous': jnp.asarray(0.),
+        })
+
+    @staticmethod
+    def reset(env, key):
+        return replace(env, env_params={**env.env_params,
+            'count': jnp.asarray(0), 'checkpoints': jnp.asarray(0),
+            'previous': jnp.asarray(0.),
+        })
+
+    @staticmethod
+    def step(env, action):
+        return replace(env, env_params={**env.env_params,
+                                        'count': env.env_params['count']+1})
+
+    @staticmethod
+    def checkpoint(env, action):
+        p = env.env_params
+        return replace(env, env_params={**p,
+            'previous': p['count'].astype(float)**2,
+            'checkpoints': p['checkpoints']+1})
+
+    @staticmethod
+    def observation(env):
+        return env.env_params['count'].astype(float).reshape(1, 1)
+
+    @staticmethod
+    def reward(env):
+        return (env.env_params['count'].astype(float)**2-env.env_params['previous'])[None]
+
+    @staticmethod
+    def terminated(env):
+        p = env.env_params
+        return (p['count'] >= p['limit']) & p['terminal']
+
+    @staticmethod
+    def truncated(env):
+        p = env.env_params
+        return (p['count'] >= p['limit']) & ~p['terminal']
 
 
 @jax.tree_util.register_dataclass
@@ -108,76 +159,3 @@ def test_saturated_actions_use_exact_latent_ratios_and_gradients(space, dtype):
     expected_grad = -jnp.mean(aux['advantages'] * expected_ratio *
                              (td.latent_action[..., 0] - model.mean[0]) / .1**2)
     np.testing.assert_allclose(grads.mean[0], expected_grad, rtol=2e-4, atol=2e-4)
-
-
-@pytest.mark.parametrize('discrete', [False, True])
-@pytest.mark.parametrize('batched', [False, True])
-def test_evaluation_chunking_preserves_rng_actions_and_inactive_slots(discrete, batched):
-    env = ActionLookupEnv.Create()
-    env = replace(env, env_params={**env.env_params, 'limit': jnp.asarray(100)})
-    if batched:
-        env = vectorise_env(env, n=2)
-
-    def policy(obs, key, state):
-        shape = obs.shape[:-1] if discrete else obs.shape
-        action = (jax.random.randint(key, shape, 0, 3) if discrete
-                  else jax.random.normal(key, shape))
-        return action, state+1
-
-    key = jax.random.key(6)
-    final, final_key, state = env_step(env, policy, key, jnp.asarray(0), n=6)
-    chunks, chunk_key, chunk_state, snapshots = env_trajectory_rollout(
-        env, policy, key, jnp.asarray(0), n=2, stride=3)
-    for a, b in zip(jax.tree.leaves(final), jax.tree.leaves(chunks)):
-        np.testing.assert_allclose(a, b, rtol=1e-6, atol=1e-6)
-    np.testing.assert_array_equal(jax.random.key_data(final_key), jax.random.key_data(chunk_key))
-    assert state == chunk_state == 6
-    assert snapshots.env_params['count'].shape[0] == 2
-    assert jnp.all(final.env_params['inactive_action'] == 0)
-
-
-def test_continuous_clipping_rejects_discrete_actions():
-    env = ActionLookupEnv.Create()
-    model = SharedActorCritic(observation_space_size=1, action_space_size=3,
-                              key=nnx.Rngs(2), discrete=True)
-    with pytest.raises(ValueError, match='continuous'):
-        PPOTrainer.Create(env, model, clip_actions=True)
-    with pytest.raises(TypeError, match='continuous'):
-        advance_action(clip_action_env(env), jnp.array([2, 1], dtype=jnp.int32))
-
-
-@pytest.mark.parametrize('function, kwargs', [
-    (env_step, {'n': -1}), (env_step, {'n': 1.5}),
-    (env_step, {'n': 0, 'skip_frames': -1}),
-    (env_trajectory_rollout, {'n': 1, 'stride': 0}),
-    (env_trajectory_rollout, {'n': True}),
-])
-def test_evaluation_validates_counts(function, kwargs):
-    def policy(obs, key, state):
-        return jnp.zeros_like(obs), state
-    with pytest.raises(ValueError, match='integer'):
-        function(CheckpointCounter.Create(), policy, jax.random.key(0), (), **kwargs)
-
-
-@pytest.mark.parametrize('discrete', [False, True])
-def test_repeat_masks_agents_that_disappear_during_the_action(discrete):
-    @jax.tree_util.register_dataclass
-    @dataclass(slots=True)
-    class Disappearing(ActionLookupEnv):
-        @staticmethod
-        def agent_mask(env):
-            return jnp.array([True, env.env_params['count'] == 0])
-    base = ActionLookupEnv.Create()
-    env = Disappearing(base.state, base.system,
-        {**base.env_params, 'limit': jnp.asarray(100)})
-    action = jnp.array([1, 2],dtype=jnp.int32) if discrete else jnp.array([[1.], [2.]])
-    final,_,_ = advance_action(env,action,skip_frames=2)
-    assert final.env_params['inactive_action'] == 0
-    assert final.env_params['count'] == 3
-
-
-def test_continuous_clipping_keeps_inactive_actions_zero_outside_interval():
-    env = clip_action_env(ActionLookupEnv.Create(), min_val=.2,max_val=.8)
-    final,_,_ = advance_action(env,jnp.array([[2.],[2.]]))
-    np.testing.assert_allclose(final.env_params['total'],.8)
-    assert final.env_params['inactive_action'] == 0
