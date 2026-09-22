@@ -53,19 +53,42 @@ def _capacity_offsets(counts: jax.Array, capacity: int) -> tuple[jax.Array, jax.
     ), overflow
 
 
-def build_pairs(state: Any, system: Any, cutoff: Any, capacity: int) -> tuple[Any, ...]:
-    return _search_pairs(state, system, cutoff, capacity)
+def build_pairs(
+    state: Any,
+    system: Any,
+    cutoff: Any,
+    capacity: int,
+    *,
+    search_radii: Any | None = None,
+    skin: Any = 0.0,
+) -> tuple[Any, ...]:
+    """Build pairs within a scalar search bound and optional per-pair reaches."""
+    return _search_pairs(state, system, cutoff, capacity, search_radii, skin)
 
 
 @jax.jit
-def count_pairs(state: Any, system: Any, cutoff: Any) -> tuple[Any, Any]:
+def count_pairs(
+    state: Any,
+    system: Any,
+    cutoff: Any,
+    *,
+    search_radii: Any | None = None,
+    skin: Any = 0.0,
+) -> tuple[Any, Any]:
     """Return directed row counts and hash overflow without allocating pairs."""
-    counts, overflow = _search_pairs(state, system, cutoff, None)
+    counts, overflow = _search_pairs(
+        state, system, cutoff, None, search_radii, skin
+    )
     return counts, overflow
 
 
 def _search_pairs(
-    state: Any, system: Any, cutoff: Any, capacity: int | None
+    state: Any,
+    system: Any,
+    cutoff: Any,
+    capacity: int | None,
+    search_radii: Any | None,
+    skin: Any,
 ) -> tuple[Any, ...]:
     n = state.N
     if n == 0:
@@ -118,9 +141,19 @@ def _search_pairs(
             & (hashes[safe] == target[..., None])
         )
         dr = system.domain.displacement(pos[src, None, None, :], pos[dst], system)
+        distance_sq = norm2(dr)
+        if search_radii is None:
+            within_reach = distance_sq <= cutoff_sq
+        else:
+            pair_reach = (
+                search_radii[src, None, None] + search_radii[dst] + skin
+            )
+            within_reach = (distance_sq <= cutoff_sq) & (
+                distance_sq <= pair_reach**2
+            )
         valid = (
             in_cell
-            & (norm2(dr) <= cutoff_sq)
+            & within_reach
             & valid_interaction_mask(
                 state.clump_id[dst],
                 state.clump_id[src, None, None],
@@ -274,10 +307,8 @@ def check_and_rebuild(state: Any, system: Any) -> Any:
         raise ValueError(
             f"Domain.search_geometry_snapshot() must have shape {(state.dim + 3,)}"
         )
-    cutoff = jnp.maximum(
-        col.cutoff,
-        2 * jnp.max(system.force_model.search_radii(state, system), initial=0.0),
-    )
+    search_radii = system.force_model.search_radii(state, system)
+    cutoff = jnp.maximum(col.cutoff, 2 * jnp.max(search_radii, initial=0.0))
     moved = jnp.max(norm2(pos - col.old_pos), initial=0.0) > col.skin**2 / 4
     rebuild = (
         moved
@@ -294,6 +325,8 @@ def check_and_rebuild(state: Any, system: Any) -> Any:
             replace(system, collider=col.secondary_collider),
             cutoff + col.skin,
             col.neighbor_list.size,
+            search_radii=search_radii,
+            skin=col.skin,
         )
         initialized = system.force_model.init_history(nl.shape, state.dim)
         history = jax.lax.cond(

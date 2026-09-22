@@ -43,11 +43,14 @@ class NeighborList(Collider):
 
     Mathematical Formalism & Rebuild Criteria
     -----------------------------------------
-    The neighbor list uses a search radius that includes a buffer distance,
-    the ``skin``:
+    The spatial rebuild uses a conservative scalar bound, but stores a pair
+    only when its force-model search radii :math:`r_i` and :math:`r_j` satisfy:
 
     .. math::
-        r_{search} = \text{cutoff} + \text{skin}
+        d_{ij} \le r_i + r_j + \text{skin}
+
+    This avoids giving every primitive the largest primitive's interaction
+    range in polydisperse systems.
 
     Let :math:`\mathbf{x}_i^0` represent the position of particle :math:`i` at the time
     of the last neighbor list rebuild. At any later timestep, the displacement of
@@ -63,8 +66,7 @@ class NeighborList(Collider):
         |d_{ij} - d_{ij}^0| \le \|\Delta \mathbf{x}_i\| + \|\Delta \mathbf{x}_j\| \le 2 \max_{k} \|\Delta \mathbf{x}_k\|
 
     To make sure the list captures every pair before the pair comes closer than
-    the interaction range :math:`\text{cutoff}`, the collider rebuilds the list
-    as soon as:
+    its interaction range, the collider rebuilds the list as soon as:
 
     .. math::
         \max_{k} \|\Delta \mathbf{x}_k\| > \frac{\text{skin}}{2}
@@ -105,8 +107,9 @@ class NeighborList(Collider):
 
     Constructor Parameters
     ----------------------
-    - **cutoff**: The physical contact interaction range. Larger cutoffs increase the search volume
-      exponentially and expand the neighbor buffer.
+    - **cutoff**: A conservative scalar broad-phase interaction range. Stored
+      force pairs are additionally filtered by their individual force-model
+      search radii.
     - **skin**: The **absolute** buffer distance added to the cutoff (the same quantity the dataclass
       field ``skin`` stores). You can also pass it to ``Create`` as ``skin_fraction``, a fraction of the
       cutoff (default `0.05`). Larger skin reduces rebuild frequency but inflates `max_neighbors`, which

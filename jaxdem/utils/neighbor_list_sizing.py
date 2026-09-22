@@ -147,9 +147,10 @@ def measure_neighbor_candidates(
         One configuration and its domain, force model, and interaction rules.
         Positions, forces, and contact history are unchanged.
     cutoff
-        Configured cutoff. Defaults to the collider's cutoff if present,
-        otherwise twice the largest force-model search radius. The effective
-        cutoff is at least twice that radius, matching NeighborList rebuilds.
+        Configured scalar broad-phase cutoff. Defaults to the collider's cutoff
+        if present, otherwise twice the largest force-model search radius. Pair
+        counts are additionally filtered by the sum of their individual
+        force-model search radii.
     skin
         Absolute buffer distance. Defaults to the collider's stored skin if
         present, otherwise ``0.05 * cutoff``.
@@ -171,15 +172,20 @@ def measure_neighbor_candidates(
     Notes
     -----
     This is a host-side utility. A JIT-compiled search counts candidates without
-    evaluating forces or energy. At most 64 particles use the all-pairs backend
-    to avoid grid setup. Larger configurations use a cell search, except custom
-    domains without a declared cell-search geometry, which use all pairs.
+    evaluating forces or energy. A pair is retained through the skin distance
+    using ``distance <= radius_i + radius_j + skin``. At most 64 particles use
+    the all-pairs backend to avoid grid setup. Larger configurations use a cell
+    search, except custom domains without a declared cell-search geometry,
+    which use all pairs.
     """
     from ..colliders import Collider
     from ..colliders._neighbor_cache import count_pairs
 
     _validate_state(state)
-    _, _, list_cutoff = _search_distances(state, system, cutoff, skin, skin_fraction)
+    _, skin, list_cutoff = _search_distances(
+        state, system, cutoff, skin, skin_fraction
+    )
+    search_radii = system.force_model.search_radii(state, system)
     if state.N <= 64 or system.domain.search_geometry is None:
         collider = Collider.create("naive")
     else:
@@ -187,7 +193,11 @@ def measure_neighbor_candidates(
             "celllist", state=state, cell_size=max(list_cutoff, 1e-12), search_range=1
         )
     degree, overflow = count_pairs(
-        state, replace(system, collider=collider), jnp.asarray(list_cutoff)
+        state,
+        replace(system, collider=collider),
+        jnp.asarray(list_cutoff),
+        search_radii=search_radii,
+        skin=jnp.asarray(skin),
     )
     if bool(overflow):
         raise RuntimeError("Spatial hash overflow during neighbor candidate counting.")
