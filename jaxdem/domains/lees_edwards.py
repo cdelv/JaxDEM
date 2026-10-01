@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 
 from functools import partial
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any, cast
 
 from . import Domain, SearchGeometry
@@ -28,18 +28,25 @@ class LeesEdwardsDomain(Domain):
     ``beta``, the current shear strain ``gamma`` offsets the periodic images
     along the shear-flow axis ``alpha``.
 
-    ``gamma`` is a plain state field that both :meth:`displacement` and
-    :meth:`shift` read directly. The domain does not advance it. You impose
-    the shear protocol externally by updating ``gamma`` between steps (e.g. in
-    ``user_post_step_actions``). For example, constant-rate shear is::
+    ``gamma`` is the current shear strain and ``gamma_dot`` its time derivative.
+    Time stepping does not advance these fields automatically. Set the initial
+    values before initializing forces and update the protocol in
+    ``user_pre_step_actions``, before each force evaluation. For constant-rate
+    shear, set ``gamma_dot`` when creating the domain and use::
 
         from dataclasses import replace
 
         def shear(state, system):
-            gamma = system.domain.gamma + gamma_dot * system.dt
+            gamma = system.domain.gamma + system.domain.gamma_dot * system.dt
             return state, replace(system, domain=replace(system.domain, gamma=gamma))
 
-    while oscillatory shear sets ``gamma = gamma_amp * jnp.sin(omega * system.time)``.
+    For oscillatory shear, set ``gamma = gamma_amp * jnp.sin(omega * system.time)``
+    and ``gamma_dot = gamma_amp * omega * jnp.cos(omega * system.time)`` in the
+    same callback. Contact laws use :meth:`relative_velocity` to account for
+    the moving image even when particle coordinates remain unwrapped.
+
+    For quasistatic shear, call :meth:`shear` to apply an affine strain increment
+    to particle centers and periodic images, then minimize at fixed strain.
     """
 
     search_geometry = SearchGeometry.SHEAR_PERIODIC
@@ -73,6 +80,10 @@ class LeesEdwardsDomain(Domain):
     beta: int = jax.tree.static(default=1)
     """Index of the shear-gradient coordinate."""
 
+    gamma_dot: jax.Array = field(default_factory=lambda: jnp.asarray(0.0, dtype=float))
+    """Current shear rate, used for image velocities. Keep it consistent with
+    the externally imposed derivative of ``gamma``; it does not advance strain."""
+
     def search_geometry_snapshot(self) -> jax.Array:
         """Return box and canonical shear geometry used by search caches."""
         return jnp.concatenate(
@@ -96,6 +107,7 @@ class LeesEdwardsDomain(Domain):
         gamma: float | jax.Array = 0.0,
         alpha: int = 0,
         beta: int = 1,
+        gamma_dot: float | jax.Array = 0.0,
         **kwargs: Any,
     ) -> "LeesEdwardsDomain":
         """Construct a Lees-Edwards domain with validated shear axes."""
@@ -141,12 +153,35 @@ class LeesEdwardsDomain(Domain):
             beta_axis=jax.nn.one_hot(beta, dim, dtype=dtype),
             alpha=alpha,
             beta=beta,
+            gamma_dot=jnp.asarray(gamma_dot, dtype=float),
         )
 
     @property
     def periodic(self) -> bool:
         """Whether the domain enforces periodic boundary conditions."""
         return True
+
+    @staticmethod
+    @jax.jit(inline=True)
+    @partial(jax.named_call, name="LeesEdwardsDomain.shear")
+    def shear(
+        state: State, system: System, dgamma: float | jax.Array
+    ) -> tuple[State, System]:
+        """Apply an affine strain increment about the domain anchor.
+
+        Move body centers along ``alpha`` by ``dgamma * (r_beta - anchor_beta)``
+        and increment ``gamma`` by ``dgamma``. Rigid-body offsets and orientations
+        are preserved. Coordinates remain unwrapped; time, velocities and
+        ``gamma_dot`` are unchanged. For quasistatic shear, minimize the returned
+        state at its new strain before applying the next increment.
+        """
+        domain = cast("LeesEdwardsDomain", system.domain)
+        pos_c = state.pos_c.at[..., domain.alpha].add(
+            dgamma * (state.pos_c[..., domain.beta] - domain.anchor[domain.beta])
+        )
+        return replace(state, pos_c=pos_c), replace(
+            system, domain=replace(domain, gamma=domain.gamma + dgamma)
+        )
 
     @staticmethod
     @jax.jit(inline=True)
@@ -190,6 +225,31 @@ class LeesEdwardsDomain(Domain):
         shear_image = jnp.round(rij[..., le_domain.beta] / beta_length)
         rij = rij.at[..., le_domain.alpha].add(-shear_image * beta_length * gamma)
         return rij - le_domain.box_size * jnp.round(rij / le_domain.box_size)
+
+    @staticmethod
+    @jax.jit(inline=True)
+    @partial(jax.named_call, name="LeesEdwardsDomain.relative_velocity")
+    def relative_velocity(
+        ri: jax.Array,
+        rj: jax.Array,
+        vi: jax.Array,
+        vj: jax.Array,
+        system: System,
+    ) -> jax.Array:
+        """Subtract the velocity of the same image used by ``displacement``.
+
+        Each gradient image adds ``gamma_dot * L_beta`` to the image's
+        flow velocity. Image counts use the supplied unwrapped particle
+        centers, including when they span multiple boxes.
+        """
+        domain = cast("LeesEdwardsDomain", system.domain)
+        beta_length = domain.box_size[domain.beta]
+        shear_image = jnp.round((ri - rj)[..., domain.beta] / beta_length)
+        return (
+            (vi - vj)
+            .at[..., domain.alpha]
+            .add(-shear_image * beta_length * domain.gamma_dot)
+        )
 
     @staticmethod
     @partial(jax.jit, inline=True)

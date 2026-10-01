@@ -200,6 +200,24 @@ class Domain(Factory, ABC):
 
     @staticmethod
     @jax.jit(inline=True)
+    def relative_velocity(
+        ri: jax.Array,
+        rj: jax.Array,
+        vi: jax.Array,
+        vj: jax.Array,
+        system: System,
+    ) -> jax.Array:
+        """Return relative velocity for the image selected by ``displacement``.
+
+        ``ri`` and ``rj`` are the particle centers used to select that image.
+        ``vi`` and ``vj`` may include rotational contact-point velocities.
+        Domains with moving periodic images override this operation to add
+        the image's translational velocity offset.
+        """
+        return vi - vj
+
+    @staticmethod
+    @jax.jit(inline=True)
     def apply(state: State, system: System) -> tuple[State, System]:
         """Apply boundary conditions during the simulation step.
 

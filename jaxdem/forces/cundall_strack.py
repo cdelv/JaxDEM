@@ -233,7 +233,7 @@ class CundallStrackForce(ForceModel):
         v_ci = state.velocity_at(i, r_ci)
         v_cj = state.velocity_at(j, r_cj)
 
-        v_rel = v_ci - v_cj
+        v_rel = system.domain.relative_velocity(pos[i], pos[j], v_ci, v_cj, system)
         vn = dot(v_rel, n)
         vt_vec = v_rel - vn[..., None] * n
         # Normal force (strictly repulsive, zero when not in contact)

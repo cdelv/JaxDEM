@@ -161,10 +161,11 @@ rij = system.domain.displacement(jnp.array([1.0, 0.1]), jnp.array([6.0, 9.9]), s
 print("Lees-Edwards displacement:", rij)
 
 # %%
-# The domain reads ``gamma`` but does not advance it. Update the strain in a
-# simulation callback and return the updated pytrees. This updates periodic
-# image geometry only; it does not impose background streaming velocities or a
-# velocity jump. Add any driving required by your shear protocol separately.
+# The domain reads ``gamma`` (strain) and ``gamma_dot`` (shear rate), but does
+# not advance them. Update the strain in ``user_pre_step_actions`` so forces
+# use the strain at the new time. Cundall--Strack uses ``gamma_dot`` to account
+# for the velocity of the selected periodic image. Ordinary stepping keeps
+# particle coordinates unwrapped; no call to ``domain.shift`` is needed.
 #
 # .. code-block:: python
 #
@@ -173,16 +174,22 @@ print("Lees-Edwards displacement:", rij)
 #    def advance_shear(state, system):
 #        domain = replace(
 #            system.domain,
-#            gamma=system.domain.gamma + shear_rate * system.dt,
+#            gamma=system.domain.gamma + system.domain.gamma_dot * system.dt,
 #        )
 #        return state, replace(system, domain=domain)
 #
 #    system = jdem.System.create(
 #        state.shape,
 #        domain_type="leesedwards",
-#        domain_kw={"box_size": 10.0 * jnp.ones(2)},
-#        user_post_step_actions=advance_shear,
+#        domain_kw={"box_size": 10.0 * jnp.ones(2), "gamma_dot": shear_rate},
+#        user_pre_step_actions=advance_shear,
 #    )
+#    state, system = system.initialize(state, system)
+#
+# For a time-dependent rate, update ``gamma_dot`` alongside ``gamma`` and set
+# both to their initial values before ``initialize``. For example, oscillatory
+# shear uses ``gamma = amplitude * jnp.sin(omega * system.time)`` and
+# ``gamma_dot = amplitude * omega * jnp.cos(omega * system.time)``.
 #
 # ``shift`` removes the positional shear offset for each crossed gradient image and then
 # wraps all coordinates into the primary box. Spatial-search caches include
