@@ -92,6 +92,20 @@ ratios, and constituent contact counts.
 Both collections contain active interactions without padding; collecting them is
 a host operation with variable-length output.
 
+For a system using `CundallStrackForce` directly, the force law can also report
+its resolved contact components:
+
+```python
+from jaxdem.forces import get_cundall_strack_contacts
+
+state, system, contacts = get_cundall_strack_contacts(state, system)
+```
+
+`CundallStrackContactData` contains directed sphere-pair IDs, normal and
+tangential force vectors, force-law torques about the source sphere center,
+mixed pair friction coefficients, and a `mobilized` mask. A contact is
+mobilized when its tangential trial force is on or beyond its Coulomb limit.
+
 Diagnostics preserve contact history. Use the returned system to retain any
 refreshed collider cache. A snapshot can be reused only while the state and
 force-model inputs, including contact history, are unchanged. Collect new contacts

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Callable, Literal, cast
+from typing import TYPE_CHECKING, Callable, Literal, NamedTuple, cast
 
 import jax
 import jax.numpy as jnp
@@ -21,6 +21,37 @@ if TYPE_CHECKING:  # pragma: no cover
 
 FrictionMixingRule = Callable[[jax.Array, jax.Array], jax.Array]
 CundallStrackParameterization = Literal["elastic", "coefficients"]
+
+
+class CundallStrackContactData(NamedTuple):
+    """Directed active contacts resolved into Cundall-Strack components.
+
+    Attributes
+    ----------
+    pair_ids : jax.Array
+        Sphere indices ``(i, j)``, shape ``(M, 2)``. Each row describes the
+        contact force and torque on ``i`` from ``j``. Reciprocal contacts are
+        represented by separate rows.
+    normal_forces, tangential_forces : jax.Array
+        Normal and Coulomb-limited tangential force vectors, shape ``(M, dim)``.
+    torques : jax.Array
+        Force-law torques about the center of sphere ``i``, shape
+        ``(M, 1 | 3)``. These include tangential contact torque and rolling
+        resistance, but not a clump-member offset moment.
+    friction_coefficients : jax.Array
+        Effective sliding-friction coefficient ``mu_ij`` selected by the
+        configured mixing rule, shape ``(M,)``.
+    mobilized : jax.Array
+        Whether the tangential trial force is on or beyond the Coulomb surface,
+        shape ``(M,)``.
+    """
+
+    pair_ids: jax.Array
+    normal_forces: jax.Array
+    tangential_forces: jax.Array
+    torques: jax.Array
+    friction_coefficients: jax.Array
+    mobilized: jax.Array
 
 
 def minimum_friction(mu_i: jax.Array, mu_j: jax.Array) -> jax.Array:
@@ -93,8 +124,8 @@ def _transport_tangent(
 
 
 @jax.jit(inline=True, static_argnames=("advance_history",))
-@partial(jax.named_call, name="cundall_strack_force")
-def _force_with_coefficients(
+@partial(jax.named_call, name="cundall_strack_contact_response")
+def _contact_response_with_coefficients(
     i: int,
     j: int,
     pos: jax.Array,
@@ -109,7 +140,7 @@ def _force_with_coefficients(
     mu_r_ij: jax.Array,
     *,
     advance_history: bool,
-) -> tuple[jax.Array, jax.Array, jax.Array]:
+) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
     """Evaluate the shared linear spring-dashpot Cundall--Strack law."""
     R_i, R_j = state.rad[i], state.rad[j]
 
@@ -150,9 +181,7 @@ def _force_with_coefficients(
     Ft_trial = -kt[..., None] * xi_eval - gamma_t[..., None] * vt_vec
     Ft_norm = jnp.linalg.norm(Ft_trial, axis=-1)
     Ft_max = mu_ij * Fn
-    Ft = Ft_trial * jnp.minimum(
-        1.0, Ft_max / jnp.maximum(Ft_norm, 1e-30)
-    )[..., None]
+    Ft = Ft_trial * jnp.minimum(1.0, Ft_max / jnp.maximum(Ft_norm, 1e-30))[..., None]
     Ft *= is_contact[..., None]
 
     # Return-map the spring at sliding contacts so stored displacement
@@ -161,12 +190,14 @@ def _force_with_coefficients(
         kt[..., None], 1e-30
     )
     sliding = Ft_norm > Ft_max
+    mobilized = is_contact & (Ft_norm > 0.0) & (Ft_norm >= Ft_max)
     xi_next = jnp.where(sliding[..., None], xi_returned, xi_trial)
     next_history = jnp.concatenate([xi_next, n], axis=-1)
     next_history = jnp.where(is_contact[..., None], next_history, 0.0)
     new_history = next_history if advance_history else history
 
-    F = Fn[..., None] * n + Ft
+    normal_force = Fn[..., None] * n
+    F = normal_force + Ft
     torque = cross(r_ci, F)
 
     # Rolling friction: resistive torque opposing relative angular velocity
@@ -175,7 +206,44 @@ def _force_with_coefficients(
     omega_hat = unit(omega_rel)
     torque = torque - (mu_r_ij * R_eff * Fn)[..., None] * omega_hat
 
-    return F, torque, new_history
+    return normal_force, Ft, torque, new_history, mobilized
+
+
+@jax.jit(inline=True, static_argnames=("advance_history",))
+@partial(jax.named_call, name="cundall_strack_force")
+def _force_with_coefficients(
+    i: int,
+    j: int,
+    pos: jax.Array,
+    state: State,
+    system: System,
+    history: jax.Array,
+    kn: jax.Array,
+    kt: jax.Array,
+    gamma_n: jax.Array,
+    gamma_t: jax.Array,
+    mu_ij: jax.Array,
+    mu_r_ij: jax.Array,
+    *,
+    advance_history: bool,
+) -> tuple[jax.Array, jax.Array, jax.Array]:
+    """Return the combined force, torque, and updated pair history."""
+    normal, tangential, torque, new_history, _ = _contact_response_with_coefficients(
+        i,
+        j,
+        pos,
+        state,
+        system,
+        history,
+        kn,
+        kt,
+        gamma_n,
+        gamma_t,
+        mu_ij,
+        mu_r_ij,
+        advance_history=advance_history,
+    )
+    return normal + tangential, torque, new_history
 
 
 @jax.jit(inline=True)
@@ -247,6 +315,73 @@ def _pair_coefficients(
         dtype=state.pos.dtype,
     )
     return kn, kt, gamma_n, gamma_t, mu_ij, mu_r_ij
+
+
+@jax.jit
+def _evaluate_contact_diagnostics(
+    state: State,
+    system: System,
+    pairs: jax.Array,
+    history: jax.Array,
+    valid: jax.Array,
+) -> CundallStrackContactData:
+    """Evaluate a packed block without advancing its contact history."""
+    if not pairs.shape[0]:
+        return _empty_contact_diagnostics(state)
+
+    def evaluate(
+        args: tuple[jax.Array, jax.Array, jax.Array],
+    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
+        pair, pair_history, pair_valid = args
+        i = jnp.clip(pair[0], 0, state.N - 1)
+        j = jnp.clip(pair[1], 0, state.N - 1)
+        kn, kt, gamma_n, gamma_t, mu_ij, mu_r_ij = _pair_coefficients(
+            i, j, state, system
+        )
+        normal, tangential, torque, _, mobilized = _contact_response_with_coefficients(
+            i,
+            j,
+            state.pos,
+            state,
+            system,
+            pair_history,
+            kn,
+            kt,
+            gamma_n,
+            gamma_t,
+            mu_ij,
+            mu_r_ij,
+            advance_history=False,
+        )
+        return (
+            jnp.where(pair_valid, normal, 0.0),
+            jnp.where(pair_valid, tangential, 0.0),
+            jnp.where(pair_valid, torque, 0.0),
+            jnp.where(pair_valid, mu_ij, 0.0),
+            pair_valid & mobilized,
+        )
+
+    normal, tangential, torque, friction, mobilized = jax.lax.map(
+        evaluate,
+        (pairs, history, valid),
+        batch_size=min(pairs.shape[0], 4096),
+    )
+    return CundallStrackContactData(
+        pairs, normal, tangential, torque, friction, mobilized
+    )
+
+
+def _empty_contact_diagnostics(state: State) -> CundallStrackContactData:
+    """Return a correctly shaped empty contact snapshot."""
+    dtype = state.pos_c.dtype
+    return CundallStrackContactData(
+        jnp.empty((0, 2), dtype=int),
+        jnp.empty((0, state.dim), dtype=dtype),
+        jnp.empty((0, state.dim), dtype=dtype),
+        jnp.empty((0, state.ang_vel.shape[-1]), dtype=dtype),
+        jnp.empty((0,), dtype=dtype),
+        jnp.empty((0,), dtype=bool),
+    )
 
 
 @ForceModel.register("cundallstrack")
@@ -332,9 +467,7 @@ class CundallStrackForce(ForceModel):
 
     """
 
-    parameterization: CundallStrackParameterization = jax.tree.static(
-        default="elastic"
-    )
+    parameterization: CundallStrackParameterization = jax.tree.static(default="elastic")
     friction_mixing: FrictionMixingRule = jax.tree.static(default=minimum_friction)
     rolling_friction_mixing: FrictionMixingRule = jax.tree.static(
         default=minimum_friction
@@ -448,12 +581,61 @@ class CundallStrackForce(ForceModel):
         return ("k_n", "k_t", "b_n", "b_t", "mu", "mu_r")
 
 
+def get_cundall_strack_contacts(
+    state: State, system: System
+) -> tuple[State, System, CundallStrackContactData]:
+    """Collect resolved Cundall-Strack forces for all active directed contacts.
+
+    The configured collider supplies pair candidates and stored tangential
+    history. Neighbor-list caches are rebuilt when necessary, but contact
+    history is never advanced. The returned ``system`` retains any refreshed
+    cache. Results are sorted by source and destination sphere index.
+
+    This is a host-side operation because it returns variable-length arrays.
+
+    Raises
+    ------
+    TypeError
+        The system does not use :class:`CundallStrackForce` directly.
+    ValueError
+        Pair search results are incomplete or a reported value is nonfinite.
+    """
+    from ..utils._pair_candidates import _collect_pair_candidates
+
+    if not isinstance(system.force_model, CundallStrackForce):
+        raise TypeError(
+            "get_cundall_strack_contacts requires a system whose force model "
+            "is CundallStrackForce."
+        )
+
+    system, pairs, valid, history = _collect_pair_candidates(state, system)
+    data = _evaluate_contact_diagnostics(state, system, pairs, history, valid)
+    active = valid & (
+        jnp.any(data.normal_forces != 0, axis=1)
+        | jnp.any(data.tangential_forces != 0, axis=1)
+        | jnp.any(data.torques != 0, axis=1)
+    )
+    data = jax.tree.map(lambda value: value[active], data)
+    finite = (
+        jnp.all(jnp.isfinite(data.normal_forces))
+        & jnp.all(jnp.isfinite(data.tangential_forces))
+        & jnp.all(jnp.isfinite(data.torques))
+        & jnp.all(jnp.isfinite(data.friction_coefficients))
+    )
+    if not bool(finite):
+        raise ValueError("Cundall-Strack contact diagnostics must be finite.")
+    order = jnp.lexsort((data.pair_ids[:, 1], data.pair_ids[:, 0]))
+    return state, system, jax.tree.map(lambda value: value[order], data)
+
+
 __all__ = [
+    "CundallStrackContactData",
     "CundallStrackForce",
     "CundallStrackParameterization",
     "FrictionMixingRule",
     "arithmetic_mean_friction",
     "geometric_mean_friction",
+    "get_cundall_strack_contacts",
     "maximum_friction",
     "minimum_friction",
 ]

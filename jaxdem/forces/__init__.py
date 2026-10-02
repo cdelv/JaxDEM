@@ -221,9 +221,11 @@ class ForceModel(Factory, ABC):
 
 
 from .cundall_strack import (
+    CundallStrackContactData,
     CundallStrackForce,
     arithmetic_mean_friction,
     geometric_mean_friction,
+    get_cundall_strack_contacts,
     maximum_friction,
     minimum_friction,
 )
@@ -238,6 +240,7 @@ from .wca_shifted import WCAShifted
 
 __all__ = [
     "WCA",
+    "CundallStrackContactData",
     "CundallStrackForce",
     "ForceManager",
     "ForceModel",
@@ -251,6 +254,7 @@ __all__ = [
     "FacetFacetSpringForce",
     "arithmetic_mean_friction",
     "geometric_mean_friction",
+    "get_cundall_strack_contacts",
     "maximum_friction",
     "minimum_friction",
 ]
