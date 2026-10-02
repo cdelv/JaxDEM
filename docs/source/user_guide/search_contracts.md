@@ -151,6 +151,13 @@ remain signed. Invalid hash geometry is reported as overflow.
 `Collider.stateful` is a class property describing cached collider state.
 `supports_history` identifies colliders that persist pair memory (NeighborList).
 
+For small systems, `NeighborList` accepts `all_pairs=True`. It stores all
+`N * N` ordered pairs during construction and does not rebuild the list during
+force or energy evaluation. Each pair therefore keeps the same history entry
+for the life of the collider. `cutoff`, `skin`, and `max_neighbors` may be
+omitted in this mode. Adding or removing particles still requires
+`refresh_collider`; memory use grows with `N * N`.
+
 All pair-force calls accept and return a history array:
 `force(..., history, advance_history=True) -> (force, torque, history)`.
 `history_shape(dim)` specifies its trailing shape; stateless laws return `(0,)`.

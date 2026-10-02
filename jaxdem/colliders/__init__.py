@@ -350,9 +350,10 @@ def refresh_collider(
             state=state,
             cutoff=collider.cutoff,
             skin=collider.skin,
-            max_neighbors=collider.max_neighbors,
+            max_neighbors=state.N if collider.all_pairs else collider.max_neighbors,
             secondary_collider_type=secondary_collider.type_name,
             secondary_collider_kw=_stored_create_kwargs(secondary_collider),
+            all_pairs=collider.all_pairs,
         )
         from ._neighbor_cache import refresh
 

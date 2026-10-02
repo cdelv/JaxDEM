@@ -302,6 +302,8 @@ def pair_values(
 
 def check_and_rebuild(state: Any, system: Any) -> Any:
     col, pos = system.collider, state.pos
+    if col.all_pairs:
+        return system
     metric = system.domain.search_geometry_snapshot()
     if metric.shape != (state.dim + 3,):
         raise ValueError(
@@ -614,5 +616,5 @@ def refresh(
         n_build_times=old.n_build_times,
         old_pos=old.old_pos,
         overflow=old.overflow,
-        invalidated=jnp.asarray(True),
+        invalidated=jnp.asarray(not new.all_pairs),
     )

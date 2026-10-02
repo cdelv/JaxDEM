@@ -189,6 +189,7 @@ print("Cell-list overflow:", bool(overflow_cl))
 #    the full rebuild cost at every step, whether or not its list was
 #    stale. The neighbor list therefore loses its main advantage under
 #    ``vmap`` and may not be the best collider choice for batched systems.
+#    This does not apply to ``all_pairs=True``, which has no rebuild.
 #
 # Key parameters:
 #
@@ -203,6 +204,9 @@ print("Cell-list overflow:", bool(overflow_cl))
 #   may exceed this budget. An exactly full pool is valid; overflow means the
 #   total directed-pair count exceeds the pool (or spatial hashing overflows).
 # - ``secondary_collider_type`` — any registered collider except another ``"neighbor_list"``.
+# - ``all_pairs`` — store every ``(i, j)`` pair once and never rebuild the
+#   stored list. This uses ``N * N`` entries and is intended for small systems.
+#   ``cutoff``, ``skin``, and ``max_neighbors`` may be omitted in this mode.
 #
 # This design works because every collider exposes ``create_neighbor_list``.
 # Do not wrap a ``NeighborList`` in another ``NeighborList``.

@@ -90,6 +90,106 @@ def test_explicit_neighbor_capacity_is_exact(capacity):
     assert collider.history.shape == (state.N * capacity, 0)
 
 
+def test_all_pairs_mode_materializes_every_pair_and_never_rebuilds():
+    state = jd.State.create(pos=jnp.array([[0.0, 0.0], [10.0, 0.0], [30.0, 0.0]]))
+    system = jd.System.create(
+        state=state,
+        force_model=RememberingSpring(),
+        collider_type="NeighborList",
+        collider_kw={"all_pairs": True},
+    )
+    expected_neighbors = np.tile(np.arange(state.N), state.N)
+    expected_offsets = np.arange(state.N + 1) * state.N
+
+    np.testing.assert_array_equal(system.collider.neighbor_list, expected_neighbors)
+    np.testing.assert_array_equal(system.collider.row_offsets, expected_offsets)
+    assert system.collider.max_neighbors == state.N
+    assert system.collider.all_pairs
+    assert int(system.collider.n_build_times) == 1
+    assert not bool(system.collider.invalidated)
+    assert type(system.collider.secondary_collider) is jd.colliders.NaiveSimulator
+
+    state, system = jd.System.initialize(state, system)
+    state, system = system.collider.compute_force(state, system)
+    sources = np.asarray(pair_sources(system.collider))
+    targets = np.asarray(system.collider.neighbor_list)
+    off_diagonal = sources != targets
+    np.testing.assert_array_equal(
+        np.asarray(system.collider.history)[off_diagonal], 1.0
+    )
+    np.testing.assert_array_equal(
+        np.asarray(system.collider.history)[~off_diagonal], 0.0
+    )
+
+    original_positions = np.asarray(system.collider.old_pos)
+    moved = replace(
+        state,
+        pos_c=state.pos_c + jnp.array([[100.0, 0.0], [-200.0, 0.0], [300.0, 0.0]]),
+    )
+    _, system = system.collider.compute_force(moved, system)
+    np.testing.assert_array_equal(system.collider.neighbor_list, expected_neighbors)
+    np.testing.assert_array_equal(system.collider.row_offsets, expected_offsets)
+    np.testing.assert_array_equal(system.collider.old_pos, original_positions)
+    np.testing.assert_array_equal(
+        np.asarray(system.collider.history)[off_diagonal], 2.0
+    )
+    assert int(system.collider.n_build_times) == 1
+    assert system.collider.invalidate() is system.collider
+
+
+def test_all_pairs_mode_rejects_partial_capacity():
+    state = jd.State.create(pos=jnp.zeros((3, 2)))
+    with pytest.raises(ValueError, match="omitted or equal to N"):
+        jd.colliders.NeighborList.Create(state, all_pairs=True, max_neighbors=2)
+
+
+def test_refresh_preserves_all_pairs_mode_for_a_new_particle_count():
+    state = jd.State.create(pos=jnp.zeros((2, 2)))
+    collider = jd.colliders.NeighborList.Create(state, all_pairs=True)
+    larger = jd.State.create(pos=jnp.zeros((4, 2)))
+    refreshed = jd.colliders.refresh_collider(larger, collider)
+
+    assert refreshed.all_pairs
+    assert refreshed.max_neighbors == larger.N
+    np.testing.assert_array_equal(
+        refreshed.neighbor_list, np.tile(np.arange(larger.N), larger.N)
+    )
+    np.testing.assert_array_equal(
+        refreshed.row_offsets, np.arange(larger.N + 1) * larger.N
+    )
+
+
+def test_all_pairs_mode_checkpoint_continues_exactly(tmp_path):
+    state = replace(
+        jd.State.create(pos=jnp.array([[0.0, 0.0], [0.3, 0.0]])),
+        fixed=jnp.ones(2, dtype=bool),
+    )
+    system = jd.System.create(
+        state=state,
+        force_model=RememberingSpring(),
+        collider_type="NeighborList",
+        collider_kw={"all_pairs": True},
+    )
+    state, system = jd.System.initialize(state, system)
+    state, system = jd.System.step(state, system)
+
+    checkpoint_dir = tmp_path / "all-pairs"
+    with jd.CheckpointWriter(checkpoint_dir) as writer:
+        writer.save(state, system)
+    restored_state, restored_system = jd.CheckpointLoader(checkpoint_dir).load()
+
+    assert restored_system.collider.all_pairs
+    np.testing.assert_array_equal(
+        restored_system.collider.neighbor_list, system.collider.neighbor_list
+    )
+    expected = jd.System.step(state, system)
+    actual = jd.System.step(restored_state, restored_system)
+    for expected_leaf, actual_leaf in zip(
+        jax.tree.leaves(expected), jax.tree.leaves(actual), strict=True
+    ):
+        np.testing.assert_array_equal(actual_leaf, expected_leaf)
+
+
 @jax.tree_util.register_dataclass
 @jd.ForceModel.register("remembering-spring-test")
 @dataclass(slots=True)
