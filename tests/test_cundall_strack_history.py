@@ -95,6 +95,40 @@ def _force(state: jd.State, system: jd.System, history: jnp.ndarray, *, advance=
     )
 
 
+def _tiny_contact(
+    *, tangential_displacement: float
+) -> tuple[jd.State, jd.System, jax.Array]:
+    state = jd.State.create(
+        pos=jnp.array([[0.0, 0.0], [1.0 - 1.0e-9, 0.0]]),
+        rad=jnp.full(2, 0.5),
+        mass=jnp.ones(2),
+    )
+    material = jd.Material.create(
+        "cundallstrackparams",
+        density=1.0,
+        k_n=1.0,
+        k_t=1.0,
+        b_n=0.0,
+        b_t=0.0,
+        mu=1.0,
+        mu_r=0.0,
+    )
+    system = jd.System.create(
+        state=state,
+        force_model=jd.forces.CundallStrackForce(parameterization="coefficients"),
+        mat_table=jd.MaterialTable.from_materials([material]),
+        dt=0.1,
+        collider_type="NeighborList",
+        collider_kw={
+            "max_neighbors": 1,
+            "cutoff": 1.0,
+            "secondary_collider_type": "naive",
+        },
+    )
+    history = jnp.array([0.0, tangential_displacement, -1.0, 0.0])
+    return state, system, history
+
+
 def test_elastic_tangent_accumulates_and_persists_after_motion_stops() -> None:
     state = _state()
     system = _system(state)
@@ -156,6 +190,45 @@ def test_damped_sliding_return_mapping_stays_on_coulomb_surface() -> None:
     np.testing.assert_allclose(jnp.abs(force[1]), 0.1 * normal_force, rtol=1e-6)
     _, _, returned_again = _force(state, system, returned)
     np.testing.assert_allclose(returned_again[:2], returned[:2], atol=1e-6)
+
+
+@pytest.mark.parametrize("tangential_displacement", [1.0e-10, 2.0e-9])
+def test_tiny_coulomb_forces_use_the_true_trial_norm(
+    tangential_displacement: float,
+) -> None:
+    state, system, history = _tiny_contact(
+        tangential_displacement=tangential_displacement
+    )
+
+    force, _, returned = _force(state, system, history)
+
+    coulomb_limit = abs(float(force[0]))
+    expected_tangential = min(tangential_displacement, coulomb_limit)
+    np.testing.assert_allclose(
+        force[1], -expected_tangential, rtol=1.0e-12, atol=0.0
+    )
+    np.testing.assert_allclose(
+        returned[1], expected_tangential, rtol=1.0e-12, atol=0.0
+    )
+
+
+def test_tiny_sticking_history_does_not_decay_without_motion() -> None:
+    state, system, history = _tiny_contact(tangential_displacement=1.0e-10)
+
+    for _ in range(4):
+        force, _, history = _force(state, system, history)
+        np.testing.assert_allclose(force[1], -1.0e-10, rtol=1.0e-12, atol=0.0)
+        np.testing.assert_allclose(history[1], 1.0e-10, rtol=1.0e-12, atol=0.0)
+
+
+def test_tiny_return_mapped_snapshot_force_is_stable() -> None:
+    state, system, history = _tiny_contact(tangential_displacement=2.0e-9)
+
+    force, _, returned = _force(state, system, history)
+    snapshot_force, _, frozen = _force(state, system, returned, advance=False)
+
+    np.testing.assert_allclose(snapshot_force, force, rtol=1.0e-12, atol=0.0)
+    np.testing.assert_array_equal(frozen, returned)
 
 
 def test_separation_resets_only_advancing_history_and_recontact_is_fresh() -> None:
