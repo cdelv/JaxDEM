@@ -120,12 +120,14 @@ class ForceModel(Factory, ABC):
         raise NotImplementedError
 
     @staticmethod
-    @abstractmethod
     @jax.jit
     def energy(
         i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> jax.Array:
-        """Compute the potential energy of the interaction between particle :math:`i` and particle :math:`j`.
+        """Compute history-independent pair energy.
+
+        Models with history-dependent energy may implement only
+        :meth:`energy_with_history`.
 
         Parameters
         ----------
@@ -147,7 +149,10 @@ class ForceModel(Factory, ABC):
             :math:`i` and :math:`j`.
 
         """
-        raise NotImplementedError
+        raise NotImplementedError(
+            f"{type(system.force_model).__name__} does not implement "
+            "history-free pair energy."
+        )
 
     @staticmethod
     @jax.jit

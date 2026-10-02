@@ -419,20 +419,6 @@ class CundallStrackForce(ForceModel):
 
     @staticmethod
     @jax.jit(inline=True)
-    @partial(jax.named_call, name="CundallStrackForce.energy")
-    def energy(
-        i: int, j: int, pos: jax.Array, state: State, system: System
-    ) -> jax.Array:
-        """Return normal spring energy when pair history is unavailable."""
-        kn, _ = _pair_stiffnesses(i, j, state, system)
-        R_i, R_j = state.rad[i], state.rad[j]
-        rij = system.domain._displacement(pos[i], pos[j], system)
-        delta = R_i + R_j - norm(rij)
-        delta *= (delta > 0) * (i != j)
-        return 0.5 * kn * delta * delta
-
-    @staticmethod
-    @jax.jit(inline=True)
     @partial(jax.named_call, name="CundallStrackForce.energy_with_history")
     def energy_with_history(
         i: int,
