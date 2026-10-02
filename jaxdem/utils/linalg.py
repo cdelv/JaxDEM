@@ -129,8 +129,9 @@ def norm(v: jax.Array) -> jax.Array:
         The norm. Shape `(...)`.
     """
     n2 = norm2(v)
-    safe_n2 = jnp.maximum(n2, 1e-16)
-    return jnp.where(n2 == 0.0, 0.0, jnp.sqrt(safe_n2))
+    zero = n2 == 0.0
+    safe_n2 = jnp.where(zero, 1.0, n2)
+    return jnp.where(zero, 0.0, jnp.sqrt(safe_n2))
 
 
 @jax.jit(inline=True)
@@ -175,9 +176,10 @@ def unit_and_norm(v: jax.Array) -> tuple[jax.Array, jax.Array]:
         A tuple of (unit vectors, norms).
     """
     n2 = norm2(v)
-    safe_n2 = jnp.maximum(n2, 1e-16)
-    inv_norm = jnp.where(n2 == 0.0, 0.0, jax.lax.rsqrt(safe_n2))
-    norm_v = n2 * inv_norm
+    zero = n2 == 0.0
+    safe_n2 = jnp.where(zero, 1.0, n2)
+    inv_norm = jnp.where(zero, 0.0, jax.lax.rsqrt(safe_n2))
+    norm_v = jnp.where(zero, 0.0, jnp.sqrt(safe_n2))
     return v * inv_norm[..., None], norm_v
 
 

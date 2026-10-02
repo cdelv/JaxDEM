@@ -115,11 +115,11 @@ class SpringForce(ForceModel):
         """
         R = state.rad[i] + state.rad[j]
         rij = system.domain._displacement(pos[i], pos[j], system)
-        # Preserve unit_and_norm's regularization while grouping the scalar
-        # factors before multiplying by the displacement vector.
         n2 = norm2(rij)
-        inv = jnp.where(n2 == 0.0, 0.0, jax.lax.rsqrt(jnp.maximum(n2, 1e-16)))
-        r = n2 * inv
+        zero = n2 == 0.0
+        safe_n2 = jnp.where(zero, 1.0, n2)
+        inv = jnp.where(zero, 0.0, jax.lax.rsqrt(safe_n2))
+        r = jnp.where(zero, 0.0, jnp.sqrt(safe_n2))
 
         mi, mj = state.mat_id[i], state.mat_id[j]
         k = system.mat_table.young_eff[mi, mj]

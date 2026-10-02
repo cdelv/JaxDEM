@@ -37,7 +37,10 @@ def _spring_case(displacement):
         overlap = jnp.maximum(0.0, state.rad[0] + state.rad[1] - distance)
         return (stiffness * overlap)[..., None] * normal
 
-    return state.pos, scalar_force, original_force
+    def pair_energy(pos):
+        return jd.forces.SpringForce.energy(0, 1, pos, state, system)
+
+    return state.pos, scalar_force, original_force, pair_energy
 
 
 @pytest.mark.parametrize(
@@ -64,14 +67,16 @@ def _spring_case(displacement):
     ],
 )
 def test_scalar_spring_matches_unit_and_norm_force_and_gradient(displacement):
-    pos, scalar_force, original_force = _spring_case(displacement)
+    pos, scalar_force, original_force, pair_energy = _spring_case(displacement)
 
     actual_force = scalar_force(pos)
     expected_force = original_force(pos)
+    energy_force = -jax.grad(pair_energy)(pos)[0]
     actual_gradient = jax.jacrev(scalar_force)(pos)
     expected_gradient = jax.jacrev(original_force)(pos)
 
     assert jnp.all(jnp.isfinite(actual_force))
     assert jnp.all(jnp.isfinite(actual_gradient))
     assert jnp.allclose(actual_force, expected_force, rtol=_RTOL, atol=_ATOL)
+    assert jnp.allclose(actual_force, energy_force, rtol=_RTOL, atol=_ATOL)
     assert jnp.allclose(actual_gradient, expected_gradient, rtol=_RTOL, atol=_ATOL)
