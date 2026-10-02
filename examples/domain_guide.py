@@ -191,6 +191,12 @@ print("Lees-Edwards displacement:", rij)
 # shear uses ``gamma = amplitude * jnp.sin(omega * system.time)`` and
 # ``gamma_dot = amplitude * omega * jnp.cos(omega * system.time)``.
 #
+# For discrete affine increments (for example, quasistatic shear), call
+# ``state, system = system.domain.shear(state, system, dgamma)``. This updates
+# ``gamma`` and advances pair histories such as Cundall--Strack exactly once;
+# it leaves physical velocities and ``gamma_dot`` unchanged. Do not represent
+# the same strain increment through both this call and the continuous protocol.
+#
 # ``shift`` removes the positional shear offset for each crossed gradient image and then
 # wraps all coordinates into the primary box. Spatial-search caches include
 # ``gamma``, ``alpha``, and ``beta`` in their geometry snapshot, so cached

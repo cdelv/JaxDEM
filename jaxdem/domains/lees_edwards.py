@@ -45,8 +45,9 @@ class LeesEdwardsDomain(Domain):
     same callback. Contact laws use :meth:`relative_velocity` to account for
     the moving image even when particle coordinates remain unwrapped.
 
-    For quasistatic shear, call :meth:`shear` to apply an affine strain increment
-    to particle centers and periodic images, then minimize at fixed strain.
+    For discrete affine shear, call :meth:`shear` to apply one strain increment
+    to particle centers, periodic images, and any pair history. Quasistatic
+    protocols can then minimize the returned state at fixed strain.
     """
 
     search_geometry = SearchGeometry.SHEAR_PERIODIC
@@ -171,17 +172,55 @@ class LeesEdwardsDomain(Domain):
 
         Move body centers along ``alpha`` by ``dgamma * (r_beta - anchor_beta)``
         and increment ``gamma`` by ``dgamma``. Rigid-body offsets and orientations
-        are preserved. Coordinates remain unwrapped; time, velocities and
-        ``gamma_dot`` are unchanged. For quasistatic shear, minimize the returned
-        state at its new strain before applying the next increment.
+        are preserved. For force models with pair history, advance that history
+        once using the affine displacement, including the velocity of periodic
+        shear images. Coordinates remain unwrapped; time, physical velocities,
+        and ``gamma_dot`` are unchanged. For quasistatic shear, minimize the
+        returned state at its new strain before applying the next increment.
         """
         domain = cast("LeesEdwardsDomain", system.domain)
-        pos_c = state.pos_c.at[..., domain.alpha].add(
-            dgamma * (state.pos_c[..., domain.beta] - domain.anchor[domain.beta])
+        affine_shift = dgamma * (
+            state.pos_c[..., domain.beta] - domain.anchor[domain.beta]
         )
-        return replace(state, pos_c=pos_c), replace(
-            system, domain=replace(domain, gamma=domain.gamma + dgamma)
+        pos_c = state.pos_c.at[..., domain.alpha].add(affine_shift)
+        sheared_state = replace(state, pos_c=pos_c)
+        sheared_domain = replace(domain, gamma=domain.gamma + dgamma)
+        sheared_system = replace(system, domain=sheared_domain)
+
+        # This is a trace-time branch: stateless force laws retain the original
+        # geometry-only compiled path without a force or neighbor-list traversal.
+        if system.force_model.history_shape(state.dim) == (0,):
+            return sheared_state, sheared_system
+
+        def advance_history(_: None) -> System:
+            shear_rate = dgamma / system.dt
+            moving_state = replace(
+                sheared_state,
+                vel=jnp.zeros_like(state.vel).at[..., domain.alpha].set(
+                    affine_shift / system.dt
+                ),
+                ang_vel=jnp.zeros_like(state.ang_vel),
+            )
+            moving_system = replace(
+                sheared_system,
+                domain=replace(sheared_domain, gamma_dot=shear_rate),
+            )
+            _, advanced = moving_system.collider.compute_force(
+                moving_state, moving_system
+            )
+            return replace(
+                advanced,
+                domain=replace(advanced.domain, gamma_dot=domain.gamma_dot),
+                search_overflow=advanced.search_overflow | advanced.collider.overflow,
+            )
+
+        sheared_system = jax.lax.cond(
+            dgamma != 0.0,
+            advance_history,
+            lambda _: sheared_system,
+            operand=None,
         )
+        return sheared_state, sheared_system
 
     @staticmethod
     @jax.jit(inline=True)
