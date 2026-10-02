@@ -57,6 +57,13 @@ class ForceRouter(ForceModel):
         )
 
     @property
+    def has_history_dependent_energy(self) -> bool:
+        """Whether any routable law stores energy in pair history."""
+        return any(
+            law.has_history_dependent_energy for row in self.table for law in row
+        )
+
+    @property
     def species_capacity(self) -> int | None:
         """Smallest capacity imposed by this table or a nested router."""
         capacities = [len(self.table)]
@@ -295,6 +302,54 @@ class ForceRouter(ForceModel):
 
         e_final = jax.lax.select_n(idx_e, *e_results)
         return e_final
+
+    @staticmethod
+    @jax.jit
+    @partial(jax.named_call, name="ForceRouter.energy_with_history")
+    def energy_with_history(
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
+    ) -> jax.Array:
+        """Compute routed pair energy from the selected law and its history."""
+        router = cast(ForceRouter, system.force_model)
+        S = len(router.table)
+        si = state.species_id[i]
+        sj = state.species_id[j]
+        idx = si * S + sj
+
+        e_map = {}
+        offset = 0
+        for a in range(S):
+            for b in range(a, S):
+                law = router.table[a][b]
+                child_shape = law.history_shape(pos.shape[-1])
+                width = math.prod(child_shape)
+                child_history = history[..., offset : offset + width].reshape(
+                    (*history.shape[:-1], *child_shape)
+                )
+                sub_system = dataclasses.replace(system, force_model=law)
+                if law.has_history_dependent_energy:
+                    e = law.energy_with_history(
+                        i, j, pos, state, sub_system, child_history
+                    )
+                else:
+                    e = law.energy(i, j, pos, state, sub_system)
+                e_map[(a, b)] = jnp.asarray(e, dtype=float)
+                if a != b:
+                    e_map[(b, a)] = e_map[(a, b)]
+                offset += width
+
+        e_results = [e_map[(a, b)] for a in range(S) for b in range(S)]
+        idx_e = idx
+        if jnp.ndim(idx) > 0:
+            while idx_e.ndim < e_results[0].ndim:
+                idx_e = idx_e[..., None]
+            idx_e = jnp.broadcast_to(idx_e, e_results[0].shape)
+        return jax.lax.select_n(idx_e, *e_results)
 
 
 __all__ = ["ForceRouter"]

@@ -10,6 +10,11 @@ import pytest
 import jaxdem as jd
 
 
+def quadratic_mean_friction(mu_i: jax.Array, mu_j: jax.Array) -> jax.Array:
+    """Importable custom rule used to exercise callable friction mixing."""
+    return jnp.sqrt(0.5 * (mu_i * mu_i + mu_j * mu_j))
+
+
 def _system(
     state: jd.State, *, mu: float = 10.0, restitution: float = 1.0, dt: float = 0.1
 ) -> jd.System:
@@ -25,6 +30,51 @@ def _system(
     table = jd.MaterialTable.from_materials([material])
     base = jd.System.create(state=state, mat_table=table, dt=dt)
     return replace(base, force_model=jd.forces.CundallStrackForce())
+
+
+def _coefficient_system(
+    state: jd.State,
+    *,
+    friction_mixing=jd.forces.minimum_friction,
+    rolling_friction_mixing=jd.forces.minimum_friction,
+    damping: bool = False,
+) -> jd.System:
+    materials = [
+        jd.Material.create(
+            "cundallstrackparams",
+            density=1.0,
+            k_n=100.0,
+            k_t=20.0,
+            b_n=2.0 if damping else 0.0,
+            b_t=4.0 if damping else 0.0,
+            mu=0.2,
+        ),
+        jd.Material.create(
+            "cundallstrackparams",
+            density=1.0,
+            k_n=300.0,
+            k_t=60.0,
+            b_n=6.0 if damping else 0.0,
+            b_t=12.0 if damping else 0.0,
+            mu=0.8,
+        ),
+    ]
+    return jd.System.create(
+        state=state,
+        force_model=jd.forces.CundallStrackForce(
+            parameterization="coefficients",
+            friction_mixing=friction_mixing,
+            rolling_friction_mixing=rolling_friction_mixing,
+        ),
+        mat_table=jd.MaterialTable.from_materials(materials),
+        dt=0.1,
+        collider_type="NeighborList",
+        collider_kw={
+            "max_neighbors": 2,
+            "cutoff": 1.0,
+            "secondary_collider_type": "naive",
+        },
+    )
 
 
 def _state(dim: int = 2, *, tangent_speed: float = 1.0) -> jd.State:
@@ -291,6 +341,401 @@ def test_checkpoint_preserves_history_and_next_step(tmp_path) -> None:
         restored_system.collider.history, system.collider.history
     )
 
+    expected = jd.System.step(state, system)
+    actual = jd.System.step(restored_state, restored_system)
+    for expected_leaf, actual_leaf in zip(
+        jax.tree.leaves(expected), jax.tree.leaves(actual), strict=True
+    ):
+        np.testing.assert_array_equal(actual_leaf, expected_leaf)
+
+
+def test_direct_coefficients_use_harmonic_particle_mixing() -> None:
+    state = replace(
+        _state(tangent_speed=0.0),
+        mat_id=jnp.array([0, 1]),
+        vel=jnp.array([[-1.0, 1.0], [0.0, 0.0]]),
+    )
+    system = _coefficient_system(
+        state, friction_mixing=jd.forces.maximum_friction, damping=True
+    )
+    history = system.force_model.init_history((), state.dim)
+    force, _, _ = system.force_model.force(
+        0, 1, state.pos, state, system, history, advance_history=False
+    )
+
+    # Harmonic means: kn=150, kt=30, bn=3, bt=6. With overlap 0.2,
+    # separating speed 1 and tangential speed 1, F=(-27, -6).
+    np.testing.assert_allclose(force, jnp.array([-27.0, -6.0]), atol=1e-6)
+
+
+def test_coefficient_force_accepts_custom_friction_mixing_callable() -> None:
+    state = replace(
+        _state(tangent_speed=0.0),
+        mat_id=jnp.array([0, 1]),
+    )
+    system = _coefficient_system(state, friction_mixing=quadratic_mean_friction)
+    # kn=150 and overlap=0.2 give Fn=30. A unit tangential spring gives an
+    # uncapped trial magnitude of kt=30, so the mixed mu sets the result.
+    history = jnp.array([0.0, 1.0, -1.0, 0.0])
+    force, _, _ = system.force_model.force(
+        0, 1, state.pos, state, system, history, advance_history=False
+    )
+    expected_mu = np.sqrt(0.5 * (0.2**2 + 0.8**2))
+    np.testing.assert_allclose(force, [-30.0, -30.0 * expected_mu], atol=1e-6)
+
+
+def test_coefficient_neighbor_energy_includes_stored_tangential_spring() -> None:
+    state = replace(
+        _state(tangent_speed=0.0),
+        mat_id=jnp.array([0, 1]),
+    )
+    system = _coefficient_system(state)
+    state, system = jd.System.initialize(state, system)
+    valid = system.collider.neighbor_list >= 0
+    history = system.collider.history.at[valid, 1].set(0.1)
+    system = replace(system, collider=replace(system.collider, history=history))
+
+    _, _, energy = system.collider.compute_potential_energy(state, system)
+
+    # Harmonic means kn=150 and kt=30, with overlap=0.2 and |xi|=0.1.
+    np.testing.assert_allclose(energy, 0.5 * 150.0 * 0.2**2 + 0.5 * 30.0 * 0.1**2)
+
+
+def test_elastic_neighbor_energy_includes_stored_tangential_spring() -> None:
+    state = _state(tangent_speed=0.0)
+    material = jd.Material.create(
+        "elasticfrict",
+        density=1.0,
+        young=100.0,
+        poisson=0.0,
+        e=1.0,
+        mu=10.0,
+    )
+    system = jd.System.create(
+        state=state,
+        force_model=jd.forces.CundallStrackForce(),
+        mat_table=jd.MaterialTable.from_materials([material]),
+        dt=0.1,
+        collider_type="NeighborList",
+        collider_kw={
+            "max_neighbors": 2,
+            "cutoff": 1.0,
+            "secondary_collider_type": "naive",
+        },
+    )
+    state, system = jd.System.initialize(state, system)
+    valid = system.collider.neighbor_list >= 0
+    history = system.collider.history.at[valid, 1].set(0.1)
+    system = replace(system, collider=replace(system.collider, history=history))
+
+    _, _, energy = system.collider.compute_potential_energy(state, system)
+
+    np.testing.assert_allclose(
+        energy, 0.5 * 50.0 * 0.2**2 + 0.5 * 25.0 * 0.1**2
+    )
+
+
+@pytest.mark.parametrize("composition", ["combiner", "router"])
+def test_composed_cundall_strack_uses_history_energy(composition) -> None:
+    state = _state(tangent_speed=0.0)
+    material = jd.Material.create(
+        "elasticfrict",
+        density=1.0,
+        young=100.0,
+        poisson=0.0,
+        e=1.0,
+        mu=10.0,
+    )
+    law = jd.forces.CundallStrackForce()
+    if composition == "combiner":
+        force_model = jd.LawCombiner(laws=(law,))
+    else:
+        force_model = jd.ForceRouter.from_dict(1, {(0, 0): law})
+    system = jd.System.create(
+        state=state,
+        force_model=force_model,
+        mat_table=jd.MaterialTable.from_materials([material]),
+        dt=0.1,
+        collider_type="NeighborList",
+        collider_kw={
+            "max_neighbors": 2,
+            "cutoff": 1.0,
+            "secondary_collider_type": "naive",
+        },
+    )
+    state, system = jd.System.initialize(state, system)
+    valid = system.collider.neighbor_list >= 0
+    history = system.collider.history.at[valid, 1].set(0.1)
+    system = replace(system, collider=replace(system.collider, history=history))
+
+    _, _, energy = system.collider.compute_potential_energy(state, system)
+
+    assert system.force_model.has_history_dependent_energy
+    np.testing.assert_allclose(
+        energy, 0.5 * 50.0 * 0.2**2 + 0.5 * 25.0 * 0.1**2
+    )
+
+
+def test_coefficient_relaxation_clears_lost_contact_history_without_steps() -> None:
+    state = replace(
+        _state(tangent_speed=0.0),
+        mat_id=jnp.array([0, 1]),
+    )
+    system = _coefficient_system(state)
+    state, system = jd.System.initialize(state, system)
+    valid = system.collider.neighbor_list >= 0
+    history = system.collider.history.at[valid, 1].set(0.1)
+    system = replace(system, collider=replace(system.collider, history=history))
+    separated = replace(state, pos_c=state.pos_c.at[1, 0].set(1.01))
+
+    result = system.minimize(separated, system, max_steps=0)
+
+    valid = result.system.collider.neighbor_list >= 0
+    np.testing.assert_array_equal(
+        result.system.collider.history[valid], 0.0
+    )
+
+
+@pytest.mark.parametrize(
+    "optimizer", [jd.minimizers.fire, jd.minimizers.damped_newtonian]
+)
+@pytest.mark.parametrize("parameterization", ["elastic", "coefficients"])
+def test_force_minimizers_advance_contact_history(optimizer, parameterization) -> None:
+    state = jd.State.create(
+        pos=jnp.array([[0.0, 0.0], [0.8, 0.0], [0.0, 0.85]]),
+        rad=jnp.full(3, 0.5),
+        mass=jnp.ones(3),
+        fixed=jnp.array([False, True, True]),
+    )
+    if parameterization == "elastic":
+        material = jd.Material.create(
+            "elasticfrict",
+            density=1.0,
+            young=100.0,
+            poisson=0.0,
+            e=0.9,
+            mu=10.0,
+        )
+    else:
+        material = jd.Material.create(
+            "cundallstrackparams",
+            density=1.0,
+            k_n=100.0,
+            k_t=20.0,
+            b_n=0.5,
+            b_t=0.25,
+            mu=10.0,
+        )
+    system = jd.System.create(
+        state=state,
+        dt=1.0e-3,
+        force_model=jd.forces.CundallStrackForce(parameterization=parameterization),
+        mat_table=jd.MaterialTable.from_materials([material]),
+        collider_type="NeighborList",
+        collider_kw={
+            "max_neighbors": 2,
+            "cutoff": 1.0,
+            "secondary_collider_type": "naive",
+        },
+        minimizer=optimizer,
+        minimizer_kw={"dt": 1.0e-3},
+    )
+
+    result = system.minimize(
+        state, system, max_steps=1, force_tol=-1.0, torque_tol=-1.0
+    )
+
+    valid = result.system.collider.neighbor_list >= 0
+    tangential = result.system.collider.history[valid, : state.dim]
+    assert int(result.steps) == 1
+    assert bool(jnp.any(jnp.abs(tangential) > 0.0))
+    assert bool(jnp.isfinite(result.energy))
+
+
+@pytest.mark.parametrize("parameterization", ["elastic", "coefficients"])
+def test_cundall_strack_has_history_dependent_energy(parameterization) -> None:
+    law = jd.forces.CundallStrackForce(parameterization=parameterization)
+    assert law.has_history_dependent_energy
+
+
+def test_cundall_strack_parameterization_contract() -> None:
+    elastic = jd.forces.CundallStrackForce()
+    coefficients = jd.forces.CundallStrackForce(parameterization="coefficients")
+    assert elastic.required_material_properties == (
+        "young",
+        "poisson",
+        "e",
+        "mu",
+        "mu_r",
+    )
+    assert coefficients.required_material_properties == (
+        "k_n",
+        "k_t",
+        "b_n",
+        "b_t",
+        "mu",
+        "mu_r",
+    )
+    with pytest.raises(ValueError, match="parameterization"):
+        jd.forces.CundallStrackForce(parameterization="invalid")
+
+
+@pytest.mark.parametrize("parameterization", ["elastic", "coefficients"])
+def test_native_bisection_jams_cundall_strack(parameterization) -> None:
+    pos = (
+        jnp.stack(
+            jnp.meshgrid(jnp.arange(3), jnp.arange(3), indexing="ij"), axis=-1
+        ).reshape(-1, 2)
+        * 1.1
+    )
+    state = jd.State.create(
+        pos=pos,
+        rad=jnp.full(9, 0.5),
+        mass=jnp.ones(9),
+    )
+    if parameterization == "elastic":
+        material = jd.Material.create(
+            "elasticfrict",
+            density=1.0,
+            young=2.0,
+            poisson=0.0,
+            e=1.0,
+            mu=0.5,
+        )
+    else:
+        material = jd.Material.create(
+            "cundallstrackparams",
+            density=1.0,
+            k_n=1.0,
+            k_t=0.5,
+            b_n=0.0,
+            b_t=0.0,
+            mu=0.5,
+        )
+    system = jd.System.create(
+        state=state,
+        dt=1.0e-2,
+        domain_type="periodic",
+        domain_kw={"box_size": jnp.full(2, 3.3)},
+        force_model=jd.forces.CundallStrackForce(parameterization=parameterization),
+        mat_table=jd.MaterialTable.from_materials([material]),
+        collider_type="NeighborList",
+        collider_kw={
+            "cutoff": 1.0,
+            "max_neighbors": 8,
+            "secondary_collider_type": "naive",
+        },
+        minimizer=jd.fire,
+        minimizer_kw={"dt": 1.0e-2},
+    )
+
+    result = jd.utils.jamming.bisection_jam(
+        state,
+        system,
+        n_minimization_steps=100,
+        n_jamming_steps=40,
+        pe_tol=1.0e-8,
+        packing_fraction_increment=0.03,
+        packing_fraction_tolerance=1.0e-6,
+        force_tol=1.0e-8,
+        torque_tol=1.0e-8,
+        verbose=False,
+    )
+
+    assert result.converged
+    assert result.potential_energy > 1.0e-8
+    assert result.info.minimization.converged
+
+
+def test_coefficient_zero_mu_r_has_zero_rolling_torque() -> None:
+    state = jd.State.create(
+        pos=jnp.array([[0.0, 0.0, 0.0], [0.8, 0.0, 0.0]]),
+        ang_vel=jnp.array([[1.0, 0.0, 0.0], [0.0, 0.0, 0.0]]),
+        rad=jnp.full(2, 0.5),
+        mass=jnp.ones(2),
+        mat_id=jnp.array([0, 1]),
+    )
+    system = _coefficient_system(state)
+    history = system.force_model.init_history((), state.dim)
+    _, torque, _ = system.force_model.force(
+        0, 1, state.pos, state, system, history, advance_history=False
+    )
+    np.testing.assert_allclose(torque, 0.0, atol=1e-7)
+
+
+def test_coefficient_force_accepts_rolling_friction_mixing_callable() -> None:
+    state = jd.State.create(
+        pos=jnp.array([[0.0, 0.0, 0.0], [0.8, 0.0, 0.0]]),
+        ang_vel=jnp.array([[1.0, 0.0, 0.0], [0.0, 0.0, 0.0]]),
+        rad=jnp.full(2, 0.5),
+        mass=jnp.ones(2),
+        mat_id=jnp.array([0, 1]),
+    )
+    materials = [
+        jd.Material.create(
+            "cundallstrackparams",
+            density=1.0,
+            k_n=100.0,
+            k_t=20.0,
+            b_n=0.0,
+            b_t=0.0,
+            mu=0.0,
+            mu_r=0.2,
+        ),
+        jd.Material.create(
+            "cundallstrackparams",
+            density=1.0,
+            k_n=100.0,
+            k_t=20.0,
+            b_n=0.0,
+            b_t=0.0,
+            mu=0.0,
+            mu_r=0.8,
+        ),
+    ]
+    system = jd.System.create(
+        state=state,
+        force_model=jd.forces.CundallStrackForce(
+            parameterization="coefficients",
+            rolling_friction_mixing=jd.forces.maximum_friction,
+        ),
+        mat_table=jd.MaterialTable.from_materials(materials),
+        dt=0.1,
+        collider_type="NeighborList",
+        collider_kw={"max_neighbors": 1, "cutoff": 1.0},
+    )
+    history = system.force_model.init_history((), state.dim)
+
+    _, torque, _ = system.force_model.force(
+        0, 1, state.pos, state, system, history, advance_history=False
+    )
+
+    np.testing.assert_allclose(torque, [-4.0, 0.0, 0.0], atol=1e-6)
+
+
+def test_coefficient_checkpoint_preserves_parameterization_and_mixing(tmp_path) -> None:
+    state = replace(_state(), mat_id=jnp.array([0, 1]))
+    system = _coefficient_system(
+        state,
+        friction_mixing=jd.forces.arithmetic_mean_friction,
+        rolling_friction_mixing=jd.forces.maximum_friction,
+    )
+    state, system = jd.System.initialize(state, system)
+    path = tmp_path / "coefficient-cundall-history"
+    with jd.CheckpointWriter(path) as writer:
+        writer.save(state, system)
+
+    restored_state, restored_system = jd.CheckpointLoader(path).load()
+    assert isinstance(restored_system.force_model, jd.forces.CundallStrackForce)
+    assert restored_system.force_model.parameterization == "coefficients"
+    assert (
+        restored_system.force_model.friction_mixing
+        is jd.forces.arithmetic_mean_friction
+    )
+    assert (
+        restored_system.force_model.rolling_friction_mixing
+        is jd.forces.maximum_friction
+    )
     expected = jd.System.step(state, system)
     actual = jd.System.step(restored_state, restored_system)
     for expected_leaf, actual_leaf in zip(

@@ -434,10 +434,20 @@ def _row_reduce(col: Any, initial: Any, evaluate: Any) -> Any:
 @jax.custom_jvp
 def energy(state: Any, system: Any) -> Any:
     pos = state.pos
+    uses_history = system.force_model.has_history_dependent_energy
 
     def evaluate(i: Any, neighbors: Any, slots: Any) -> Any:
         j, valid = _valid_pairs(state, system, i, neighbors)
-        e = jax.vmap(lambda b: system.force_model.energy(i, b, pos, state, system))(j)
+        if uses_history:
+            e = jax.vmap(
+                lambda b, h: system.force_model.energy_with_history(
+                    i, b, pos, state, system, h
+                )
+            )(j, system.collider.history[slots])
+        else:
+            e = jax.vmap(
+                lambda b: system.force_model.energy(i, b, pos, state, system)
+            )(j)
         return jnp.where(valid, e, 0.0)
 
     rows = _row_reduce(system.collider, jnp.asarray(0.0, dtype=pos.dtype), evaluate)
@@ -520,9 +530,16 @@ def _energy_jvp(primals: Any, tangents: Any) -> Any:
         i = jnp.minimum(pair_sources(col), max(state.N - 1, 0))
         j, valid = _valid_pairs(state, system, i, col.neighbor_list)
         pos = state.pos
-        values = jax.vmap(
-            lambda a, b: system.force_model.energy(a, b, pos, state, system)
-        )(i, j)
+        if system.force_model.has_history_dependent_energy:
+            values = jax.vmap(
+                lambda a, b, h: system.force_model.energy_with_history(
+                    a, b, pos, state, system, h
+                )
+            )(i, j, col.history)
+        else:
+            values = jax.vmap(
+                lambda a, b: system.force_model.energy(a, b, pos, state, system)
+            )(i, j)
         return 0.5 * jnp.where(valid, values, 0.0).sum()
 
     return energy(*primals), jax.jvp(fixed_pairs, primals, tangents)[1]

@@ -55,6 +55,11 @@ class LawCombiner(ForceModel):
         return all(law.supports_analytical_energy_gradient for law in self.laws)
 
     @property
+    def has_history_dependent_energy(self) -> bool:
+        """Whether any contained law stores energy in pair history."""
+        return any(law.has_history_dependent_energy for law in self.laws)
+
+    @property
     def species_capacity(self) -> int | None:
         """Smallest router capacity reachable through the contained laws."""
         capacities = [
@@ -183,6 +188,37 @@ class LawCombiner(ForceModel):
         for law in combiner.laws:
             sub_system = dataclasses.replace(system, force_model=law)
             e = e + law.energy(i, j, pos, state, sub_system)
+        return e
+
+    @staticmethod
+    @jax.jit
+    @partial(jax.named_call, name="LawCombiner.energy_with_history")
+    def energy_with_history(
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
+    ) -> jax.Array:
+        """Compute total pair energy using each contained law's history."""
+        e = jnp.zeros(jnp.shape(j), dtype=float)
+        combiner = cast(LawCombiner, system.force_model)
+        offset = 0
+        for law in combiner.laws:
+            child_shape = law.history_shape(pos.shape[-1])
+            width = math.prod(child_shape)
+            child_history = history[..., offset : offset + width].reshape(
+                (*history.shape[:-1], *child_shape)
+            )
+            sub_system = dataclasses.replace(system, force_model=law)
+            if law.has_history_dependent_energy:
+                e = e + law.energy_with_history(
+                    i, j, pos, state, sub_system, child_history
+                )
+            else:
+                e = e + law.energy(i, j, pos, state, sub_system)
+            offset += width
         return e
 
 

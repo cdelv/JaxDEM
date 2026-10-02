@@ -60,10 +60,18 @@ class ForceModel(Factory, ABC):
         Translational components use center positions and rotational components
         use the minimizer's incremental rotation coordinates. Force laws are
         assumed to satisfy this contract by default. Laws that do not must
-        override this property with ``False``; they require an explicit target
-        for minimization.
+        override this property with ``False``.
         """
         return True
+
+    @property
+    def has_history_dependent_energy(self) -> bool:
+        """Whether stored pair history contributes to energy.
+
+        FIRE and damped Newtonian evolve that history from each accepted
+        optimizer displacement before evaluating the relaxed state.
+        """
+        return False
 
     @property
     def species_capacity(self) -> int | None:
@@ -141,6 +149,24 @@ class ForceModel(Factory, ABC):
         """
         raise NotImplementedError
 
+    @staticmethod
+    @jax.jit
+    def energy_with_history(
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
+    ) -> jax.Array:
+        """Compute pair energy from positions and persistent pair history.
+
+        The default delegates to :meth:`energy`. Models whose stored energy
+        depends on history override this method and set
+        :attr:`has_history_dependent_energy` to true.
+        """
+        return system.force_model.energy(i, j, pos, state, system)
+
     def search_radii(self, state: State, system: System) -> jax.Array:
         """Return conservative radii for a single search snapshot.
 
@@ -189,7 +215,13 @@ class ForceModel(Factory, ABC):
         return ()
 
 
-from .cundall_strack import CundallStrackForce
+from .cundall_strack import (
+    CundallStrackForce,
+    arithmetic_mean_friction,
+    geometric_mean_friction,
+    maximum_friction,
+    minimum_friction,
+)
 from .force_manager import ForceManager
 from .hertz import HertzianForce
 from .law_combiner import LawCombiner
@@ -212,4 +244,8 @@ __all__ = [
     "WCAShifted",
     "SphereFacetSpringForce",
     "FacetFacetSpringForce",
+    "arithmetic_mean_friction",
+    "geometric_mean_friction",
+    "maximum_friction",
+    "minimum_friction",
 ]

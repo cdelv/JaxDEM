@@ -258,6 +258,63 @@ def _evaluate_readonly_forces(state: State, system: System) -> tuple[State, Syst
     )
 
 
+def _evaluate_history_forces(state: State, system: System) -> tuple[State, System]:
+    """Evaluate static forces while committing a zero-motion history update."""
+    conservative_state = replace(
+        state,
+        vel=jnp.zeros_like(state.vel),
+        ang_vel=jnp.zeros_like(state.ang_vel),
+    )
+    conservative_state, eval_system = system.collider.compute_force(
+        conservative_state, system
+    )
+
+    force_manager = eval_system.force_manager
+    empty_manager = replace(
+        force_manager,
+        external_force=jnp.zeros_like(force_manager.external_force),
+        external_force_com=jnp.zeros_like(force_manager.external_force_com),
+        external_torque=jnp.zeros_like(force_manager.external_torque),
+    )
+    eval_system = replace(eval_system, force_manager=empty_manager)
+    conservative_state, eval_system = eval_system.force_manager.apply(
+        conservative_state, eval_system
+    )
+    evaluated_state = replace(
+        state,
+        force=conservative_state.force,
+        torque=conservative_state.torque,
+    )
+    return evaluated_state, replace(
+        eval_system,
+        force_manager=force_manager,
+        search_overflow=eval_system.search_overflow | eval_system.collider.overflow,
+    )
+
+
+def _advance_history_for_displacement(
+    anchor_state: State,
+    trial_state: State,
+    params: dict[str, jax.Array],
+    system: System,
+    topology: BodyTopology,
+) -> System:
+    """Advance pair history once using the accepted optimizer displacement."""
+    old_body_pos = topology.gather_representatives(anchor_state.pos_c)
+    body_velocity = (params["pos_c"] - old_body_pos) / system.dt
+    body_ang_velocity = params["rotvec"] / system.dt
+    moving_state = replace(
+        trial_state,
+        vel=topology.gather_members(body_velocity),
+        ang_vel=topology.gather_members(body_ang_velocity),
+    )
+    _, evaluated = system.collider.compute_force(moving_state, system)
+    return replace(
+        evaluated,
+        search_overflow=evaluated.search_overflow | evaluated.collider.overflow,
+    )
+
+
 @jax.jit
 def _state_to_delta_params(
     state: State, topology: BodyTopology | None = None
@@ -437,8 +494,9 @@ def minimize(
     ------
     ValueError
         If no optimizer is configured, or if the physical objective uses a
-        force model without an analytical energy gradient or a managed force
-        without a matching energy function.
+        force model that supports neither an analytical energy gradient nor
+        history-dependent energy relaxation, or a managed force without a
+        matching energy function.
 
     Notes
     -----
@@ -457,9 +515,11 @@ def minimize(
 
     Each rigid body has one set of optimization coordinates. Rotation
     increments are anchored to the current orientation after each update.
-    Force evaluation holds contact history fixed and excludes damping and
-    queued loads. Velocities, queued loads, time, and integrator state are
-    unchanged by relaxation.
+    Force evaluation holds contact history fixed unless the model declares
+    ``has_history_dependent_energy``. FIRE and damped Newtonian then update
+    history from each accepted displacement before static residuals are
+    evaluated. Damping and queued loads are excluded from convergence forces.
+    Velocities, queued loads, time, and integrator state are unchanged.
     """
     import optax  # type: ignore[import-untyped]
 
@@ -469,12 +529,24 @@ def minimize(
         raise ValueError(
             "No minimizer configured in System. Please configure `minimizer` in System.create."
         )
+    force_only = (
+        system.target_fn is None
+        and isinstance(system.minimizer, CustomGradientTransformation)
+        and system.minimizer._constructor in (fire, damped_newtonian)
+    )
+    history_relaxation = (
+        force_only and system.force_model.has_history_dependent_energy
+    )
     if system.target_fn is None:
-        if not system.force_model.supports_analytical_energy_gradient:
+        if (
+            not system.force_model.supports_analytical_energy_gradient
+            and not history_relaxation
+        ):
             raise ValueError(
                 "Default minimization requires a force model with an analytical "
-                "energy gradient; provide target_fn or explicitly opt in a "
-                "conservative custom force model."
+                "energy gradient, or history-dependent energy with FIRE or "
+                "damped Newtonian; provide target_fn or configure a compatible "
+                "force model."
             )
         if any(
             energy_fn is default_energy_func
@@ -489,11 +561,6 @@ def minimize(
     topology = body_topology(state.clump_id, state.fixed)
     fixed = ~topology.valid | topology.fixed
     mask = ~fixed[..., None]
-    force_only = (
-        system.target_fn is None
-        and isinstance(system.minimizer, CustomGradientTransformation)
-        and system.minimizer._constructor in (fire, damped_newtonian)
-    )
 
     def make_value_fn(anchor_state: State, anchor_system: System) -> Any:
         def value_fn(params: dict[str, jax.Array]) -> Any:
@@ -505,11 +572,23 @@ def minimize(
         return value_fn
 
     def eval_step(
-        anchor_state: State, anchor_system: System, params: dict[str, jax.Array]
+        anchor_state: State,
+        anchor_system: System,
+        params: dict[str, jax.Array],
+        *,
+        advance_history: bool,
     ) -> tuple[Any, dict[str, jax.Array], State, System]:
         if force_only:
             trial = _delta_params_to_state(anchor_state, params, topology)
-            trial, evaluated = _evaluate_readonly_forces(trial, anchor_system)
+            if history_relaxation:
+                evaluated = anchor_system
+                if advance_history:
+                    evaluated = _advance_history_for_displacement(
+                        anchor_state, trial, params, evaluated, topology
+                    )
+                trial, evaluated = _evaluate_history_forces(trial, evaluated)
+            else:
+                trial, evaluated = _evaluate_readonly_forces(trial, anchor_system)
             grads = {
                 "pos_c": -topology.gather_representatives(trial.force),
                 "rotvec": -topology.gather_representatives(trial.torque),
@@ -547,7 +626,9 @@ def minimize(
 
     params = _state_to_delta_params(state, topology)
     opt_state = system.minimizer.init(params)
-    pe, grads, state, system = eval_step(state, system, params)
+    pe, grads, state, system = eval_step(
+        state, system, params, advance_history=False
+    )
     carry = (
         state,
         system,
@@ -585,7 +666,9 @@ def minimize(
         next_params = jax.tree.map(
             lambda n, p: jnp.where(mask, n, p), next_params, params
         )
-        pe, grads, current, evaluated = eval_step(current, evaluated, next_params)
+        pe, grads, current, evaluated = eval_step(
+            current, evaluated, next_params, advance_history=True
+        )
         return (
             current,
             evaluated,

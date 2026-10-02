@@ -211,6 +211,12 @@ Combined and routed laws propagate any component opt-out. For unsupported laws,
 provide an explicit `target_fn`. Custom managed forces must supply their matching energy function. Minimization uses independent logical body
 coordinates and reports its termination reason explicitly.
 
+Force models declaring `has_history_dependent_energy=True` use pair history for
+stored energy. FIRE and damped Newtonian update that history from each accepted
+optimizer displacement before evaluating zero-velocity force and torque
+residuals. `CundallStrackForce` reports normal plus tangential spring energy.
+Dissipative terms are excluded from stored energy.
+
 Successful minimization requires both the maximum free-body force norm to be at
 most `force_tol` (default `1e-12`) and the maximum torque norm to be at most
 `torque_tol` (defaulting to the numerical value of `force_tol`). These are

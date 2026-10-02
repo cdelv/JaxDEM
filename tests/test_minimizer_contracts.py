@@ -32,6 +32,14 @@ class CustomOptOutSpring(jd.forces.SpringForce):
 
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
+class HistoryEnergyForbiddenSpring(jd.forces.SpringForce):
+    @staticmethod
+    def energy_with_history(*args):
+        raise AssertionError("stateless energy must not enter the history path")
+
+
+@jax.tree_util.register_dataclass
+@dataclass(slots=True)
 class ExplodingInitializer(jd.integrators.VelocityVerlet):
     @staticmethod
     def initialize(state, system):
@@ -168,6 +176,28 @@ def test_custom_force_target_fallback_does_not_require_capability():
     _, _, steps, energy = system.minimize(state, system, max_steps=0)
     assert int(steps) == 0
     assert bool(jnp.isfinite(energy))
+
+
+def test_stateless_neighbor_energy_does_not_enter_history_path():
+    state = jd.State.create(
+        pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]), rad=jnp.ones(2)
+    )
+    system = jd.System.create(
+        state=state,
+        force_model=HistoryEnergyForbiddenSpring(),
+        collider_type="NeighborList",
+        collider_kw={
+            "cutoff": 2.0,
+            "max_neighbors": 1,
+            "secondary_collider_type": "naive",
+        },
+        minimizer=jd.fire,
+        minimizer_kw={"dt": 1.0e-4},
+    )
+
+    result = system.minimize(state, system, max_steps=0)
+
+    assert bool(jnp.isfinite(result.energy))
 
 
 def test_composites_aggregate_analytical_gradient_capability():

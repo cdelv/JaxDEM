@@ -252,8 +252,6 @@ print("History advanced:", bool(jnp.any(history_system.collider.history != 0)))
 # when pair identities or the history layout changed and old values cannot be
 # mapped. Checkpoints retain pair history and continue the same trajectory.
 #
-# Energy support is separate from history. Cundall--Strack reports normal
-# elastic energy only: the energy API has no pair history, so it excludes
-# tangential stored energy and dissipative losses. Its
-# ``supports_analytical_energy_gradient`` is false; minimization needs an
-# explicit objective, and this value is not total mechanical energy.
+# ``CundallStrackForce`` sets ``has_history_dependent_energy`` and reports
+# normal plus tangential spring energy from NeighborList history. Dissipative
+# terms are excluded from stored energy.
