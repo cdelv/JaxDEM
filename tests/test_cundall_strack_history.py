@@ -552,6 +552,45 @@ def test_force_minimizers_advance_contact_history(optimizer, parameterization) -
     assert bool(jnp.isfinite(result.energy))
 
 
+def test_history_minimizer_uses_one_force_traversal_per_evaluation(
+    monkeypatch,
+) -> None:
+    from jaxdem.minimizers import routines
+
+    state = _state(tangent_speed=0.0)
+    system = replace(
+        _coefficient_system(state),
+        minimizer=jd.minimizers.fire(dt=1.0e-3),
+    )
+    collider_type = type(system.collider)
+    original = collider_type.compute_force
+    evaluations = []
+
+    def counted_force(state, system, **kwargs):
+        state, system = original(state, system, **kwargs)
+        jax.debug.callback(
+            lambda _: evaluations.append(None), state.force, ordered=True
+        )
+        return state, system
+
+    routines.minimize.clear_cache()
+    monkeypatch.setattr(collider_type, "compute_force", staticmethod(counted_force))
+    try:
+        result = routines.minimize(
+            state,
+            system,
+            max_steps=2,
+            force_tol=-1.0,
+            torque_tol=-1.0,
+        )
+        jax.block_until_ready(result)
+        jax.effects_barrier()
+        assert int(result.steps) == 2
+        assert len(evaluations) == 3
+    finally:
+        routines.minimize.clear_cache()
+
+
 @pytest.mark.parametrize("parameterization", ["elastic", "coefficients"])
 def test_cundall_strack_has_history_dependent_energy(parameterization) -> None:
     law = jd.forces.CundallStrackForce(parameterization=parameterization)
