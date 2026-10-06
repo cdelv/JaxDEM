@@ -579,9 +579,15 @@ class DynamicCellList(Collider):
         )
 
     @staticmethod
-    @jax.jit(inline=True)
+    @jax.jit(inline=True, static_argnames=("advance_history", "quasistatic"))
     @partial(jax.named_call, name="DynamicCellList.compute_force")
-    def compute_force(state: State, system: System) -> tuple[State, System]:
+    def compute_force(
+        state: State,
+        system: System,
+        *,
+        advance_history: bool = True,
+        quasistatic: bool = False,
+    ) -> tuple[State, System]:
         """Compute pairwise contact forces and torques with DynamicCellList.
 
         Parameters
@@ -608,7 +614,7 @@ class DynamicCellList(Collider):
             system,
             cell_size,
             collider.neighbor_mask,
-            partial(_force_pair_fn, system=system),
+            partial(_force_pair_fn, system=system, quasistatic=quasistatic),
             (
                 jnp.zeros(state.force.shape[1:], dtype=state.force.dtype),
                 jnp.zeros(state.torque.shape[1:], dtype=state.torque.dtype),

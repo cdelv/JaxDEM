@@ -26,9 +26,7 @@ def _state() -> jd.State:
 def test_near_coincident_spring_contact_uses_unit_normal() -> None:
     state = _state()
     young = 12.0
-    material = jd.Material.create(
-        "elastic", density=1.0, young=young, poisson=0.25
-    )
+    material = jd.Material.create("elastic", density=1.0, young=young, poisson=0.25)
     law = jd.forces.SpringForce()
     system = jd.System.create(
         state=state,
@@ -37,9 +35,7 @@ def test_near_coincident_spring_contact_uses_unit_normal() -> None:
         collider_type="naive",
     )
 
-    force, _, _ = law.force(
-        0, 1, state.pos, state, system, law.init_history((), state.dim)
-    )
+    force, _ = law.force(0, 1, state.pos, state, system)
 
     expected = young * (1.0 - _DISTANCE) * _NORMAL_0_FROM_1
     np.testing.assert_allclose(force, expected, rtol=2e-6, atol=1e-6)
@@ -49,9 +45,7 @@ def test_near_coincident_hertz_contact_uses_unit_normal() -> None:
     state = _state()
     young = 12.0
     poisson = 0.25
-    material = jd.Material.create(
-        "elastic", density=1.0, young=young, poisson=poisson
-    )
+    material = jd.Material.create("elastic", density=1.0, young=young, poisson=poisson)
     law = jd.forces.HertzianForce()
     system = jd.System.create(
         state=state,
@@ -60,18 +54,13 @@ def test_near_coincident_hertz_contact_uses_unit_normal() -> None:
         collider_type="naive",
     )
 
-    force, _, _ = law.force(
-        0, 1, state.pos, state, system, law.init_history((), state.dim)
-    )
+    force, _ = law.force(0, 1, state.pos, state, system)
 
     effective_young = young / (2.0 * (1.0 - poisson**2))
     effective_radius = 0.25
     overlap = 1.0 - _DISTANCE
     magnitude = (
-        (4.0 / 3.0)
-        * effective_young
-        * overlap
-        * np.sqrt(effective_radius * overlap)
+        (4.0 / 3.0) * effective_young * overlap * np.sqrt(effective_radius * overlap)
     )
     np.testing.assert_allclose(
         force, magnitude * _NORMAL_0_FROM_1, rtol=2e-6, atol=1e-6

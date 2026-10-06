@@ -34,8 +34,8 @@ class CustomOptOutSpring(jd.forces.SpringForce):
 @dataclass(slots=True)
 class HistoryEnergyForbiddenSpring(jd.forces.SpringForce):
     @staticmethod
-    def energy_with_history(*args):
-        raise AssertionError("stateless energy must not enter the history path")
+    def energy(i, j, pos, state, system):
+        return jd.forces.SpringForce.energy(i, j, pos, state, system)
 
 
 @jax.tree_util.register_dataclass
@@ -178,7 +178,7 @@ def test_custom_force_target_fallback_does_not_require_capability():
     assert bool(jnp.isfinite(energy))
 
 
-def test_stateless_neighbor_energy_does_not_enter_history_path():
+def test_stateless_energy_relaxes_without_history_arguments():
     state = jd.State.create(
         pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]), rad=jnp.ones(2)
     )

@@ -4,9 +4,11 @@
 
 from __future__ import annotations
 
+import inspect
 from abc import ABC, abstractmethod
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import jax
 import jax.numpy as jnp
@@ -18,6 +20,18 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
+_FORCE_OPTIONS = ("history", "advance_history", "quasistatic")
+
+
+def _declared_options(fn: Callable[..., Any], names: Iterable[str]) -> frozenset[str]:
+    """Return which of ``names`` the pair kernel ``fn`` declares as parameters."""
+    try:
+        params = inspect.signature(fn).parameters
+    except (TypeError, ValueError):  # pragma: no cover - uninspectable callable
+        return frozenset(names)
+    return frozenset(name for name in names if name in params)
+
+
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class ForceModel(Factory, ABC):
@@ -25,6 +39,16 @@ class ForceModel(Factory, ABC):
 
     Concrete subclasses implement specific force and energy models, such as
     linear springs and Hertzian contacts.
+
+    A law implements :meth:`force` and :meth:`energy` with only the arguments
+    it needs. A stateless, rate-independent law takes
+    ``(i, j, pos, state, system)`` and returns ``(force, torque)``. A law with
+    per-pair memory also declares ``history_shape``, takes ``history`` and
+    the keyword ``advance_history``, and returns ``(force, torque, history)``.
+    A law with velocity-dependent terms takes the keyword ``quasistatic``
+    and switches those terms off when it is true. Colliders always call
+    :meth:`pair_force` and :meth:`pair_energy`, which pass each law exactly
+    the arguments its signature declares.
 
     Notes:
     ------
@@ -65,15 +89,6 @@ class ForceModel(Factory, ABC):
         return True
 
     @property
-    def has_history_dependent_energy(self) -> bool:
-        """Whether stored pair history contributes to energy.
-
-        FIRE and damped Newtonian evolve that history from each accepted
-        optimizer displacement before evaluating the relaxed state.
-        """
-        return False
-
-    @property
     def species_capacity(self) -> int | None:
         """Smallest species-table capacity reachable through this law.
 
@@ -82,20 +97,31 @@ class ForceModel(Factory, ABC):
         """
         return None
 
+    # Which optional arguments each law's kernels declare. Class-level data,
+    # filled in by __init_subclass__; not dataclass fields.
+    _force_options: ClassVar[frozenset[str]] = frozenset()
+    _energy_options: ClassVar[frozenset[str]] = frozenset()
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        # Two-arg super: dataclass(slots=True) recreates the class, so the
+        # zero-arg form's __class__ cell points at the discarded original.
+        super(ForceModel, cls).__init_subclass__(**kwargs)
+        cls._force_options = _declared_options(cls.force, _FORCE_OPTIONS)
+        cls._energy_options = _declared_options(cls.energy, ("history",))
+
     @staticmethod
     @abstractmethod
     @jax.jit
     def force(
-        i: int,
-        j: int,
-        pos: jax.Array,
-        state: State,
-        system: System,
-        history: jax.Array,
-        *,
-        advance_history: bool = True,
-    ) -> tuple[jax.Array, jax.Array, jax.Array]:
+        i: int, j: int, pos: jax.Array, state: State, system: System
+    ) -> tuple[jax.Array, jax.Array]:
         """Compute the force and torque on particle :math:`i` from particle :math:`j`.
+
+        This is the stateless, rate-independent form. Laws with pair memory
+        add ``history: jax.Array`` after ``system`` and the keyword-only
+        ``advance_history: bool``, and return ``(force, torque, history)``.
+        Laws with velocity-dependent terms add the keyword-only
+        ``quasistatic: bool`` and omit those terms when it is true.
 
         Parameters
         ----------
@@ -112,9 +138,8 @@ class ForceModel(Factory, ABC):
 
         Returns
         -------
-        Tuple[jax.Array, jax.Array, jax.Array]
-            ``(force, torque, history)``. The history output is unchanged for
-            stateless laws and when ``advance_history=False``.
+        Tuple[jax.Array, jax.Array]
+            ``(force, torque)``.
 
         """
         raise NotImplementedError
@@ -124,10 +149,10 @@ class ForceModel(Factory, ABC):
     def energy(
         i: int, j: int, pos: jax.Array, state: State, system: System
     ) -> jax.Array:
-        """Compute history-independent pair energy.
+        """Compute the pair potential energy.
 
-        Models with history-dependent energy may implement only
-        :meth:`energy_with_history`.
+        Laws whose stored energy depends on pair memory add
+        ``history: jax.Array`` after ``system``.
 
         Parameters
         ----------
@@ -150,13 +175,45 @@ class ForceModel(Factory, ABC):
 
         """
         raise NotImplementedError(
-            f"{type(system.force_model).__name__} does not implement "
-            "history-free pair energy."
+            f"{type(system.force_model).__name__} does not implement pair energy."
         )
 
-    @staticmethod
-    @jax.jit
-    def energy_with_history(
+    def pair_force(
+        self,
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+        quasistatic: bool = False,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
+        """Evaluate :meth:`force` with the arguments this law declares.
+
+        This is the entry point colliders use. ``history`` is passed through
+        unchanged for laws without pair memory, and ``advance_history`` and
+        ``quasistatic`` reach only laws that declare them.
+        """
+        options = type(self)._force_options
+        kwargs: dict[str, bool] = {}
+        if "advance_history" in options:
+            kwargs["advance_history"] = advance_history
+        if "quasistatic" in options:
+            kwargs["quasistatic"] = quasistatic
+        if "history" in options:
+            return self.force(i, j, pos, state, system, history, **kwargs)
+        if history.shape[-1] != 0:
+            raise TypeError(
+                f"{type(self).__name__} declares pair history but its force "
+                "kernel does not take a history argument."
+            )
+        force, torque = self.force(i, j, pos, state, system, **kwargs)
+        return force, torque, history
+
+    def pair_energy(
+        self,
         i: int,
         j: int,
         pos: jax.Array,
@@ -164,13 +221,10 @@ class ForceModel(Factory, ABC):
         system: System,
         history: jax.Array,
     ) -> jax.Array:
-        """Compute pair energy from positions and persistent pair history.
-
-        The default delegates to :meth:`energy`. Models whose stored energy
-        depends on history override this method and set
-        :attr:`has_history_dependent_energy` to true.
-        """
-        return system.force_model.energy(i, j, pos, state, system)
+        """Evaluate :meth:`energy`, passing ``history`` only if it is declared."""
+        if "history" in type(self)._energy_options:
+            return self.energy(i, j, pos, state, system, history)
+        return self.energy(i, j, pos, state, system)
 
     def search_radii(self, state: State, system: System) -> jax.Array:
         """Return conservative radii for a single search snapshot.

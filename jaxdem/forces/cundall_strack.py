@@ -509,11 +509,6 @@ class CundallStrackForce(ForceModel):
     def supports_analytical_energy_gradient(self) -> bool:
         return False
 
-    @property
-    def has_history_dependent_energy(self) -> bool:
-        """Include the stored tangential spring in pair energy."""
-        return True
-
     def history_shape(self, dim: int) -> tuple[int, ...]:
         """Store tangential displacement and the previous contact normal."""
         return (2 * dim,)
@@ -523,7 +518,7 @@ class CundallStrackForce(ForceModel):
         return jnp.maximum(state._rad, (1.0) * state.rad)
 
     @staticmethod
-    @jax.jit(inline=True, static_argnames=("advance_history",))
+    @jax.jit(inline=True, static_argnames=("advance_history", "quasistatic"))
     @partial(jax.named_call, name="CundallStrackForce.force")
     def force(
         i: int,
@@ -534,6 +529,7 @@ class CundallStrackForce(ForceModel):
         history: jax.Array,
         *,
         advance_history: bool = True,
+        quasistatic: bool = False,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
         r"""Compute Cundall-Strack normal and tangential forces and torque.
 
@@ -547,6 +543,14 @@ class CundallStrackForce(ForceModel):
             Current simulation state.
         system : System
             System configuration.
+        history : jax.Array
+            Stored tangential spring and previous contact normal.
+        advance_history : bool, optional
+            Advance the stored spring with this step's relative motion.
+        quasistatic : bool, optional
+            Evaluate with no time passing: the normal and tangential dashpots
+            and rolling friction are switched off and the Coulomb cap uses
+            the elastic normal force only.
 
         Returns
         -------
@@ -559,6 +563,10 @@ class CundallStrackForce(ForceModel):
         kn, kt, gamma_n, gamma_t, mu_ij, mu_r_ij = _pair_coefficients(
             i, j, state, system
         )
+        if quasistatic:
+            gamma_n = jnp.zeros_like(gamma_n)
+            gamma_t = jnp.zeros_like(gamma_t)
+            mu_r_ij = jnp.zeros_like(mu_r_ij)
         return _force_with_coefficients(
             i,
             j,
@@ -577,8 +585,8 @@ class CundallStrackForce(ForceModel):
 
     @staticmethod
     @jax.jit(inline=True)
-    @partial(jax.named_call, name="CundallStrackForce.energy_with_history")
-    def energy_with_history(
+    @partial(jax.named_call, name="CundallStrackForce.energy")
+    def energy(
         i: int,
         j: int,
         pos: jax.Array,
@@ -586,7 +594,11 @@ class CundallStrackForce(ForceModel):
         system: System,
         history: jax.Array,
     ) -> jax.Array:
-        """Return normal plus stored tangential spring energy."""
+        """Return normal plus stored tangential spring energy.
+
+        The stored spring is transported to the current contact normal but not
+        advanced or return-mapped. Dissipated work is not part of the energy.
+        """
         kn, kt = _pair_stiffnesses(i, j, state, system)
         R_i, R_j = state.rad[i], state.rad[j]
         rij = system.domain._displacement(pos[i], pos[j], system)

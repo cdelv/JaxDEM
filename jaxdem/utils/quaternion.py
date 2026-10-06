@@ -128,6 +128,36 @@ class Quaternion:
 
     @staticmethod
     @jax.jit(inline=True)
+    @partial(jax.named_call, name="Quaternion.to_rotvec")
+    def to_rotvec(q: Quaternion) -> jax.Array:
+        r"""Map a unit quaternion to its axis-angle rotation vector.
+
+        The sign of ``q`` is chosen so the angle lies in ``[0, pi]``. The map
+        and its gradient are finite at the identity.
+
+        Parameters
+        ----------
+        q : Quaternion
+            Unit quaternion(s) with ``w`` of shape ``(..., 1)``.
+
+        Returns
+        -------
+        jax.Array
+            Rotation vector(s) :math:`\vec{\theta} = \theta \hat{u}` of
+            shape ``(..., 3)``.
+        """
+        q_u = Quaternion.unit(q)
+        sign = jnp.where(q_u.w < 0.0, -1.0, 1.0)
+        w = q_u.w * sign
+        xyz = q_u.xyz * sign
+        n2 = dot(xyz, xyz)[..., None]
+        safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
+        s = jnp.sqrt(safe_n2)
+        factor = jnp.where(n2 == 0.0, 2.0, 2.0 * jnp.arctan2(s, w) / s)
+        return xyz * factor
+
+    @staticmethod
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="Quaternion.from_small_rotvec")
     def from_small_rotvec(rotvec: jax.Array) -> "Quaternion":
         r"""Build a unit quaternion from a small axis-angle rotation vector.

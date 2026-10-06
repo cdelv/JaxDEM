@@ -165,9 +165,7 @@ class Remember(jd.forces.SpringForce):
 
     @staticmethod
     def force(i, j, pos, state, system, history, *, advance_history=True):
-        f, t, _ = jd.forces.SpringForce.force(
-            i, j, pos, state, system, history, advance_history=advance_history
-        )
+        f, t = jd.forces.SpringForce.force(i, j, pos, state, system)
         return f, t, history + advance_history
 
 
@@ -319,12 +317,8 @@ def test_row_energy_gradients_match_all_pairs(n):
 
 
 @pytest.mark.parametrize("n", [3, 9, 17])
-def test_stateless_rows_match_all_pairs_for_uneven_degrees(n, monkeypatch):
-    from jaxdem.colliders import _neighbor_cache
-
-    # Exercise multiple complete batches and a partial batch with a small case.
-    monkeypatch.setattr(_neighbor_cache, "_ROW_BATCH_SIZE", 4)
-    # Empty, partially filled, and several full force blocks in one cache.
+def test_stateless_rows_match_all_pairs_for_uneven_degrees(n):
+    # Empty, partially filled, and several full rows in one cache.
     pos = np.zeros((n + 2, 3))
     pos[:n, 0] = np.linspace(0.0, 0.7, n)
     pos[n:, 0] = [10.0, 20.0]

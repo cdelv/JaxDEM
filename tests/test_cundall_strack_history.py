@@ -543,13 +543,28 @@ def test_composed_cundall_strack_uses_history_energy(composition) -> None:
 
     _, _, energy = system.collider.compute_potential_energy(state, system)
 
-    assert system.force_model.has_history_dependent_energy
     np.testing.assert_allclose(
         energy, 0.5 * 50.0 * 0.2**2 + 0.5 * 25.0 * 0.1**2
     )
 
 
-def test_coefficient_relaxation_clears_lost_contact_history_without_steps() -> None:
+def test_zero_step_relaxation_leaves_history_untouched() -> None:
+    state = replace(
+        _state(tangent_speed=0.0),
+        mat_id=jnp.array([0, 1]),
+    )
+    system = _coefficient_system(state)
+    state, system = jd.System.initialize(state, system)
+    valid = system.collider.neighbor_list >= 0
+    history = system.collider.history.at[valid, 1].set(0.1)
+    system = replace(system, collider=replace(system.collider, history=history))
+
+    result = system.minimize(state, system, max_steps=0)
+
+    np.testing.assert_array_equal(result.system.collider.history, history)
+
+
+def test_advance_history_clears_lost_contacts() -> None:
     state = replace(
         _state(tangent_speed=0.0),
         mat_id=jnp.array([0, 1]),
@@ -561,12 +576,9 @@ def test_coefficient_relaxation_clears_lost_contact_history_without_steps() -> N
     system = replace(system, collider=replace(system.collider, history=history))
     separated = replace(state, pos_c=state.pos_c.at[1, 0].set(1.01))
 
-    result = system.minimize(separated, system, max_steps=0)
+    _, advanced = jd.colliders.advance_history(state, system, separated, system)
 
-    valid = result.system.collider.neighbor_list >= 0
-    np.testing.assert_array_equal(
-        result.system.collider.history[valid], 0.0
-    )
+    np.testing.assert_array_equal(advanced.collider.history, 0.0)
 
 
 @pytest.mark.parametrize(
@@ -665,9 +677,10 @@ def test_history_minimizer_uses_one_force_traversal_per_evaluation(
 
 
 @pytest.mark.parametrize("parameterization", ["elastic", "coefficients"])
-def test_cundall_strack_has_history_dependent_energy(parameterization) -> None:
+@pytest.mark.parametrize("dim", [2, 3])
+def test_cundall_strack_history_stores_spring_and_normal(parameterization, dim) -> None:
     law = jd.forces.CundallStrackForce(parameterization=parameterization)
-    assert law.has_history_dependent_energy
+    assert law.history_shape(dim) == (2 * dim,)
 
 
 def test_cundall_strack_parameterization_contract() -> None:

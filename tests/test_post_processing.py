@@ -448,7 +448,9 @@ class ConstantPairEnergy(jd.ForceModel):
         return state.rad
 
     @staticmethod
-    def force(i, j, pos, state, system, history, *, advance_history=True):
+    def force(
+        i, j, pos, state, system, history, *, advance_history=True
+    ):
         return jnp.zeros_like(state.force[i]), jnp.zeros_like(state.torque[i]), history
 
     @staticmethod

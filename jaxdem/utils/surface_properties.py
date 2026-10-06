@@ -426,7 +426,8 @@ def _measure_probe(
         central_idx,
         tracer_idx,
     )
-    state, system = system.collider.compute_force(state, system)
+    # A measurement: evaluate forces without advancing any pair history.
+    state, system = system.collider.compute_force(state, system, advance_history=False)
 
     # Every sphere in a clump shares pos_c = rigid-body COM, so picking any
     # sphere belonging to each clump yields the COM without any averaging.

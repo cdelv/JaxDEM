@@ -12,7 +12,6 @@ import jax
 import jax.numpy as jnp
 import optax  # type: ignore[import-untyped]
 
-from ..utils.linalg import norm2
 from ..utils.quaternion import Quaternion
 
 if TYPE_CHECKING:
@@ -54,38 +53,6 @@ def _thaw_metadata(value: Any) -> Any:
     if isinstance(value, frozenset):
         return [_thaw_metadata(v) for v in value]
     return value
-
-
-@jax.jit
-def _quaternion_to_rotvec(q: Quaternion) -> jax.Array:
-    r"""Map a unit quaternion to its axis-angle rotation vector with correct gradients.
-
-    Parameters
-    ----------
-    q : Quaternion
-        The unit quaternion to convert.
-
-    Returns
-    -------
-    jax.Array
-        The 3D axis-angle rotation vector :math:`\vec{\theta} = \theta \hat{u}`.
-    """
-    q_u = q.unit(q)
-    sign = jnp.where(q_u.w < 0.0, -1.0, 1.0)
-    w = q_u.w * sign
-    xyz = q_u.xyz * sign
-
-    # 1. Compute norm safely, bypassing unit_and_norm
-    n2 = norm2(xyz)[..., None]
-    safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
-    s = jnp.sqrt(safe_n2)
-
-    # 2. Evaluate the singularity safely.
-    # At v=0, this term approaches 2.0.
-    factor = jnp.where(n2 == 0.0, 2.0, 2.0 * jnp.arctan2(s, w) / s)
-
-    # 3. Multiply by the un-normalized vector
-    return xyz * factor
 
 
 @jax.jit

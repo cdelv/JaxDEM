@@ -72,7 +72,7 @@ def _cell_starts(sorted_hashes: jax.Array, queries: jax.Array) -> jax.Array:
     return jax.lax.cond(use_dense, dense_lookup, sparse_lookup)
 
 
-@jax.jit(inline=True)
+@jax.jit(inline=True, static_argnames=("quasistatic",))
 def _force_pair_fn(
     acc: tuple[jax.Array, jax.Array],
     i: jax.Array,
@@ -81,10 +81,18 @@ def _force_pair_fn(
     state: "State",
     valid: jax.Array,
     system: "System",
+    quasistatic: bool = False,
 ) -> tuple[jax.Array, jax.Array]:
     history = system.force_model.init_history(jnp.shape(j), pos.shape[-1])
-    f, t, _ = system.force_model.force(
-        i, j, pos, state, system, history, advance_history=False
+    f, t, _ = system.force_model.pair_force(
+        i,
+        j,
+        pos,
+        state,
+        system,
+        history,
+        advance_history=False,
+        quasistatic=quasistatic,
     )
     f = jnp.where((valid > 0)[..., None], f, 0.0)
     t = jnp.where((valid > 0)[..., None], t, 0.0)
@@ -101,7 +109,8 @@ def _energy_pair_fn(
     valid: jax.Array,
     system: "System",
 ) -> jax.Array:
-    e = system.force_model.energy(i, j, pos, state, system)
+    history = system.force_model.init_history(jnp.shape(j), pos.shape[-1])
+    e = system.force_model.pair_energy(i, j, pos, state, system, history)
     e = jnp.where(valid > 0, e, 0.0)
     return acc + 0.5 * e
 

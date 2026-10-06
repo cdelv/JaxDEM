@@ -150,7 +150,12 @@ def test_zero_affine_shear_does_not_advance_history_or_rebuild() -> None:
     sheared, updated = system.domain.shear(state, system, 0.0)
 
     np.testing.assert_array_equal(sheared.pos_c, state.pos_c)
-    np.testing.assert_array_equal(updated.collider.history, system.collider.history)
+    # No relative motion: the tangential spring is unchanged. The stored
+    # contact normal may be refreshed to the current geometry.
+    np.testing.assert_array_equal(
+        updated.collider.history[:, : state.dim],
+        system.collider.history[:, : state.dim],
+    )
     np.testing.assert_array_equal(
         updated.collider.n_build_times, system.collider.n_build_times
     )

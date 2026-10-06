@@ -27,7 +27,7 @@ def _spring_case(displacement):
     history = system.force_model.init_history((), state.dim)
 
     def scalar_force(pos):
-        force, _, _ = jd.forces.SpringForce.force(0, 1, pos, state, system, history)
+        force, _ = jd.forces.SpringForce.force(0, 1, pos, state, system)
         return force
 
     def original_force(pos):

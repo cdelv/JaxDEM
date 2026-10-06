@@ -224,26 +224,31 @@ def _evaluate_energy(state: State, system: System) -> tuple[State, System, jax.A
     return state, system, energy
 
 
-def _evaluate_readonly_forces(state: State, system: System) -> tuple[State, System]:
-    """Evaluate conservative forces without initialization or one-shot loads."""
-    conservative_state = replace(
-        state,
-        vel=jnp.zeros_like(state.vel),
-        ang_vel=jnp.zeros_like(state.ang_vel),
-    )
-    conservative_state, eval_system = system.collider.evaluate_force(
-        conservative_state, system
-    )
-
-    force_manager = eval_system.force_manager
+def _conservative_manager_forces(state: State, system: System) -> tuple[State, System]:
+    """Add managed forces without one-shot loads, restoring the manager afterwards."""
+    force_manager = system.force_manager
     empty_manager = replace(
         force_manager,
         external_force=jnp.zeros_like(force_manager.external_force),
         external_force_com=jnp.zeros_like(force_manager.external_force_com),
         external_torque=jnp.zeros_like(force_manager.external_torque),
     )
-    eval_system = replace(eval_system, force_manager=empty_manager)
-    conservative_state, eval_system = eval_system.force_manager.apply(
+    system = replace(system, force_manager=empty_manager)
+    state, system = system.force_manager.apply(state, system)
+    return state, replace(system, force_manager=force_manager)
+
+
+def _evaluate_readonly_forces(state: State, system: System) -> tuple[State, System]:
+    """Evaluate rate-independent forces without touching history or loads."""
+    conservative_state = replace(
+        state,
+        vel=jnp.zeros_like(state.vel),
+        ang_vel=jnp.zeros_like(state.ang_vel),
+    )
+    conservative_state, eval_system = system.collider.compute_force(
+        conservative_state, system, advance_history=False, quasistatic=True
+    )
+    conservative_state, eval_system = _conservative_manager_forces(
         conservative_state, eval_system
     )
     evaluated_state = replace(
@@ -253,47 +258,21 @@ def _evaluate_readonly_forces(state: State, system: System) -> tuple[State, Syst
     )
     return evaluated_state, replace(
         eval_system,
-        force_manager=force_manager,
         search_overflow=eval_system.search_overflow | eval_system.collider.overflow,
     )
 
 
-def _advance_history_for_displacement(
-    anchor_state: State,
-    trial_state: State,
-    params: dict[str, jax.Array],
-    system: System,
-    topology: BodyTopology,
+def _advance_history_forces(
+    anchor_state: State, trial_state: State, system: System
 ) -> tuple[State, System]:
-    """Advance pair history and retain forces from the same traversal."""
-    old_body_pos = topology.gather_representatives(anchor_state.pos_c)
-    body_velocity = (params["pos_c"] - old_body_pos) / system.dt
-    body_ang_velocity = params["rotvec"] / system.dt
-    moving_state = replace(
-        trial_state,
-        vel=topology.gather_members(body_velocity),
-        ang_vel=topology.gather_members(body_ang_velocity),
-    )
-    moving_state, evaluated = system.collider.compute_force(moving_state, system)
+    """Advance pair history from anchor to trial and keep that traversal's forces."""
+    from ..colliders import advance_history
 
-    force_manager = evaluated.force_manager
-    empty_manager = replace(
-        force_manager,
-        external_force=jnp.zeros_like(force_manager.external_force),
-        external_force_com=jnp.zeros_like(force_manager.external_force_com),
-        external_torque=jnp.zeros_like(force_manager.external_torque),
-    )
-    evaluated = replace(evaluated, force_manager=empty_manager)
-    moving_state, evaluated = evaluated.force_manager.apply(moving_state, evaluated)
-    evaluated_state = replace(
-        trial_state,
-        force=moving_state.force,
-        torque=moving_state.torque,
-    )
-    return evaluated_state, replace(
+    evaluated_state, evaluated = advance_history(anchor_state, system, trial_state, system)
+    evaluated_state, evaluated = _conservative_manager_forces(evaluated_state, evaluated)
+    return (
+        replace(trial_state, force=evaluated_state.force, torque=evaluated_state.torque),
         evaluated,
-        force_manager=force_manager,
-        search_overflow=evaluated.search_overflow | evaluated.collider.overflow,
     )
 
 
@@ -497,16 +476,13 @@ def minimize(
 
     Each rigid body has one set of optimization coordinates. Rotation
     increments are anchored to the current orientation after each update.
-    Force evaluation holds contact history fixed unless the model declares
-    ``has_history_dependent_energy``. FIRE and damped Newtonian then advance
-    history once per accepted coordinate update. To express that update through
-    the force-model interface, the accepted translation and rotation increments
-    divided by ``system.dt`` are supplied as the state's velocity and angular
-    velocity. These values generally differ from the optimizer's internal
-    velocities. The forces returned by that same traversal are used as the
-    convergence residuals.
-
-    Direct velocity-dependent forces, such as contact damping, are unsupported.
+    Forces are always evaluated rate-independently: dashpots and other
+    velocity terms are off, so relaxation does not depend on ``dt``. For a
+    force model with pair history, FIRE and damped Newtonian advance that
+    history once per accepted coordinate update, from the anchor to the
+    trial configuration, and use the forces of that same traversal as the
+    convergence residuals. The initial evaluation and line-search optimizers
+    hold history fixed.
     """
     import optax  # type: ignore[import-untyped]
 
@@ -521,9 +497,9 @@ def minimize(
         and isinstance(system.minimizer, CustomGradientTransformation)
         and system.minimizer._constructor in (fire, damped_newtonian)
     )
-    history_relaxation = (
-        force_only and system.force_model.has_history_dependent_energy
-    )
+    history_relaxation = force_only and system.force_model.history_shape(
+        state.dim
+    ) != (0,)
     if system.target_fn is None:
         if (
             not system.force_model.supports_analytical_energy_gradient
@@ -531,9 +507,9 @@ def minimize(
         ):
             raise ValueError(
                 "Default minimization requires a force model with an analytical "
-                "energy gradient, or history-dependent energy with FIRE or "
-                "damped Newtonian; provide target_fn or configure a compatible "
-                "force model."
+                "energy gradient, or a force model with pair history relaxed by "
+                "FIRE or damped Newtonian; provide target_fn or configure a "
+                "compatible force model."
             )
         if any(
             energy_fn is default_energy_func
@@ -562,12 +538,14 @@ def minimize(
         anchor_state: State,
         anchor_system: System,
         params: dict[str, jax.Array],
+        *,
+        advance: bool,
     ) -> tuple[Any, dict[str, jax.Array], State, System]:
         if force_only:
             trial = _delta_params_to_state(anchor_state, params, topology)
-            if history_relaxation:
-                trial, evaluated = _advance_history_for_displacement(
-                    anchor_state, trial, params, anchor_system, topology
+            if history_relaxation and advance:
+                trial, evaluated = _advance_history_forces(
+                    anchor_state, trial, anchor_system
                 )
             else:
                 trial, evaluated = _evaluate_readonly_forces(trial, anchor_system)
@@ -608,7 +586,7 @@ def minimize(
 
     params = _state_to_delta_params(state, topology)
     opt_state = system.minimizer.init(params)
-    pe, grads, state, system = eval_step(state, system, params)
+    pe, grads, state, system = eval_step(state, system, params, advance=False)
     carry = (
         state,
         system,
@@ -646,7 +624,9 @@ def minimize(
         next_params = jax.tree.map(
             lambda n, p: jnp.where(mask, n, p), next_params, params
         )
-        pe, grads, current, evaluated = eval_step(current, evaluated, next_params)
+        pe, grads, current, evaluated = eval_step(
+            current, evaluated, next_params, advance=True
+        )
         return (
             current,
             evaluated,

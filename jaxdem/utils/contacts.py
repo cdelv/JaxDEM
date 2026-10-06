@@ -117,7 +117,7 @@ def _pair_values(
     safe_i = jnp.clip(i, 0, state.N - 1)
     safe_j = jnp.clip(j, 0, state.N - 1)
     force, torque, _ = jax.vmap(
-        lambda a, b, h: system.force_model.force(
+        lambda a, b, h: system.force_model.pair_force(
             a, b, pos, state, system, h, advance_history=False
         )
     )(safe_i, safe_j, history)
@@ -170,7 +170,7 @@ def _reduce_contacts(
         DynamicMultiCellList,
         NeighborList,
     )
-    from ..colliders._neighbor_cache import _row_reduce, _valid_pairs
+    from ..colliders._neighbor_cache import _valid_pairs, pair_sources
     from ..colliders.cell_list import _traverse_pairs as cell_traverse
     from ..colliders.multi_cell_list import _traverse_pairs as multi_traverse
 
@@ -185,14 +185,11 @@ def _reduce_contacts(
         rows = jnp.zeros((state.N, *initial.shape), dtype=initial.dtype)
         overflow = jnp.asarray(False)
     elif isinstance(collider, NeighborList):
-
-        def evaluate(i: jax.Array, neighbors: jax.Array, slots: jax.Array) -> jax.Array:
-            j, valid = _valid_pairs(state, system, i, neighbors)
-            return _summary_values(
-                state, system, i, j, collider.history[slots], valid, quantity
-            )
-
-        rows = _row_reduce(collider, initial, evaluate)
+        sources = pair_sources(collider)
+        i = jnp.minimum(sources, state.N - 1)
+        j, valid = _valid_pairs(state, system, i, collider.neighbor_list)
+        values = _summary_values(state, system, i, j, collider.history, valid, quantity)
+        rows = jax.ops.segment_sum(values, sources, num_segments=state.N + 1)[: state.N]
         overflow = collider.overflow
     elif isinstance(collider, (DynamicCellList, DynamicMultiCellList)):
         reach = jnp.max(system.force_model.search_radii(state, system), initial=0.0)
@@ -212,10 +209,13 @@ def _reduce_contacts(
             initial,
         )
     else:
-        neighbors = jnp.arange(state.N)
-        history = system.force_model.init_history(neighbors.shape, state.dim)
+        from ..colliders.naive import _dense_history
 
-        def row(i: jax.Array) -> jax.Array:
+        neighbors = jnp.arange(state.N)
+        history = _dense_history(state, system, collider.history)
+
+        def row(args: tuple[jax.Array, jax.Array]) -> jax.Array:
+            i, row_history = args
             valid = valid_interaction_mask(
                 state.clump_id[i],
                 state.clump_id,
@@ -224,10 +224,10 @@ def _reduce_contacts(
                 system.interact_same_bond_id,
             ).astype(bool)
             return _summary_values(
-                state, system, i, neighbors, history, valid, quantity
+                state, system, i, neighbors, row_history, valid, quantity
             ).sum(axis=0)
 
-        rows = jax.lax.map(row, neighbors, batch_size=min(state.N, 32))
+        rows = jax.lax.map(row, (neighbors, history), batch_size=min(state.N, 32))
         overflow = jnp.asarray(False)
     rows = jnp.where(overflow, -1 if quantity == "count" else jnp.nan, rows)
     return _record_overflow(system, overflow), rows
@@ -787,18 +787,14 @@ def remove_rattlers(
         force_manager=new_force_manager,
     )
 
-    # Refresh forces after reindexing without repeating integrator setup.
-    from ..colliders import NeighborList
+    # Transfer surviving pair history, then refresh forces without advancing
+    # history or repeating integrator setup.
+    from ..colliders import reindex_history
 
-    if isinstance(new_system.collider, NeighborList):
-        from ..colliders._neighbor_cache import reindex_history
-
-        new_system = reindex_history(new_state, new_system, system.collider, idx)
-        new_state, new_system = new_system.collider.compute_force(
-            new_state, new_system, advance_history=False
-        )
-    else:
-        new_state, new_system = new_system.collider.compute_force(new_state, new_system)
+    new_system = reindex_history(new_state, new_system, system.collider, idx)
+    new_state, new_system = new_system.collider.compute_force(
+        new_state, new_system, advance_history=False
+    )
     new_state, new_system = new_system.force_manager.apply(new_state, new_system)
     new_system = replace(
         new_system,

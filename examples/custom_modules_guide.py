@@ -68,16 +68,13 @@ class PairAttractor(jdem.ForceModel):
         pos: jax.Array,
         state: jdem.State,
         system: jdem.System,
-        history: jax.Array,
-        *,
-        advance_history: bool = True,
-    ) -> tuple[jax.Array, jax.Array, jax.Array]:
+    ) -> tuple[jax.Array, jax.Array]:
         rij = system.domain.displacement(pos[i], pos[j], system)
         mask = jnp.asarray(i != j, dtype=rij.dtype)[..., None]
         model = cast(PairAttractor, system.force_model)
         force = -model.k * rij * mask
         torque = jnp.zeros_like(state.torque[j])
-        return force, torque, history
+        return force, torque
 
     @staticmethod
     @jax.jit(inline=True)

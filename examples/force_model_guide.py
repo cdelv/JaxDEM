@@ -252,6 +252,15 @@ print("History advanced:", bool(jnp.any(history_system.collider.history != 0)))
 # when pair identities or the history layout changed and old values cannot be
 # mapped. Checkpoints retain pair history and continue the same trajectory.
 #
-# ``CundallStrackForce`` sets ``has_history_dependent_energy`` and reports
-# normal plus tangential spring energy from NeighborList history. Dissipative
-# terms are excluded from stored energy.
+# A stateless law implements ``force(i, j, pos, state, system)`` and
+# ``energy(i, j, pos, state, system)``; a law with memory also takes
+# ``history`` and the keyword ``advance_history``. ``CundallStrackForce``
+# reports normal plus tangential spring energy from the
+# stored history. Dissipated work is not part of the energy. The naive collider
+# also stores history, densely as ``history[i, j]``, which is the simplest
+# choice for small frictional systems.
+#
+# Positions can change without time passing: ``domain.shear``, ``domain.resize``
+# and relaxation. Those paths advance history through
+# :func:`jaxdem.colliders.advance_history` with ``quasistatic=True``, so
+# dashpots never see the fake velocity and the result does not depend on ``dt``.

@@ -78,10 +78,7 @@ class HertzianForce(ForceModel):
         pos: jax.Array,
         state: State,
         system: System,
-        history: jax.Array,
-        *,
-        advance_history: bool = True,
-    ) -> tuple[jax.Array, jax.Array, jax.Array]:
+    ) -> tuple[jax.Array, jax.Array]:
         r"""Compute the Hertzian normal contact force on particle *i* from particle *j*.
 
         .. math::
@@ -123,13 +120,17 @@ class HertzianForce(ForceModel):
         F = mag[..., None] * n
 
         t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
-        return F, jnp.zeros(t_shape, dtype=state.torque.dtype), history
+        return F, jnp.zeros(t_shape, dtype=state.torque.dtype)
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="HertzianForce.energy")
     def energy(
-        i: int, j: int, pos: jax.Array, state: State, system: System
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
     ) -> jax.Array:
         r"""Compute the Hertzian contact energy.
 

@@ -74,7 +74,7 @@ def _pair_reference(state, system, advance_history):
     for i in range(state.N):
         for slot in range(offsets[i], offsets[i + 1]):
             j = col.neighbor_list[slot]
-            f, t, h = system.force_model.force(
+            f, t, h = system.force_model.pair_force(
                 jnp.asarray(i),
                 j,
                 state.pos,

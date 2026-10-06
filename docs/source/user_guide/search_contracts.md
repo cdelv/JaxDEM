@@ -172,40 +172,52 @@ the total directed-pair count exceeds the pool. Each batched simulation has its 
 Hashes use `uint64` with JAX x64 enabled and `uint32` otherwise; particle indices
 remain signed. Invalid hash geometry is reported as overflow.
 
-`Collider.stateful` is a class property describing cached collider state.
-`supports_history` identifies colliders that persist pair memory (NeighborList).
+`Collider.stateful` is a class property describing cached search state.
+`supports_history` identifies colliders that persist pair memory. The naive
+collider stores it densely as `history[i, j]` with shape `(N, N, H)`, so every
+pair keeps its slot for the life of the collider and small frictional systems
+need no neighbor list. `NeighborList` stores it in its pooled cache and remaps
+it by pair on every rebuild. Cell lists have no pair memory and only run
+stateless laws. `System.create` allocates the buffer from the collider's
+`history_pair_shape` and the law's `history_shape`.
 
-For small systems, `NeighborList` accepts `all_pairs=True`. It stores all
-`N * N` ordered pairs during construction and does not rebuild the list during
-force or energy evaluation. Each pair therefore keeps the same history entry
-for the life of the collider. `cutoff`, `skin`, and `max_neighbors` may be
-omitted in this mode. Adding or removing particles still requires
-`refresh_collider`; memory use grows with `N * N`.
+A force law declares only what it needs. A stateless, rate-independent law
+implements `force(i, j, pos, state, system) -> (force, torque)` and
+`energy(i, j, pos, state, system)`. A law with pair memory also defines
+`history_shape(dim)`, takes `history` after `system` plus the keyword
+`advance_history`, and returns `(force, torque, history)`; its `energy` may
+take `history` too. A law with velocity-dependent terms takes the keyword
+`quasistatic` and omits those terms when it is true. Colliders always call
+`pair_force(..., history, advance_history=, quasistatic=)` and
+`pair_energy(..., history)` on the base class, which pass each law exactly the
+arguments its signature declares. `init_history(pair_shape, dim)` allocates
+the history array, including zero-width arrays for stateless laws. Combiners
+and routers concatenate the component history vectors and their initializers.
+Read-only evaluation passes `advance_history=False`; a law with memory must
+then preserve it.
 
-All pair-force calls accept and return a history array:
-`force(..., history, advance_history=True) -> (force, torque, history)`.
-`history_shape(dim)` specifies its trailing shape; stateless laws return `(0,)`.
-`init_history(pair_shape, dim)` allocates the array, including empty arrays.
-Combiners and routers concatenate the component history vectors and their
-initializers. New neighbor pairs receive the law's initial history; surviving
-pairs retain their stored history when a list is rebuilt. Stateless laws
-return their input history unchanged. Read-only evaluation passes
-`advance_history=False`; a custom law must then preserve its physical memory.
-Laws with nonempty history require a collider with `supports_history=True`.
+Positions can change without time passing: `Domain.shear`, `Domain.resize`,
+and each accepted relaxation step. `jaxdem.colliders.advance_history(state_old,
+system_old, state_new, system_new)` is the one owner of that update. It
+expresses the change as velocities over `dt`, including the domain's image
+rates (`gamma_dot`, `box_rate`) through `Domain.rates_between`, and evaluates
+the force model once with `advance_history=True, quasistatic=True`, so `dt`
+cancels exactly and no dashpot acts. Dynamics does not use it: the integrator's
+velocities advance history inside `compute_force`. Editing `box_size` or
+`gamma` by hand bypasses this update; use `resize` and `shear`.
 
-Force NeighborList caches rebuild when displacement exhausts the skin, the skin
-configuration changes, the periodic metric changes, or the required force reach
-changes. `metric_snapshot` stores the box lengths, shear, and shear axes at the
-last build: changing any of these can change
-neighbor membership even when particle coordinates have not moved. Free domains
-use a constant snapshot because their bounding box is only a search envelope. Changing shear can
-therefore rebuild every step. Call `invalidate_collider` after changing exclusions
-or other topology with unchanged indices. Use `refresh_collider(state, collider,
-force_model)` after changing allocation sizes. Growing the neighbor capacity
-preserves pair memory. Shrinking a nonempty history buffer, changing the particle
-count with nonempty history, or reindexing requires an explicit history reset
-(`reset_history=True`); history cannot be matched by old array indices after
-particle identities move.
+Force NeighborList caches rebuild when the skin budget is exhausted. Particle
+motion since the last build counts twice, a strain change counts
+`|dgamma| * L_beta`, and a box change counts `max |dL|`.
+Changes to the search axes, the required force reach, or the skin itself always
+rebuild. Small affine steps therefore do not rebuild, and continuous shear
+rebuilds only as often as particle motion would. Call `invalidate_collider`
+after changing exclusions or other topology with unchanged indices. Use
+`refresh_collider(state, collider, force_model)` after changing allocation
+sizes. Growing the neighbor capacity preserves pair memory. Shrinking a
+nonempty history buffer, changing the particle count with nonempty history, or
+reindexing requires an explicit history reset (`reset_history=True`); history
+cannot be matched by old array indices after particle identities move.
 
 `remove_rattlers` maps surviving particle pairs back to their original indices
 and transfers their complete contact history into the resized cache before
@@ -233,20 +245,20 @@ integrator before initializing.
 `System.evaluate_forces` refreshes instantaneous forces and search caches without
 advancing history, consuming queued loads, or initializing an integrator.
 
-Minimization evaluates conservative potential energy and
-holds physical history and load buffers fixed. The default energy minimizer supports
-laws declaring `supports_analytical_energy_gradient=True`, using zero-velocity
-forces to exclude damping. The base capability is true: laws whose zero-velocity
-force/torque is not the negative energy gradient must override it to false.
-Combined and routed laws propagate any component opt-out. For unsupported laws,
-provide an explicit `target_fn`. Custom managed forces must supply their matching energy function. Minimization uses independent logical body
-coordinates and reports its termination reason explicitly.
+Minimization evaluates rate-independent forces (`quasistatic=True`) and
+holds load buffers fixed. The default energy minimizer supports laws declaring
+`supports_analytical_energy_gradient=True`. The base capability is true: laws
+whose rate-independent force/torque is not the negative energy gradient must
+override it to false. Combined and routed laws propagate any component opt-out.
+For unsupported laws, provide an explicit `target_fn`. Custom managed forces
+must supply their matching energy function. Minimization uses independent
+logical body coordinates and reports its termination reason explicitly.
 
-Force models declaring `has_history_dependent_energy=True` use pair history for
-stored energy. FIRE and damped Newtonian update that history from each accepted
-optimizer displacement before evaluating zero-velocity force and torque
-residuals. `CundallStrackForce` reports normal plus tangential spring energy.
-Dissipative terms are excluded from stored energy.
+Force models with pair history are relaxed by FIRE and damped Newtonian only.
+The initial evaluation holds history fixed. Each accepted update then advances
+history from the anchor to the trial configuration through `advance_history`
+and uses that traversal's forces as the residuals. `CundallStrackForce` reports
+normal plus tangential spring energy; dissipated work is not part of the energy.
 
 Successful minimization requires both the maximum free-body force norm to be at
 most `force_tol` (default `1e-12`) and the maximum torque norm to be at most

@@ -26,9 +26,7 @@ class _RememberingSpring(jd.forces.SpringForce):
 
     @staticmethod
     def force(i, j, pos, state, system, history, *, advance_history=True):
-        force, torque, _ = jd.forces.SpringForce.force(
-            i, j, pos, state, system, history, advance_history=advance_history
-        )
+        force, torque = jd.forces.SpringForce.force(i, j, pos, state, system)
         return force, torque, history + advance_history
 
 
@@ -37,9 +35,7 @@ class _RememberingSpring(jd.forces.SpringForce):
 class _HistoryScaledSpring(_RememberingSpring):
     @staticmethod
     def force(i, j, pos, state, system, history, *, advance_history=True):
-        force, torque, _ = jd.forces.SpringForce.force(
-            i, j, pos, state, system, history, advance_history=advance_history
-        )
+        force, torque = jd.forces.SpringForce.force(i, j, pos, state, system)
         scale = history[..., 0, None]
         return force * scale, torque * scale, history + advance_history
 
@@ -65,7 +61,7 @@ def _history_system() -> tuple[jd.State, jd.System]:
 
 
 @pytest.mark.parametrize("optimizer", [jd.fire, jd.damped_newtonian])
-def test_relaxation_preserves_history_loads_and_dynamics_state(optimizer) -> None:
+def test_relaxation_advances_history_per_step_and_preserves_loads(optimizer) -> None:
     state, system = _history_system()
     state = dataclasses.replace(
         state,
@@ -81,7 +77,11 @@ def test_relaxation_preserves_history_loads_and_dynamics_state(optimizer) -> Non
     result = system.minimize(state, system, max_steps=3, force_tol=0.0, torque_tol=0.0)
 
     assert int(result.steps) == 3
-    np.testing.assert_array_equal(result.system.collider.history, history)
+    # The initial evaluation is read-only; each accepted step advances once.
+    valid = np.asarray(result.system.collider.neighbor_list) >= 0
+    np.testing.assert_array_equal(
+        np.asarray(result.system.collider.history)[valid], history[valid] + 3
+    )
     np.testing.assert_array_equal(result.system.force_manager.external_force, queued)
     np.testing.assert_array_equal(result.state.vel, state.vel)
     np.testing.assert_array_equal(result.state.ang_vel, state.ang_vel)
@@ -117,7 +117,7 @@ def test_evaluation_preserves_history_and_queued_load_until_step() -> None:
     np.testing.assert_array_equal(stepped.force_manager.external_force, 0.0)
 
 
-def test_evaluation_remaps_history_after_modest_box_rescale() -> None:
+def test_box_rescale_advances_history_once_and_remaps_it() -> None:
     state, system = _history_system()
 
     def pair_history(col):
@@ -136,9 +136,10 @@ def test_evaluation_remaps_history_after_modest_box_rescale() -> None:
     )
     _, evaluated = jd.System.evaluate_forces(scaled_state, invalidated)
 
+    # The affine rescale advances history exactly once; evaluation does not.
     for pair, history in pair_history(evaluated.collider).items():
         if pair in remembered:
-            np.testing.assert_array_equal(history, remembered[pair])
+            np.testing.assert_array_equal(history, remembered[pair] + 1)
 
 
 def test_evaluation_updates_free_bounds_after_particle_teleport() -> None:

@@ -145,6 +145,16 @@ def _collect_pair_candidates(
         pairs, overflow = _uncached_pairs(state, system, cutoff, capacity)
         system = _record_overflow(system, overflow)
         valid = jnp.ones((capacity,), dtype=bool)
-        history = system.force_model.init_history((capacity,), state.dim)
+        history = _candidate_history(state, system, pairs)
     _check_search(system)
     return system, pairs, valid, history
+
+
+def _candidate_history(state: State, system: System, pairs: jax.Array) -> jax.Array:
+    """Stored history of directed candidate pairs, or the law's initial history."""
+    from ..colliders.naive import NaiveSimulator, _dense_history
+
+    if isinstance(system.collider, NaiveSimulator) and pairs.shape[0]:
+        history = _dense_history(state, system, system.collider.history)
+        return history[pairs[:, 0], pairs[:, 1]]
+    return system.force_model.init_history((pairs.shape[0],), state.dim)

@@ -4,9 +4,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+try:  # Python 3.11+
+    from typing import Self
+except ImportError:  # pragma: no cover
+    from typing_extensions import Self
 
 import jax
 import jax.numpy as jnp
@@ -27,9 +32,61 @@ class PeriodicDomain(Domain):
     Particles that move out of one side of the simulation box re-enter from the
     opposite side. The domain computes the displacement vector between
     particles with the minimum image convention.
+
+    ``box_rate`` is the time derivative of ``box_size``. Periodic images of a
+    particle move at ``image * box_rate``, which :meth:`relative_velocity`
+    subtracts. Time stepping does not advance ``box_size``; set ``box_rate``
+    when a protocol changes the box continuously, and leave it zero otherwise.
+    Discrete rescaling goes through :meth:`Domain.resize`.
     """
 
     search_geometry = SearchGeometry.ORTHOGONAL
+
+    box_rate: jax.Array = field(default_factory=lambda: jnp.zeros((0,), dtype=float))
+    """Time derivative of ``box_size`` for moving periodic images."""
+
+    @classmethod
+    def Create(
+        cls,
+        dim: int,
+        box_size: jax.Array | None = None,
+        anchor: jax.Array | None = None,
+        box_rate: jax.Array | None = None,
+        **kw: Any,
+    ) -> Self:
+        """Construct a periodic box; ``box_rate`` defaults to zero."""
+        rate = (
+            jnp.zeros(dim, dtype=float)
+            if box_rate is None
+            else jnp.asarray(box_rate, dtype=float)
+        )
+        if rate.shape != (dim,):
+            raise ValueError(
+                f"box_rate must have shape ({dim},), got shape {rate.shape}."
+            )
+        # Two-arg super: dataclass(slots=True) recreates the class.
+        return super(PeriodicDomain, cls).Create(
+            dim, box_size=box_size, anchor=anchor, box_rate=rate, **kw
+        )
+
+    def rates_between(self, old: Domain, dt: jax.Array) -> Domain:
+        """Set ``box_rate`` from the box change since ``old``."""
+        return replace(self, box_rate=(self.box_size - old.box_size) / dt)
+
+    @staticmethod
+    @jax.jit(inline=True)
+    @partial(jax.named_call, name="PeriodicDomain.relative_velocity")
+    def relative_velocity(
+        ri: jax.Array,
+        rj: jax.Array,
+        vi: jax.Array,
+        vj: jax.Array,
+        system: System,
+    ) -> jax.Array:
+        """Subtract the velocity of the image selected by ``displacement``."""
+        domain = system.domain
+        image = jnp.round((ri - rj) / domain.box_size)
+        return vi - vj - image * domain.box_rate
 
     def search_geometry_snapshot(self) -> jax.Array:
         """Return periodic box geometry used by search caches."""

@@ -125,10 +125,6 @@ class NeighborList(Collider):
       during rebuilds (e.g. ``"CellList"``, ``"naive"``, or ``"MultiCellList"``). You can use any registered
       ``Collider`` subclass for the rebuild phase to optimize the rebuild cost for your system.
     - **secondary_collider_kw**: Keyword args for the underlying collider constructor.
-    - **all_pairs**: Store every ordered particle pair once and never rebuild
-      the stored list. This gives history-dependent force models a permanent
-      history entry for each pair. It uses ``N * N`` entries and is intended
-      for small systems.
 
     This collider suits dense assemblies, static packings, slow shear flows, gravity settling, or any low-velocity systems. It suits high-speed granular flows and high-temperature systems less, because rapid particle motion triggers frequent neighbor list rebuilds that cancel the caching advantage. Also, systems of rigid clumps with large overlaps need larger neighbor buffers to hold excluded constituent pairs. This increases the memory footprint and the step traversal cost.
 
@@ -167,7 +163,7 @@ class NeighborList(Collider):
         every timestep for every batched environment, and the collider loses
         its performance benefit. For batched simulations, use the underlying
         spatial-partitioning collider (e.g. ``"CellList"``) directly. This
-        warning does not apply to ``all_pairs=True``, which has no rebuild.
+        warning does not apply to the naive collider, which has no cache.
     """
 
     secondary_collider: Collider
@@ -198,9 +194,6 @@ class NeighborList(Collider):
     max_neighbors: int = jax.tree.static()
     """Average per-particle capacity budget for the shared pair pool."""
 
-    all_pairs: bool = jax.tree.static(default=False)
-    """Whether the cache permanently stores every ordered particle pair."""
-
     row_offsets: jax.Array = field(default_factory=lambda: jnp.empty((0,), dtype=int))
     """Sparse CSR offsets of length N + 1, clipped to allocated capacity."""
 
@@ -215,23 +208,24 @@ class NeighborList(Collider):
     def supports_history(self) -> bool:
         return True
 
+    def history_pair_shape(self, state_shape: tuple[int, ...]) -> tuple[int, ...]:
+        return tuple(state_shape[:-2]) + (state_shape[-2] * self.max_neighbors,)
+
     def validate_domain(self, domain: Domain) -> None:
         """Validate the domain against the collider that builds this cache."""
         self.secondary_collider.validate_domain(domain)
 
     def invalidate(self) -> Collider:
-        """Request a rebuild unless this collider permanently stores all pairs."""
-        if self.all_pairs:
-            return self
+        """Request a rebuild at the next force or energy evaluation."""
         return replace(self, invalidated=jnp.asarray(True))
 
     metric_snapshot: jax.Array = field(default_factory=lambda: jnp.empty((0,)))
-    """Periodic box lengths, strain, and shear axes at the last check."""
+    """Periodic box lengths, strain, and shear axes at the last build."""
 
     physical_cutoff_snapshot: jax.Array = field(
         default_factory=lambda: jnp.asarray(-1.0)
     )
-    """Required physical interaction reach at the last check."""
+    """Required physical interaction reach at the last build."""
 
     skin_snapshot: jax.Array = field(default_factory=lambda: jnp.asarray(-1.0))
     """Neighbor-list skin used for the last build."""
@@ -251,7 +245,6 @@ class NeighborList(Collider):
         safety_factor: float = 1.2,
         secondary_collider_type: str | None = None,
         secondary_collider_kw: dict[str, Any] | None = None,
-        all_pairs: bool = False,
     ) -> Self:
         r"""Create a NeighborList collider.
 
@@ -260,9 +253,8 @@ class NeighborList(Collider):
         state : State
             The initial simulation state. It determines the system dimensions
             and the particle count.
-        cutoff : float, optional
-            The physical interaction cutoff radius. It is required unless
-            ``all_pairs=True``.
+        cutoff : float
+            The physical interaction cutoff radius.
         skin : float, optional
             **Absolute** buffer distance added to the cutoff — the same
             quantity stored in the returned collider's ``skin`` field.
@@ -289,30 +281,19 @@ class NeighborList(Collider):
             for fluctuations in local density.
         secondary_collider_type : str, optional
             Registered collider type used internally to build the neighbor lists.
-            Defaults to ``"CellList"``, or ``"naive"`` when
-            ``all_pairs=True``.
+            Defaults to ``"CellList"``.
         secondary_collider_kw : dict[str, Any], optional
             Keyword arguments for the constructor of the internal collider.
             If None and the internal collider is a cell list, ``cell_size``
             defaults to ``cutoff + skin``.
-        all_pairs : bool, default False
-            If True, store all ``N * N`` ordered pairs during construction and
-            never rebuild the stored list. ``max_neighbors`` is then fixed at
-            ``N``. This mode is intended for small systems whose force models
-            keep a separate history for each pair.
-
         Returns
         -------
         NeighborList
             A configured NeighborList collider instance.
 
         """
-        if not isinstance(all_pairs, bool):
-            raise ValueError("all_pairs must be a Python bool")
         if cutoff is None:
-            if not all_pairs:
-                raise ValueError("cutoff is required unless all_pairs=True")
-            cutoff = 0.0
+            raise ValueError("cutoff is required")
         if skin is not None and skin_fraction is not None:
             raise ValueError(
                 "Pass either `skin` (absolute distance) or `skin_fraction` "
@@ -348,12 +329,6 @@ class NeighborList(Collider):
             raise ValueError("number_density must be finite and non-negative")
         if safety_factor <= 0 or not math.isfinite(safety_factor):
             raise ValueError("safety_factor must be finite and positive")
-        if all_pairs:
-            if max_neighbors is not None and max_neighbors != state.N:
-                raise ValueError(
-                    "all_pairs=True requires max_neighbors to be omitted or equal to N"
-                )
-            max_neighbors = state.N
         list_cutoff = cutoff_array + skin_array
 
         if max_neighbors is None and (traced_state or traced_cutoff):
@@ -401,7 +376,7 @@ class NeighborList(Collider):
         else:
             secondary_collider_kw = dict(secondary_collider_kw)
         if secondary_collider_type is None:
-            secondary_collider_type = "naive" if all_pairs else "CellList"
+            secondary_collider_type = "CellList"
 
         # Forward the state only to secondary colliders whose Create accepts
         # one (e.g. "naive" takes no state and would warn about the dropped
@@ -440,29 +415,21 @@ class NeighborList(Collider):
         # Initialize buffers
         current_pos = state.pos
         pair_shape = (state.N * max_neighbors,)
-        if all_pairs:
-            dummy_nl = jnp.tile(jnp.arange(state.N, dtype=int), state.N)
-            row_offsets = jnp.arange(state.N + 1, dtype=int) * state.N
-        else:
-            dummy_nl = jnp.full(pair_shape, -1, dtype=int)
-            row_offsets = jnp.zeros((state.N + 1,), dtype=int)
-
         return cls(
             secondary_collider=cl,
-            neighbor_list=dummy_nl,
+            neighbor_list=jnp.full(pair_shape, -1, dtype=int),
             old_pos=current_pos,
-            n_build_times=jnp.array(int(all_pairs), dtype=int),
+            n_build_times=jnp.array(0, dtype=int),
             cutoff=jnp.asarray(cutoff, dtype=float),
             skin=jnp.asarray(skin_val, dtype=float),
             overflow=jnp.asarray(False, dtype=bool),
             max_neighbors=int(max_neighbors),
-            all_pairs=all_pairs,
-            row_offsets=row_offsets,
+            row_offsets=jnp.zeros((state.N + 1,), dtype=int),
             history=jnp.zeros(pair_shape + (0,), dtype=state.pos.dtype),
             metric_snapshot=jnp.zeros((state.dim + 3,), dtype=state.pos.dtype),
             physical_cutoff_snapshot=jnp.asarray(-1.0, dtype=state.pos.dtype),
             skin_snapshot=jnp.asarray(-1.0, dtype=state.pos.dtype),
-            invalidated=jnp.asarray(not all_pairs),
+            invalidated=jnp.asarray(True),
         )
 
     @staticmethod
@@ -525,17 +492,20 @@ class NeighborList(Collider):
         return state_out, replace(inner_system, collider=collider), nl, overflow
 
     @staticmethod
-    @jax.jit(static_argnames=("advance_history",), inline=True)
+    @jax.jit(static_argnames=("advance_history", "quasistatic"), inline=True)
     @partial(jax.named_call, name="NeighborList.compute_force")
     def compute_force(
-        state: State, system: System, *, advance_history: bool = True
+        state: State,
+        system: System,
+        *,
+        advance_history: bool = True,
+        quasistatic: bool = False,
     ) -> tuple[State, System]:
         r"""Compute total forces acting on each particle, rebuilding the neighbor list when necessary.
 
-        This method checks whether any particle has moved enough to trigger a
-        rebuild (displacement > skin/2). If so, it calls the internal spatial
-        partitioner to refresh the neighbor list. It then sums force
-        contributions with the cached list.
+        The cache rebuilds when particle motion plus any periodic geometry
+        change since the last build exhausts the skin. Forces are then summed
+        over the cached pairs in one flat pass.
 
         Parameters
         ----------
@@ -543,6 +513,10 @@ class NeighborList(Collider):
             The current state of the simulation.
         system : System
             The configuration of the simulation.
+        advance_history : bool, optional
+            Advance the stored pair history over this step.
+        quasistatic : bool, optional
+            Forwarded to the force law. True omits velocity-dependent terms.
 
         Returns
         -------
@@ -555,18 +529,15 @@ class NeighborList(Collider):
 
         system = check_and_rebuild(state, system)
         state.force, state.torque, history = forces(
-            state, system, advance_history=advance_history
+            state,
+            system,
+            advance_history=advance_history,
+            quasistatic=quasistatic,
         )
         return state, replace(
             system,
             collider=replace(cast(NeighborList, system.collider), history=history),
         )
-
-    @staticmethod
-    @jax.jit(inline=True)
-    def evaluate_force(state: State, system: System) -> tuple[State, System]:
-        """Evaluate forces while preserving the current contact history."""
-        return NeighborList.compute_force(state, system, advance_history=False)
 
     @staticmethod
     def get_history(

@@ -47,7 +47,9 @@ class LeesEdwardsDomain(Domain):
 
     For discrete affine shear, call :meth:`shear` to apply one strain increment
     to particle centers, periodic images, and any pair history. Quasistatic
-    protocols can then minimize the returned state at fixed strain.
+    protocols can then minimize the returned state at fixed strain. Box
+    rescaling goes through :meth:`Domain.resize`; ``box_rate`` is the box
+    length rate for continuous protocols and is zero otherwise.
     """
 
     search_geometry = SearchGeometry.SHEAR_PERIODIC
@@ -85,6 +87,18 @@ class LeesEdwardsDomain(Domain):
     """Current shear rate, used for image velocities. Keep it consistent with
     the externally imposed derivative of ``gamma``; it does not advance strain."""
 
+    box_rate: jax.Array = field(default_factory=lambda: jnp.zeros((0,), dtype=float))
+    """Time derivative of ``box_size`` for moving periodic images."""
+
+    def rates_between(self, old: Domain, dt: jax.Array) -> Domain:
+        """Set ``gamma_dot`` and ``box_rate`` from the geometry change since ``old``."""
+        le_old = cast("LeesEdwardsDomain", old)
+        return replace(
+            self,
+            gamma_dot=(self.gamma - le_old.gamma) / dt,
+            box_rate=(self.box_size - old.box_size) / dt,
+        )
+
     def search_geometry_snapshot(self) -> jax.Array:
         """Return box and canonical shear geometry used by search caches."""
         return jnp.concatenate(
@@ -109,6 +123,7 @@ class LeesEdwardsDomain(Domain):
         alpha: int = 0,
         beta: int = 1,
         gamma_dot: float | jax.Array = 0.0,
+        box_rate: jax.Array | None = None,
         **kwargs: Any,
     ) -> "LeesEdwardsDomain":
         """Construct a Lees-Edwards domain with validated shear axes."""
@@ -145,6 +160,9 @@ class LeesEdwardsDomain(Domain):
             raise ValueError("alpha and beta must be distinct axes.")
 
         dtype = box_size.dtype
+        rate = jnp.zeros(dim, dtype=float) if box_rate is None else jnp.asarray(box_rate, dtype=float)
+        if rate.shape != (dim,):
+            raise ValueError(f"box_rate must have shape ({dim},), got shape {rate.shape}.")
         return cls(
             box_size=box_size,
             inv_box_size=1.0 / box_size,
@@ -155,6 +173,7 @@ class LeesEdwardsDomain(Domain):
             alpha=alpha,
             beta=beta,
             gamma_dot=jnp.asarray(gamma_dot, dtype=float),
+            box_rate=rate,
         )
 
     @property
@@ -171,55 +190,27 @@ class LeesEdwardsDomain(Domain):
         """Apply an affine strain increment about the domain anchor.
 
         Move body centers along ``alpha`` by ``dgamma * (r_beta - anchor_beta)``
-        and increment ``gamma`` by ``dgamma``. Rigid-body offsets and orientations
-        are preserved. For force models with pair history, advance that history
-        once using the affine displacement, including the velocity of periodic
-        shear images. Coordinates remain unwrapped; time, physical velocities,
-        and ``gamma_dot`` are unchanged. For quasistatic shear, minimize the
+        and increment ``gamma`` by ``dgamma``. Rigid-body offsets and
+        orientations are preserved. Pair history is advanced once for the
+        resulting relative motion, including that of periodic shear images,
+        without time passing: velocities, ``dt``, ``gamma_dot``, and
+        rate-dependent forces play no part. Caches rebuild when the strain
+        change exhausts their skin. For quasistatic shear, minimize the
         returned state at its new strain before applying the next increment.
         """
+        from ..colliders import advance_history
+
         domain = cast("LeesEdwardsDomain", system.domain)
         affine_shift = dgamma * (
             state.pos_c[..., domain.beta] - domain.anchor[domain.beta]
         )
-        pos_c = state.pos_c.at[..., domain.alpha].add(affine_shift)
-        sheared_state = replace(state, pos_c=pos_c)
-        sheared_domain = replace(domain, gamma=domain.gamma + dgamma)
-        sheared_system = replace(system, domain=sheared_domain)
-
-        # This is a trace-time branch: stateless force laws retain the original
-        # geometry-only compiled path without a force or neighbor-list traversal.
-        if system.force_model.history_shape(state.dim) == (0,):
-            return sheared_state, sheared_system
-
-        def advance_history(_: None) -> System:
-            shear_rate = dgamma / system.dt
-            moving_state = replace(
-                sheared_state,
-                vel=jnp.zeros_like(state.vel).at[..., domain.alpha].set(
-                    affine_shift / system.dt
-                ),
-                ang_vel=jnp.zeros_like(state.ang_vel),
-            )
-            moving_system = replace(
-                sheared_system,
-                domain=replace(sheared_domain, gamma_dot=shear_rate),
-            )
-            _, advanced = moving_system.collider.compute_force(
-                moving_state, moving_system
-            )
-            return replace(
-                advanced,
-                domain=replace(advanced.domain, gamma_dot=domain.gamma_dot),
-                search_overflow=advanced.search_overflow | advanced.collider.overflow,
-            )
-
-        sheared_system = jax.lax.cond(
-            dgamma != 0.0,
-            advance_history,
-            lambda _: sheared_system,
-            operand=None,
+        sheared_state = replace(
+            state, pos_c=state.pos_c.at[..., domain.alpha].add(affine_shift)
         )
+        sheared_system = replace(
+            system, domain=replace(domain, gamma=domain.gamma + dgamma)
+        )
+        _, sheared_system = advance_history(state, system, sheared_state, sheared_system)
         return sheared_state, sheared_system
 
     @staticmethod
@@ -277,18 +268,24 @@ class LeesEdwardsDomain(Domain):
     ) -> jax.Array:
         """Subtract the velocity of the same image used by ``displacement``.
 
-        Each gradient image adds ``gamma_dot * L_beta`` to the image's
-        flow velocity. Image counts use the supplied unwrapped particle
-        centers, including when they span multiple boxes.
+        The image of ``j`` sits at ``rj + n * L + n_beta * gamma * L_beta e_alpha``
+        with integer image counts ``n``. Its velocity is ``n * box_rate`` plus
+        ``n_beta * (gamma_dot * L_beta + gamma * box_rate_beta)`` along
+        ``alpha``. Image counts use the supplied unwrapped particle centers,
+        including when they span multiple boxes.
         """
         domain = cast("LeesEdwardsDomain", system.domain)
+        rij = ri - rj
         beta_length = domain.box_size[domain.beta]
-        shear_image = jnp.round((ri - rj)[..., domain.beta] / beta_length)
-        return (
-            (vi - vj)
-            .at[..., domain.alpha]
-            .add(-shear_image * beta_length * domain.gamma_dot)
+        shear_image = jnp.round(rij[..., domain.beta] / beta_length)
+        rij = rij.at[..., domain.alpha].add(-shear_image * beta_length * domain.gamma)
+        image = jnp.round(rij / domain.box_size)
+        image_velocity = image * domain.box_rate
+        image_velocity = image_velocity.at[..., domain.alpha].add(
+            shear_image
+            * (domain.gamma_dot * beta_length + domain.gamma * domain.box_rate[domain.beta])
         )
+        return vi - vj - image_velocity
 
     @staticmethod
     @partial(jax.jit, inline=True)

@@ -55,11 +55,6 @@ class LawCombiner(ForceModel):
         return all(law.supports_analytical_energy_gradient for law in self.laws)
 
     @property
-    def has_history_dependent_energy(self) -> bool:
-        """Whether any contained law stores energy in pair history."""
-        return any(law.has_history_dependent_energy for law in self.laws)
-
-    @property
     def species_capacity(self) -> int | None:
         """Smallest router capacity reachable through the contained laws."""
         capacities = [
@@ -92,7 +87,7 @@ class LawCombiner(ForceModel):
         return radii
 
     @staticmethod
-    @jax.jit(static_argnames=("advance_history",))
+    @jax.jit(static_argnames=("advance_history", "quasistatic"))
     @partial(jax.named_call, name="LawCombiner.force")
     def force(
         i: int,
@@ -103,6 +98,7 @@ class LawCombiner(ForceModel):
         history: jax.Array,
         *,
         advance_history: bool = True,
+        quasistatic: bool = False,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
         f_shape = jnp.shape(j) + jnp.shape(state.force[i])
         t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
@@ -118,7 +114,7 @@ class LawCombiner(ForceModel):
                 (*history.shape[:-1], *child_shape)
             )
             sub_system = dataclasses.replace(system, force_model=law)
-            f, t, nh = law.force(
+            f, t, nh = law.pair_force(
                 i,
                 j,
                 pos,
@@ -126,6 +122,7 @@ class LawCombiner(ForceModel):
                 sub_system,
                 h,
                 advance_history=advance_history,
+                quasistatic=quasistatic,
             )
             force += f
             torque += t
@@ -158,8 +155,11 @@ class LawCombiner(ForceModel):
         pos: jax.Array,
         state: State,
         system: System,
+        history: jax.Array,
     ) -> jax.Array:
-        """Compute the total potential energy of the interaction between particle :math:`i` and particle :math:`j` by summing all contained laws.
+        """Sum the pair energies of the contained laws.
+
+        Each law receives its own slice of the concatenated pair history.
 
         Parameters
         ----------
@@ -173,6 +173,8 @@ class LawCombiner(ForceModel):
             Current state of the simulation.
         system : System
             Simulation system configuration.
+        history : jax.Array
+            Concatenated pair history of the contained laws.
 
         Returns
         -------
@@ -181,27 +183,6 @@ class LawCombiner(ForceModel):
             particles :math:`i` and :math:`j`.
 
         """
-        # Initialize accumulator with shape of j. If j is an array (e.g., neighbor list),
-        # this accumulator will broadcast properly. If j is a scalar, it's a scalar.
-        e = jnp.zeros(jnp.shape(j), dtype=float)
-        combiner = cast(LawCombiner, system.force_model)
-        for law in combiner.laws:
-            sub_system = dataclasses.replace(system, force_model=law)
-            e = e + law.energy(i, j, pos, state, sub_system)
-        return e
-
-    @staticmethod
-    @jax.jit
-    @partial(jax.named_call, name="LawCombiner.energy_with_history")
-    def energy_with_history(
-        i: int,
-        j: int,
-        pos: jax.Array,
-        state: State,
-        system: System,
-        history: jax.Array,
-    ) -> jax.Array:
-        """Compute total pair energy using each contained law's history."""
         e = jnp.zeros(jnp.shape(j), dtype=float)
         combiner = cast(LawCombiner, system.force_model)
         offset = 0
@@ -212,12 +193,7 @@ class LawCombiner(ForceModel):
                 (*history.shape[:-1], *child_shape)
             )
             sub_system = dataclasses.replace(system, force_model=law)
-            if law.has_history_dependent_energy:
-                e = e + law.energy_with_history(
-                    i, j, pos, state, sub_system, child_history
-                )
-            else:
-                e = e + law.energy(i, j, pos, state, sub_system)
+            e = e + law.pair_energy(i, j, pos, state, sub_system, child_history)
             offset += width
         return e
 

@@ -74,10 +74,7 @@ class LennardJones(ForceModel):
         pos: jax.Array,
         state: State,
         system: System,
-        history: jax.Array,
-        *,
-        advance_history: bool = True,
-    ) -> tuple[jax.Array, jax.Array, jax.Array]:
+    ) -> tuple[jax.Array, jax.Array]:
         mi, mj = state.mat_id[i], state.mat_id[j]
         eps = system.mat_table.epsilon_eff[mi, mj]
         sig = state.rad[i] + state.rad[j]
@@ -102,13 +99,17 @@ class LennardJones(ForceModel):
         f = (coeff * mask)[..., None] * rij
 
         t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
-        return f, jnp.zeros(t_shape, dtype=state.torque.dtype), history
+        return f, jnp.zeros(t_shape, dtype=state.torque.dtype)
 
     @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="LennardJones.energy")
     def energy(
-        i: int, j: int, pos: jax.Array, state: State, system: System
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
     ) -> jax.Array:
         mi, mj = state.mat_id[i], state.mat_id[j]
         eps = system.mat_table.epsilon_eff[mi, mj]

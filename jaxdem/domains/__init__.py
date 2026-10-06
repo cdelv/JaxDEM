@@ -5,8 +5,9 @@
 from __future__ import annotations
 
 from abc import ABC
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
+from functools import partial
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import jax
@@ -71,6 +72,16 @@ class Domain(Factory, ABC):
     def shear_search_parameters(self) -> tuple[jax.Array, int, int] | None:
         """Return ``(gamma, alpha, beta)`` for shear-periodic hashing."""
         return None
+
+    def rates_between(self, old: Domain, dt: jax.Array) -> Domain:
+        """Return this domain with image rates for the change from ``old`` over ``dt``.
+
+        Domains with moving periodic images (shear strain, box length) set
+        the rate fields that :meth:`relative_velocity` reads, so a finite
+        geometry change can be expressed as velocities. The base domain has
+        no moving images and returns itself.
+        """
+        return self
 
     @property
     def periodic(self) -> bool:
@@ -215,6 +226,54 @@ class Domain(Factory, ABC):
         the image's translational velocity offset.
         """
         return vi - vj
+
+    @staticmethod
+    @jax.jit(inline=True)
+    @partial(jax.named_call, name="Domain.resize")
+    def resize(
+        state: State,
+        system: System,
+        box_size: jax.Array,
+        group_id: jax.Array | None = None,
+    ) -> tuple[State, System]:
+        """Rescale the box to ``box_size`` and move bodies affinely about the anchor.
+
+        Each body (a clump, or the group given by ``group_id``) is translated
+        so that its center of mass follows the affine map; body size and
+        orientation are unchanged. Pair history is advanced once for the
+        resulting relative motion without time passing, so velocities,
+        ``dt``, and rate-dependent forces play no part. Caches rebuild when
+        the geometry change exhausts their skin.
+
+        Parameters
+        ----------
+        state, system : State, System
+            Configuration to rescale.
+        box_size : jax.Array
+            New box lengths, shape ``(dim,)``.
+        group_id : jax.Array, optional
+            Per-particle body labels, shape ``(N,)``. Defaults to
+            ``state.clump_id``. Deformable particles pass their bond-graph
+            component labels so each body moves as a unit.
+        """
+        from ..colliders import advance_history
+
+        domain = system.domain
+        new_box = jnp.asarray(box_size, dtype=domain.box_size.dtype)
+        scale = new_box / domain.box_size
+        group = state.clump_id if group_id is None else group_id
+        total = jax.ops.segment_sum(state.pos_c, group, num_segments=state.N)
+        counts = jax.ops.segment_sum(
+            jnp.ones((state.N,), dtype=state.pos_c.dtype), group, num_segments=state.N
+        )
+        com = total / jnp.maximum(counts[:, None], 1.0)
+        offset = (com - domain.anchor) * (scale - 1.0)
+        new_state = replace(state, pos_c=state.pos_c + offset[group])
+        new_system = replace(
+            system, domain=replace(domain, box_size=new_box, inv_box_size=1.0 / new_box)
+        )
+        _, new_system = advance_history(state, system, new_state, new_system)
+        return new_state, new_system
 
     @staticmethod
     @jax.jit(inline=True)

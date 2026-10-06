@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from abc import ABC
+import dataclasses
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
@@ -84,12 +85,28 @@ class Collider(Factory, ABC):
 
     @property
     def supports_history(self) -> bool:
-        """Whether this collider implements the NeighborList history contract."""
+        """Whether this collider stores per-pair force-model history."""
         return False
 
+    def history_pair_shape(
+        self, state_shape: tuple[int, ...]
+    ) -> tuple[int, ...] | None:
+        """Leading shape of the stored pair history for ``state_shape``.
+
+        ``None`` means this collider has no persistent pair memory, so it can
+        only run stateless force laws.
+        """
+        return None
+
     @staticmethod
-    @jax.jit(inline=True)
-    def compute_force(state: State, system: System) -> tuple[State, System]:
+    @jax.jit(inline=True, static_argnames=("advance_history", "quasistatic"))
+    def compute_force(
+        state: State,
+        system: System,
+        *,
+        advance_history: bool = True,
+        quasistatic: bool = False,
+    ) -> tuple[State, System]:
         """Compute the total force acting on each particle in the simulation.
 
         This base implementation is a concrete no-op: it zeroes the ``force``
@@ -108,6 +125,11 @@ class Collider(Factory, ABC):
             The current state of the simulation.
         system : System
             The configuration of the simulation.
+        advance_history : bool, optional
+            Advance stored pair history over this step. Colliders without
+            pair memory ignore it.
+        quasistatic : bool, optional
+            Forwarded to the force law. True omits velocity-dependent terms.
 
         Returns
         -------
@@ -124,13 +146,16 @@ class Collider(Factory, ABC):
     @jax.jit(inline=True)
     def evaluate_force(state: State, system: System) -> tuple[State, System]:
         """Evaluate forces without advancing contact history."""
-        return system.collider.compute_force(state, system)
+        return system.collider.compute_force(state, system, advance_history=False)
 
     @staticmethod
     def get_history(
         state: State, system: System, neighbor_list: jax.Array
     ) -> jax.Array:
-        """Return initialized history for an explicit pair query."""
+        """Return stored history for an explicit ``(N, k)`` pair query.
+
+        Colliders without pair memory return the force law's initial history.
+        """
         return system.force_model.init_history(neighbor_list.shape, state.dim)
 
     @staticmethod
@@ -301,9 +326,9 @@ def refresh_collider(
 ) -> Collider:
     """Rebuild a stateful collider for a (possibly resized) state.
 
-    Stateless colliders (``naive``) have no state-size-dependent buffers, so
-    this function returns them unchanged. For stateful colliders
-    (``CellList``, ``MultiCellList``, ``NeighborList``), it reads the
+    The naive collider keeps only its dense ``(N, N, H)`` pair history, which
+    is reallocated when the particle count changes. For colliders with search
+    caches (``CellList``, ``MultiCellList``, ``NeighborList``), it reads the
     ``Create`` signature. It forwards every parameter whose name matches a
     dataclass field on the current collider instance, plus the new ``state``.
     Parameters not stored on the collider (e.g. ``number_density`` and
@@ -321,6 +346,8 @@ def refresh_collider(
     """
     from inspect import signature
 
+    if isinstance(collider, NaiveSimulator):
+        return _refresh_naive(state, collider, force_model, reset_history=reset_history)
     if not collider.stateful:
         return collider
 
@@ -350,10 +377,9 @@ def refresh_collider(
             state=state,
             cutoff=collider.cutoff,
             skin=collider.skin,
-            max_neighbors=state.N if collider.all_pairs else collider.max_neighbors,
+            max_neighbors=collider.max_neighbors,
             secondary_collider_type=secondary_collider.type_name,
             secondary_collider_kw=_stored_create_kwargs(secondary_collider),
-            all_pairs=collider.all_pairs,
         )
         from ._neighbor_cache import refresh
 
@@ -379,6 +405,103 @@ def refresh_collider(
     return cast(Collider, create_fn(**kwargs))
 
 
+def _refresh_naive(
+    state: State, collider: Any, force_model: Any | None, *, reset_history: bool
+) -> Collider:
+    """Reallocate the dense naive history when the particle count changes."""
+    history = collider.history
+    tail = history.shape[2:] if history.ndim == 3 else (0,)
+    same_n = history.shape[:2] == (state.N, state.N)
+    if same_n and not reset_history:
+        return cast(Collider, collider)
+    if force_model is not None:
+        new_history = force_model.init_history((state.N, state.N), state.dim)
+    elif tail == (0,) or reset_history:
+        new_history = jnp.zeros((state.N, state.N) + tail, dtype=history.dtype)
+    else:
+        raise ValueError("force_model is required to initialize refreshed history")
+    return cast(Collider, dataclasses.replace(collider, history=new_history))
+
+
+def reindex_history(
+    state: State, system: System, old: Collider, new_to_old: jax.Array
+) -> System:
+    """Transfer stored pair history onto a reindexed state.
+
+    ``system.collider`` must already be allocated for ``state``.
+    ``new_to_old[k]`` is the original index of particle ``k``. Pairs that
+    survive keep their history; new pairs and padding start from the force
+    law's initial history.
+    """
+    if isinstance(old, NaiveSimulator):
+        if old.history.size == 0:
+            return system
+        history = old.history[new_to_old][:, new_to_old]
+        return dataclasses.replace(
+            system, collider=dataclasses.replace(system.collider, history=history)
+        )
+    if isinstance(old, NeighborList):
+        from ._neighbor_cache import reindex_history as reindex_pooled
+
+        return reindex_pooled(state, system, old, new_to_old)
+    return system
+
+
+def advance_history(
+    state_old: State, system_old: System, state_new: State, system_new: System
+) -> tuple[State, System]:
+    """Advance pair history for a change of configuration without time passing.
+
+    The motion from ``(state_old, system_old)`` to ``(state_new, system_new)``
+    is expressed as velocities over ``system_new.dt``: body translation and
+    rotation increments divided by ``dt`` for the particles, and the domain's
+    image rates for moving periodic images. The force model is evaluated once
+    at the new configuration with ``advance_history=True`` and
+    ``quasistatic=True``, so ``dt`` cancels exactly and no velocity-
+    dependent force acts.
+
+    Used by affine box deformation (:meth:`Domain.shear`,
+    :meth:`Domain.resize`) and by relaxation. Dynamics does not call it: the
+    integrator's own velocities advance history inside ``compute_force``.
+
+    Returns
+    -------
+    state : State
+        ``state_new`` with the rate-independent forces and torques of the new
+        configuration.
+    system : System
+        ``system_new`` with the advanced collider history and updated overflow
+        flag. The domain and ``dt`` are those of ``system_new``.
+
+    This is a trace-time no-op for stateless force laws.
+    """
+    from ..utils.quaternion import Quaternion
+
+    if system_new.force_model.history_shape(state_new.dim) == (0,):
+        return state_new, system_new
+    dt = system_new.dt
+    vel = (state_new.pos_c - state_old.pos_c) / dt
+    rotvec = Quaternion.to_rotvec(state_new.q @ Quaternion.conj(state_old.q))
+    if state_new.dim == 2:
+        rotvec = rotvec[..., 2:]
+    moving_state = dataclasses.replace(state_new, vel=vel, ang_vel=rotvec / dt)
+    moving_system = dataclasses.replace(
+        system_new, domain=system_new.domain.rates_between(system_old.domain, dt)
+    )
+    moving_state, advanced = moving_system.collider.compute_force(
+        moving_state, moving_system, advance_history=True, quasistatic=True
+    )
+    state = dataclasses.replace(
+        state_new, force=moving_state.force, torque=moving_state.torque
+    )
+    system = dataclasses.replace(
+        system_new,
+        collider=advanced.collider,
+        search_overflow=system_new.search_overflow | advanced.collider.overflow,
+    )
+    return state, system
+
+
 from .cell_list import DynamicCellList
 from .multi_cell_list import DynamicMultiCellList
 from .naive import NaiveSimulator
@@ -390,7 +513,9 @@ __all__ = [
     "DynamicMultiCellList",
     "NaiveSimulator",
     "NeighborList",
+    "advance_history",
     "invalidate_collider",
     "refresh_collider",
+    "reindex_history",
     "valid_interaction_mask",
 ]

@@ -193,9 +193,12 @@ print("Lees-Edwards displacement:", rij)
 #
 # For discrete affine increments (for example, quasistatic shear), call
 # ``state, system = system.domain.shear(state, system, dgamma)``. This updates
-# ``gamma`` and advances pair histories such as Cundall--Strack exactly once;
-# it leaves physical velocities and ``gamma_dot`` unchanged. Do not represent
-# the same strain increment through both this call and the continuous protocol.
+# ``gamma`` and advances pair histories such as Cundall--Strack exactly once,
+# with no time passing: velocities, ``dt``, ``gamma_dot`` and dashpots play no
+# part. Do not represent the same strain increment through both this call and
+# the continuous protocol. Box rescaling works the same way through
+# ``system.domain.resize(state, system, new_box_size)``, which every domain
+# supports and which ``scale_to_packing_fraction`` uses.
 #
 # ``shift`` removes the positional shear offset for each crossed gradient image and then
 # wraps all coordinates into the primary box. Spatial-search caches include
