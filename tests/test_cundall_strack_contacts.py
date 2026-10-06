@@ -133,6 +133,37 @@ def test_resolved_contacts_report_components_coefficients_and_mobilization(
         )
 
 
+def test_resolved_contacts_convert_to_generic_contact_data() -> None:
+    state, system, _ = _system(0.1)
+    offsets = jnp.zeros_like(state.pos_p).at[:2, 1].set(0.2)
+    state = replace(state, pos_p=offsets)
+
+    _, system, expected = jd.utils.get_contacts(state, system)
+    _, system, resolved = jd.forces.get_cundall_strack_contacts(state, system)
+    history = np.asarray(system.collider.history).copy()
+
+    contacts = resolved.as_contact_data(state, system)
+
+    np.testing.assert_array_equal(contacts.pair_ids, expected.pair_ids)
+    np.testing.assert_allclose(contacts.forces, expected.forces, atol=1e-6)
+    np.testing.assert_allclose(contacts.torques, expected.torques, atol=1e-6)
+    np.testing.assert_allclose(
+        contacts.displacements, expected.displacements, atol=1e-6
+    )
+    assert np.max(np.abs(np.asarray(contacts.torques - resolved.torques))) > 0.0
+    np.testing.assert_array_equal(system.collider.history, history)
+
+    _, _, counts = jd.utils.count_sphere_contacts(
+        state, system, contacts=contacts
+    )
+    _, _, rattlers, non_rattlers = jd.utils.get_sphere_rattler_ids(
+        state, system, zc=1, contacts=contacts
+    )
+    np.testing.assert_array_equal(counts, [1, 1, 0])
+    np.testing.assert_array_equal(rattlers, [2])
+    np.testing.assert_array_equal(non_rattlers, [0, 1])
+
+
 def test_resolved_contacts_require_a_direct_cundall_strack_model() -> None:
     state = jd.State.create(pos=[[0.0, 0.0], [0.8, 0.0]], rad=jnp.full(2, 0.5))
     system = jd.System.create(state=state)

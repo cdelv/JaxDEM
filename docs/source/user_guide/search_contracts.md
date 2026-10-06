@@ -97,14 +97,24 @@ its resolved contact components:
 
 ```python
 from jaxdem.forces import get_cundall_strack_contacts
+from jaxdem.utils import get_sphere_rattler_ids
 
-state, system, contacts = get_cundall_strack_contacts(state, system)
+state, system, cs_contacts = get_cundall_strack_contacts(state, system)
+contacts = cs_contacts.as_contact_data(state, system)
+state, system, rattlers, non_rattlers = get_sphere_rattler_ids(
+    state, system, zc=2, contacts=contacts
+)
 ```
 
 `CundallStrackContactData` contains directed sphere-pair IDs, normal and
 tangential force vectors, force-law torques about the source sphere center,
 mixed pair friction coefficients, and a `mobilized` mask. A contact is
 mobilized when its tangential trial force is on or beyond its Coulomb limit.
+Its `as_contact_data` method combines the force components, shifts torques to
+the source clump COM, and computes domain-aware displacements without another
+force evaluation. The resulting generic `ContactData` can be reused for stress,
+pressure, coordination, grouping, and rattler analysis. Here `zc=2` is an
+explicit 2D frictional-sphere convention rather than the frictionless default.
 
 Diagnostics preserve contact history. Use the returned system to retain any
 refreshed collider cache. A snapshot can be reused only while the state and

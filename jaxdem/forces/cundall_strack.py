@@ -17,6 +17,7 @@ from . import ForceModel
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
+    from ..utils.contacts import ContactData
 
 
 FrictionMixingRule = Callable[[jax.Array, jax.Array], jax.Array]
@@ -52,6 +53,30 @@ class CundallStrackContactData(NamedTuple):
     torques: jax.Array
     friction_coefficients: jax.Array
     mobilized: jax.Array
+
+    def as_contact_data(self, state: State, system: System) -> ContactData:
+        """Return the matching generic contact snapshot without reevaluation.
+
+        The resolved normal and tangential components are combined into total
+        pair forces. Torques are shifted from each source sphere's center to
+        its clump center of mass, matching :class:`~jaxdem.utils.ContactData`.
+        Pair displacements use the configured domain's image convention.
+
+        ``state`` and ``system`` must describe the unchanged configuration
+        from which this snapshot was collected. Contact history is not read or
+        advanced.
+        """
+        from ..utils.contacts import ContactData
+
+        source, destination = self.pair_ids.T
+        position = state.pos
+        forces = self.normal_forces + self.tangential_forces
+        member_offset = position[source] - state.pos_c[source]
+        torques = self.torques + cross(member_offset, forces)
+        displacements = system.domain.displacement(
+            position[source], position[destination], system
+        )
+        return ContactData(self.pair_ids, forces, torques, displacements)
 
 
 def minimum_friction(mu_i: jax.Array, mu_j: jax.Array) -> jax.Array:
