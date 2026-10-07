@@ -84,7 +84,7 @@ def _force_pair_fn(
     quasistatic: bool = False,
 ) -> tuple[jax.Array, jax.Array]:
     history = system.force_model.init_history(jnp.shape(j), pos.shape[-1])
-    f, t, _ = system.force_model.pair_force(
+    f, t, _ = system.force_model.force(
         i,
         j,
         pos,
@@ -110,7 +110,7 @@ def _energy_pair_fn(
     system: "System",
 ) -> jax.Array:
     history = system.force_model.init_history(jnp.shape(j), pos.shape[-1])
-    e = system.force_model.pair_energy(i, j, pos, state, system, history)
+    e = system.force_model.energy(i, j, pos, state, system, history)
     e = jnp.where(valid > 0, e, 0.0)
     return acc + 0.5 * e
 

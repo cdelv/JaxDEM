@@ -59,7 +59,7 @@ def all_pairs_energy(pos, state, system):
     history = system.collider.get_history(state, system, query)
     energies = jax.vmap(
         lambda i, row: jax.vmap(
-            lambda j, h: system.force_model.pair_energy(i, j, pos, state, system, h)
+            lambda j, h: system.force_model.energy(i, j, pos, state, system, h)
         )(indices, row)
     )(indices, history)
     valid = jax.vmap(
@@ -154,7 +154,7 @@ class WellEnergy(jd.ForceModel):
         return 2 * state.rad
 
     @staticmethod
-    def energy(i, j, pos, state, system):
+    def energy(i, j, pos, state, system, history):
         dr = system.domain.displacement(pos[i], pos[j], system)
         r2 = jnp.sum(dr * dr)
         displacement = r2 - system.force_model.equilibrium_distance**2
@@ -162,7 +162,7 @@ class WellEnergy(jd.ForceModel):
 
     @staticmethod
     def force(
-        i, j, pos, state, system, history, *, advance_history=True
+        i, j, pos, state, system, history, *, advance_history=True, quasistatic=False
     ):
         dr = system.domain.displacement(pos[i], pos[j], system)
         r2 = jnp.sum(dr * dr)

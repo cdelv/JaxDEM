@@ -278,7 +278,7 @@ def pair_values(
     i = sources
     j, valid = _valid_pairs(state, system, i, neighbors)
     force, torque, updated = jax.vmap(
-        lambda a, b, h: system.force_model.pair_force(
+        lambda a, b, h: system.force_model.force(
             a,
             b,
             pos,
@@ -413,7 +413,7 @@ def energy(state: Any, system: Any) -> Any:
     i = jnp.minimum(pair_sources(col), n - 1)
     j, valid = _valid_pairs(state, system, i, col.neighbor_list)
     values = jax.vmap(
-        lambda a, b, h: system.force_model.pair_energy(a, b, pos, state, system, h)
+        lambda a, b, h: system.force_model.energy(a, b, pos, state, system, h)
     )(i, j, col.history)
     return 0.5 * jnp.where(valid, values, 0.0).sum()
 

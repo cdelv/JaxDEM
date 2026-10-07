@@ -25,8 +25,12 @@ class _RememberingSpring(jd.forces.SpringForce):
         return (1,)
 
     @staticmethod
-    def force(i, j, pos, state, system, history, *, advance_history=True):
-        force, torque = jd.forces.SpringForce.force(i, j, pos, state, system)
+    def force(
+        i, j, pos, state, system, history, *, advance_history=True, quasistatic=False
+    ):
+        force, torque, _ = jd.forces.SpringForce.force(
+            i, j, pos, state, system, history
+        )
         return force, torque, history + advance_history
 
 
@@ -34,8 +38,12 @@ class _RememberingSpring(jd.forces.SpringForce):
 @dataclass(slots=True)
 class _HistoryScaledSpring(_RememberingSpring):
     @staticmethod
-    def force(i, j, pos, state, system, history, *, advance_history=True):
-        force, torque = jd.forces.SpringForce.force(i, j, pos, state, system)
+    def force(
+        i, j, pos, state, system, history, *, advance_history=True, quasistatic=False
+    ):
+        force, torque, _ = jd.forces.SpringForce.force(
+            i, j, pos, state, system, history
+        )
         scale = history[..., 0, None]
         return force * scale, torque * scale, history + advance_history
 

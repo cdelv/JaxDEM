@@ -96,10 +96,10 @@ def _pair_hessian_block(
             di = di + _rotation_perturbation(qi[dim:], state._pos_p_rot[i])
             dj = dj + _rotation_perturbation(qj[dim:], state._pos_p_rot[j])
         displaced = pos.at[i].add(di).at[j].add(dj)
-        forward = system.force_model.pair_energy(
+        forward = system.force_model.energy(
             i, j, displaced, state, system, histories[0]
         )
-        reverse = system.force_model.pair_energy(
+        reverse = system.force_model.energy(
             j, i, displaced, state, system, histories[1]
         )
         return 0.5 * (

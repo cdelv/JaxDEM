@@ -33,13 +33,15 @@ class _HistoryForce(jd.ForceModel):
         return state.rad
 
     @staticmethod
-    def force(i, j, pos, state, system, history, *, advance_history=True):
+    def force(
+        i, j, pos, state, system, history, *, advance_history=True, quasistatic=False
+    ):
         force = (pos[j] - pos[i]) * history[..., 0, 0, None]
         torque = jnp.zeros(j.shape + state.torque[i].shape, dtype=force.dtype)
         return force, torque, history + advance_history
 
     @staticmethod
-    def energy(i, j, pos, state, system):
+    def energy(i, j, pos, state, system, history):
         return 0.5 * jnp.sum((pos[j] - pos[i]) ** 2, axis=-1)
 
 
@@ -74,7 +76,7 @@ def _pair_reference(state, system, advance_history):
     for i in range(state.N):
         for slot in range(offsets[i], offsets[i + 1]):
             j = col.neighbor_list[slot]
-            f, t, h = system.force_model.pair_force(
+            f, t, h = system.force_model.force(
                 jnp.asarray(i),
                 j,
                 state.pos,

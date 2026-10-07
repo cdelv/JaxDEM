@@ -245,6 +245,16 @@ class Domain(Factory, ABC):
         ``dt``, and rate-dependent forces play no part. Caches rebuild when
         the geometry change exhausts their skin.
 
+        The history update is not a no-op even though the map is affine.
+        Bodies move rigidly, so two member spheres of different bodies are
+        displaced by the difference of their body offsets, which is not
+        parallel to their contact normal; the tangential spring of such a
+        contact changes. For single spheres under isotropic scaling the
+        relative displacement is purely normal and the stored spring is
+        unchanged. Periodic images move with the box, so the domain's
+        ``box_rate`` supplies their velocity and a pair interacting across a
+        boundary sees only its true relative motion.
+
         Parameters
         ----------
         state, system : State, System

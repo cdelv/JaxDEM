@@ -95,7 +95,7 @@ def test_naive_collider_stores_dense_history_and_advances_it():
     system = jd.System.create(
         state=state, force_model=RememberingSpring(), collider_type="naive"
     )
-    assert system.collider.supports_history
+    assert system.collider.history_pair_shape(state.pos.shape) == (3, 3)
     assert system.collider.history.shape == (3, 3, 1)
     np.testing.assert_array_equal(system.collider.history, 0.0)
 
@@ -181,8 +181,12 @@ class RememberingSpring(jd.forces.SpringForce):
         return (1,)
 
     @staticmethod
-    def force(i, j, pos, state, system, history, *, advance_history=True):
-        force, torque = jd.forces.SpringForce.force(i, j, pos, state, system)
+    def force(
+        i, j, pos, state, system, history, *, advance_history=True, quasistatic=False
+    ):
+        force, torque, _ = jd.forces.SpringForce.force(
+            i, j, pos, state, system, history
+        )
         return force, torque, history + advance_history
 
 
@@ -196,8 +200,12 @@ class SeededSpring(jd.forces.SpringForce):
         return jnp.full(pair_shape + (1,), 7.0)
 
     @staticmethod
-    def force(i, j, pos, state, system, history, *, advance_history=True):
-        force, torque = jd.forces.SpringForce.force(i, j, pos, state, system)
+    def force(
+        i, j, pos, state, system, history, *, advance_history=True, quasistatic=False
+    ):
+        force, torque, _ = jd.forces.SpringForce.force(
+            i, j, pos, state, system, history
+        )
         scale = history[..., 0, None]
         return force * scale, torque * scale, history
 

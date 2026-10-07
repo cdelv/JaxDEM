@@ -581,6 +581,23 @@ def test_advance_history_clears_lost_contacts() -> None:
     np.testing.assert_array_equal(advanced.collider.history, 0.0)
 
 
+def test_advance_history_does_not_depend_on_dt_or_damping() -> None:
+    state = replace(_state(tangent_speed=0.0), mat_id=jnp.array([0, 1]))
+    system = _coefficient_system(state, damping=True)
+    state, system = jd.System.initialize(state, system)
+    moved = replace(state, pos_c=state.pos_c.at[0, 1].add(0.05))
+
+    results = []
+    for dt in (1.0e-3, 1.0):
+        timed = replace(system, dt=jnp.asarray(dt))
+        moved_state, advanced = jd.colliders.advance_history(state, timed, moved, timed)
+        results.append((moved_state.force, advanced.collider.history))
+
+    assert bool(jnp.any(results[0][1] != 0.0))
+    np.testing.assert_allclose(results[0][0], results[1][0], rtol=1e-12, atol=0.0)
+    np.testing.assert_allclose(results[0][1], results[1][1], rtol=1e-12, atol=0.0)
+
+
 @pytest.mark.parametrize(
     "optimizer", [jd.minimizers.fire, jd.minimizers.damped_newtonian]
 )

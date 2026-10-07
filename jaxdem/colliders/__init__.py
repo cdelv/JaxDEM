@@ -83,11 +83,6 @@ class Collider(Factory, ABC):
         """Whether this collider caches state-size-dependent search data."""
         return False
 
-    @property
-    def supports_history(self) -> bool:
-        """Whether this collider stores per-pair force-model history."""
-        return False
-
     def history_pair_shape(
         self, state_shape: tuple[int, ...]
     ) -> tuple[int, ...] | None:
@@ -97,6 +92,50 @@ class Collider(Factory, ABC):
         only run stateless force laws.
         """
         return None
+
+    def refresh(
+        self,
+        state: State,
+        force_model: Any | None = None,
+        *,
+        reset_history: bool = False,
+    ) -> Collider:
+        """Rebuild this collider for a (possibly resized) ``state``.
+
+        A stateless collider returns itself. A collider with search caches
+        is rebuilt through its ``Create`` signature: every parameter whose
+        name matches a dataclass field on this instance is forwarded, plus
+        the new ``state``. Colliders with pair history override this to
+        carry their history across, using ``force_model`` to initialize new
+        slots; ``reset_history`` discards it instead.
+        """
+        from inspect import signature
+
+        create_fn = getattr(type(self), "Create", None)
+        if not self.stateful or create_fn is None:
+            return self
+        kwargs: dict[str, Any] = {}
+        for pname in signature(create_fn).parameters:
+            if pname == "state":
+                kwargs[pname] = state
+            elif pname == "search_range" and hasattr(self, "neighbor_mask"):
+                kwargs[pname] = int(jnp.max(jnp.abs(self.neighbor_mask)))
+            elif pname not in ("cls", "self") and hasattr(self, pname):
+                kwargs[pname] = getattr(self, pname)
+        return cast(Collider, create_fn(**kwargs))
+
+    def reindex_history(
+        self, state: State, system: System, new_to_old: jax.Array
+    ) -> System:
+        """Transfer this collider's stored pair history onto a reindexed state.
+
+        ``system.collider`` must already be allocated for ``state`` and
+        ``new_to_old[k]`` is the original index of particle ``k``. Pairs that
+        survive keep their history; new pairs and padding start from the
+        force law's initial history. Colliders without pair memory return
+        ``system`` unchanged.
+        """
+        return system
 
     @staticmethod
     @jax.jit(inline=True, static_argnames=("advance_history", "quasistatic"))
@@ -324,127 +363,20 @@ def refresh_collider(
     *,
     reset_history: bool = False,
 ) -> Collider:
-    """Rebuild a stateful collider for a (possibly resized) state.
-
-    The naive collider keeps only its dense ``(N, N, H)`` pair history, which
-    is reallocated when the particle count changes. For colliders with search
-    caches (``CellList``, ``MultiCellList``, ``NeighborList``), it reads the
-    ``Create`` signature. It forwards every parameter whose name matches a
-    dataclass field on the current collider instance, plus the new ``state``.
-    Parameters not stored on the collider (e.g. ``number_density`` and
-    ``safety_factor`` on :class:`NeighborList`) use the ``Create`` defaults.
+    """Rebuild a collider for a (possibly resized) state.
 
     Use this after editing a state in ways the collider caches cannot track
     (changing the particle count, teleporting particles, rescaling the box).
     Supply ``force_model`` when growing nonempty history so new slots use its
     initializer. Changing particle count with nonempty history, shrinking its
     capacity, or changing particle identities requires ``reset_history=True``.
+    See :meth:`Collider.refresh`.
 
     Example
     -------
     >>> system.collider = jdem.colliders.refresh_collider(state, system.collider)
     """
-    from inspect import signature
-
-    if isinstance(collider, NaiveSimulator):
-        return _refresh_naive(state, collider, force_model, reset_history=reset_history)
-    if not collider.stateful:
-        return collider
-
-    create_fn = getattr(type(collider), "Create", None)
-    if create_fn is None:
-        return collider
-
-    def _stored_search_range(c: Any) -> int | None:
-        if not hasattr(c, "neighbor_mask"):
-            return None
-        return int(jnp.max(jnp.abs(c.neighbor_mask)))
-
-    def _stored_create_kwargs(c: Any) -> dict[str, Any]:
-        kwargs: dict[str, Any] = {}
-        if c.stateful:
-            kwargs["state"] = state
-        if hasattr(c, "cell_size"):
-            kwargs["cell_size"] = c.cell_size
-        search_range = _stored_search_range(c)
-        if search_range is not None:
-            kwargs["search_range"] = search_range
-        return kwargs
-
-    if isinstance(collider, NeighborList):
-        secondary_collider = collider.secondary_collider
-        new_collider = type(collider).Create(
-            state=state,
-            cutoff=collider.cutoff,
-            skin=collider.skin,
-            max_neighbors=collider.max_neighbors,
-            secondary_collider_type=secondary_collider.type_name,
-            secondary_collider_kw=_stored_create_kwargs(secondary_collider),
-        )
-        from ._neighbor_cache import refresh
-
-        return cast(
-            Collider,
-            refresh(
-                state, collider, new_collider, force_model, reset_history=reset_history
-            ),
-        )
-
-    kwargs: dict[str, Any] = {}
-    for pname in signature(create_fn).parameters:
-        if pname in ("cls", "self"):
-            continue
-        if pname == "state":
-            kwargs[pname] = state
-        elif pname == "search_range":
-            search_range = _stored_search_range(collider)
-            if search_range is not None:
-                kwargs[pname] = search_range
-        elif hasattr(collider, pname):
-            kwargs[pname] = getattr(collider, pname)
-    return cast(Collider, create_fn(**kwargs))
-
-
-def _refresh_naive(
-    state: State, collider: Any, force_model: Any | None, *, reset_history: bool
-) -> Collider:
-    """Reallocate the dense naive history when the particle count changes."""
-    history = collider.history
-    tail = history.shape[2:] if history.ndim == 3 else (0,)
-    same_n = history.shape[:2] == (state.N, state.N)
-    if same_n and not reset_history:
-        return cast(Collider, collider)
-    if force_model is not None:
-        new_history = force_model.init_history((state.N, state.N), state.dim)
-    elif tail == (0,) or reset_history:
-        new_history = jnp.zeros((state.N, state.N) + tail, dtype=history.dtype)
-    else:
-        raise ValueError("force_model is required to initialize refreshed history")
-    return cast(Collider, dataclasses.replace(collider, history=new_history))
-
-
-def reindex_history(
-    state: State, system: System, old: Collider, new_to_old: jax.Array
-) -> System:
-    """Transfer stored pair history onto a reindexed state.
-
-    ``system.collider`` must already be allocated for ``state``.
-    ``new_to_old[k]`` is the original index of particle ``k``. Pairs that
-    survive keep their history; new pairs and padding start from the force
-    law's initial history.
-    """
-    if isinstance(old, NaiveSimulator):
-        if old.history.size == 0:
-            return system
-        history = old.history[new_to_old][:, new_to_old]
-        return dataclasses.replace(
-            system, collider=dataclasses.replace(system.collider, history=history)
-        )
-    if isinstance(old, NeighborList):
-        from ._neighbor_cache import reindex_history as reindex_pooled
-
-        return reindex_pooled(state, system, old, new_to_old)
-    return system
+    return collider.refresh(state, force_model, reset_history=reset_history)
 
 
 def advance_history(
@@ -463,6 +395,11 @@ def advance_history(
     Used by affine box deformation (:meth:`Domain.shear`,
     :meth:`Domain.resize`) and by relaxation. Dynamics does not call it: the
     integrator's own velocities advance history inside ``compute_force``.
+
+    This relies on the ``quasistatic`` contract of :meth:`ForceModel.force`:
+    the law produces no velocity-dependent force, and its history update
+    depends on velocity only through ``velocity * dt``. A law that breaks
+    either rule gives a ``dt``-dependent result here.
 
     Returns
     -------
@@ -516,6 +453,5 @@ __all__ = [
     "advance_history",
     "invalidate_collider",
     "refresh_collider",
-    "reindex_history",
     "valid_interaction_mask",
 ]

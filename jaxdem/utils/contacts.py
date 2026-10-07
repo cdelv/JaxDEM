@@ -117,7 +117,7 @@ def _pair_values(
     safe_i = jnp.clip(i, 0, state.N - 1)
     safe_j = jnp.clip(j, 0, state.N - 1)
     force, torque, _ = jax.vmap(
-        lambda a, b, h: system.force_model.pair_force(
+        lambda a, b, h: system.force_model.force(
             a, b, pos, state, system, h, advance_history=False
         )
     )(safe_i, safe_j, history)
@@ -789,9 +789,7 @@ def remove_rattlers(
 
     # Transfer surviving pair history, then refresh forces without advancing
     # history or repeating integrator setup.
-    from ..colliders import reindex_history
-
-    new_system = reindex_history(new_state, new_system, system.collider, idx)
+    new_system = system.collider.reindex_history(new_state, new_system, idx)
     new_state, new_system = new_system.collider.compute_force(
         new_state, new_system, advance_history=False
     )

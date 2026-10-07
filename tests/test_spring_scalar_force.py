@@ -27,7 +27,7 @@ def _spring_case(displacement):
     history = system.force_model.init_history((), state.dim)
 
     def scalar_force(pos):
-        force, _ = jd.forces.SpringForce.force(0, 1, pos, state, system)
+        force, _, _ = jd.forces.SpringForce.force(0, 1, pos, state, system, history)
         return force
 
     def original_force(pos):
@@ -38,7 +38,7 @@ def _spring_case(displacement):
         return (stiffness * overlap)[..., None] * normal
 
     def pair_energy(pos):
-        return jd.forces.SpringForce.energy(0, 1, pos, state, system)
+        return jd.forces.SpringForce.energy(0, 1, pos, state, system, history)
 
     return state.pos, scalar_force, original_force, pair_energy
 

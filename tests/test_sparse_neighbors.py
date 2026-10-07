@@ -164,8 +164,10 @@ class Remember(jd.forces.SpringForce):
         return jnp.full(pair_shape + (2, 2), 7.0)
 
     @staticmethod
-    def force(i, j, pos, state, system, history, *, advance_history=True):
-        f, t = jd.forces.SpringForce.force(i, j, pos, state, system)
+    def force(
+        i, j, pos, state, system, history, *, advance_history=True, quasistatic=False
+    ):
+        f, t, _ = jd.forces.SpringForce.force(i, j, pos, state, system, history)
         return f, t, history + advance_history
 
 

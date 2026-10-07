@@ -132,7 +132,7 @@ class ForceRouter(ForceModel):
                     (*history.shape[:-1], *child_shape)
                 )
                 sys_law = dataclasses.replace(system, force_model=law)
-                f, t, nh = law.pair_force(
+                f, t, nh = law.force(
                     i,
                     j,
                     pos,
@@ -291,7 +291,7 @@ class ForceRouter(ForceModel):
                     (*history.shape[:-1], *child_shape)
                 )
                 sub_system = dataclasses.replace(system, force_model=law)
-                e = law.pair_energy(i, j, pos, state, sub_system, child_history)
+                e = law.energy(i, j, pos, state, sub_system, child_history)
                 e_map[(a, b)] = jnp.asarray(e, dtype=float)
                 if a != b:
                     e_map[(b, a)] = e_map[(a, b)]

@@ -17,12 +17,14 @@ class MatrixHistoryLaw(ForceModel):
         return (2, 2)
 
     @staticmethod
-    def force(i, j, pos, state, system, history, *, advance_history=True):
+    def force(
+        i, j, pos, state, system, history, *, advance_history=True, quasistatic=False
+    ):
         shape = jnp.shape(j) + (state.dim,)
         return jnp.zeros(shape), jnp.zeros(shape), history + advance_history
 
     @staticmethod
-    def energy(i, j, pos, state, system):
+    def energy(i, j, pos, state, system, history):
         return jnp.zeros(jnp.shape(j))
 
 

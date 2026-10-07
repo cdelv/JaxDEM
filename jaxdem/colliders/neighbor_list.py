@@ -204,12 +204,53 @@ class NeighborList(Collider):
     def stateful(self) -> bool:
         return True
 
-    @property
-    def supports_history(self) -> bool:
-        return True
-
     def history_pair_shape(self, state_shape: tuple[int, ...]) -> tuple[int, ...]:
         return tuple(state_shape[:-2]) + (state_shape[-2] * self.max_neighbors,)
+
+    def refresh(
+        self,
+        state: State,
+        force_model: Any | None = None,
+        *,
+        reset_history: bool = False,
+    ) -> Collider:
+        """Rebuild the pool for ``state`` and carry stored history across.
+
+        Parameters not stored on the collider (``number_density``,
+        ``safety_factor``) take the ``Create`` defaults.
+        """
+        from ._neighbor_cache import refresh
+
+        secondary = self.secondary_collider
+        secondary_kw: dict[str, Any] = {}
+        if secondary.stateful:
+            secondary_kw["state"] = state
+        if hasattr(secondary, "cell_size"):
+            secondary_kw["cell_size"] = secondary.cell_size
+        if hasattr(secondary, "neighbor_mask"):
+            secondary_kw["search_range"] = int(
+                jnp.max(jnp.abs(secondary.neighbor_mask))
+            )
+        new = type(self).Create(
+            state=state,
+            cutoff=self.cutoff,
+            skin=self.skin,
+            max_neighbors=self.max_neighbors,
+            secondary_collider_type=secondary.type_name,
+            secondary_collider_kw=secondary_kw,
+        )
+        return cast(
+            Collider,
+            refresh(state, self, new, force_model, reset_history=reset_history),
+        )
+
+    def reindex_history(
+        self, state: State, system: System, new_to_old: jax.Array
+    ) -> System:
+        """Transfer pooled history by original particle index."""
+        from ._neighbor_cache import reindex_history
+
+        return reindex_history(state, system, self, new_to_old)
 
     def validate_domain(self, domain: Domain) -> None:
         """Validate the domain against the collider that builds this cache."""

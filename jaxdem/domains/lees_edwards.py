@@ -88,7 +88,14 @@ class LeesEdwardsDomain(Domain):
     the externally imposed derivative of ``gamma``; it does not advance strain."""
 
     box_rate: jax.Array = field(default_factory=lambda: jnp.zeros((0,), dtype=float))
-    """Time derivative of ``box_size`` for moving periodic images."""
+    """Time derivative of ``box_size``, shape ``(dim,)``.
+
+    Periodic images move at ``image * box_rate`` when the box changes, and
+    the shear offset ``gamma * L_beta`` of an image across the gradient
+    boundary moves with ``L_beta`` as well. :meth:`relative_velocity`
+    subtracts both so a pair interacting across a boundary sees only its
+    true relative motion. See :attr:`PeriodicDomain.box_rate`.
+    """
 
     def rates_between(self, old: Domain, dt: jax.Array) -> Domain:
         """Set ``gamma_dot`` and ``box_rate`` from the geometry change since ``old``."""

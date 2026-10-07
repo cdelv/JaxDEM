@@ -81,7 +81,11 @@ class SpringForce(ForceModel):
         pos: jax.Array,
         state: State,
         system: System,
-    ) -> tuple[jax.Array, jax.Array]:
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+        quasistatic: bool = False,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
         """Compute the linear spring force on particle :math:`i` from particle :math:`j`.
 
         Returns zero when :math:`i = j`.
@@ -98,10 +102,15 @@ class SpringForce(ForceModel):
             Current state of the simulation.
         system : System
             Simulation system configuration.
+        history : jax.Array
+            Pair history, returned unchanged by this stateless law.
+        advance_history, quasistatic : bool, optional
+            Unused by this stateless law.
+
         Returns
         -------
         tuple[jax.Array, jax.Array, jax.Array]
-            ``(force, torque)``. Force and torque have shapes
+            ``(force, torque, history)``. Force and torque have shapes
             ``(dim,)`` and ``(ang_dim,)`` for a single pair. Torque is zero.
 
         """
@@ -118,8 +127,10 @@ class SpringForce(ForceModel):
         delta = jnp.maximum(0.0, R - r) * (i != j)
         coefficient = (k * delta) * inv
         t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
-        return coefficient[..., None] * rij, jnp.zeros(
-            t_shape, dtype=state.torque.dtype
+        return (
+            coefficient[..., None] * rij,
+            jnp.zeros(t_shape, dtype=state.torque.dtype),
+            history,
         )
 
     @staticmethod
@@ -131,6 +142,7 @@ class SpringForce(ForceModel):
         pos: jax.Array,
         state: State,
         system: System,
+        history: jax.Array,
     ) -> jax.Array:
         """Compute the linear spring potential energy between particle :math:`i` and particle :math:`j`.
 
@@ -305,7 +317,11 @@ class SphereFacetSpringForce(ForceModel):
         pos: jax.Array,
         state: State,
         system: System,
-    ) -> tuple[jax.Array, jax.Array]:
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+        quasistatic: bool = False,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
         k, delta, is_contact, w, n, c_1, thick_i, is_rigid = _sphere_facet_pair(
             i, j, pos, state, system
         )
@@ -325,7 +341,7 @@ class SphereFacetSpringForce(ForceModel):
             is_rigid_mask = is_rigid_mask[..., None]
         t_total = t_total * is_rigid_mask
 
-        return f_total, t_total
+        return f_total, t_total, history
 
     @staticmethod
     @jax.jit(inline=True)
@@ -335,6 +351,7 @@ class SphereFacetSpringForce(ForceModel):
         pos: jax.Array,
         state: State,
         system: System,
+        history: jax.Array,
     ) -> jax.Array:
         k, delta, is_contact, w, n, c_1, thick_i, is_rigid = _sphere_facet_pair(
             i, j, pos, state, system
@@ -500,7 +517,11 @@ class FacetFacetSpringForce(ForceModel):
         pos: jax.Array,
         state: State,
         system: System,
-    ) -> tuple[jax.Array, jax.Array]:
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+        quasistatic: bool = False,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
         k, delta, is_contact, w, n, c_ff_1, thick_i, is_rigid = _facet_facet_pair(
             i, j, pos, state, system
         )
@@ -520,7 +541,7 @@ class FacetFacetSpringForce(ForceModel):
             is_rigid_mask = is_rigid_mask[..., None]
         t_total = t_total * is_rigid_mask
 
-        return f_total, t_total
+        return f_total, t_total, history
 
     @staticmethod
     @jax.jit(inline=True)
@@ -530,6 +551,7 @@ class FacetFacetSpringForce(ForceModel):
         pos: jax.Array,
         state: State,
         system: System,
+        history: jax.Array,
     ) -> jax.Array:
         k, delta, is_contact, w, n, c_ff_1, thick_i, is_rigid = _facet_facet_pair(
             i, j, pos, state, system

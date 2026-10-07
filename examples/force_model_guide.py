@@ -252,13 +252,14 @@ print("History advanced:", bool(jnp.any(history_system.collider.history != 0)))
 # when pair identities or the history layout changed and old values cannot be
 # mapped. Checkpoints retain pair history and continue the same trajectory.
 #
-# A stateless law implements ``force(i, j, pos, state, system)`` and
-# ``energy(i, j, pos, state, system)``; a law with memory also takes
-# ``history`` and the keyword ``advance_history``. ``CundallStrackForce``
-# reports normal plus tangential spring energy from the
-# stored history. Dissipated work is not part of the energy. The naive collider
-# also stores history, densely as ``history[i, j]``, which is the simplest
-# choice for small frictional systems.
+# Every law has the same signature: ``force(i, j, pos, state, system, history,
+# advance_history=, quasistatic=)`` returns ``(force, torque, history)`` and
+# ``energy(i, j, pos, state, system, history)`` returns a scalar. A stateless
+# law returns its history unchanged; a law with memory declares
+# ``history_shape`` and advances it. ``CundallStrackForce`` reports normal plus
+# tangential spring energy from the stored history. Dissipated work is not part
+# of the energy. The naive collider also stores history, densely as
+# ``history[i, j]``, which is the simplest choice for small frictional systems.
 #
 # Positions can change without time passing: ``domain.shear``, ``domain.resize``
 # and relaxation. Those paths advance history through

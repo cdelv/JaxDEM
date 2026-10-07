@@ -83,13 +83,38 @@ class NaiveSimulator(Collider):
     )
     """Dense directed pair history, shape ``(N, N, H)``."""
 
-    @property
-    def supports_history(self) -> bool:
-        return True
-
     def history_pair_shape(self, state_shape: tuple[int, ...]) -> tuple[int, ...]:
         n = state_shape[-2]
         return tuple(state_shape[:-2]) + (n, n)
+
+    def refresh(
+        self,
+        state: State,
+        force_model: Any | None = None,
+        *,
+        reset_history: bool = False,
+    ) -> Collider:
+        """Reallocate the dense history when the particle count changes."""
+        history = self.history
+        tail = history.shape[2:] if history.ndim == 3 else (0,)
+        if history.shape[:2] == (state.N, state.N) and not reset_history:
+            return self
+        if force_model is not None:
+            history = force_model.init_history((state.N, state.N), state.dim)
+        elif tail == (0,) or reset_history:
+            history = jnp.zeros((state.N, state.N) + tail, dtype=history.dtype)
+        else:
+            raise ValueError("force_model is required to initialize refreshed history")
+        return replace(self, history=history)
+
+    def reindex_history(
+        self, state: State, system: System, new_to_old: jax.Array
+    ) -> System:
+        """Gather the dense history rows and columns of the surviving particles."""
+        if self.history.size == 0:
+            return system
+        history = self.history[new_to_old][:, new_to_old]
+        return replace(system, collider=replace(system.collider, history=history))
 
     @property
     def metadata(self) -> dict[str, Any]:
@@ -142,7 +167,7 @@ class NaiveSimulator(Collider):
 
         def row_energy(i: jax.Array, row_history: jax.Array) -> jax.Array:
             e_ij = jax.vmap(
-                lambda j, h: system.force_model.pair_energy(i, j, pos, state, system, h)
+                lambda j, h: system.force_model.energy(i, j, pos, state, system, h)
             )(iota, row_history)
             mask = valid_interaction_mask(
                 state.clump_id[i],
@@ -299,7 +324,7 @@ class NaiveSimulator(Collider):
         def per_particle_i(
             i: jax.Array, pos_pi: jax.Array, row_history: jax.Array
         ) -> tuple[jax.Array, jax.Array, jax.Array]:
-            res_f, res_t, new_history = system.force_model.pair_force(
+            res_f, res_t, new_history = system.force_model.force(
                 i,
                 iota,
                 pos,

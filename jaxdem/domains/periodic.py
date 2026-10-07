@@ -43,7 +43,16 @@ class PeriodicDomain(Domain):
     search_geometry = SearchGeometry.ORTHOGONAL
 
     box_rate: jax.Array = field(default_factory=lambda: jnp.zeros((0,), dtype=float))
-    """Time derivative of ``box_size`` for moving periodic images."""
+    """Time derivative of ``box_size``, shape ``(dim,)``.
+
+    A periodic image of particle ``j`` sits at ``pos_j + image * box_size``
+    and moves at ``image * box_rate`` when the box changes. Contact laws read
+    the relative velocity through :meth:`relative_velocity`, which subtracts
+    that image velocity; without it a pair interacting across a boundary
+    would see the change of its image offset as sliding and wind up its
+    tangential spring. :meth:`Domain.resize` sets this rate for the duration
+    of its history update and zero means a fixed box.
+    """
 
     @classmethod
     def Create(

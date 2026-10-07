@@ -26,8 +26,12 @@ class MatrixHistorySpring(jd.forces.SpringForce):
         )
 
     @staticmethod
-    def force(i, j, pos, state, system, history, *, advance_history=True):
-        force, torque = jd.forces.SpringForce.force(i, j, pos, state, system)
+    def force(
+        i, j, pos, state, system, history, *, advance_history=True, quasistatic=False
+    ):
+        force, torque, _ = jd.forces.SpringForce.force(
+            i, j, pos, state, system, history
+        )
         return force * history[0, 0], torque, history + advance_history
 
 
@@ -91,7 +95,7 @@ def _pairs(state, system):
     src, dst = pair_sources(col)[valid], col.neighbor_list[valid]
     history = col.history[valid]
     force, torque, _ = jax.vmap(
-        lambda i, j, h: system.force_model.pair_force(
+        lambda i, j, h: system.force_model.force(
             i, j, state.pos, state, system, h, advance_history=False
         )
     )(src, dst, history)

@@ -54,7 +54,11 @@ class WCA(ForceModel):
         pos: jax.Array,
         state: State,
         system: System,
-    ) -> tuple[jax.Array, jax.Array]:
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+        quasistatic: bool = False,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
         mi, mj = state.mat_id[i], state.mat_id[j]
         eps = system.mat_table.epsilon_eff[mi, mj]
         sig = state.rad[i] + state.rad[j]
@@ -79,7 +83,7 @@ class WCA(ForceModel):
         f = (coeff * mask)[..., None] * rij
 
         t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
-        return f, jnp.zeros(t_shape, dtype=state.torque.dtype)
+        return f, jnp.zeros(t_shape, dtype=state.torque.dtype), history
 
     @staticmethod
     @jax.jit(inline=True)
@@ -90,6 +94,7 @@ class WCA(ForceModel):
         pos: jax.Array,
         state: State,
         system: System,
+        history: jax.Array,
     ) -> jax.Array:
         mi, mj = state.mat_id[i], state.mat_id[j]
         eps = system.mat_table.epsilon_eff[mi, mj]

@@ -173,7 +173,8 @@ Hashes use `uint64` with JAX x64 enabled and `uint32` otherwise; particle indice
 remain signed. Invalid hash geometry is reported as overflow.
 
 `Collider.stateful` is a class property describing cached search state.
-`supports_history` identifies colliders that persist pair memory. The naive
+`history_pair_shape(state_shape)` is the leading shape of a collider's pair
+memory, or `None` for colliders without any. The naive
 collider stores it densely as `history[i, j]` with shape `(N, N, H)`, so every
 pair keeps its slot for the life of the collider and small frictional systems
 need no neighbor list. `NeighborList` stores it in its pooled cache and remaps
@@ -181,20 +182,18 @@ it by pair on every rebuild. Cell lists have no pair memory and only run
 stateless laws. `System.create` allocates the buffer from the collider's
 `history_pair_shape` and the law's `history_shape`.
 
-A force law declares only what it needs. A stateless, rate-independent law
-implements `force(i, j, pos, state, system) -> (force, torque)` and
-`energy(i, j, pos, state, system)`. A law with pair memory also defines
-`history_shape(dim)`, takes `history` after `system` plus the keyword
-`advance_history`, and returns `(force, torque, history)`; its `energy` may
-take `history` too. A law with velocity-dependent terms takes the keyword
-`quasistatic` and omits those terms when it is true. Colliders always call
-`pair_force(..., history, advance_history=, quasistatic=)` and
-`pair_energy(..., history)` on the base class, which pass each law exactly the
-arguments its signature declares. `init_history(pair_shape, dim)` allocates
-the history array, including zero-width arrays for stateless laws. Combiners
-and routers concatenate the component history vectors and their initializers.
-Read-only evaluation passes `advance_history=False`; a law with memory must
-then preserve it.
+Every force law has the same signature:
+`force(i, j, pos, state, system, history, advance_history=True, quasistatic=False)`
+returns `(force, torque, history)` and `energy(i, j, pos, state, system, history)`
+returns a scalar. `history_shape(dim)` is the trailing shape of the pair memory;
+stateless laws return `(0,)`, return their input history unchanged, and ignore
+`advance_history`. `init_history(pair_shape, dim)` allocates the history array,
+including zero-width arrays for stateless laws. Combiners and routers
+concatenate the component history vectors and their initializers. Read-only
+evaluation passes `advance_history=False`; a law with memory must then preserve
+it. `quasistatic=True` means no time passes: the law switches off every
+velocity-dependent force, and its memory update may depend on velocity only
+through `velocity * dt`.
 
 Positions can change without time passing: `Domain.shear`, `Domain.resize`,
 and each accepted relaxation step. `jaxdem.colliders.advance_history(state_old,

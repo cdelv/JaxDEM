@@ -114,7 +114,7 @@ class LawCombiner(ForceModel):
                 (*history.shape[:-1], *child_shape)
             )
             sub_system = dataclasses.replace(system, force_model=law)
-            f, t, nh = law.pair_force(
+            f, t, nh = law.force(
                 i,
                 j,
                 pos,
@@ -193,7 +193,7 @@ class LawCombiner(ForceModel):
                 (*history.shape[:-1], *child_shape)
             )
             sub_system = dataclasses.replace(system, force_model=law)
-            e = e + law.pair_energy(i, j, pos, state, sub_system, child_history)
+            e = e + law.energy(i, j, pos, state, sub_system, child_history)
             offset += width
         return e
 
