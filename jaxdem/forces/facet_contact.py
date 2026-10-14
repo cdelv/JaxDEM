@@ -143,7 +143,7 @@ def segment_segment_distance(
     """Compute the shortest distance between the segments ``p1``-``q1`` and ``p2``-``q2``.
 
     Also return the closest point on each segment and its interpolation
-    weights.
+    weights. Collapsed segments reduce to point-segment or point-point queries.
     """
     d1 = system.domain._displacement(q1, p1, system)
     d2 = system.domain._displacement(q2, p2, system)
@@ -172,6 +172,8 @@ def segment_segment_distance(
     )
 
     t = jnp.clip(t, 0.0, 1.0)
+    # A collapsed second segment is a point projected onto the first.
+    s = jnp.where(e == 0.0, jnp.clip(-c / safe_a, 0.0, 1.0), s)
 
     c1 = p1 + d1 * s[..., None]
     c2 = p2 + d2 * t[..., None]
