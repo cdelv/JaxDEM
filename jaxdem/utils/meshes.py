@@ -56,8 +56,8 @@ def _apply_aspect_ratio_renorm(
         axes = np.full((dim,), float(axes), dtype=float)
     elif axes.shape != (dim,):
         raise ValueError(f"Expected aspect_ratio shape ({dim},), got {axes.shape}.")
-    if np.any(axes <= 0):
-        raise ValueError("Axes must be strictly positive.")
+    if not np.all(np.isfinite(axes) & (axes > 0)):
+        raise ValueError("Axes must be finite and strictly positive.")
     out = verts_np * axes
     max_abs = float(np.max(np.abs(out)))
     return out / max_abs if max_abs > 0.0 else out
@@ -76,8 +76,8 @@ def _normalize_axes_to_unit(aspect_ratio: Any, dim: int) -> np.ndarray:
         axes = np.full((dim,), float(axes), dtype=float)
     elif axes.shape != (dim,):
         raise ValueError(f"Expected aspect_ratio shape ({dim},), got {axes.shape}.")
-    if np.any(axes <= 0):
-        raise ValueError("Axes must be strictly positive.")
+    if not np.all(np.isfinite(axes) & (axes > 0)):
+        raise ValueError("Axes must be finite and strictly positive.")
     return axes / np.max(axes)
 
 
@@ -143,8 +143,10 @@ def random_points_on_hyper_ellipsoid(
             raise ValueError(
                 f"Expected aspect_ratio to have shape ({dim},), got {axes.shape}."
             )
-        if jnp.any(axes <= 0):
-            raise ValueError("Hyper-ellipsoid axes must be strictly positive.")
+        if not bool(jnp.all(jnp.isfinite(axes) & (axes > 0))):
+            raise ValueError(
+                "Hyper-ellipsoid axes must be finite and strictly positive."
+            )
         axes = axes / jnp.max(axes)
 
     if jnp.all(axes == axes[0]).item() or not use_uniform_sampling:
