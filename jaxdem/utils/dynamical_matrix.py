@@ -353,6 +353,8 @@ def zero_mode_mask(
         all-``False``.
     """
     e = jnp.asarray(eigenvalues)
+    if e.size < 2:
+        return jnp.zeros_like(e, dtype=bool)
     abs_e = jnp.abs(e)
     sorted_idx = jnp.argsort(abs_e)
     sorted_abs = abs_e[sorted_idx]
