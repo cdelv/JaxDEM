@@ -16,6 +16,7 @@ from jax.typing import ArrayLike
 from . import BondedForceModel
 from .deformable_particle import (
     DeformableParticleModel,
+    _angle_difference,
     _merge_metric_field,
     current_bending_angles,
 )
@@ -47,12 +48,12 @@ class PlasticBendingDeformableParticleModel(DeformableParticleModel):
     .. math::
 
         \theta_{a,0}(t+dt) = \theta_{a,0}(t)
-            + \frac{1}{\tau_{s,a}} (\theta_a(t) - \theta_{a,0}(t))\,dt
+            + \frac{1}{\tau_{s,a}} \operatorname{wrap}(\theta_a(t) - \theta_{a,0}(t))\,dt
 
     where :math:`\theta_{a,0}` is the reference (rest) bending angle
     (``initial_bendings``), :math:`\theta_a` is the current bending angle,
     :math:`\tau_{s,a}` is the relaxation time (``tau_s``), and :math:`dt` is the
-    simulation time step.
+    simulation time step. The wrapped difference lies in [-pi, pi].
 
     Shapes (see :class:`DeformableParticleModel` for definitions of K, M, E, A):
 
@@ -175,6 +176,7 @@ class PlasticBendingDeformableParticleModel(DeformableParticleModel):
 
         theta_0 = self.initial_bendings
         new_initial_bendings = (
-            theta_0 + (1.0 / self.tau_s) * (theta - theta_0) * system.dt
+            theta_0
+            + (1.0 / self.tau_s) * _angle_difference(theta, theta_0) * system.dt
         )
         return dataclasses.replace(self, initial_bendings=new_initial_bendings)

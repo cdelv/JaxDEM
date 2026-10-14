@@ -36,7 +36,9 @@ class DeformableParticleModel(BondedForceModel):
 
     The container stores the mesh connectivity (`elements`, `edges`, etc.)
     and the reference properties (initial measures, contents, lengths,
-    angles) that the force computation needs.
+    angles) that the force computation needs. Bending strain is the shortest
+    signed angular difference, so crossing the signed-angle branch cut does
+    not introduce a full-turn strain.
 
     The general form of the deformable particle potential energy per particle is:
 
@@ -864,7 +866,9 @@ class DeformableParticleModel(BondedForceModel):
                 element_normal, element_adjacency, hinge_vertices, dim
             )
 
-            norm_bending_energy = eb * w_b * jnp.square(bending - initial_bendings)
+            norm_bending_energy = eb * w_b * jnp.square(
+                _angle_difference(bending, initial_bendings)
+            )
             e_bending = jnp.sum(norm_bending_energy) / 2
 
         # Edges
@@ -926,6 +930,17 @@ class DeformableParticleModel(BondedForceModel):
             DeformableParticleModel.compute_potential_energy,
             False,
         )
+
+
+def _angle_difference(angle: jax.Array, reference: jax.Array) -> jax.Array:
+    """Return the shortest signed angular displacement, in [-pi, pi]."""
+    period = 2.0 * jnp.pi
+    delta = jnp.fmod(angle - reference, period)
+    return jnp.where(
+        delta > jnp.pi,
+        delta - period,
+        jnp.where(delta < -jnp.pi, delta + period, delta),
+    )
 
 
 @partial(jax.named_call, name="DeformableParticleModel.angle_between_normals")
