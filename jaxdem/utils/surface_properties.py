@@ -281,101 +281,54 @@ def _create_default_system(state: State, margin: float) -> Any:
 
 
 # --------------------------------------------------------------------------
-# Bisection on geometric overlap
+# Contact along the approach ray
 # --------------------------------------------------------------------------
 
 
 def _find_contact_at_overlap(
     state: State,
     target_overlap: jax.Array,
-    separation_tolerance: jax.Array,
     max_separation: jax.Array,
-    min_separation: jax.Array,
     central_idx: jax.Array,
     tracer_idx: jax.Array,
 ) -> tuple[jax.Array, State]:
-    """Binary-search the tracer along the center-to-center direction until the
-    maximum pairwise overlap with the central clump equals ``target_overlap``.
+    """Find the outermost sphere-pair entry along the tracer approach ray.
 
-    Moving the tracer inward (along the center-to-center unit vector) strictly
-    decreases every central-to-tracer sphere pair distance, so max overlap is
-    monotonically non-decreasing as a function of tracer displacement. The
-    bisection is therefore well-defined and converges to the unique separation
-    at which ``overlap(sep) == target_overlap``.
+    Each sphere pair gives a quadratic contact interval in center separation.
+    Its outer root is the first contact when approaching from outside. Taking
+    the largest valid root handles cavities and nonconvex unions without a
+    monotonic-overlap assumption. Return NaN when no pair reaches the target.
 
-    Implementation: the tracer translates rigidly by ``delta * direction``, so
-    for every (central sphere ``i``, tracer sphere ``j``) pair the squared
-    distance is an exact quadratic in the scalar displacement ``delta``::
-
-        dist_ij(delta)^2 = |d0_ij - delta * direction|^2
-                         = |d0_ij|^2 - 2 * delta * (d0_ij . direction) + delta^2
-
-    where ``d0_ij`` is the pair offset at ``delta = 0`` and ``|direction| = 1``.
-    The coefficients ``b_ij = |d0_ij|^2`` and ``a_ij = d0_ij . direction`` are
-    precomputed once over the ``(n_central, n_tracer)`` block only (via the
-    static ``central_idx`` / ``tracer_idx`` gathers), so each bisection step is
-    a handful of FLOPs and a single ``sqrt`` -- no per-iteration position
-    reconstruction and no full ``N x N`` distance matrix. The while_loop
-    carries only the scalar bracket ``(sep_hi, sep_lo)``, keeping the
-    batched-while kernel small under ``jax.vmap`` and short to compile.
     """
-    # pos_c is the rigid-body COM replicated across every sphere in the clump,
-    # so picking any sphere per clump recovers the COM without a sum/divide.
     base_pos_c = state.pos_c
     com_c = base_pos_c[central_idx[0]]
     com_t = base_pos_c[tracer_idx[0]]
-    r_ij = com_c - com_t
-    separation = jnp.linalg.norm(r_ij)
-    direction = r_ij / separation  # tracer moves along +direction to approach
+    ray = com_t - com_c
+    separation = jnp.linalg.norm(ray)
+    direction = ray / separation
 
-    # World-frame per-sphere positions (``state.pos = pos_c + R(q) @ pos_p``)
-    # gathered down to the central and tracer sphere blocks. Restricting to
-    # these two blocks (instead of all N spheres) means the pair coefficients
-    # below cover exactly the central-vs-tracer pairs we care about.
-    base_pos_world = state.pos
-    pc = base_pos_world[central_idx]  # (n_central, dim)
-    pt = base_pos_world[tracer_idx]  # (n_tracer, dim)
-    d0 = pc[:, None, :] - pt[None, :, :]  # (n_central, n_tracer, dim), delta=0
-    a = jnp.sum(d0 * direction, axis=-1)  # (n_central, n_tracer): d0 . direction
-    b = jnp.sum(d0 * d0, axis=-1)  # (n_central, n_tracer): |d0|^2
-    rsum = state.rad[central_idx][:, None] + state.rad[tracer_idx][None, :]
-
-    # Clamp the tolerance to a safe floor a few ulps above the dtype noise for
-    # the current bracket magnitude. Below this the subtraction
-    # ``sep_hi - sep_lo`` saturates at the representable ulp gap and the
-    # while_loop would spin forever; clamping guarantees natural termination.
-    dtype_eps = np.finfo(base_pos_c.dtype).eps
-    tol_floor = 4.0 * dtype_eps * max_separation
-    effective_tol = jnp.maximum(separation_tolerance, tol_floor)
-
-    def overlap_at(sep: jax.Array) -> jax.Array:
-        delta = separation - sep  # positive -> tracer moves toward central
-        # Exact rigid-translation distance; ``maximum(., 0)`` guards the sqrt
-        # against tiny negative round-off (contact distances are O(rsum) > 0,
-        # so there is no catastrophic cancellation here).
-        dist2 = b - 2.0 * delta * a + delta * delta
-        dist = jnp.sqrt(jnp.maximum(dist2, 0.0))
-        return jnp.max(rsum - dist)
-
-    def cond(v: tuple[jax.Array, jax.Array]) -> jax.Array:
-        sep_hi, sep_lo = v
-        return sep_hi - sep_lo > effective_tol
-
-    def body(v: tuple[jax.Array, jax.Array]) -> tuple[jax.Array, jax.Array]:
-        sep_hi, sep_lo = v
-        sep = 0.5 * (sep_hi + sep_lo)
-        too_far = overlap_at(sep) < target_overlap
-        sep_hi = jnp.where(too_far, sep, sep_hi)
-        sep_lo = jnp.where(too_far, sep_lo, sep)
-        return sep_hi, sep_lo
-
-    sep_hi, sep_lo = jax.lax.while_loop(cond, body, (max_separation, min_separation))
-    final_sep = 0.5 * (sep_hi + sep_lo)
-    total_delta = separation - final_sep
-    # pos_c stores the COM (same for every sphere in a clump), so shift only
-    # the tracer's spheres by ``total_delta * direction``.
-    state.pos_c = base_pos_c.at[tracer_idx].add(total_delta * direction)
-    return final_sep, state
+    # Work with rotated body offsets, avoiding subtraction of world positions.
+    offsets = state._pos_p_rot
+    delta = offsets[central_idx][:, None, :] - offsets[tracer_idx][None, :, :]
+    parallel = jnp.sum(delta * direction, axis=-1)
+    perpendicular = delta - parallel[..., None] * direction
+    radius = (
+        state.rad[central_idx][:, None]
+        + state.rad[tracer_idx][None, :]
+        - target_overlap
+    )
+    discriminant = radius * radius - jnp.sum(perpendicular * perpendicular, axis=-1)
+    positive = discriminant > 0
+    root = jnp.where(positive, jnp.sqrt(jnp.where(positive, discriminant, 1.0)), 0.0)
+    entry = parallel + root
+    valid = (
+        (radius >= 0) & (discriminant >= 0) & (entry >= 0) & (entry <= max_separation)
+    )
+    outermost = jnp.max(jnp.where(valid, entry, -jnp.inf))
+    found = jnp.any(valid)
+    final_sep = jnp.where(found, outermost, max_separation)
+    state.pos_c = base_pos_c.at[tracer_idx].add((final_sep - separation) * direction)
+    return jnp.where(found, final_sep, jnp.nan), state
 
 
 # --------------------------------------------------------------------------
@@ -389,9 +342,7 @@ def _measure_probe(
     tracer_position: jax.Array,
     quat: jax.Array,
     target_overlap: jax.Array,
-    separation_tolerance: jax.Array,
     max_separation: jax.Array,
-    min_separation: jax.Array,
     tracer_mask: jax.Array,
     central_mask: jax.Array,
     central_core_mask: jax.Array,
@@ -400,7 +351,7 @@ def _measure_probe(
     tracer_idx: jax.Array,
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
     """Configure a single (approach direction, tracer orientation) probe,
-    bisect to ``target_overlap``, compute interaction force and friction.
+    solve for ``target_overlap``, compute interaction force and friction.
     """
     new_pos_c = (
         jnp.broadcast_to(system.domain.box_size / 2, state.pos_c.shape)
@@ -410,19 +361,17 @@ def _measure_probe(
     # state.q.xyz in place. Only a whole-attribute assignment refreshes the
     # cached R(q) @ pos_p, so state.pos reflects the new orientation; an
     # in-place field write leaves state.pos stale at the previous orientation,
-    # and the bisection below then positions the tracer with the wrong pose.
+    # and the contact solver below then positions the tracer with the wrong pose.
     new_q = Quaternion.create(
         w=jnp.where(tracer_mask[:, None], quat[0:1], 1.0),
         xyz=jnp.where(tracer_mask[:, None], quat[1:4], 0.0),
     )
     state = dataclasses.replace(state, pos_c=new_pos_c, q=new_q)
 
-    _, state = _find_contact_at_overlap(
+    contact_separation, state = _find_contact_at_overlap(
         state,
         target_overlap,
-        separation_tolerance,
         max_separation,
-        min_separation,
         central_idx,
         tracer_idx,
     )
@@ -446,7 +395,7 @@ def _measure_probe(
     # than 0) is deliberate: it is distinguishable from a genuine frictionless
     # (mu == 0) contact, so callers can spot missed probes. jnp.where on both
     # branches keeps the gradient safe under jit/vmap.
-    contact = force_n_mag > _FORCE_CONTACT_EPS
+    contact = jnp.isfinite(contact_separation) & (force_n_mag > _FORCE_CONTACT_EPS)
     safe_force_n = jnp.where(contact, force_n_mag, 1.0)
     mu = jnp.where(contact, jnp.abs(force_t_mag / safe_force_n), jnp.nan)
     separation = jnp.where(contact, separation, jnp.nan)
@@ -533,7 +482,7 @@ def compute_surface_properties(
         (``r_i + r_j - |x_i - x_j|``) between central and tracer at the
         reported contact configuration. Must be positive. Small values
         correspond to "just barely indented". The converged state satisfies
-        this exactly up to ``separation_tolerance``.
+        this up to floating-point roundoff.
     system : System, optional
         Interaction system used to compute forces (for ``mu``). If ``None``,
         the function builds a default static measurement system (spring force,
@@ -571,11 +520,12 @@ def compute_surface_properties(
         by default so random runs are reproducible. Pass distinct values for
         independent samples.
     separation_tolerance : float
-        Bisection convergence tolerance on the tracer center-to-center
-        separation. The converged ``max(overlap)`` error shrinks linearly
-        with this value. Must be strictly smaller than ``target_overlap``.
+        Requested separation accuracy, retained for API compatibility. The
+        direct root solution has no iteration tolerance. This value must be
+        positive and smaller than ``target_overlap``; requests below the
+        dtype precision floor emit a warning.
     separation_scale : float
-        Safety factor for the upper bound of the bisection bracket.
+        Safety factor for the initial separation outside the bounding radii.
     batch_size : int
         Number of probes per ``vmap`` call, over the flat
         ``n_points * n_orientations * n_rolls`` probe grid. Larger values
@@ -612,7 +562,7 @@ def compute_surface_properties(
               ``np.isnan(separation)`` (or ``mu``) flags the missed samples.
             - ``n_central_contacts`` -- ``int`` per probe, same shape as
               ``mu``. Number of central-clump vertex spheres with at
-              least one force-bearing external contact at the bisected
+              least one force-bearing external contact at the resolved
               configuration.
             - ``n_tracer_contacts`` -- same, for the tracer clump.
             - ``central_core_contact`` -- ``bool`` per probe, same shape as
@@ -622,7 +572,7 @@ def compute_surface_properties(
             - ``tracer_core_contact`` -- same, for the tracer clump's core.
             - ``tracer_quaternions`` -- shape ``(n_points, *orientation_shape, 4)``.
               The composed quaternion actually applied to the tracer at
-              the bisected configuration (approach-direction rotation
+              the resolved configuration (approach-direction rotation
               composed with the per-orientation base).
             - ``central_position`` -- shape ``(dim,)``. COM of the central
               clump (constant across probes, equal to
@@ -686,7 +636,7 @@ def compute_surface_properties(
     ``tracer_quat`` to its ``state.q``, leave the central at
     ``result["central_position"]``, and call
     ``system.collider.compute_force(state, system)`` to get the
-    bisected force network.
+    resolved force network.
 
     With ``sampling="random"`` the returned ``approach_directions`` are **not**
     ordered by angle. Consumers that assume ordering -- e.g. the 2D SASA
@@ -698,12 +648,16 @@ def compute_surface_properties(
         raise ValueError(
             f"dim mismatch: central={central_state.dim} vs tracer={tracer_state.dim}."
         )
-    if target_overlap <= 0.0:
-        raise ValueError(f"target_overlap must be positive; got {target_overlap}.")
+    if not math.isfinite(target_overlap) or target_overlap <= 0.0:
+        raise ValueError(
+            f"target_overlap must be finite and positive; got {target_overlap}."
+        )
+    if not math.isfinite(separation_tolerance) or separation_tolerance <= 0:
+        raise ValueError("separation_tolerance must be finite and positive.")
     if separation_tolerance >= target_overlap:
         raise ValueError(
             "separation_tolerance must be strictly smaller than target_overlap "
-            "(the bisection cannot resolve the contact otherwise); got "
+            "to resolve the contact; got "
             f"separation_tolerance={separation_tolerance} >= "
             f"target_overlap={target_overlap}."
         )
@@ -715,6 +669,11 @@ def compute_surface_properties(
         raise ValueError(f"n_rolls must be >= 1; got {n_rolls}.")
     if sampling not in ("lattice", "random"):
         raise ValueError(f"sampling must be 'lattice' or 'random'; got {sampling!r}.")
+
+    if not math.isfinite(separation_scale) or separation_scale < 1.0:
+        raise ValueError("separation_scale must be finite and at least 1.")
+    if batch_size < 1:
+        raise ValueError("batch_size must be positive.")
 
     n_central_clumps = int(np.unique(np.asarray(central_state.clump_id)).size)
     n_tracer_clumps = int(np.unique(np.asarray(tracer_state.clump_id)).size)
@@ -738,11 +697,7 @@ def compute_surface_properties(
     r_sum = r_central + r_tracer
     max_separation = r_sum * separation_scale
 
-    # Warn if the requested tolerance / target_overlap is below the float
-    # precision floor of the default JAX dtype. Below this, `sep_hi - sep_lo`
-    # saturates at the ulp gap and bisection would otherwise run forever (the
-    # kernel clamps the tolerance to this floor so it terminates, but the
-    # result will just be ulp-noisy).
+    # Warn when the requested accuracy is below the geometry precision floor.
     dtype_eps = float(np.finfo(state.pos_c.dtype).eps)
     tol_floor = 4.0 * dtype_eps * max_separation
     if separation_tolerance < tol_floor or target_overlap < tol_floor:
@@ -751,22 +706,13 @@ def compute_surface_properties(
         warnings.warn(
             f"separation_tolerance={separation_tolerance:g} / "
             f"target_overlap={target_overlap:g} is below the dtype noise "
-            f"floor ({tol_floor:g}) for the current bracket in dtype "
-            f"{state.pos_c.dtype}. The bisection will be internally clamped "
-            "to this floor; the result will be ulp-noisy. To get tighter "
+            f"floor ({tol_floor:g}) for the geometry in dtype "
+            f"{state.pos_c.dtype}. The direct contact roots may be "
+            "ulp-noisy. To get tighter "
             "control, enable x64 with "
             "`jax.config.update('jax_enable_x64', True)`.",
             stacklevel=2,
         )
-    # Bracket lower bound. Using ``r_sum`` as the "just-contact" separation
-    # assumes first contact is at the sum of outer bounding radii -- only
-    # true for convex clumps. For clumps with interior spheres (cores,
-    # overlapping asperities with concave gaps) the first-contact separation
-    # along some approach directions is strictly inside ``r_sum``, and a
-    # tight lower bound causes the bisection to exit with no contact -> NaN.
-    # A wide lower bound costs only ~log2(width) extra iterations and covers
-    # any reasonable clump geometry whose material reaches near the origin.
-    min_separation = max(r_sum * 1e-3, 1e-6)
 
     if system is None:
         system = _create_default_system(state, margin=max_separation * 4.0)
@@ -776,7 +722,7 @@ def compute_surface_properties(
 
     # Static (compile-time) sphere indices for each clump. clump_id is concrete
     # here, so we resolve the boolean masks to fixed-length index arrays on the
-    # host; the bisection uses these to gather the central/tracer sphere blocks
+    # host; the solver uses these to gather the central/tracer sphere blocks
     # (JAX cannot boolean-index a traced mask to a static shape).
     central_idx = jnp.asarray(np.where(np.asarray(central_mask))[0])
     tracer_idx = jnp.asarray(np.where(np.asarray(tracer_mask))[0])
@@ -786,7 +732,6 @@ def compute_surface_properties(
     central_core_mask = jnp.asarray(_core_mask(state, _CENTRAL_ID))
     tracer_core_mask = jnp.asarray(_core_mask(state, _TRACER_ID))
 
-    med_separation = 0.5 * (max_separation + min_separation)
     # NOTE: the base state's pos_c / q are intentionally left as-is. Every probe
     # rebuilds them via ``dataclasses.replace(state, pos_c=..., q=...)`` inside
     # ``_measure_probe`` (a whole-attribute replace, which refreshes the cached
@@ -807,7 +752,7 @@ def compute_surface_properties(
         q_dirs = jax.vmap(_quat_from_x_to_3d)(approach_dirs)
     else:
         q_dirs = jax.vmap(_quat_from_x_to_2d)(approach_dirs)
-    tracer_positions = approach_dirs * med_separation
+    tracer_positions = approach_dirs * max_separation
 
     if dim == 3:
         facings = _sample_directions(n_orientations, 3, k_orient)
@@ -827,7 +772,7 @@ def compute_surface_properties(
         jax.vmap(
             _measure_probe,
             # state, system, pos(0), quat(0), then all remaining args broadcast.
-            in_axes=(None, None, 0, 0) + (None,) * 10,
+            in_axes=(None, None, 0, 0) + (None,) * 8,
         )
     )
 
@@ -861,7 +806,7 @@ def compute_surface_properties(
     # Every call to ``measure_batch`` is padded up to this fixed leading size so
     # the jit compiles exactly once. Without padding, a trailing partial batch
     # (n_total not a multiple of batch_size) has a different shape and triggers
-    # a second full recompile of the (while_loop + collider) kernel. The pad
+    # a second full recompile of the (contact solver + collider) kernel. The pad
     # rows repeat a real probe (safe, non-degenerate) and are sliced off below.
     compile_size = min(batch_size, n_total)
 
@@ -892,9 +837,7 @@ def compute_surface_properties(
             pos_b,
             q_b,
             jnp.asarray(target_overlap),
-            jnp.asarray(separation_tolerance),
             jnp.asarray(max_separation),
-            jnp.asarray(min_separation),
             tracer_mask,
             central_mask,
             central_core_mask,
@@ -916,7 +859,7 @@ def compute_surface_properties(
     # combined with ``approach_directions`` and ``separation`` it lets the
     # user reconstruct the exact tracer COM. ``tracer_quaternions`` is
     # the composed (q_dir @ q_base) orientation actually applied to the
-    # tracer at the bisected configuration.
+    # tracer at the resolved configuration.
     central_position = np.asarray(system.domain.box_size) / 2.0
     mu_grid: Any
     sep_grid: Any
