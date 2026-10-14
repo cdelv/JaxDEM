@@ -295,10 +295,8 @@ class Collider(Factory, ABC):
               than ``max_neighbors`` neighbors within the cutoff.
 
         """
-        if max_neighbors == 0:
-            n_a = pos_a.shape[0]
-            empty = jnp.empty((n_a, 0), dtype=int)
-            return empty, jnp.asarray(False)
+        if max_neighbors < 0:
+            raise ValueError("max_neighbors must be nonnegative.")
 
         n_b = pos_b.shape[0]
         iota_b = jax.lax.iota(dtype=int, size=n_b)
