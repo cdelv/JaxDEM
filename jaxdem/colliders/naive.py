@@ -81,7 +81,7 @@ class NaiveSimulator(Collider):
     history: jax.Array = field(
         default_factory=lambda: jnp.zeros((0, 0, 0)), kw_only=True
     )
-    """Dense directed pair history, shape ``(N, N, H)``."""
+    """Dense directed pair history with force-model-defined trailing dimensions."""
 
     def history_pair_shape(self, state_shape: tuple[int, ...]) -> tuple[int, ...]:
         n = state_shape[-2]
@@ -96,7 +96,7 @@ class NaiveSimulator(Collider):
     ) -> Collider:
         """Reallocate the dense history when the particle count changes."""
         history = self.history
-        tail = history.shape[2:] if history.ndim == 3 else (0,)
+        tail = history.shape[2:]
         if history.shape[:2] == (state.N, state.N) and not reset_history:
             return self
         if force_model is not None:
