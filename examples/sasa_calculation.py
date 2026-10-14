@@ -11,11 +11,12 @@ separations that
 :func:`~jaxdem.utils.surface_properties.compute_surface_properties`
 reports.
 
-For each approach direction ``d_i`` on ``S^2``, the probe moves the
-tracer along the center-to-center axis by bisection until the maximum
-pairwise sphere overlap equals ``target_overlap``. The center-to-center
-separation ``separation[i]`` is the distance from the central clump's
-COM to the SASA surface along ``d_i``.
+For each approach direction ``d_i`` on ``S^2``, sphere-ray intersections
+locate the first contact from outside at ``target_overlap``. This also
+works when the ray crosses several disconnected contact intervals.
+The center-to-center separation ``separation[i]`` is the distance from
+the central clump's COM to the SASA surface along ``d_i``. A missed ray
+or a contact without a resolved normal force gives ``NaN``.
 
 Numerics
 --------
@@ -24,18 +25,12 @@ Numerics
   configuration tolerates. Keep it much smaller than any physical
   length scale in the problem, so the tracer is effectively at zero
   contact (we define SASA at contact, not inside the body).
-* ``separation_tolerance`` is the bisection's convergence tolerance on
-  the center-to-center separation. **It must be strictly smaller than**
-  ``target_overlap``. Otherwise the final bracket is wider than the
-  overlap band, and the bisection can converge to a no-contact
-  separation and report the wrong surface.
-  :func:`~jaxdem.utils.surface_properties.compute_surface_properties`
-  checks this and raises a ``ValueError`` if
-  ``separation_tolerance >= target_overlap``. The values below
-  (``1e-12 < 1e-10``) satisfy it.
-* Both values are orders of magnitude below the float32 epsilon
-  (``~1.2e-7``), so **you must enable x64 before any JAX operation
-  runs**. Otherwise the bisection cannot resolve the bracket.
+* ``separation_tolerance`` is retained for API compatibility and
+  validation. It must be positive and smaller than ``target_overlap``;
+  the direct contact roots have no iteration tolerance.
+* Enable x64 before any JAX operation to resolve the small overlap
+  used here (``1e-10``) at the body's length scale. Float32 roundoff
+  can erase that overlap and leave the measured force unresolved.
 """
 
 # %%
@@ -64,7 +59,7 @@ central = create_ga_state(
     particle_radius=0.5,
     asperity_radius=0.1,
     particle_type="clump",
-    core_type="solid",  # clumps need a solid core for the sasa protocol to work reliably
+    core_type="solid",  # fill the central void so each approach ray meets the body
     n_samples=10_000_000,  # the default. ~10M samples give decent accuracy for the clump COM
     seed=0,
     mesh_kwargs={"steps": 1_000},
@@ -77,9 +72,9 @@ tracer = create_sphere_state(radii=tracer_radius, dim=3)
 # %%
 # Probe the surface
 # -----------------
-# ``target_overlap`` > ``separation_tolerance`` so the bisection can
-# resolve the contact band. ``n_orientations = n_rolls = 1`` because a
-# smooth sphere has no orientation degree of freedom.
+# Keep ``target_overlap`` small and the compatibility tolerance below it.
+# ``n_orientations = n_rolls = 1`` because a smooth sphere has no
+# orientation degree of freedom.
 
 target_overlap = 1e-10
 separation_tolerance = 1e-12
