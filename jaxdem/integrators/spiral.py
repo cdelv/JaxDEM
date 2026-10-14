@@ -112,7 +112,9 @@ class Spiral(RotationIntegrator):
         else:
             ang_vel = state.ang_vel  # (N, 1)
             torque = state.torque  # (N, 1)
-        w_dot = omega_dot(ang_vel, torque, state.inertia, inv_inertia)
+        w_dot = omega_dot(ang_vel, torque, state.inertia, inv_inertia) * free_mask(
+            state
+        )
 
         # Rotation vectors whose half-angles are dt/2*|w| and (dt/2)^2*|w_dot|.
         rotvec1 = 2.0 * dt_2 * ang_vel

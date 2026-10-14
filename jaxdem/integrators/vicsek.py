@@ -88,7 +88,7 @@ def _apply_desired_velocity(
     state: State, system: System, v_des: jax.Array
 ) -> tuple[State, System]:
     """Shared Vicsek tail: set the velocities of the free particles and advance the positions."""
-    state.vel = v_des * free_mask(state)
+    state.vel = jnp.where(free_mask(state), v_des, state.vel)
     state.pos_c = state.pos_c + system.dt * state.vel
     return state, system
 

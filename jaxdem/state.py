@@ -209,7 +209,10 @@ class State:
 
     fixed: jax.Array
     """
-    Boolean array indicating if a particle is fixed (immobile). Shape is `(..., N)`.
+    Boolean array marking particles with prescribed motion. Shape is `(..., N)`.
+
+    Their linear and angular velocities are unaffected by forces and torques.
+    Zero prescribed velocities keep them stationary.
 
     Identical on every member of a rigid clump.
     """
