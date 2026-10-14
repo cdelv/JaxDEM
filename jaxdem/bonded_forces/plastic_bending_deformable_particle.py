@@ -90,6 +90,7 @@ class PlasticBendingDeformableParticleModel(DeformableParticleModel):
         gamma: ArrayLike | None = None,
         tau_s: ArrayLike | None = None,
         w_b: ArrayLike | None = None,  # compatibility with checkpointer.
+        vertex_count: int | None = None,
     ) -> Self:
         # Explicit two-arg super: dataclass(slots=True) recreates the class, so
         # zero-arg super()'s __class__ cell points at the discarded original
@@ -111,6 +112,7 @@ class PlasticBendingDeformableParticleModel(DeformableParticleModel):
             el=el,
             gamma=gamma,
             w_b=w_b,
+            vertex_count=vertex_count,
         )
 
         tau_s_arr = None

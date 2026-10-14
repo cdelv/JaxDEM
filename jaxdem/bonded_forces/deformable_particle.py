@@ -186,6 +186,9 @@ class DeformableParticleModel(BondedForceModel):
     Surface/Line tension coefficient for each element. Shape: (M,).
     """
 
+    vertex_count: int = jax.tree.static(default=0)
+    """Number of vertices, including vertices unused by active energy terms."""
+
     @classmethod
     def Create(
         cls,
@@ -210,6 +213,7 @@ class DeformableParticleModel(BondedForceModel):
         el: ArrayLike | None = None,
         gamma: ArrayLike | None = None,
         w_b: ArrayLike | None = None,  # compatibility with checkpointer.
+        vertex_count: int | None = None,
     ) -> Self:
         vertices = jnp.asarray(vertices, dtype=float) if vertices is not None else None
         elements = jnp.asarray(elements, dtype=int) if elements is not None else None
@@ -495,6 +499,31 @@ class DeformableParticleModel(BondedForceModel):
             "initial_edge_lengths", initial_edge_lengths if el is not None else None
         )
 
+        # Retain the complete vertex count before inactive topology is removed.
+        topology = (elements, edges, element_adjacency_edges)
+        if vertex_count is None:
+            vertex_count = (
+                vertices.shape[0]
+                if vertices is not None
+                else max(
+                    (int(jnp.max(a)) + 1 for a in topology if a is not None and a.size),
+                    default=0,
+                )
+            )
+        if (
+            isinstance(vertex_count, bool)
+            or not isinstance(vertex_count, int)
+            or vertex_count < 0
+        ):
+            raise ValueError("vertex_count must be a nonnegative integer.")
+        if vertices is not None and vertex_count != vertices.shape[0]:
+            raise ValueError("vertex_count must match the supplied vertices.")
+        for indices in topology:
+            if indices is not None and indices.size and not bool(
+                jnp.all((indices >= 0) & (indices < vertex_count))
+            ):
+                raise ValueError("Topology indices must lie within vertex_count.")
+
         # Keep only data required by active terms, even if the user provided extra fields.
         need_elements = any(x is not None for x in (em, ec, eb, gamma))
         need_edges = el is not None
@@ -542,6 +571,7 @@ class DeformableParticleModel(BondedForceModel):
             eb=eb,
             el=el,
             gamma=gamma,
+            vertex_count=vertex_count,
         )
 
     @staticmethod
@@ -572,7 +602,7 @@ class DeformableParticleModel(BondedForceModel):
         current = model1
 
         for nxt in models_to_merge:
-            vertex_offset = _max_vertex_id(current) + 1
+            vertex_offset = current.vertex_count or (_max_vertex_id(current) + 1)
             element_offset = (
                 0 if current.elements is None else int(current.elements.shape[0])
             )
@@ -711,6 +741,8 @@ class DeformableParticleModel(BondedForceModel):
                 eb=merged_eb,
                 el=merged_el,
                 gamma=merged_gamma,
+                vertex_count=vertex_offset
+                + (nxt.vertex_count or (_max_vertex_id(nxt) + 1)),
             )
             # Subclasses (plastic variants) merge their extra fields through
             # this single hook so the merge logic cannot diverge between them.
