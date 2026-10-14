@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 
-from ..utils.linalg import dot, norm
+from ..utils.linalg import dot, norm, unit
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -42,7 +42,7 @@ def point_triangle_distance(
 
     vc = d1 * d4 - d3 * d2
 
-    v_ab = (vc <= 0.0) * (d1 >= 0.0) * (d3 <= 0.0)
+    v_ab = (vc <= 0.0) * (d1 >= 0.0) * (d3 <= 0.0) * (d1 - d3 > 0.0)
     denom_ab = d1 - d3
     v_ab_val = d1 / jnp.where(denom_ab != 0.0, denom_ab, 1.0)
 
@@ -54,13 +54,18 @@ def point_triangle_distance(
 
     vb = d5 * d2 - d1 * d6
 
-    v_ac = (vb <= 0.0) * (d2 >= 0.0) * (d6 <= 0.0)
+    v_ac = (vb <= 0.0) * (d2 >= 0.0) * (d6 <= 0.0) * (d2 - d6 > 0.0)
     denom_ac = d2 - d6
     v_ac_val = d2 / jnp.where(denom_ac != 0.0, denom_ac, 1.0)
 
     va = d3 * d6 - d5 * d4
 
-    v_bc = (va <= 0.0) * ((d4 - d3) >= 0.0) * ((d5 - d6) >= 0.0)
+    v_bc = (
+        (va <= 0.0)
+        * ((d4 - d3) >= 0.0)
+        * ((d5 - d6) >= 0.0)
+        * ((d4 - d3) + (d5 - d6) > 0.0)
+    )
     bc = ac - ab
     denom_bc = (d4 - d3) + (d5 - d6)
     v_bc_val = (d4 - d3) / jnp.where(denom_bc != 0.0, denom_bc, 1.0)
@@ -185,6 +190,39 @@ def segment_segment_distance(
 
 
 @jax.jit
+def _segment_triangle_intersection(
+    p: jax.Array, q: jax.Array, a: jax.Array, b: jax.Array, c: jax.Array, system: System
+) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+    """Return an edge-face piercing and its segment/triangle coordinates."""
+    direction = system.domain._displacement(q, p, system)
+    ab = system.domain._displacement(b, a, system)
+    ac = system.domain._displacement(c, a, system)
+    offset = system.domain._displacement(p, a, system)
+    cross_direction = jnp.cross(direction, ac)
+    determinant = dot(ab, cross_direction)
+    inverse = 1.0 / jnp.where(determinant != 0.0, determinant, 1.0)
+    u = dot(offset, cross_direction) * inverse
+    cross_offset = jnp.cross(offset, ab)
+    v = dot(direction, cross_offset) * inverse
+    t = dot(ac, cross_offset) * inverse
+    hit = (
+        (determinant != 0.0)
+        & (t >= 0.0)
+        & (t <= 1.0)
+        & (u >= 0.0)
+        & (v >= 0.0)
+        & (u + v <= 1.0)
+    )
+    point = p + jnp.clip(t, 0.0, 1.0)[..., None] * direction
+    return (
+        hit,
+        point,
+        jnp.stack([1.0 - t, t], axis=-1),
+        jnp.stack([1.0 - u - v, u, v], axis=-1),
+    )
+
+
+@jax.jit
 def triangle_triangle_distance(
     t1_a: jax.Array,
     t1_b: jax.Array,
@@ -192,173 +230,81 @@ def triangle_triangle_distance(
     t2_a: jax.Array,
     t2_b: jax.Array,
     t2_c: jax.Array,
-    system: "System",
+    system: System,
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
-    """Compute the shortest distance between two triangles.
+    """Return triangle separation, closest points and barycentric coordinates.
 
-    Also return the closest point on each triangle and its barycentric
-    coordinates.
+    Vertex-face and edge-edge candidates cover disjoint and coplanar triangles;
+    edge-face piercings also detect interior crossings. Zero-area triangles
+    reduce to their edges or vertices. At nonunique contacts, vertex order
+    deterministically selects one valid closest point.
     """
+    dtype = jnp.result_type(t1_a, t1_b, t1_c, t2_a, t2_b, t2_c, 1.0)
+    vertices = jnp.broadcast_arrays(
+        *[jnp.asarray(x, dtype=dtype) for x in (t1_a, t1_b, t1_c, t2_a, t2_b, t2_c)]
+    )
+    first, second = vertices[:3], vertices[3:]
+    basis = jnp.eye(3, dtype=dtype)
+    candidates = []
 
-    # 3 points of T1 to T2
-    d1, c1, coords_c1 = point_triangle_distance(t1_a, t2_a, t2_b, t2_c, system)
-    d2, c2, coords_c2 = point_triangle_distance(t1_b, t2_a, t2_b, t2_c, system)
-    d3, c3, coords_c3 = point_triangle_distance(t1_c, t2_a, t2_b, t2_c, system)
+    for i in range(3):
+        distance, point, coords = point_triangle_distance(first[i], *second, system)
+        candidates.append(
+            (distance, first[i], point, jnp.broadcast_to(basis[i], point.shape), coords)
+        )
+        distance, point, coords = point_triangle_distance(second[i], *first, system)
+        candidates.append(
+            (
+                distance,
+                point,
+                second[i],
+                coords,
+                jnp.broadcast_to(basis[i], point.shape),
+            )
+        )
 
-    # 3 points of T2 to T1
-    d4, c4, coords_c4 = point_triangle_distance(t2_a, t1_a, t1_b, t1_c, system)
-    d5, c5, coords_c5 = point_triangle_distance(t2_b, t1_a, t1_b, t1_c, system)
-    d6, c6, coords_c6 = point_triangle_distance(t2_c, t1_a, t1_b, t1_c, system)
+    for i in range(3):
+        for j in range(3):
+            distance, point_a, point_b, wa, wb = segment_segment_distance(
+                first[i], first[(i + 1) % 3], second[j], second[(j + 1) % 3], system
+            )
+            coords_a = wa[..., :1] * basis[i] + wa[..., 1:] * basis[(i + 1) % 3]
+            coords_b = wb[..., :1] * basis[j] + wb[..., 1:] * basis[(j + 1) % 3]
+            candidates.append((distance, point_a, point_b, coords_a, coords_b))
 
-    # 9 segment-segment distances
-    d7, c7_1, c7_2, coords_c7_1, coords_c7_2 = segment_segment_distance(
-        t1_a, t1_b, t2_a, t2_b, system
-    )
-    d8, c8_1, c8_2, coords_c8_1, coords_c8_2 = segment_segment_distance(
-        t1_a, t1_b, t2_b, t2_c, system
-    )
-    d9, c9_1, c9_2, coords_c9_1, coords_c9_2 = segment_segment_distance(
-        t1_a, t1_b, t2_c, t2_a, system
-    )
+    for i in range(3):
+        hit, point, edge, face = _segment_triangle_intersection(
+            first[i], first[(i + 1) % 3], *second, system
+        )
+        coords = edge[..., :1] * basis[i] + edge[..., 1:] * basis[(i + 1) % 3]
+        candidates.append((jnp.where(hit, 0.0, jnp.inf), point, point, coords, face))
+        hit, point, edge, face = _segment_triangle_intersection(
+            second[i], second[(i + 1) % 3], *first, system
+        )
+        coords = edge[..., :1] * basis[i] + edge[..., 1:] * basis[(i + 1) % 3]
+        candidates.append((jnp.where(hit, 0.0, jnp.inf), point, point, face, coords))
 
-    d10, c10_1, c10_2, coords_c10_1, coords_c10_2 = segment_segment_distance(
-        t1_b, t1_c, t2_a, t2_b, system
+    distances = jnp.stack([candidate[0] for candidate in candidates], axis=-1)
+    index = jnp.argmin(distances, axis=-1)
+    distance = jnp.take_along_axis(distances, index[..., None], axis=-1)[..., 0]
+    vector_index = jnp.broadcast_to(index[..., None], first[0].shape)
+    points_and_coords = tuple(
+        jax.lax.select_n(vector_index, *[candidate[i] for candidate in candidates])
+        for i in range(1, 5)
     )
-    d11, c11_1, c11_2, coords_c11_1, coords_c11_2 = segment_segment_distance(
-        t1_b, t1_c, t2_b, t2_c, system
-    )
-    d12, c12_1, c12_2, coords_c12_1, coords_c12_2 = segment_segment_distance(
-        t1_b, t1_c, t2_c, t2_a, system
-    )
+    point_a, point_b, coords_a, coords_b = points_and_coords
+    return distance, point_a, point_b, coords_a, coords_b
 
-    d13, c13_1, c13_2, coords_c13_1, coords_c13_2 = segment_segment_distance(
-        t1_c, t1_a, t2_a, t2_b, system
-    )
-    d14, c14_1, c14_2, coords_c14_1, coords_c14_2 = segment_segment_distance(
-        t1_c, t1_a, t2_b, t2_c, system
-    )
-    d15, c15_1, c15_2, coords_c15_1, coords_c15_2 = segment_segment_distance(
-        t1_c, t1_a, t2_c, t2_a, system
-    )
 
-    zeros = jnp.zeros_like(d1)
-    ones = jnp.ones_like(d1)
-
-    c1_t1 = jnp.stack([ones, zeros, zeros], axis=-1)
-    c2_t1 = jnp.stack([zeros, ones, zeros], axis=-1)
-    c3_t1 = jnp.stack([zeros, zeros, ones], axis=-1)
-    c4_t1 = coords_c4
-    c5_t1 = coords_c5
-    c6_t1 = coords_c6
-    c7_t1 = jnp.stack([coords_c7_1[..., 0], coords_c7_1[..., 1], zeros], axis=-1)
-    c8_t1 = jnp.stack([coords_c8_1[..., 0], coords_c8_1[..., 1], zeros], axis=-1)
-    c9_t1 = jnp.stack([coords_c9_1[..., 0], coords_c9_1[..., 1], zeros], axis=-1)
-    c10_t1 = jnp.stack([zeros, coords_c10_1[..., 0], coords_c10_1[..., 1]], axis=-1)
-    c11_t1 = jnp.stack([zeros, coords_c11_1[..., 0], coords_c11_1[..., 1]], axis=-1)
-    c12_t1 = jnp.stack([zeros, coords_c12_1[..., 0], coords_c12_1[..., 1]], axis=-1)
-    c13_t1 = jnp.stack([coords_c13_1[..., 1], zeros, coords_c13_1[..., 0]], axis=-1)
-    c14_t1 = jnp.stack([coords_c14_1[..., 1], zeros, coords_c14_1[..., 0]], axis=-1)
-    c15_t1 = jnp.stack([coords_c15_1[..., 1], zeros, coords_c15_1[..., 0]], axis=-1)
-
-    c1_t2 = coords_c1
-    c2_t2 = coords_c2
-    c3_t2 = coords_c3
-    c4_t2 = jnp.stack([ones, zeros, zeros], axis=-1)
-    c5_t2 = jnp.stack([zeros, ones, zeros], axis=-1)
-    c6_t2 = jnp.stack([zeros, zeros, ones], axis=-1)
-    c7_t2 = jnp.stack([coords_c7_2[..., 0], coords_c7_2[..., 1], zeros], axis=-1)
-    c8_t2 = jnp.stack([zeros, coords_c8_2[..., 0], coords_c8_2[..., 1]], axis=-1)
-    c9_t2 = jnp.stack([coords_c9_2[..., 1], zeros, coords_c9_2[..., 0]], axis=-1)
-    c10_t2 = jnp.stack([coords_c10_2[..., 0], coords_c10_2[..., 1], zeros], axis=-1)
-    c11_t2 = jnp.stack([zeros, coords_c11_2[..., 0], coords_c11_2[..., 1]], axis=-1)
-    c12_t2 = jnp.stack([coords_c12_2[..., 1], zeros, coords_c12_2[..., 0]], axis=-1)
-    c13_t2 = jnp.stack([coords_c13_2[..., 0], coords_c13_2[..., 1], zeros], axis=-1)
-    c14_t2 = jnp.stack([zeros, coords_c14_2[..., 0], coords_c14_2[..., 1]], axis=-1)
-    c15_t2 = jnp.stack([coords_c15_2[..., 1], zeros, coords_c15_2[..., 0]], axis=-1)
-
-    distances = jnp.stack(
-        [d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15], axis=-1
-    )
-
-    min_idx = jnp.argmin(distances, axis=-1)
-    min_dist = jnp.take_along_axis(distances, min_idx[..., None], axis=-1)[..., 0]
-
-    min_idx_3 = jnp.broadcast_to(min_idx[..., None], t1_a.shape)
-
-    closest_1 = jax.lax.select_n(
-        min_idx_3,
-        t1_a,
-        t1_b,
-        t1_c,
-        c4,
-        c5,
-        c6,
-        c7_1,
-        c8_1,
-        c9_1,
-        c10_1,
-        c11_1,
-        c12_1,
-        c13_1,
-        c14_1,
-        c15_1,
-    )
-    closest_2 = jax.lax.select_n(
-        min_idx_3,
-        c1,
-        c2,
-        c3,
-        t2_a,
-        t2_b,
-        t2_c,
-        c7_2,
-        c8_2,
-        c9_2,
-        c10_2,
-        c11_2,
-        c12_2,
-        c13_2,
-        c14_2,
-        c15_2,
-    )
-    closest_coords1 = jax.lax.select_n(
-        min_idx_3,
-        c1_t1,
-        c2_t1,
-        c3_t1,
-        c4_t1,
-        c5_t1,
-        c6_t1,
-        c7_t1,
-        c8_t1,
-        c9_t1,
-        c10_t1,
-        c11_t1,
-        c12_t1,
-        c13_t1,
-        c14_t1,
-        c15_t1,
-    )
-    closest_coords2 = jax.lax.select_n(
-        min_idx_3,
-        c1_t2,
-        c2_t2,
-        c3_t2,
-        c4_t2,
-        c5_t2,
-        c6_t2,
-        c7_t2,
-        c8_t2,
-        c9_t2,
-        c10_t2,
-        c11_t2,
-        c12_t2,
-        c13_t2,
-        c14_t2,
-        c15_t2,
-    )
-
-    return min_dist, closest_1, closest_2, closest_coords1, closest_coords2
+@jax.jit(inline=True)
+def facet_normal(
+    a: jax.Array, b: jax.Array, c: jax.Array | None, system: System
+) -> jax.Array:
+    """Return a facet's unit normal, or zero for collapsed geometry."""
+    edge = system.domain._displacement(b, a, system)
+    if c is None:
+        return unit(jnp.stack([-edge[..., 1], edge[..., 0]], axis=-1))
+    return unit(jnp.cross(edge, system.domain._displacement(c, a, system)))
 
 
 @jax.jit

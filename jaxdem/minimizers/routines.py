@@ -485,9 +485,8 @@ def minimize(
     ------
     ValueError
         If no optimizer is configured, or if the physical objective uses a
-        force model that supports neither an analytical energy gradient nor
-        history-dependent energy relaxation, or a managed force without a
-        matching energy function.
+        value-based optimizer without an analytical physical energy gradient,
+        or a managed force without a matching energy function.
 
     Notes
     -----
@@ -502,8 +501,11 @@ def minimize(
     For the physical objective, gradient-only optimizers
     (``requires_value=False``, including FIRE and damped Newtonian) evaluate
     residual forces initially and after each update, and energy once at exit.
-    Line-search optimizers and custom targets evaluate the objective during
-    optimization.
+    Gradient-only optimizers also support force conventions that are not
+    analytical energy gradients. Value-based physical optimization requires
+    an analytical energy gradient; custom targets use ordinary AD through the
+    State mapping. Line-search optimizers and custom targets evaluate the
+    objective during optimization.
 
     Each rigid body has one set of continuous optimization coordinates.
     Two-dimensional rotations use an unwrapped angle about the initial
@@ -538,13 +540,12 @@ def minimize(
     if system.target_fn is None:
         if (
             not system.force_model.supports_analytical_energy_gradient
-            and not history_relaxation
+            and not force_only
         ):
             raise ValueError(
                 "Default minimization requires a force model with an analytical "
-                "energy gradient, or a force model with pair history relaxed by "
-                "a gradient-only optimizer; provide target_fn or configure a "
-                "compatible force model."
+                "energy gradient or a gradient-only optimizer; provide "
+                "target_fn or configure a compatible force model."
             )
         if any(
             energy_fn is default_energy_func
