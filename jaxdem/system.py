@@ -61,12 +61,16 @@ def _save_state_system(state: State, system: System) -> tuple[State, System]:
 
 @jax.jit(inline=True)
 def _step_once(state: State, system: System) -> tuple[State, System]:
+    start_time, tentative_time = system.time, system.time + system.dt
     system = dataclasses.replace(
         system,
-        time=system.time + system.dt,
+        time=tentative_time,
         step_count=system.step_count + 1,
     )
     state, system = system.user_pre_step_actions(state, system)
+    system = dataclasses.replace(
+        system, time=start_time + system.dt + (system.time - tentative_time)
+    )
     state, system = system.domain.apply(state, system)
     system = dataclasses.replace(
         system,
@@ -234,7 +238,12 @@ class System:
     user_pre_step_actions: Callable[[State, System], tuple[State, System]] = (
         jax.tree.static(default=_save_state_system)
     )
-    """Function called before every step to perform user-defined actions."""
+    """Function called before every step to perform user-defined actions.
+
+    The callback sees the tentative end time using the entering dt. The
+    recorded end time uses the callback's dt; any callback change to time is
+    retained as an offset from the tentative end time.
+    """
 
     user_post_step_actions: Callable[[State, System], tuple[State, System]] = (
         jax.tree.static(default=_save_state_system)
