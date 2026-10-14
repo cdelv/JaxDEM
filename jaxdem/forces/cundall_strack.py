@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Callable, Literal, NamedTuple, cast
 import jax
 import jax.numpy as jnp
 
-from ..utils.linalg import cross, dot, norm2, unit, unit_and_norm
+from ..utils.linalg import cross, dot, norm, norm2, unit, unit_and_norm
 from . import ForceModel
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -206,7 +206,7 @@ def _contact_response_with_coefficients(
     xi_eval = xi_trial if advance_history else xi
 
     Ft_trial = -kt[..., None] * xi_eval - gamma_t[..., None] * vt_vec
-    Ft_norm = jnp.linalg.norm(Ft_trial, axis=-1)
+    Ft_norm = norm(Ft_trial)
     Ft_max = mu_ij * Fn
     Ft = Ft_trial * jnp.minimum(1.0, Ft_max / jnp.maximum(Ft_norm, 1e-30))[..., None]
     Ft *= is_contact[..., None]
