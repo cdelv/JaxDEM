@@ -173,8 +173,16 @@ def _get_spatial_partition(
 @partial(jax.named_call, name="cell_list._dedup_stencil_hashes")
 def _dedup_stencil_hashes(stencil_hashes: jax.Array) -> jax.Array:
     """Deduplicate one particle's stencil hashes using the unsigned sentinel."""
-    mask = jnp.triu(stencil_hashes[:, None] == stencil_hashes[None, :], k=1)
-    is_duplicate = jnp.any(mask, axis=0)
+    indices = jnp.arange(stencil_hashes.size)
+    is_duplicate = jnp.zeros(stencil_hashes.shape, dtype=bool)
+    # Small static slices fuse with their reductions instead of materializing
+    # an (N, stencil, stencil) temporary for a large shear-periodic stencil.
+    for start in range(0, stencil_hashes.size, 16):
+        end = min(start + 16, stencil_hashes.size)
+        mask = (indices[start:end, None] < indices[None, :]) & (
+            stencil_hashes[start:end, None] == stencil_hashes[None, :]
+        )
+        is_duplicate |= jnp.any(mask, axis=0)
     sentinel = jnp.bitwise_not(jnp.asarray(0, stencil_hashes.dtype))
     return jnp.where(is_duplicate, sentinel, stencil_hashes)
 

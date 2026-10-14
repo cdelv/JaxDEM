@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Callable, Literal, NamedTuple, cast
 import jax
 import jax.numpy as jnp
 
-from ..utils.linalg import cross, dot, norm, unit, unit_and_norm
+from ..utils.linalg import cross, dot, norm2, unit, unit_and_norm
 from . import ForceModel
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -118,34 +118,36 @@ def _transport_tangent(
     xi: jax.Array, previous_normal: jax.Array, normal: jax.Array
 ) -> jax.Array:
     """Shortest-rotation transport between contact planes in 2D or 3D."""
-    dim = xi.shape[-1]
-    pad = 3 - dim
-    padding = [(0, 0)] * (xi.ndim - 1) + [(0, pad)]
-    old = jnp.pad(previous_normal, padding)
-    new = jnp.pad(normal, padding)
-    value = jnp.pad(xi, padding)
-    old_norm = norm(old)
-    c = jnp.clip(dot(old, new), -1.0, 1.0)
-    k = jnp.cross(old, new)
-    regular = (
-        value
-        + jnp.cross(k, value)
-        + jnp.cross(k, jnp.cross(k, value)) / jnp.maximum(1.0 + c, 1e-12)[..., None]
-    )
-
-    # Antiparallel normals have no unique shortest rotation. In 2D the plane
-    # fixes the convention; in 3D choose a deterministic axis perpendicular
-    # to the old normal using its least-aligned Cartesian basis vector.
-    if dim == 2:
-        antiparallel = -value
+    old, new, value = previous_normal, normal, xi
+    if xi.shape[-1] == 2:
+        # A planar rotation needs only its sine and cosine. Avoid padding every
+        # contact to 3D and evaluating three vector cross products.
+        c = jnp.clip(dot(old, new), -1.0, 1.0)
+        s = cross(old, new)
+        perpendicular = jnp.stack((-value[..., 1], value[..., 0]), axis=-1)
+        rotated = c[..., None] * value + s * perpendicular
     else:
+        # Reflect the old tangent across the normal bisector. In the tangent
+        # plane this gives the shortest rotation. The squared bisector length
+        # avoids cancellation in 1 + dot(old, new) near opposite normals.
+        tangent = value - dot(value, old)[..., None] * old
+        bisector = old + new
+        bisector_norm2 = norm2(bisector)
+        regular = (
+            tangent
+            - (2.0 * dot(tangent, bisector) / jnp.maximum(bisector_norm2, 1e-12))[
+                ..., None
+            ]
+            * bisector
+        )
+        # Antiparallel normals have no unique shortest rotation in 3D. Choose
+        # a deterministic axis using the least-aligned Cartesian basis vector.
         basis = jax.nn.one_hot(jnp.argmin(jnp.abs(old), axis=-1), 3, dtype=old.dtype)
-        axis = unit(jnp.cross(old, basis))
+        axis = unit(cross(old, basis))
         antiparallel = 2.0 * dot(axis, value)[..., None] * axis - value
-    rotated = jnp.where((c < -1.0 + 1e-6)[..., None], antiparallel, regular)
-    rotated = jnp.where((old_norm > 0)[..., None], rotated, value)
-    transported = rotated[..., :dim]
-    return transported - dot(transported, normal)[..., None] * normal
+        rotated = jnp.where((bisector_norm2 < 2e-6)[..., None], antiparallel, regular)
+    rotated = jnp.where((norm2(old) > 0)[..., None], rotated, value)
+    return rotated - dot(rotated, normal)[..., None] * normal
 
 
 @jax.jit(inline=True, static_argnames=("advance_history",))
