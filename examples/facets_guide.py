@@ -181,6 +181,11 @@ print(f"After connection, N = {state_connected.N} (2 new vertices added)")
 # - ``sphere_facet_spring``: For sphere-to-facet contacts.
 # - ``facet_facet_spring``: For facet-to-facet contacts.
 #
+# At zero separation these models choose a contact normal that may not be
+# an energy gradient. Use FIRE or another force-only optimizer for physical
+# relaxation. Value-based optimization requires an explicit ``target_fn``
+# differentiated through AD; an intersecting contact can have a flat energy.
+#
 # The ``ForceRouter`` routes the contacts. In a typical simulation with normal spheres (species 0)
 # and boundaries/facets (species 1), you route collisions as:
 # - ``(0, 0)`` -> ``spring`` or ``hertz`` (sphere-sphere contacts)
