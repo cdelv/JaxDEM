@@ -426,6 +426,10 @@ class DynamicCellList(Collider):
 
     Notes
     -----
+    - **Differentiation**: Direct force and energy traversal supports forward
+      mode. Its dynamic ``lax.while_loop`` cannot be transposed for reverse
+      mode. For ``jax.grad`` or reverse differentiation through simulation
+      steps, use ``NeighborList`` with ``secondary_collider_type="CellList"``.
     - **Batching with ``vmap``**: If you use ``jax.vmap`` to evaluate multiple
       simulation environments simultaneously, be aware of JAX's SIMD execution model.
       The innermost ``while`` loop executes sequentially. It must keep

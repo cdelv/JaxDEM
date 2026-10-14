@@ -245,9 +245,8 @@ class DynamicMultiCellList(Collider):
 
     The incremental ``insert``/``move``/``remove`` operations of the CPU
     original do **not** carry over. JAX rebuilds the partition functionally
-    each step as a permutation plus a segmented reduction. This is the price
-    of running on GPU/TPU, batching with ``vmap``, and differentiating
-    through the simulation.
+    each step as a permutation plus a segmented reduction to run on GPU/TPU
+    and support batching with ``vmap``.
 
     Constructor Parameters
     ----------------------
@@ -268,6 +267,13 @@ class DynamicMultiCellList(Collider):
       stencil size, :math:`\langle K \rangle` = average occupancy), reduced by
       AABB cell-skipping.
     - Memory: :math:`O(N)`.
+
+    Notes
+    -----
+    Direct force and energy traversal supports forward differentiation.
+    Its dynamic ``lax.while_loop`` cannot be transposed for reverse mode.
+    For ``jax.grad`` or reverse differentiation through simulation steps, use
+    ``NeighborList`` with ``secondary_collider_type="MultiCellList"``.
     """
 
     supported_search_geometries = frozenset(
