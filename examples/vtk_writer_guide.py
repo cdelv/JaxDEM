@@ -16,7 +16,6 @@ to standard VTK XML files (.vtp) and ParaView manifest collection files (.pvd) f
 
 import tempfile
 from pathlib import Path
-import jax
 import jax.numpy as jnp
 import jaxdem as jdem
 
@@ -82,19 +81,10 @@ for f in sorted(vtp_files)[:4]:
 # `jax.lax.scan` or batching), you can write the entire sequence in one call
 # by setting ``trajectory=True`` and specifying the ``trajectory_axis``.
 
-# Mock a trajectory of shape (T, N, dim)
-T_steps = 3
-pos_trajectory = jnp.stack([state.pos + i * 0.1 for i in range(T_steps)], axis=0)
-
-# Create a batched/trajectory State with jax.vmap, so every internal
-# state field (like fixed) gets the leading batch axis.
-state_trajectory = jax.vmap(lambda p: jdem.State.create(pos=p, rad=state.rad))(
-    pos_trajectory
-)
-
-# Broadcast the system to match the trajectory shape
-system_trajectory = jax.tree.map(
-    lambda x: jnp.broadcast_to(x, (T_steps, *x.shape)), system
+# Collect matching State/System frames of shape (T, N, dim). Each System
+# frame carries its own time and step count for the VTK files and manifest.
+state, system, (state_trajectory, system_trajectory) = system.trajectory_rollout(
+    state, system, n=3
 )
 
 # Save the entire trajectory
