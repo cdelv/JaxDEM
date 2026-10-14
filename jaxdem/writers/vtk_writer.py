@@ -53,10 +53,9 @@ class VTKWriter(BaseAsyncWriter):
         - Example: ``(B1, B2, N, dim)`` → flatten to ``(B1*B2, N, dim)`` and treat as above.
 
     - ``trajectory=True``
-        The writer swaps the axis given by ``trajectory_axis`` **to the front
-        (axis 0)** and treats it as **time** ``T``. Any remaining leading axes
-        are batch axes. If more than one non-time leading axis exists, the
-        writer flattens them into a single batch axis. The data becomes
+        The writer treats ``trajectory_axis`` as **time** ``T`` and the other
+        leading axes as batch axes, preserving their original order. Multiple
+        batch axes are flattened in row-major order. The logical layout is
         ``(T, B, N, dim)`` with ``B = prod(other leading axes)``.
 
         - If there is only time (``L == 1``): ``(T, N, dim)`` — a single batch
@@ -66,14 +65,16 @@ class VTKWriter(BaseAsyncWriter):
             batch ``b`` gets its own directory ``frames/batch_XXXXXXXX/`` containing
             a time series (``T`` frames) for that batch.
 
-    After these swaps/reshapes, dispatch is:
+    Equivalent logical layouts are:
     - ``(N, dim)`` → single snapshot
     - ``(B, N, dim)`` → batches (no time)
     - ``(T, N, dim)`` → single batch with a trajectory
     - ``(T, B, N, dim)`` → per-batch trajectories
 
-    Concrete writers receive per-frame NumPy arrays. The writer slices and
-    broadcasts :class:`System` leaves to match the current frame and batch.
+    Concrete writers receive per-frame NumPy arrays. A single :class:`System`
+    can be shared across batch snapshots; otherwise its leading axes must match
+    the State. Trajectories require matching System axes to supply each frame's
+    time and step count. Mixed per-leaf System layouts are not inferred.
     """
 
     writers: list[str] = field(default_factory=list)
@@ -140,9 +141,9 @@ class VTKWriter(BaseAsyncWriter):
         """
         Schedule writing of a :class:`jaxdem.State` / :class:`jaxdem.System` pair to VTK files.
 
-        This public entry point interprets the leading axes as batch or
-        trajectory axes, swaps and flattens axes as needed, and pushes the
-        data to the background writer queue.
+        This public entry point interprets leading batch or trajectory axes,
+        wraps each configuration with its domain, and queues the frames for
+        background output.
 
         Parameters
         ----------
@@ -153,14 +154,28 @@ class VTKWriter(BaseAsyncWriter):
         trajectory : bool, optional
             If ``True``, interpret ``trajectory_axis`` as time.
         trajectory_axis : int, optional
-            The axis in `state`/`system` to treat as the trajectory axis.
+            The leading axis in `state`/`system` to treat as time. Negative
+            indices count from the last leading axis, before ``(N, dim)``.
         batch0 : int, optional
             The starting batch index for the input data.
         """
         if not self._should_save():
             return
 
-        state, system = system.domain.shift(state, system)
+        leading = state.pos_c.shape[:-2]
+        shared = system.dt.ndim == 0
+        if (not shared and system.dt.shape != leading) or (trajectory and shared):
+            raise ValueError(
+                "VTK output requires matching State and System leading axes; batch snapshots may share one System."
+            )
+        shift = system.domain.shift
+        for _ in leading:
+            shift = jax.vmap(
+                shift,
+                in_axes=(0, None if shared else 0),
+                out_axes=(0, None if shared else 0),
+            )
+        state, system = shift(state, system)
 
         # Kick off non-blocking device->host transfers; the blocking
         # `jax.device_get` happens later inside a background worker thread.
@@ -190,54 +205,34 @@ class VTKWriter(BaseAsyncWriter):
         state_cpu = jax.device_get(state)
         system_cpu = jax.device_get(system)
 
-        Ndim = state_cpu.pos_c.ndim
+        leading = state_cpu.pos_c.shape[:-2]
+        shared = system_cpu.dt.ndim == 0
         if trajectory:
-            state_cpu = jax.tree.map(
-                lambda x: np.swapaxes(x, trajectory_axis, 0), state_cpu
-            )
-            system_cpu = jax.tree.map(
-                lambda x: np.swapaxes(x, trajectory_axis, 0), system_cpu
-            )
+            if not leading or not -len(leading) <= trajectory_axis < len(leading):
+                raise ValueError("trajectory_axis must select a leading State axis.")
+            axis = trajectory_axis % len(leading)
+            batch_shape = leading[:axis] + leading[axis + 1 :]
+        else:
+            batch_shape = leading
 
-        if Ndim >= 4:
-            L = Ndim - 2
-
-            def reshape_fn(x: Any) -> Any:
-                if not hasattr(x, "reshape"):
-                    return x
-                new_shape = (
-                    (x.shape[0], np.prod(x.shape[1:L]), *x.shape[L:])
-                    if trajectory
-                    else (np.prod(x.shape[:L]), *x.shape[L:])
-                )
-                return x.reshape(new_shape)
-
-            state_cpu = jax.tree.map(reshape_fn, state_cpu)
-            system_cpu = jax.tree.map(reshape_fn, system_cpu)
-
-        Ndim = state_cpu.pos_c.ndim
         dirty_pvds: set[tuple[str, str]] = set()
-
-        if Ndim == 2:
-            self._process_frame(state_cpu, system_cpu, batch0, dirty_pvds)
-        elif Ndim == 3:
-            if trajectory:
-                for i in range(state_cpu.pos_c.shape[0]):
-                    st = jax.tree.map(lambda x: x[i], state_cpu)
-                    sys = jax.tree.map(lambda x: x[i], system_cpu)
-                    self._process_frame(st, sys, batch0, dirty_pvds)
-            else:
-                for j in range(state_cpu.pos_c.shape[0]):
-                    st = jax.tree.map(lambda x: x[j], state_cpu)
-                    sys = jax.tree.map(lambda x: x[j], system_cpu)
-                    self._process_frame(st, sys, batch0 + j, dirty_pvds)
-        elif Ndim == 4:
-            T, B = state_cpu.pos_c.shape[:2]
-            for j in range(B):
-                for i in range(T):
-                    st = jax.tree.map(lambda x: x[i, j], state_cpu)
-                    sys = jax.tree.map(lambda x: x[i, j], system_cpu)
-                    self._process_frame(st, sys, batch0 + j, dirty_pvds)
+        for batch, batch_index in enumerate(np.ndindex(batch_shape)):
+            for frame in range(leading[axis] if trajectory else 1):
+                index = list(batch_index)
+                if trajectory:
+                    index.insert(axis, frame)
+                frame_index = tuple(index)
+                st = (
+                    state_cpu
+                    if not frame_index
+                    else jax.tree.map(lambda x: x[frame_index], state_cpu)
+                )
+                sys = (
+                    system_cpu
+                    if shared
+                    else jax.tree.map(lambda x: x[frame_index], system_cpu)
+                )
+                self._process_frame(st, sys, batch0 + batch, dirty_pvds)
 
         # Update pvd files based on the manifest
         for batch_str, name in dirty_pvds:
