@@ -7,7 +7,6 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass, replace
 from enum import IntEnum
-from functools import partial
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 import jax
@@ -140,12 +139,13 @@ def convergence_info(
     iteration counts and spatial search overflow are handled by :func:`minimize`.
     Use ``jax.vmap`` to evaluate independent systems.
     """
-    force_max = jnp.max(
-        jnp.linalg.norm(jnp.where(fixed[..., None], 0.0, force), axis=-1), initial=0.0
-    )
-    torque_max = jnp.max(
-        jnp.linalg.norm(jnp.where(fixed[..., None], 0.0, torque), axis=-1), initial=0.0
-    )
+
+    def maximum_norm(value: jax.Array) -> jax.Array:
+        free = jnp.where(fixed[..., None], 0.0, value)
+        return jnp.sqrt(jnp.max(jnp.sum(free * free, axis=-1), initial=0.0))
+
+    force_max = maximum_norm(force)
+    torque_max = maximum_norm(torque)
     finite = jnp.isfinite(force_max) & jnp.isfinite(torque_max)
     converged = finite & (force_max <= force_tol) & (torque_max <= torque_tol)
     return MinimizeInfo(
@@ -225,28 +225,33 @@ def _evaluate_energy(state: State, system: System) -> tuple[State, System, jax.A
 
 
 def _conservative_manager_forces(state: State, system: System) -> tuple[State, System]:
-    """Add managed forces without one-shot loads, restoring the manager afterwards."""
+    """Add rate-independent managed forces without consuming buffered loads."""
+    moving_state = state
+    state = replace(
+        state, vel=jnp.zeros_like(state.vel), ang_vel=jnp.zeros_like(state.ang_vel)
+    )
     force_manager = system.force_manager
+    domain = system.domain
     empty_manager = replace(
         force_manager,
         external_force=jnp.zeros_like(force_manager.external_force),
         external_force_com=jnp.zeros_like(force_manager.external_force_com),
         external_torque=jnp.zeros_like(force_manager.external_torque),
     )
-    system = replace(system, force_manager=empty_manager)
+    system = replace(
+        system,
+        force_manager=empty_manager,
+        domain=domain.rates_between(domain, jnp.ones_like(system.dt)),
+    )
     state, system = system.force_manager.apply(state, system)
-    return state, replace(system, force_manager=force_manager)
+    state = replace(state, vel=moving_state.vel, ang_vel=moving_state.ang_vel)
+    return state, replace(system, force_manager=force_manager, domain=domain)
 
 
 def _evaluate_readonly_forces(state: State, system: System) -> tuple[State, System]:
     """Evaluate rate-independent forces without touching history or loads."""
-    conservative_state = replace(
-        state,
-        vel=jnp.zeros_like(state.vel),
-        ang_vel=jnp.zeros_like(state.ang_vel),
-    )
     conservative_state, eval_system = system.collider.compute_force(
-        conservative_state, system, advance_history=False, quasistatic=True
+        state, system, advance_history=False, quasistatic=True
     )
     conservative_state, eval_system = _conservative_manager_forces(
         conservative_state, eval_system
@@ -268,10 +273,16 @@ def _advance_history_forces(
     """Advance pair history from anchor to trial and keep that traversal's forces."""
     from ..colliders import advance_history
 
-    evaluated_state, evaluated = advance_history(anchor_state, system, trial_state, system)
-    evaluated_state, evaluated = _conservative_manager_forces(evaluated_state, evaluated)
+    evaluated_state, evaluated = advance_history(
+        anchor_state, system, trial_state, system
+    )
+    evaluated_state, evaluated = _conservative_manager_forces(
+        evaluated_state, evaluated
+    )
     return (
-        replace(trial_state, force=evaluated_state.force, torque=evaluated_state.torque),
+        replace(
+            trial_state, force=evaluated_state.force, torque=evaluated_state.torque
+        ),
         evaluated,
     )
 
@@ -342,7 +353,7 @@ def _delta_params_to_state(
     return replace(state, pos_c=topology.gather_members(pos_c), q=member_q)
 
 
-@partial(jax.custom_vjp)
+@jax.custom_vjp
 def _objective_energy(
     trial_params: dict[str, jax.Array],
     state: State,
@@ -469,8 +480,9 @@ def minimize(
     convergence. Step exhaustion, nonfinite evaluations, and spatial search
     overflow terminate the minimization unsuccessfully.
 
-    For the physical objective, FIRE and damped Newtonian evaluate residual
-    forces initially and after each update, and energy once at exit.
+    For the physical objective, gradient-only optimizers
+    (``requires_value=False``, including FIRE and damped Newtonian) evaluate
+    residual forces initially and after each update, and energy once at exit.
     Line-search optimizers and custom targets evaluate the objective during
     optimization.
 
@@ -478,7 +490,7 @@ def minimize(
     increments are anchored to the current orientation after each update.
     Forces are always evaluated rate-independently: dashpots and other
     velocity terms are off, so relaxation does not depend on ``dt``. For a
-    force model with pair history, FIRE and damped Newtonian advance that
+    force model with pair history, gradient-only optimizers advance that
     history once per accepted coordinate update, from the anchor to the
     trial configuration, and use the forces of that same traversal as the
     convergence residuals. The initial evaluation and line-search optimizers
@@ -486,20 +498,16 @@ def minimize(
     """
     import optax  # type: ignore[import-untyped]
 
-    from .optimizers import CustomGradientTransformation, damped_newtonian, fire
-
     if system.minimizer is None:
         raise ValueError(
             "No minimizer configured in System. Please configure `minimizer` in System.create."
         )
-    force_only = (
-        system.target_fn is None
-        and isinstance(system.minimizer, CustomGradientTransformation)
-        and system.minimizer._constructor in (fire, damped_newtonian)
+    force_only = system.target_fn is None and not getattr(
+        system.minimizer, "requires_value", True
     )
-    history_relaxation = force_only and system.force_model.history_shape(
-        state.dim
-    ) != (0,)
+    history_relaxation = force_only and system.force_model.history_shape(state.dim) != (
+        0,
+    )
     if system.target_fn is None:
         if (
             not system.force_model.supports_analytical_energy_gradient
@@ -508,7 +516,7 @@ def minimize(
             raise ValueError(
                 "Default minimization requires a force model with an analytical "
                 "energy gradient, or a force model with pair history relaxed by "
-                "FIRE or damped Newtonian; provide target_fn or configure a "
+                "a gradient-only optimizer; provide target_fn or configure a "
                 "compatible force model."
             )
         if any(
@@ -592,18 +600,18 @@ def minimize(
         system,
         0,
         pe,
-        _state_to_delta_params(state, topology),
         opt_state,
         grads,
     )
 
     def condition(c: tuple[Any, ...]) -> jax.Array:
-        _, evaluated, steps, pe, _, _, grads = c
+        _, evaluated, steps, pe, _, grads = c
         info = diagnostics(grads, pe, evaluated)
         return (steps < max_steps) & (info.status == MAX_STEPS)
 
     def step(c: tuple[Any, ...]) -> tuple[Any, ...]:
-        current, evaluated, steps, pe, params, opt_state, grads = c
+        current, evaluated, steps, pe, opt_state, grads = c
+        params = _state_to_delta_params(current, topology)
         free_grads = jax.tree.map(lambda x: jnp.where(mask, x, 0.0), grads)
         if force_only:
             updates, opt_state = evaluated.minimizer.update(
@@ -621,9 +629,6 @@ def minimize(
             )
         updates = jax.tree.map(lambda x: jnp.where(mask, x, 0.0), updates)
         next_params = optax.apply_updates(params, updates)
-        next_params = jax.tree.map(
-            lambda n, p: jnp.where(mask, n, p), next_params, params
-        )
         pe, grads, current, evaluated = eval_step(
             current, evaluated, next_params, advance=True
         )
@@ -632,12 +637,11 @@ def minimize(
             evaluated,
             steps + 1,
             pe,
-            _state_to_delta_params(current, topology),
             opt_state,
             grads,
         )
 
-    state, system, steps, pe, _, _, grads = jax.lax.while_loop(condition, step, carry)
+    state, system, steps, pe, _, grads = jax.lax.while_loop(condition, step, carry)
     if force_only:
         state, system, pe = _evaluate_energy(state, system)
     elif system.target_fn is not None:
