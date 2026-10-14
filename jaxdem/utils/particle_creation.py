@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Any, Callable, Literal, Sequence
+from typing import Any, Literal, Sequence
 
 import jax
 import jax.numpy as jnp
@@ -1438,28 +1438,22 @@ def _resolve_material_table(
     return jd.MaterialTable.from_materials([material], matcher=matcher)
 
 
-def _make_collider_kw_resolver(
-    collider_type: str, collider_kw: dict[str, Any] | None
-) -> Callable[[State], dict[str, Any]]:
-    """Build the per-state collider-kw resolver shared by the system builders."""
-    user_collider_kw = dict(collider_kw) if collider_kw is not None else None
-    collider_key = _normalize_key(collider_type)
-
-    def _resolve(current_state: State) -> dict[str, Any]:
-        if user_collider_kw is None:
-            if collider_key == "neighborlist":
-                return dict(
-                    cutoff=float(2.0 * jnp.max(current_state.rad)),
-                    skin_fraction=0.05,
-                    safety_factor=5.0,
-                )
-            return {}
-        kw = dict(user_collider_kw)
-        if "state" in kw:
-            kw["state"] = current_state  # refresh an explicit reference
-        return kw
-
-    return _resolve
+def _builder_collider_options(
+    state: State, collider_type: str, collider_kw: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Apply preparation defaults and refresh an explicit state reference."""
+    if collider_kw is None:
+        if _normalize_key(collider_type) == "neighborlist":
+            return dict(
+                cutoff=float(2.0 * jnp.max(state.rad)),
+                skin_fraction=0.05,
+                safety_factor=5.0,
+            )
+        return {}
+    kw = dict(collider_kw)
+    if "state" in kw:
+        kw["state"] = state
+    return kw
 
 
 def build_ga_system(
@@ -1733,8 +1727,6 @@ def build_ga_system(
         e_int=e_int,
     )
 
-    _resolve_collider_kw = _make_collider_kw_resolver(collider_type, collider_kw)
-
     # Build a FIRE system for quasistatic compression. It mirrors the
     # returned system's collider / domain / bonded-force setup so that the
     # PE landscape FIRE sees is the same one the user will simulate on.
@@ -1750,7 +1742,7 @@ def build_ga_system(
         domain_type=domain_type,
         force_model_type="spring",
         collider_type=collider_type,
-        collider_kw=_resolve_collider_kw(state),
+        collider_kw=_builder_collider_options(state, collider_type, collider_kw),
         mat_table=mat_table,
         domain_kw={"box_size": box_size},
     )
@@ -1786,7 +1778,7 @@ def build_ga_system(
         domain_type=domain_type,
         force_model_type=force_model_type,
         collider_type=collider_type,
-        collider_kw=_resolve_collider_kw(state),
+        collider_kw=_builder_collider_options(state, collider_type, collider_kw),
         mat_table=mat_table,
         domain_kw={"box_size": final_box_size},
         minimizer=minimizer,
@@ -1899,8 +1891,6 @@ def build_sphere_system(
         e_int=e_int,
     )
 
-    _resolve_collider_kw = _make_collider_kw_resolver(collider_type, collider_kw)
-
     # FIRE system for compression.
     fire_system = jd.System.create(
         state=state,
@@ -1910,7 +1900,7 @@ def build_sphere_system(
         domain_type=domain_type,
         force_model_type="spring",
         collider_type=collider_type,
-        collider_kw=_resolve_collider_kw(state),
+        collider_kw=_builder_collider_options(state, collider_type, collider_kw),
         mat_table=mat_table,
         domain_kw={"box_size": box_size_init},
     )
@@ -1941,7 +1931,7 @@ def build_sphere_system(
         domain_type=domain_type,
         force_model_type=force_model_type,
         collider_type=collider_type,
-        collider_kw=_resolve_collider_kw(state),
+        collider_kw=_builder_collider_options(state, collider_type, collider_kw),
         mat_table=mat_table,
         domain_kw={"box_size": final_box_size},
         minimizer=minimizer,
