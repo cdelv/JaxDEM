@@ -97,6 +97,7 @@ class VTKWriter(BaseAsyncWriter):
     )
 
     def __post_init__(self) -> None:
+        """Validate writer names before cleaning output or starting workers."""
         from importlib import import_module
 
         try:
@@ -107,12 +108,6 @@ class VTKWriter(BaseAsyncWriter):
                     "VTK output requires pip install 'JaxDEM[io]'."
                 ) from exc
             raise
-        """
-        Validate configuration and resolve writer classes from the registry.
-        """
-        BaseAsyncWriter.__post_init__(self)
-        self._lock = threading.Lock()
-        self._manifest = {}
         from . import VTKBaseWriter
 
         if not self.writers:
@@ -128,6 +123,10 @@ class VTKWriter(BaseAsyncWriter):
                 f"Unknown VTKBaseWriter name(s) {unknown}. "
                 f"Available: {list(VTKBaseWriter._registry)}"
             )
+
+        BaseAsyncWriter.__post_init__(self)
+        self._lock = threading.Lock()
+        self._manifest = {}
 
     def save(
         self,
