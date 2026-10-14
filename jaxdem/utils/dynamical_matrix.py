@@ -16,7 +16,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ._pair_candidates import _collect_pair_candidates
+from ._pair_candidates import _analysis_search_radii, _collect_pair_candidates
 
 if TYPE_CHECKING:
     from ..state import State
@@ -50,8 +50,8 @@ def _hessian_pairs(
     )
     histories[inverse, reverse] = directed_history
     pairs = jnp.asarray(pairs_np)
-    if len(pairs_np):
-        radii = system.force_model.search_radii(state, system)
+    radii = _analysis_search_radii(state, system) if len(pairs_np) else None
+    if radii is not None:
         i, j = pairs.T
         dr = system.domain.displacement(state.pos[i], state.pos[j], system)
         within_reach = np.asarray(

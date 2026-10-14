@@ -22,6 +22,18 @@ def _validate_state(state: State) -> None:
         raise ValueError("Pair analysis requires one 2D or 3D configuration.")
 
 
+def _analysis_search_radii(state: State, system: System) -> jax.Array | None:
+    """Finite reach when available; naive pair traversal also supports no bound."""
+    from ..colliders.naive import NaiveSimulator
+
+    try:
+        return system.force_model.search_radii(state, system)
+    except NotImplementedError:
+        if isinstance(system.collider, NaiveSimulator):
+            return None
+        raise
+
+
 def _check_search(system: System) -> None:
     overflow = system.collider.overflow
     if not isinstance(overflow, jax.core.Tracer) and bool(overflow):
@@ -52,7 +64,8 @@ def _prepare_system(state: State, system: System) -> System:
             f"Pair traversal is unavailable for {type(collider).__name__}."
         )
     if state.N:
-        reach = jnp.max(system.force_model.search_radii(state, system), initial=0.0)
+        radii = _analysis_search_radii(state, system)
+        reach = jnp.max(state._rad if radii is None else radii, initial=0.0)
         system = system.domain.update_bounds(state.pos, system, padding=reach)
     if isinstance(collider, NeighborList):
         from ..colliders._neighbor_cache import check_and_rebuild
@@ -135,8 +148,11 @@ def _collect_pair_candidates(
         system, pairs, valid, history = _cached_pairs(state, system)
     else:
         system = _prepare_system(state, system)
-        cutoff = 2 * jnp.max(
-            system.force_model.search_radii(state, system), initial=0.0
+        radii = _analysis_search_radii(state, system)
+        cutoff = (
+            jnp.asarray(jnp.inf, dtype=state.pos_c.dtype)
+            if radii is None
+            else 2 * jnp.max(radii, initial=0.0)
         )
         counts, overflow = count_pairs(state, system, cutoff)
         system = _record_overflow(system, overflow)
