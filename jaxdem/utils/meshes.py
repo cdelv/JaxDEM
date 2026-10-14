@@ -645,6 +645,7 @@ def generate_torus_mesh(
     half-thickness). ``tube_ratio`` sets ``r`` directly under the "longest
     axis has extent 1" convention: ``r = tube_ratio`` and ``R = 1 - tube_ratio``.
     The torus then fits in ``x, y ∈ [-1, 1]`` and ``z ∈ [-r, r]``.
+    Require ``0 < tube_ratio < 0.5`` so ``R > r`` and the hole stays open.
 
     The function places points by stratified angular sampling around the
     major axis (``theta``, evenly spaced) paired with a golden-ratio
@@ -659,8 +660,10 @@ def generate_torus_mesh(
     """
     if dim != 3:
         raise ValueError(f"torus mesh is 3D only; got dim={dim}.")
-    if not (0.0 < tube_ratio < 1.0):
-        raise ValueError(f"tube_ratio must be in (0, 1); got {tube_ratio}.")
+    if not (0.0 < tube_ratio < 0.5):
+        raise ValueError(
+            f"tube_ratio must be in (0, 0.5) for a ring torus; got {tube_ratio}."
+        )
     if nv < 1:
         raise ValueError(f"nv must be >= 1; got nv={nv}.")
 
