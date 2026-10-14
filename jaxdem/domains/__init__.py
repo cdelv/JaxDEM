@@ -255,10 +255,10 @@ class Domain(Factory, ABC):
     ) -> tuple[State, System]:
         """Rescale the box to ``box_size`` and move bodies affinely about the anchor.
 
-        Each body (a clump, or the group given by ``group_id``) is translated
-        so that its center of mass follows the affine map; body size and
-        orientation are unchanged. Pair history is advanced once for the
-        resulting relative motion without time passing, so velocities,
+        Clumps translate with their stored centers of mass, keeping member
+        offsets and orientations fixed. Explicit groups translate together
+        using the mean of their ``pos_c`` values. Pair history is advanced once
+        for the resulting relative motion without time passing, so velocities,
         ``dt``, and rate-dependent forces play no part. Caches rebuild when
         the geometry change exhausts their skin.
 
@@ -279,23 +279,28 @@ class Domain(Factory, ABC):
         box_size : jax.Array
             New box lengths, shape ``(dim,)``.
         group_id : jax.Array, optional
-            Per-particle body labels, shape ``(N,)``. Defaults to
-            ``state.clump_id``. Deformable particles pass their bond-graph
-            component labels so each body moves as a unit.
+            Optional per-particle group labels, shape ``(N,)``. Each group
+            translates using its mean ``pos_c``. Without labels, stored centers
+            move directly. Passing bond-graph component labels preserves a
+            deformable body's shape during the resize.
         """
         from ..colliders import advance_history
 
         domain = system.domain
         new_box = jnp.asarray(box_size, dtype=domain.box_size.dtype)
         scale = new_box / domain.box_size
-        group = state.clump_id if group_id is None else group_id
-        total = jax.ops.segment_sum(state.pos_c, group, num_segments=state.N)
-        counts = jax.ops.segment_sum(
-            jnp.ones((state.N,), dtype=state.pos_c.dtype), group, num_segments=state.N
-        )
-        com = total / jnp.maximum(counts[:, None], 1.0)
-        offset = (com - domain.anchor) * (scale - 1.0)
-        new_state = replace(state, pos_c=state.pos_c + offset[group])
+        if group_id is None:
+            offset = (state.pos_c - domain.anchor) * (scale - 1.0)
+        else:
+            total = jax.ops.segment_sum(state.pos_c, group_id, num_segments=state.N)
+            counts = jax.ops.segment_sum(
+                jnp.ones((state.N,), dtype=state.pos_c.dtype),
+                group_id,
+                num_segments=state.N,
+            )
+            com = total / jnp.maximum(counts[:, None], 1.0)
+            offset = ((com - domain.anchor) * (scale - 1.0))[group_id]
+        new_state = replace(state, pos_c=state.pos_c + offset)
         new_system = replace(
             system, domain=replace(domain, box_size=new_box, inv_box_size=1.0 / new_box)
         )
