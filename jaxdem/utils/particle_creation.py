@@ -1381,17 +1381,14 @@ def _make_collider_kw_resolver(
         if user_collider_kw is None:
             if collider_key == "neighborlist":
                 return dict(
-                    state=current_state,
                     cutoff=float(2.0 * jnp.max(current_state.rad)),
                     skin_fraction=0.05,
                     safety_factor=5.0,
                 )
-            if collider_key == "celllist":
-                return dict(state=current_state)
             return {}
         kw = dict(user_collider_kw)
-        if "state" in kw or collider_key in ("neighborlist", "celllist"):
-            kw["state"] = current_state  # refresh reference
+        if "state" in kw:
+            kw["state"] = current_state  # refresh an explicit reference
         return kw
 
     return _resolve
@@ -1678,7 +1675,7 @@ def build_ga_system(
     # translation-only at the rigid level; DP internal relaxation comes
     # from the bonded-force model).
     fire_kw: dict[str, Any] = dict(
-        state_shape=state.shape,
+        state=state,
         dt=float(fire_dt),
         minimizer=jd.minimizers.fire,
         minimizer_kw={"dt": float(fire_dt)},
@@ -1712,7 +1709,7 @@ def build_ga_system(
     # Build the final system with the user's integrator / collider.
     final_box_size = fire_system.domain.box_size
     final_kw: dict[str, Any] = dict(
-        state_shape=state.shape,
+        state=state,
         dt=float(dt),
         linear_integrator_type=linear_integrator_type,
         rotation_integrator_type=rotation_integrator_type,
@@ -1838,7 +1835,7 @@ def build_sphere_system(
 
     # FIRE system for compression.
     fire_system = jd.System.create(
-        state_shape=state.shape,
+        state=state,
         dt=float(fire_dt),
         minimizer=jd.minimizers.fire,
         minimizer_kw={"dt": float(fire_dt)},
@@ -1867,7 +1864,7 @@ def build_sphere_system(
 
     final_box_size = fire_system.domain.box_size
     final_system = jd.System.create(
-        state_shape=state.shape,
+        state=state,
         dt=float(dt),
         linear_integrator_type=linear_integrator_type,
         rotation_integrator_type=rotation_integrator_type,
