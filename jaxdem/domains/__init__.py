@@ -69,9 +69,26 @@ class Domain(Factory, ABC):
         """Return fixed-shape geometry data used to validate search caches."""
         return jnp.zeros((self.box_size.shape[0] + 3,), dtype=self.box_size.dtype)
 
-    def shear_search_parameters(self) -> tuple[jax.Array, int, int] | None:
-        """Return ``(gamma, alpha, beta)`` for shear-periodic hashing."""
-        return None
+    def search_geometry_drift(
+        self, previous: jax.Array, old_pos: jax.Array
+    ) -> jax.Array:
+        """Bound image motion since the geometry snapshot of the last cache build."""
+        return jnp.asarray(0.0, dtype=self.box_size.dtype)
+
+    def neighbor_cells(
+        self,
+        coords: jax.Array,
+        image: jax.Array,
+        grid_dims: jax.Array,
+        cell_size: jax.Array,
+    ) -> jax.Array:
+        """Adjust wrapped stencil cells for the domain's periodic image rule.
+
+        ``coords`` and signed ``image`` counts have shape ``(N, stencil, dim)``.
+        The base rule keeps the orthogonal stencil; shear-periodic domains may
+        expand it to cover fractional image offsets.
+        """
+        return coords
 
     def rates_between(self, old: Domain, dt: jax.Array) -> Domain:
         """Return this domain with image rates for the change from ``old`` over ``dt``.

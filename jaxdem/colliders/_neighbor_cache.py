@@ -311,10 +311,8 @@ def check_and_rebuild(state: Any, system: Any) -> Any:
     Particle motion since the last build and any change of the periodic
     geometry since the last build are both charged against the skin: a pair
     separation can change by at most twice the largest displacement, plus
-    ``|dgamma| * L_beta`` for a strain change and ``max |dL|`` for a box
-    change (the image offset of a pair across the boundary moves by the full
-    box change, whether or not the particles were moved with it). Changes to
-    the search axes, the required reach, or the skin itself always rebuild.
+    the domain's bound on image motion. Changes to the search axes, the
+    required reach, or the skin itself always rebuild.
     """
     col, pos = system.collider, state.pos
     dim = state.dim
@@ -326,19 +324,16 @@ def check_and_rebuild(state: Any, system: Any) -> Any:
     search_radii = system.force_model.search_radii(state, system)
     cutoff = jnp.maximum(col.cutoff, 2 * jnp.max(search_radii, initial=0.0))
 
-    box = metric[:dim]
-    box_drift = jnp.max(jnp.abs(box - col.metric_snapshot[:dim]), initial=0.0)
-    beta = metric[dim + 2].astype(int)
-    shear_drift = jnp.abs(metric[dim] - col.metric_snapshot[dim]) * box[beta]
     displacement = 2.0 * jnp.sqrt(jnp.max(norm2(pos - col.old_pos), initial=0.0))
     rebuild = (
-        (displacement + box_drift + shear_drift > col.skin)
+        (displacement > col.skin)
         | (col.n_build_times == 0)
         | col.invalidated
         | jnp.any(metric[dim + 1 :] != col.metric_snapshot[dim + 1 :])
         | (cutoff != col.physical_cutoff_snapshot)
         | (col.skin != col.skin_snapshot)
     )
+    geometry_changed = jnp.any(metric != col.metric_snapshot)
 
     def build(_: Any) -> Any:
         nl, offsets, overflow = build_pairs(
@@ -377,7 +372,17 @@ def check_and_rebuild(state: Any, system: Any) -> Any:
             invalidated=jnp.asarray(False),
         )
 
-    return replace(system, collider=jax.lax.cond(rebuild, build, lambda _: col, None))
+    def check_geometry(_: Any) -> Any:
+        drift = system.domain.search_geometry_drift(col.metric_snapshot, col.old_pos)
+        return jax.lax.cond(displacement + drift > col.skin, build, lambda _: col, None)
+
+    def update(_: Any) -> Any:
+        return jax.lax.cond(rebuild, build, check_geometry, None)
+
+    return replace(
+        system,
+        collider=jax.lax.cond(rebuild | geometry_changed, update, lambda _: col, None),
+    )
 
 
 @jax.jit

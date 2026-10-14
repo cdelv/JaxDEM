@@ -105,45 +105,9 @@ def _get_spatial_partition(
     if system.domain.periodic:
         neighbor_cell_coords, periodic_image = wrapped_offset_coords()
 
-        # A gradient-boundary image in Lees-Edwards shifts the queried image
-        # along the flow direction. Two adjacent alpha cells cover fractional
-        # shifts conservatively; duplicate cells are removed during traversal.
-        shear = system.domain.shear_search_parameters()
-        if shear is not None:
-            gamma, alpha, beta = shear
-            beta_image = periodic_image[..., beta]
-            alpha_shift = (
-                -beta_image.astype(cell_size.dtype)
-                * gamma
-                * system.domain.box_size[beta]
-                / cell_size[alpha]
-            )
-            lo = jnp.floor(alpha_shift).astype(offsets.dtype)
-            hi = jnp.ceil(alpha_shift).astype(offsets.dtype)
-            alpha_offsets = jnp.stack((lo, hi), axis=-1).reshape(
-                lo.shape[0], 2 * lo.shape[1]
-            )
-            expanded = jnp.repeat(neighbor_cell_coords, 2, axis=1)
-            alpha_base = expanded[..., alpha]
-            alpha_nonnegative = alpha_offsets >= 0
-            alpha_mag = jnp.where(
-                alpha_nonnegative, alpha_offsets, -alpha_offsets
-            ).astype(hash_dtype)
-            alpha_dim = grid_dims[alpha]
-            alpha_rem = alpha_mag % alpha_dim
-            alpha_pos = jnp.where(
-                (alpha_rem == 0) | (alpha_base < alpha_dim - alpha_rem),
-                alpha_base + alpha_rem,
-                alpha_base - (alpha_dim - alpha_rem),
-            )
-            alpha_neg = jnp.where(
-                alpha_rem > alpha_base,
-                alpha_dim - (alpha_rem - alpha_base),
-                alpha_base - alpha_rem,
-            )
-            neighbor_cell_coords = expanded.at[..., alpha].set(
-                jnp.where(alpha_nonnegative, alpha_pos, alpha_neg)
-            )
+        neighbor_cell_coords = system.domain.neighbor_cells(
+            neighbor_cell_coords, periodic_image, grid_dims, cell_size
+        )
         neighbor_cell_hashes = jnp.dot(
             neighbor_cell_coords.astype(hash_dtype), grid_strides
         )

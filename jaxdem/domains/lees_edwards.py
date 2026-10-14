@@ -4,14 +4,15 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field, replace
+from functools import partial
+from typing import TYPE_CHECKING, Any, cast
+
 import jax
 import jax.numpy as jnp
 
-from functools import partial
-from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING, Any, cast
-
 from . import Domain, SearchGeometry
+from .periodic import PeriodicDomain, _image_span
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -21,8 +22,8 @@ if TYPE_CHECKING:  # pragma: no cover
 @Domain.register("leesedwards")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
-class LeesEdwardsDomain(Domain):
-    """A `Domain` implementation that enforces Lees-Edwards boundary conditions.
+class LeesEdwardsDomain(PeriodicDomain):
+    r"""A `Domain` implementation that enforces Lees-Edwards boundary conditions.
 
     The domain is periodic in all directions. Across the shear-gradient axis
     ``beta``, the current shear strain ``gamma`` offsets the periodic images
@@ -50,6 +51,30 @@ class LeesEdwardsDomain(Domain):
     protocols can then minimize the returned state at fixed strain. Box
     rescaling goes through :meth:`Domain.resize`; ``box_rate`` is the box
     length rate for continuous protocols and is zero otherwise.
+
+    ``box_rate`` is inherited from :class:`PeriodicDomain`. Periodic images
+    move at ``image * box_rate`` when the box changes, and the shear offset
+    ``gamma * L_beta`` of an image across the gradient boundary moves with
+    ``L_beta`` as well. :meth:`relative_velocity` subtracts both so a pair
+    interacting across a boundary sees only its true relative motion.
+    See :attr:`PeriodicDomain.box_rate`.
+
+    For fixed integer image counts :math:`\mathbf n`, the image position and
+    velocity are
+
+    .. math::
+
+        \mathbf r_{j,\mathrm{image}}
+        &= \mathbf r_j + \mathbf n \odot \mathbf L
+           + n_\beta \gamma L_\beta \mathbf e_\alpha, \\
+        \mathbf v_{\mathrm{image}}
+        &= \mathbf n \odot \dot{\mathbf L}
+           + n_\beta (\dot\gamma L_\beta + \gamma\dot L_\beta)
+             \mathbf e_\alpha.
+
+    Here :math:`\mathbf v_{\mathrm{image}}` is the velocity offset relative to
+    particle ``j``, so the contact relative velocity is
+    :math:`\mathbf v_i - \mathbf v_j - \mathbf v_{\mathrm{image}}`.
     """
 
     search_geometry = SearchGeometry.SHEAR_PERIODIC
@@ -57,6 +82,19 @@ class LeesEdwardsDomain(Domain):
     @staticmethod
     @jax.jit(inline=True)
     def _shift(pos: jax.Array, system: System) -> jax.Array:
+        r"""Wrap coordinates after removing their shear-image offset.
+
+        The inherited :meth:`PeriodicDomain.shift` calls this shear-specific
+        rule on body centers, preserving each clump's internal geometry.
+
+        .. math::
+
+            n_\beta &= \left\lfloor(r_\beta-a_\beta)/L_\beta\right\rfloor, \\
+            \widetilde{\mathbf r}
+            &= \mathbf r - n_\beta\gamma L_\beta\mathbf e_\alpha, \\
+            \mathbf r' &= \mathbf a +
+                \operatorname{mod}(\widetilde{\mathbf r}-\mathbf a,\mathbf L).
+        """
         domain = cast("LeesEdwardsDomain", system.domain)
         beta_image = jnp.floor(
             (pos[..., domain.beta] - domain.anchor[domain.beta])
@@ -87,16 +125,6 @@ class LeesEdwardsDomain(Domain):
     """Current shear rate, used for image velocities. Keep it consistent with
     the externally imposed derivative of ``gamma``; it does not advance strain."""
 
-    box_rate: jax.Array = field(default_factory=lambda: jnp.zeros((0,), dtype=float))
-    """Time derivative of ``box_size``, shape ``(dim,)``.
-
-    Periodic images move at ``image * box_rate`` when the box changes, and
-    the shear offset ``gamma * L_beta`` of an image across the gradient
-    boundary moves with ``L_beta`` as well. :meth:`relative_velocity`
-    subtracts both so a pair interacting across a boundary sees only its
-    true relative motion. See :attr:`PeriodicDomain.box_rate`.
-    """
-
     def rates_between(self, old: Domain, dt: jax.Array) -> Domain:
         """Set ``gamma_dot`` and ``box_rate`` from the geometry change since ``old``."""
         le_old = cast("LeesEdwardsDomain", old)
@@ -116,9 +144,59 @@ class LeesEdwardsDomain(Domain):
             )
         )
 
-    def shear_search_parameters(self) -> tuple[jax.Array, int, int]:
-        """Return the shear strain and canonical flow/gradient axes."""
-        return self.gamma, self.alpha, self.beta
+    def search_geometry_drift(
+        self, previous: jax.Array, old_pos: jax.Array
+    ) -> jax.Array:
+        """Bound box and shear image motion, including unwrapped coordinates."""
+        old_box = previous[: self.box_size.size]
+        images, lengths = _image_span(old_box, self.box_size, old_pos)
+        old_offset = previous[self.box_size.size] * old_box[self.beta]
+        offset = self.gamma * self.box_size[self.beta]
+        beta_images = images[self.beta]
+        flow_images = jnp.ceil(
+            images[self.alpha]
+            + beta_images
+            * jnp.maximum(jnp.abs(old_offset), jnp.abs(offset))
+            / lengths[self.alpha]
+        )
+        images = images.at[self.alpha].set(flow_images)
+        box_drift = jnp.sum(images * jnp.abs(self.box_size - old_box))
+        return box_drift + beta_images * jnp.abs(offset - old_offset)
+
+    def neighbor_cells(
+        self,
+        coords: jax.Array,
+        image: jax.Array,
+        grid_dims: jax.Array,
+        cell_size: jax.Array,
+    ) -> jax.Array:
+        """Cover both flow-axis cells touched by each fractional shear image."""
+        alpha_shift = (
+            -image[..., self.beta].astype(cell_size.dtype)
+            * self.gamma
+            * self.box_size[self.beta]
+            / cell_size[self.alpha]
+        )
+        lo = jnp.floor(alpha_shift).astype(image.dtype)
+        hi = jnp.ceil(alpha_shift).astype(image.dtype)
+        offsets = jnp.stack((lo, hi), axis=-1).reshape(lo.shape[0], 2 * lo.shape[1])
+        expanded = jnp.repeat(coords, 2, axis=1)
+        base = expanded[..., self.alpha]
+        positive = offsets >= 0
+        magnitude = jnp.where(positive, offsets, -offsets).astype(coords.dtype)
+        dim = grid_dims[self.alpha]
+        remainder = magnitude % dim
+        forward = jnp.where(
+            (remainder == 0) | (base < dim - remainder),
+            base + remainder,
+            base - (dim - remainder),
+        )
+        backward = jnp.where(
+            remainder > base,
+            dim - (remainder - base),
+            base - remainder,
+        )
+        return expanded.at[..., self.alpha].set(jnp.where(positive, forward, backward))
 
     @classmethod
     def Create(
@@ -134,29 +212,6 @@ class LeesEdwardsDomain(Domain):
         **kwargs: Any,
     ) -> "LeesEdwardsDomain":
         """Construct a Lees-Edwards domain with validated shear axes."""
-        if box_size is None:
-            box_size = jnp.ones(dim, dtype=float)
-        box_size = jnp.asarray(box_size, dtype=float)
-
-        if box_size.shape != (dim,):
-            raise ValueError(
-                f"box_size must have shape ({dim},), got shape {box_size.shape}."
-            )
-
-        if anchor is None:
-            anchor = jnp.zeros_like(box_size, dtype=float)
-        anchor = jnp.asarray(anchor, dtype=float)
-
-        if anchor.shape != (dim,):
-            raise ValueError(
-                f"anchor must have shape ({dim},), got shape {anchor.shape}."
-            )
-
-        if not bool(jnp.all(jnp.isfinite(box_size))) or not bool(jnp.all(box_size > 0)):
-            raise ValueError("box_size must contain only finite positive values.")
-        if not bool(jnp.all(jnp.isfinite(anchor))):
-            raise ValueError("anchor must contain only finite values.")
-
         alpha = int(alpha)
         beta = int(beta)
         if not 0 <= alpha < dim:
@@ -166,27 +221,35 @@ class LeesEdwardsDomain(Domain):
         if alpha == beta:
             raise ValueError("alpha and beta must be distinct axes.")
 
-        dtype = box_size.dtype
-        rate = jnp.zeros(dim, dtype=float) if box_rate is None else jnp.asarray(box_rate, dtype=float)
-        if rate.shape != (dim,):
-            raise ValueError(f"box_rate must have shape ({dim},), got shape {rate.shape}.")
-        return cls(
+        gamma = jnp.asarray(gamma, dtype=float)
+        if gamma.ndim != 0:
+            raise ValueError(f"gamma must be a scalar, got shape {gamma.shape}.")
+        if not isinstance(gamma, jax.core.Tracer) and not bool(jnp.isfinite(gamma)):
+            raise ValueError("gamma must be finite.")
+
+        gamma_dot = jnp.asarray(gamma_dot, dtype=float)
+        if gamma_dot.ndim != 0:
+            raise ValueError(
+                f"gamma_dot must be a scalar, got shape {gamma_dot.shape}."
+            )
+        if not isinstance(gamma_dot, jax.core.Tracer) and not bool(
+            jnp.isfinite(gamma_dot)
+        ):
+            raise ValueError("gamma_dot must be finite.")
+
+        # Explicit super is required for slotted dataclasses, as in ReflectDomain.
+        return super(LeesEdwardsDomain, cls).Create(
+            dim=dim,
             box_size=box_size,
-            inv_box_size=1.0 / box_size,
             anchor=anchor,
-            gamma=jnp.asarray(gamma, dtype=float),
-            alpha_axis=jax.nn.one_hot(alpha, dim, dtype=dtype),
-            beta_axis=jax.nn.one_hot(beta, dim, dtype=dtype),
+            gamma=gamma,
+            gamma_dot=gamma_dot,
+            box_rate=box_rate,
+            alpha_axis=jax.nn.one_hot(alpha, dim, dtype=float),
+            beta_axis=jax.nn.one_hot(beta, dim, dtype=float),
             alpha=alpha,
             beta=beta,
-            gamma_dot=jnp.asarray(gamma_dot, dtype=float),
-            box_rate=rate,
         )
-
-    @property
-    def periodic(self) -> bool:
-        """Whether the domain enforces periodic boundary conditions."""
-        return True
 
     @staticmethod
     @jax.jit(inline=True)
@@ -217,7 +280,9 @@ class LeesEdwardsDomain(Domain):
         sheared_system = replace(
             system, domain=replace(domain, gamma=domain.gamma + dgamma)
         )
-        _, sheared_system = advance_history(state, system, sheared_state, sheared_system)
+        _, sheared_system = advance_history(
+            state, system, sheared_state, sheared_system
+        )
         return sheared_state, sheared_system
 
     @staticmethod
@@ -290,42 +355,12 @@ class LeesEdwardsDomain(Domain):
         image_velocity = image * domain.box_rate
         image_velocity = image_velocity.at[..., domain.alpha].add(
             shear_image
-            * (domain.gamma_dot * beta_length + domain.gamma * domain.box_rate[domain.beta])
+            * (
+                domain.gamma_dot * beta_length
+                + domain.gamma * domain.box_rate[domain.beta]
+            )
         )
         return vi - vj - image_velocity
-
-    @staticmethod
-    @partial(jax.jit, inline=True)
-    @partial(jax.named_call, name="LeesEdwardsDomain.shift")
-    def shift(state: State, system: System) -> tuple[State, System]:
-        r"""Wrap particles back into the primary shear-periodic simulation box.
-
-        .. math::
-            & n_\beta = \left\lfloor (r_\beta - a_\beta)/L_\beta \right\rfloor \\\\
-            & r_\alpha = r_\alpha - n_\beta \gamma L_\beta \\\\
-            & r = r - L \left\lfloor (r-a)/L \right\rfloor
-
-        where:
-            - :math:`a` is the domain anchor (:attr:`Domain.anchor`)
-            - :math:`L` is the domain box size (:attr:`Domain.box_size`)
-
-        Parameters
-        ----------
-        state : State
-            The current state of the simulation.
-        system : System
-            The configuration of the simulation.
-
-        Returns
-        -------
-        Tuple[State, System]
-            The updated `State` object with wrapped particle positions, and the
-            `System` object.
-
-        """
-        le_domain = cast("LeesEdwardsDomain", system.domain)
-        pos_c = le_domain._shift(state.pos_c, system)
-        return replace(state, pos_c=pos_c), system
 
 
 __all__ = ["LeesEdwardsDomain"]

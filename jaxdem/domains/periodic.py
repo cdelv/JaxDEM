@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from functools import partial
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 try:  # Python 3.11+
     from typing import Self
@@ -21,6 +21,17 @@ from . import Domain, SearchGeometry
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
+
+
+def _image_span(
+    previous_box: jax.Array, box: jax.Array, old_pos: jax.Array
+) -> tuple[jax.Array, jax.Array]:
+    """Bound pair image counts by the coordinate span at the last cache build."""
+    lengths = jnp.minimum(box, jnp.where(previous_box > 0, previous_box, box))
+    if old_pos.shape[0] == 0:
+        return jnp.ones_like(box), lengths
+    span = jnp.max(old_pos, axis=0) - jnp.min(old_pos, axis=0)
+    return jnp.maximum(jnp.ceil(span / lengths), 1.0), lengths
 
 
 @Domain.register("periodic")
@@ -42,7 +53,9 @@ class PeriodicDomain(Domain):
 
     search_geometry = SearchGeometry.ORTHOGONAL
 
-    box_rate: jax.Array = field(default_factory=lambda: jnp.zeros((0,), dtype=float))
+    box_rate: jax.Array = field(
+        default_factory=lambda: jnp.zeros((0,), dtype=float), kw_only=True
+    )
     """Time derivative of ``box_size``, shape ``(dim,)``.
 
     A periodic image of particle ``j`` sits at ``pos_j + image * box_size``
@@ -60,6 +73,7 @@ class PeriodicDomain(Domain):
         dim: int,
         box_size: jax.Array | None = None,
         anchor: jax.Array | None = None,
+        *,
         box_rate: jax.Array | None = None,
         **kw: Any,
     ) -> Self:
@@ -93,7 +107,7 @@ class PeriodicDomain(Domain):
         system: System,
     ) -> jax.Array:
         """Subtract the velocity of the image selected by ``displacement``."""
-        domain = system.domain
+        domain = cast("PeriodicDomain", system.domain)
         image = jnp.round((ri - rj) / domain.box_size)
         return vi - vj - image * domain.box_rate
 
@@ -102,6 +116,14 @@ class PeriodicDomain(Domain):
         return jnp.concatenate(
             (self.box_size, jnp.zeros((3,), dtype=self.box_size.dtype))
         )
+
+    def search_geometry_drift(
+        self, previous: jax.Array, old_pos: jax.Array
+    ) -> jax.Array:
+        """Bound periodic image motion for changes along any box axes."""
+        old_box = previous[: self.box_size.size]
+        images, _ = _image_span(old_box, self.box_size, old_pos)
+        return jnp.sum(images * jnp.abs(self.box_size - old_box))
 
     @staticmethod
     @jax.jit(inline=True)
@@ -148,12 +170,6 @@ class PeriodicDomain(Domain):
                 - :math:`B` is the domain box size (:attr:`Domain.box_size`)
 
         """
-        rij = ri - rj
-        return rij - system.domain.box_size * jnp.round(rij / system.domain.box_size)
-
-    @staticmethod
-    @jax.jit(inline=True)
-    def _displacement(ri: jax.Array, rj: jax.Array, system: System) -> jax.Array:
         rij = ri - rj
         return rij - system.domain.box_size * jnp.round(rij / system.domain.box_size)
 
