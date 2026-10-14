@@ -352,6 +352,8 @@ class LagBinsLinear(LagBinsExact):
         seed: int = 0,
         timestep: np.ndarray | None = None,
     ):
+        # TODO: Review raw labels before this cast; fractional values are
+        # truncated before BinSpec can validate their dtype.
         ts = (
             np.arange(T, dtype=int)
             if timestep is None
@@ -437,6 +439,8 @@ class LagBinsLog(LagBinsExact):
         seed: int = 0,
         timestep: np.ndarray | None = None,
     ):
+        # TODO: Review raw labels before this cast; fractional values are
+        # truncated before BinSpec can validate their dtype.
         ts = (
             np.arange(T, dtype=int)
             if timestep is None
@@ -545,6 +549,8 @@ class LagBinsPseudoLog(LagBinsExact):
         seed: int = 0,
         timestep: np.ndarray | None = None,
     ):
+        # TODO: Review raw labels before this cast; fractional values are
+        # truncated before BinSpec can validate their dtype.
         ts = (
             np.arange(T, dtype=int)
             if timestep is None
