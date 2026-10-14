@@ -7,7 +7,6 @@ from __future__ import annotations
 import dataclasses
 
 import jax
-import jax.numpy as jnp
 from jax.typing import ArrayLike
 
 from dataclasses import dataclass
@@ -16,6 +15,8 @@ from typing import TYPE_CHECKING, Any, Self, cast
 from . import BondedForceModel
 from .deformable_particle import (
     DeformableParticleModel,
+    _broadcast_tau_s,
+    _relax_reference,
     _merge_metric_field,
 )
 from ..utils.linalg import norm
@@ -34,7 +35,9 @@ class PlasticDeformableParticleModel(DeformableParticleModel):
     Elastic forces, topology, reference configuration, and coefficient
     broadcasting match :class:`DeformableParticleModel`. See its docstring
     for the full energy definition and shape conventions. The only
-    difference is the plastic update rule.
+    difference is the plastic update rule. Each update integrates the linear
+    relaxation exactly with the current geometry held fixed. Positive rest
+    lengths do not overshoot; infinite tau_s leaves the reference unchanged.
 
     **Plasticity:**
 
@@ -43,7 +46,7 @@ class PlasticDeformableParticleModel(DeformableParticleModel):
     reference length of each edge:
 
     .. math::
-        L_{e,0}(t+dt) = L_{e,0}(t) + \frac{1}{\tau_{s,e}} (L_e(t) - L_{e,0}(t)) dt
+        L_{e,0}(t+dt) = L_e(t) + (L_{e,0}(t)-L_e(t)) e^{-dt/\tau_{s,e}}
 
     where :math:`L_{e,0}` is the initial (reference) edge length (``initial_edge_lengths``),
     :math:`L_e` is the current edge length, :math:`\tau_{s,e}` is the relaxation time (``tau_s``),
@@ -111,14 +114,8 @@ class PlasticDeformableParticleModel(DeformableParticleModel):
 
         tau_s_arr = None
         if base.el is not None and tau_s is not None:
-            tau_s_arr = jnp.asarray(tau_s, dtype=float)
-            if tau_s_arr.ndim == 0 or tau_s_arr.shape == (1,):
-                assert base.edges is not None
-                tau_s_arr = jnp.full(base.edges.shape[:-1], tau_s_arr, dtype=float)
             assert base.edges is not None
-            assert (
-                tau_s_arr.shape == base.edges.shape[:-1]
-            ), f"tau_s.shape={tau_s_arr.shape} does not match expected edges.shape[:-1]={base.edges.shape[:-1]}."
+            tau_s_arr = _broadcast_tau_s(tau_s, base.edges.shape[:-1])
 
         return dataclasses.replace(base, tau_s=tau_s_arr)
 
@@ -162,7 +159,7 @@ class PlasticDeformableParticleModel(DeformableParticleModel):
         edge_length = norm(v2 - v1)
 
         L_e_0 = self.initial_edge_lengths
-        new_initial_edge_lengths = (
-            L_e_0 + (1.0 / self.tau_s) * (edge_length - L_e_0) * system.dt
+        new_initial_edge_lengths = _relax_reference(
+            L_e_0, edge_length, system.dt, self.tau_s
         )
         return dataclasses.replace(self, initial_edge_lengths=new_initial_edge_lengths)

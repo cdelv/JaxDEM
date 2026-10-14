@@ -10,13 +10,14 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Self, cast
 
 import jax
-import jax.numpy as jnp
 from jax.typing import ArrayLike
 
 from . import BondedForceModel
 from .deformable_particle import (
     DeformableParticleModel,
     _angle_difference,
+    _broadcast_tau_s,
+    _relax_reference,
     _merge_metric_field,
     current_bending_angles,
 )
@@ -48,12 +49,14 @@ class PlasticBendingDeformableParticleModel(DeformableParticleModel):
     .. math::
 
         \theta_{a,0}(t+dt) = \theta_{a,0}(t)
-            + \frac{1}{\tau_{s,a}} \operatorname{wrap}(\theta_a(t) - \theta_{a,0}(t))\,dt
+            + (1-e^{-dt/\tau_{s,a}})\operatorname{wrap}(\theta_a(t)-\theta_{a,0}(t))
 
     where :math:`\theta_{a,0}` is the reference (rest) bending angle
     (``initial_bendings``), :math:`\theta_a` is the current bending angle,
     :math:`\tau_{s,a}` is the relaxation time (``tau_s``), and :math:`dt` is the
-    simulation time step. The wrapped difference lies in [-pi, pi].
+    simulation time step. The wrapped difference lies in [-pi, pi]. Each
+    update integrates relaxation exactly with the current angle held fixed;
+    infinite tau_s leaves the reference unchanged.
 
     Shapes (see :class:`DeformableParticleModel` for definitions of K, M, E, A):
 
@@ -117,16 +120,8 @@ class PlasticBendingDeformableParticleModel(DeformableParticleModel):
 
         tau_s_arr = None
         if base.eb is not None and tau_s is not None:
-            tau_s_arr = jnp.asarray(tau_s, dtype=float)
-            if tau_s_arr.ndim == 0 or tau_s_arr.shape == (1,):
-                assert base.element_adjacency is not None
-                tau_s_arr = jnp.full(
-                    base.element_adjacency.shape[:-1], tau_s_arr, dtype=float
-                )
             assert base.element_adjacency is not None
-            assert (
-                tau_s_arr.shape == base.element_adjacency.shape[:-1]
-            ), f"tau_s.shape={tau_s_arr.shape} does not match expected element_adjacency.shape[:-1]={base.element_adjacency.shape[:-1]}."
+            tau_s_arr = _broadcast_tau_s(tau_s, base.element_adjacency.shape[:-1])
 
         return dataclasses.replace(base, tau_s=tau_s_arr)
 
@@ -177,8 +172,7 @@ class PlasticBendingDeformableParticleModel(DeformableParticleModel):
             return self
 
         theta_0 = self.initial_bendings
-        new_initial_bendings = (
-            theta_0
-            + (1.0 / self.tau_s) * _angle_difference(theta, theta_0) * system.dt
+        new_initial_bendings = _relax_reference(
+            theta_0, theta_0 + _angle_difference(theta, theta_0), system.dt, self.tau_s
         )
         return dataclasses.replace(self, initial_bendings=new_initial_bendings)

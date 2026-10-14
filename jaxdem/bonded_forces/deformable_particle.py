@@ -909,7 +909,7 @@ class DeformableParticleModel(BondedForceModel):
             and dp_model.el is not None
             and dp_model.initial_edge_lengths is not None
         ):
-            # 1/2 * sum_e el_e * (L_e - L_{e,0})^2 / L_{e,0}
+            # 1/2 * sum_e el_e * (L_e - L_{e,0})^2
             edge_length = norm(
                 vertices[dp_model.edges[:, 1]] - vertices[dp_model.edges[:, 0]]
             )
@@ -962,6 +962,27 @@ class DeformableParticleModel(BondedForceModel):
             DeformableParticleModel.compute_potential_energy,
             False,
         )
+
+
+def _broadcast_tau_s(value: ArrayLike, shape: tuple[int, ...]) -> jax.Array:
+    """Broadcast relaxation times; concrete values must be positive or +inf."""
+    tau = jnp.broadcast_to(jnp.asarray(value, dtype=float), shape)
+    if not isinstance(tau, jax.core.Tracer) and not bool(jnp.all(tau > 0)):
+        raise ValueError("tau_s must contain only positive values or +inf.")
+    return tau
+
+
+def _relax_reference(
+    reference: jax.Array, current: jax.Array, dt: jax.Array, tau: jax.Array
+) -> jax.Array:
+    """Integrate held-geometry relaxation accurately near either endpoint."""
+    exponent = -dt / tau
+    fraction = -jnp.expm1(exponent)
+    return jnp.where(
+        fraction <= 0.5,
+        reference + fraction * (current - reference),
+        current + jnp.exp(exponent) * (reference - current),
+    )
 
 
 def _angle_difference(angle: jax.Array, reference: jax.Array) -> jax.Array:
