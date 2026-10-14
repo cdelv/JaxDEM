@@ -59,6 +59,10 @@ class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # ty
     force evaluation without computing energy at every iteration. Nested
     wrappers inherit this capability from the supplied update function unless
     explicitly overridden; plain Optax transformations require values by default.
+
+    Custom updates follow the Optax extra-argument interface and accept
+    unused keyword arguments. Factories can wrap plain transformations with
+    ``optax.with_extra_args_support`` before passing their functions here.
     """
 
     _constructor: Any

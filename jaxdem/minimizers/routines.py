@@ -291,20 +291,22 @@ def _advance_history_forces(
 def _state_to_delta_params(
     state: State, topology: BodyTopology | None = None
 ) -> dict[str, jax.Array]:
-    """Pack positions and a zero rotation delta into a parameter dictionary.
+    """Pack body positions and identity rotations about a fixed reference.
 
-    Returns
-    -------
-    dict
-        A dictionary with keys 'pos_c' and 'rotvec' containing arrays.
+    Two-dimensional rotations are unwrapped angles. Three-dimensional
+    rotations are raw quaternions, normalized only when constructing a State.
+    Optimizer coordinates remain continuous throughout a minimization.
     """
     topology = (
         body_topology(state.clump_id, state.fixed) if topology is None else topology
     )
     body_pos = topology.gather_representatives(state.pos_c)
-    rot_dim = 1 if state.dim == 2 else 3
-    zeros = jnp.zeros(body_pos.shape[:-1] + (rot_dim,), dtype=body_pos.dtype)
-    return {"pos_c": body_pos, "rotvec": zeros}
+    width = 1 if state.dim == 2 else 4
+    rotation = jnp.zeros(body_pos.shape[:-1] + (width,), dtype=body_pos.dtype)
+    if state.dim == 3:
+        # Radius two gives the initial xyz coordinates unit angular scale.
+        rotation = rotation.at[..., 0].set(2.0)
+    return {"pos_c": body_pos, "rotation": rotation}
 
 
 @jax.jit
@@ -313,44 +315,57 @@ def _delta_params_to_state(
     params: dict[str, jax.Array],
     topology: BodyTopology | None = None,
 ) -> State:
-    """Unpack an anchored parameter dictionary back into a state.
+    """Map continuous optimizer coordinates to normalized body orientations.
 
-    The rotation block of ``params['rotvec']`` is a delta rotation vector that
-    the function applies (left-multiplies) to the current orientation of the
-    reference state.
-
-    Parameters
-    ----------
-    state : State
-        The reference (anchor) state from which to copy fields.
-    params : dict
-        A dictionary with keys 'pos_c' and 'rotvec'.
-
-    Returns
-    -------
-    State
-        The updated simulation state.
+    Rotations left-multiply the fixed reference ``state.q``. Keep this
+    reference unchanged throughout minimization; normalizing a raw quaternion
+    here does not modify the optimizer's parameters or accumulated state.
+    A zero raw quaternion is invalid and produces a nonfinite evaluation.
     """
     topology = (
         body_topology(state.clump_id, state.fixed) if topology is None else topology
     )
-    pos_c = params["pos_c"]
-    rotvec = params["rotvec"]
+    rotation = params["rotation"]
     if state.dim == 2:
-        rotvec = jnp.concatenate(
-            [jnp.zeros_like(pos_c), rotvec],
-            axis=-1,
+        rotvec = jnp.concatenate([jnp.zeros_like(params["pos_c"]), rotation], axis=-1)
+        delta_q = Quaternion.from_rotvec(rotvec)
+    else:
+        unit = rotation * jax.lax.rsqrt(
+            jnp.sum(rotation * rotation, axis=-1, keepdims=True)
         )
+        delta_q = Quaternion.create(unit[..., :1], unit[..., 1:])
     body_q = Quaternion.create(
         topology.gather_representatives(state.q.w),
         topology.gather_representatives(state.q.xyz),
     )
-    q = Quaternion.from_rotvec(rotvec) @ body_q
-    q = q.unit(q)
+    q = Quaternion.unit(delta_q @ body_q)
     member_q = Quaternion.create(
         topology.gather_members(q.w), topology.gather_members(q.xyz)
     )
-    return replace(state, pos_c=topology.gather_members(pos_c), q=member_q)
+    return replace(state, pos_c=topology.gather_members(params["pos_c"]), q=member_q)
+
+
+def _rotation_pullback(rotation: jax.Array, gradient: jax.Array) -> jax.Array:
+    """Pull a world angular gradient back to fixed optimizer coordinates."""
+    if rotation.shape[-1] == 1:
+        return gradient
+    w, xyz = rotation[..., :1], rotation[..., 1:]
+    scalar = -jnp.sum(xyz * gradient, axis=-1, keepdims=True)
+    vector = w * gradient + jnp.cross(gradient, xyz)
+    return (
+        2.0
+        * jnp.concatenate([scalar, vector], axis=-1)
+        / jnp.sum(rotation * rotation, axis=-1, keepdims=True)
+    )
+
+
+def _rotation_residual(rotation: jax.Array, gradient: jax.Array) -> jax.Array:
+    """Recover the world angular residual independently of quaternion scale."""
+    if rotation.shape[-1] == 1:
+        return gradient
+    w, xyz = rotation[..., :1], rotation[..., 1:]
+    gw, gxyz = gradient[..., :1], gradient[..., 1:]
+    return 0.5 * (w * gxyz - xyz * gw + jnp.cross(xyz, gxyz))
 
 
 @jax.custom_vjp
@@ -362,13 +377,14 @@ def _objective_energy(
 ) -> tuple[jax.Array, tuple[State, System]]:
     """Evaluate the potential energy of the trial parameters.
 
-    The rotation block of ``trial_params`` is a delta rotation vector anchored
-    at ``state.q`` (see ``_delta_params_to_state``).
+    Rotation coordinates are anchored at ``state.q``: an unwrapped angle in
+    2D or a raw normalized quaternion in 3D (see ``_delta_params_to_state``).
+    The analytical VJP includes the normalization pullback at every trial.
 
     Parameters
     ----------
     trial_params : dict
-        The dict of trial parameters containing 'pos_c' and 'rotvec'.
+        The dict of trial parameters containing 'pos_c' and 'rotation'.
     state : State
         The simulation state (anchor for the rotation parameters).
     system : System
@@ -407,7 +423,10 @@ def _objective_energy_fwd(
     )
     return (pe, (conservative_state, eval_system)), (
         -topology.gather_representatives(conservative_state.force),
-        -topology.gather_representatives(conservative_state.torque),
+        _rotation_pullback(
+            trial_params["rotation"],
+            -topology.gather_representatives(conservative_state.torque),
+        ),
     )
 
 
@@ -417,7 +436,7 @@ def _objective_energy_bwd(
     grad_pos, grad_rot = residual
     scale, _ = g
     return (
-        {"pos_c": grad_pos * scale, "rotvec": grad_rot * scale},
+        {"pos_c": grad_pos * scale, "rotation": grad_rot * scale},
         None,
         None,
         None,
@@ -486,8 +505,16 @@ def minimize(
     Line-search optimizers and custom targets evaluate the objective during
     optimization.
 
-    Each rigid body has one set of optimization coordinates. Rotation
-    increments are anchored to the current orientation after each update.
+    Each rigid body has one set of continuous optimization coordinates.
+    Two-dimensional rotations use an unwrapped angle about the initial
+    orientation; three-dimensional rotations use a raw quaternion normalized
+    only when constructing the trial state. The initial orientation reference
+    and optimizer coordinates are retained, so transformations that remember
+    parameter differences (including L-BFGS) receive consistent coordinates.
+    A zero raw quaternion is invalid and terminates with a nonfinite result.
+    Quaternion sign and radial redundancy do not guarantee convergence for
+    every optimizer; convergence uses world angular residuals independently
+    of the raw quaternion scale.
     Forces are always evaluated rate-independently: dashpots and other
     velocity terms are off, so relaxation does not depend on ``dt``. For a
     force model with pair history, gradient-only optimizers advance that
@@ -533,7 +560,11 @@ def minimize(
     fixed = ~topology.valid | topology.fixed
     mask = ~fixed[..., None]
 
+    reference_q = state.q
+
     def make_value_fn(anchor_state: State, anchor_system: System) -> Any:
+        anchor_state = replace(anchor_state, q=reference_q)
+
         def value_fn(params: dict[str, jax.Array]) -> Any:
             if anchor_system.target_fn is None:
                 return _objective_energy(params, anchor_state, anchor_system, topology)
@@ -550,7 +581,9 @@ def minimize(
         advance: bool,
     ) -> tuple[Any, dict[str, jax.Array], State, System]:
         if force_only:
-            trial = _delta_params_to_state(anchor_state, params, topology)
+            trial = _delta_params_to_state(
+                replace(anchor_state, q=reference_q), params, topology
+            )
             if history_relaxation and advance:
                 trial, evaluated = _advance_history_forces(
                     anchor_state, trial, anchor_system
@@ -559,7 +592,9 @@ def minimize(
                 trial, evaluated = _evaluate_readonly_forces(trial, anchor_system)
             grads = {
                 "pos_c": -topology.gather_representatives(trial.force),
-                "rotvec": -topology.gather_representatives(trial.torque),
+                "rotation": _rotation_pullback(
+                    params["rotation"], -topology.gather_representatives(trial.torque)
+                ),
             }
             return None, grads, trial, evaluated
         (pe, (trial, evaluated)), grads = jax.value_and_grad(
@@ -568,10 +603,24 @@ def minimize(
         return pe, grads, trial, evaluated
 
     def diagnostics(
-        grads: dict[str, jax.Array], pe: Any, evaluated: System
+        current: State,
+        params: dict[str, jax.Array],
+        grads: dict[str, jax.Array],
+        pe: Any,
+        evaluated: System,
     ) -> MinimizeInfo:
+        if evaluated.target_fn is None:
+            force = topology.gather_representatives(current.force)
+            torque = topology.gather_representatives(current.torque)
+        else:
+            force = grads["pos_c"]
+            torque = _rotation_residual(params["rotation"], grads["rotation"])
         info = convergence_info(
-            grads["pos_c"], grads["rotvec"], fixed, force_tol, torque_tol
+            force,
+            torque,
+            fixed,
+            force_tol,
+            torque_tol,
         )
         finite = info.finite & jnp.all(
             jnp.stack([jnp.all(jnp.isfinite(x)) for x in jax.tree.leaves(grads)])
@@ -600,18 +649,18 @@ def minimize(
         system,
         0,
         pe,
+        params,
         opt_state,
         grads,
     )
 
     def condition(c: tuple[Any, ...]) -> jax.Array:
-        _, evaluated, steps, pe, _, grads = c
-        info = diagnostics(grads, pe, evaluated)
+        current, evaluated, steps, pe, params, _, grads = c
+        info = diagnostics(current, params, grads, pe, evaluated)
         return (steps < max_steps) & (info.status == MAX_STEPS)
 
     def step(c: tuple[Any, ...]) -> tuple[Any, ...]:
-        current, evaluated, steps, pe, opt_state, grads = c
-        params = _state_to_delta_params(current, topology)
+        current, evaluated, steps, pe, params, opt_state, grads = c
         free_grads = jax.tree.map(lambda x: jnp.where(mask, x, 0.0), grads)
         if force_only:
             updates, opt_state = evaluated.minimizer.update(
@@ -637,11 +686,14 @@ def minimize(
             evaluated,
             steps + 1,
             pe,
+            next_params,
             opt_state,
             grads,
         )
 
-    state, system, steps, pe, _, grads = jax.lax.while_loop(condition, step, carry)
+    state, system, steps, pe, params, _, grads = jax.lax.while_loop(
+        condition, step, carry
+    )
     if force_only:
         state, system, pe = _evaluate_energy(state, system)
     elif system.target_fn is not None:
@@ -649,5 +701,5 @@ def minimize(
         state, system = _evaluate_readonly_forces(state, system)
     if system.target_fn is None:
         pe = pe / max(state.N, 1)
-    info = diagnostics(grads, pe, system)
+    info = diagnostics(state, params, grads, pe, system)
     return MinimizationResult(state, system, steps, pe, info.reason, info)
