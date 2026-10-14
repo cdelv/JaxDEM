@@ -19,6 +19,13 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
+def _contact_root(value: jax.Array) -> jax.Array:
+    """Square root with a finite zero convention for contact derivatives."""
+    zero = value == 0.0
+    safe_value = jnp.where(zero, 1.0, value)
+    return jnp.where(zero, 0.0, jnp.sqrt(safe_value))
+
+
 @ForceModel.register("hertz")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
@@ -114,14 +121,14 @@ class HertzianForce(ForceModel):
         nu_j = system.mat_table.poisson[mj]
         R_i, R_j = state.rad[i], state.rad[j]
 
-        R_star = (R_i * R_j) / (R_i + R_j)
+        R_star = (R_i * R_j) / jnp.where(R_i + R_j > 0, R_i + R_j, 1.0)
         E_star = 1.0 / ((1.0 - nu_i * nu_i) / E_i + (1.0 - nu_j * nu_j) / E_j)
 
         rij = system.domain._displacement(pos[i], pos[j], system)
         n, r = unit_and_norm(rij)
         delta = jnp.maximum(0.0, R_i + R_j - r) * (i != j)
 
-        mag = (4.0 / 3.0) * E_star * delta * jnp.sqrt(R_star * delta)
+        mag = (4.0 / 3.0) * E_star * delta * _contact_root(R_star * delta)
         F = mag[..., None] * n
 
         t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
@@ -167,14 +174,14 @@ class HertzianForce(ForceModel):
         nu_j = system.mat_table.poisson[mj]
         R_i, R_j = state.rad[i], state.rad[j]
 
-        R_star = (R_i * R_j) / (R_i + R_j)
+        R_star = (R_i * R_j) / jnp.where(R_i + R_j > 0, R_i + R_j, 1.0)
         E_star = 1.0 / ((1.0 - nu_i * nu_i) / E_i + (1.0 - nu_j * nu_j) / E_j)
 
         rij = system.domain._displacement(pos[i], pos[j], system)
         r = norm(rij)
         delta = R_i + R_j - r
         delta *= (delta > 0) * (i != j)
-        return 0.4 * (4.0 / 3.0) * E_star * delta * delta * jnp.sqrt(R_star * delta)
+        return 0.4 * (4.0 / 3.0) * E_star * delta * delta * _contact_root(R_star * delta)
 
     @property
     def required_material_properties(self) -> tuple[str, ...]:
