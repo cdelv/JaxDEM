@@ -196,7 +196,6 @@ def _jam_reason(
 def _bisect_jamming(
     state: State,
     system: System,
-    payload: Any,
     relax: Callable[..., tuple[Any, ...]],
     scale: Callable[..., tuple[State, System]],
     *,
@@ -206,7 +205,7 @@ def _bisect_jamming(
     packing_fraction_increment: float,
     verbose: bool,
 ) -> tuple[tuple[Any, ...], tuple[Any, ...], jax.Array, jax.Array, JammingInfo]:
-    """Bisect an energy threshold while retaining state and payload at each bound.
+    """Bisect an energy threshold while retaining each equilibrated bound.
 
     Each trial is relaxed and classified by energy only if its minimization
     converged and its energy is finite and nonnegative. Energies at or below
@@ -219,12 +218,9 @@ def _bisect_jamming(
     ----------
     state, system
         Initial particle state and simulation system.
-    payload
-        JAX pytree carried with each state, such as contact history or a
-        random key. Each bound retains its own payload.
     relax : callable
-        ``relax(state, system, payload)`` returns
-        ``(state, system, payload, steps, energy, MinimizeInfo)``. Energy
+        ``relax(state, system)`` returns
+        ``(state, system, steps, energy, MinimizeInfo)``. Energy
         must be normalized per constituent sphere.
     scale : callable
         ``scale(state, system, packing_fraction)`` returns the state and
@@ -244,7 +240,7 @@ def _bisect_jamming(
     Returns
     -------
     low, high : tuple
-        Stored ``(state, system, payload)`` for each bound. An unset bound
+        Stored ``(state, system)`` for each bound. An unset bound
         contains the input values.
     packing_fraction, potential_energy : jax.Array
         Packing fraction and energy of the accepted upper bound, or NaN
@@ -254,8 +250,8 @@ def _bisect_jamming(
 
     Notes
     -----
-    The search uses ``jax.lax.while_loop``. The callbacks and payload must
-    support JAX tracing.
+    The search uses ``jax.lax.while_loop``. The callbacks must support
+    JAX tracing.
     """
     phi = compute_packing_fraction(state, system)
     empty = MinimizeInfo(
@@ -265,7 +261,7 @@ def _bisect_jamming(
         jnp.asarray(jnp.inf),
         jnp.asarray(MAX_STEPS),
     )
-    trial = (state, system, payload)
+    trial = (state, system)
     # status -1 means running. Unknown bounds have phi=-1.
     carry = (
         0,
@@ -300,9 +296,9 @@ def _bisect_jamming(
             _,
             max_minimization_steps,
         ) = c
-        st, sy, history, n, pe, info = relax(*trial)
+        st, sy, n, pe, info = relax(*trial)
         max_minimization_steps = jnp.maximum(max_minimization_steps, n)
-        evaluated = (st, sy, history)
+        evaluated = (st, sy)
         valid = info.converged & jnp.isfinite(pe) & (pe >= 0.0)
         below = valid & (pe <= pe_tol)
         above = valid & (pe > pe_tol)
@@ -321,7 +317,7 @@ def _bisect_jamming(
         next_phi = jnp.where(hi > 0, 0.5 * (lo + hi), lo + packing_fraction_increment)
         trial = jax.lax.cond(
             status == -1,
-            lambda: (*scale(low[0], low[1], next_phi), low[2]),
+            lambda: scale(low[0], low[1], next_phi),
             lambda: evaluated,
         )
         if verbose:
@@ -482,7 +478,7 @@ def bisection_jam(
         vmap_method="sequential",
     )
 
-    def relax(st: State, sy: System, history: Any) -> tuple[Any, ...]:
+    def relax(st: State, sy: System) -> tuple[Any, ...]:
         result = sy.minimize(
             st,
             sy,
@@ -491,7 +487,7 @@ def bisection_jam(
             torque_tol=torque_tol,
         )
         st, sy, n, pe = result
-        return st, sy, history, n, pe, result.info
+        return st, sy, n, pe, result.info
 
     def scale(st: State, sy: System, phi: float) -> tuple[State, System]:
         return _scale_to_packing_fraction_grouped(st, sy, phi, group_id)
@@ -499,7 +495,6 @@ def bisection_jam(
     low, high, phi, pe, info = _bisect_jamming(
         state,
         system,
-        (),
         relax,
         scale,
         pe_tol=pe_tol,
