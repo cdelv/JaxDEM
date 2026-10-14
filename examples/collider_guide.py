@@ -253,12 +253,15 @@ print("Last build overflow:", bool(getattr(system_nl.collider, "overflow", False
 # and returns a tuple ``(state, system, potential_energy)``, where
 # ``potential_energy`` is the **total** potential energy of the system.
 #
-# Calling ``compute_potential_energy`` also preserves any mutations
-# to the state or collider, such as neighbor-list rebuilds. For the
-# ``"neighbor_list"`` collider, a rebuild also updates
-# the ``system.collider.overflow`` flag. The naive and cell-list colliders do
-# not maintain this flag during force or energy evaluation. They only report
-# overflow through ``create_neighbor_list``.
+# Keep the returned State and System, which include search-cache updates.
+# Neighbor lists report pooled-pair or hash overflow; direct cell colliders
+# report hash overflow during force and energy evaluation. Check
+# ``system.check_overflow()`` before using spatial-search results.
+#
+# Naive and neighbor-list force/energy queries support forward and reverse
+# differentiation. Direct cell traversals support forward mode; their dynamic
+# loops cannot be transposed for reverse mode. Use naive or neighbor-list
+# colliders for reverse-mode gradients or Hessians.
 
 state_pe = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
