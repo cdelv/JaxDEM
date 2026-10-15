@@ -183,8 +183,10 @@ print(f"After connection, N = {state_connected.N} (2 new vertices added)")
 #
 # At zero separation these models choose a contact normal that may not be
 # an energy gradient. Use FIRE or another force-only optimizer for physical
-# relaxation. Value-based optimization requires an explicit ``target_fn``
-# differentiated through AD; an intersecting contact can have a flat energy.
+# relaxation. Value-based optimizers differentiate energy directly. An
+# intersecting contact can have a flat energy, so an energy minimum need not
+# be force balanced. Energy AD requires Naive or NeighborList; direct CellList
+# and MultiCellList traversals do not support reverse-mode differentiation.
 #
 # The ``ForceRouter`` routes the contacts. In a typical simulation with normal spheres (species 0)
 # and boundaries/facets (species 1), you route collisions as:

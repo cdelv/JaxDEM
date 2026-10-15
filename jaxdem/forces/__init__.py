@@ -62,10 +62,11 @@ class ForceModel(Factory, ABC):
     def supports_analytical_energy_gradient(self) -> bool:
         """Whether force is the negative analytical gradient of ``energy``.
 
-        Translational components use center positions and rotational components
-        use the minimizer's incremental rotation coordinates. Force laws are
-        assumed to satisfy this contract by default. Laws that do not must
-        override this property with ``False``.
+        Translational components use body-center positions and rotational
+        components use world angular increments. Force laws are assumed to
+        satisfy this contract by default. Laws that do not must override this
+        property with ``False``; value-based minimizers then differentiate
+        ``energy`` directly, with stored pair history held fixed.
         """
         return True
 

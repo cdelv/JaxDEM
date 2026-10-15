@@ -261,7 +261,10 @@ print("History advanced:", bool(jnp.any(history_system.collider.history != 0)))
 # of the energy. The naive collider also stores history, densely as
 # ``history[i, j]``, which is the simplest choice for small frictional systems.
 #
-# Positions can change without time passing: ``domain.shear``, ``domain.resize``
-# and relaxation. Those paths advance history through
-# :func:`jaxdem.colliders.advance_history` with ``quasistatic=True``, so
-# dashpots never see the fake velocity and the result does not depend on ``dt``.
+# Affine changes through ``domain.shear`` and ``domain.resize`` advance
+# displacement-dependent history with :func:`jaxdem.colliders.advance_history`.
+# Minimization freezes existing pair history by default. Opt in with
+# ``system.minimize(state, system, advance_history=True)`` to advance it after
+# accepted optimizer steps. This retains the stored spring
+# when updates are disabled; it does not reset frictional memory. Both modes
+# use ``quasistatic=True``, disabling velocity-dependent forces.

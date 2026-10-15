@@ -52,11 +52,13 @@ class MinimizeInfo(NamedTuple):
         Boolean scalar indicating finite residual norms. Results from
         :func:`minimize` also require finite objective gradients and energy.
     force_max : jax.Array
-        Maximum Euclidean force norm over free bodies. For a custom target,
-        this is the maximum norm of its gradient with respect to body position.
+        Maximum Euclidean force norm over free bodies for mechanical
+        relaxation. Objectives differentiated by AD use the maximum norm of
+        their gradient with respect to body position.
     torque_max : jax.Array
-        Maximum Euclidean torque norm over free bodies. For a custom target,
-        this is the maximum norm of its gradient with respect to body rotation.
+        Maximum Euclidean torque norm over free bodies for mechanical
+        relaxation. Objectives differentiated by AD use the maximum norm of
+        their world angular gradient.
     status : jax.Array
         Integer scalar describing convergence:
 
@@ -165,7 +167,7 @@ class MinimizationResult:
     Attributes
     ----------
     state : State
-        Final configuration with evaluated conservative forces and torques.
+        Final configuration with evaluated quasistatic forces and torques.
     system : System
         System associated with ``state``, including updated spatial search
         caches and overflow status.
@@ -446,13 +448,15 @@ def _objective_energy_bwd(
 _objective_energy.defvjp(_objective_energy_fwd, _objective_energy_bwd)
 
 
-@jax.jit(static_argnames=["max_steps"])
+@jax.jit(static_argnames=["max_steps", "advance_history"])
 def minimize(
     state: State,
     system: System,
     max_steps: int = 10000,
     force_tol: float = 1e-12,
     torque_tol: float | None = None,
+    *,
+    advance_history: bool = False,
 ) -> MinimizationResult:
     """Minimize the configured objective over body positions and orientations.
 
@@ -468,10 +472,18 @@ def minimize(
         Maximum number of optimizer updates. Defaults to 10000.
     force_tol : float, optional
         Absolute tolerance on the maximum Euclidean force norm over free
-        bodies. Defaults to ``1e-12``.
+        bodies. AD objectives use their body-position gradient instead.
+        Defaults to ``1e-12``.
     torque_tol : float or None, optional
         Absolute tolerance on the maximum Euclidean torque norm over free
-        bodies. ``None`` uses the numerical value of ``force_tol``.
+        bodies. AD objectives use their world angular gradient instead.
+        ``None`` uses the numerical value of ``force_tol``.
+    advance_history : bool, optional
+        Whether accepted optimizer updates advance pair history. Defaults to
+        ``False``, preserving stored history without accumulating slip from
+        optimizer motion. Updates occur once after each accepted step; trial
+        objective evaluations hold history fixed. Stateless force models
+        ignore this option.
 
     Returns
     -------
@@ -485,27 +497,31 @@ def minimize(
     ------
     ValueError
         If no optimizer is configured, or if the physical objective uses a
-        value-based optimizer without an analytical physical energy gradient,
-        or a managed force without a matching energy function.
+        managed force without a matching energy function.
 
     Notes
     -----
     Convergence requires both ``force_max <= force_tol`` and
     ``torque_max <= torque_tol`` with finite evaluations and complete spatial
     searches. Fixed bodies are excluded from the residual norms. Custom
-    targets use their translational and rotational objective gradients as
-    residuals. Energy magnitude and energy changes do not determine
-    convergence. Step exhaustion, nonfinite evaluations, and spatial search
-    overflow terminate the minimization unsuccessfully.
+    targets and energies without analytical physical gradients use their
+    translational and world angular AD gradients as residuals. These can
+    differ from mechanical forces for history-dependent laws. Energy
+    magnitude and energy changes do not determine convergence. Step exhaustion,
+    nonfinite evaluations, and spatial search overflow terminate the
+    minimization unsuccessfully.
 
     For the physical objective, gradient-only optimizers
     (``requires_value=False``, including FIRE and damped Newtonian) evaluate
     residual forces initially and after each update, and energy once at exit.
     Gradient-only optimizers also support force conventions that are not
-    analytical energy gradients. Value-based physical optimization requires
-    an analytical energy gradient; custom targets use ordinary AD through the
-    State mapping. Line-search optimizers and custom targets evaluate the
-    objective during optimization.
+    analytical energy gradients. Value-based optimizers use the analytical
+    physical gradient when available and otherwise differentiate the energy
+    directly with stored history fixed. Custom targets use ordinary AD
+    through the State mapping. These optimizers evaluate the objective during
+    optimization. AD through built-in collider energy requires Naive or
+    NeighborList; direct CellList and MultiCellList traversals do not support
+    reverse-mode differentiation.
 
     Each rigid body has one set of continuous optimization coordinates.
     Two-dimensional rotations use an unwrapped angle about the initial
@@ -518,12 +534,14 @@ def minimize(
     every optimizer; convergence uses world angular residuals independently
     of the raw quaternion scale.
     Forces are always evaluated rate-independently: dashpots and other
-    velocity terms are off, so relaxation does not depend on ``dt``. For a
-    force model with pair history, gradient-only optimizers advance that
-    history once per accepted coordinate update, from the anchor to the
-    trial configuration, and use the forces of that same traversal as the
-    convergence residuals. The initial evaluation and line-search optimizers
-    hold history fixed.
+    velocity terms are off, so relaxation does not depend on ``dt``. Pair
+    history is frozen by default; existing spring memory still contributes to
+    force evaluation. Search rebuilds remap surviving pairs and initialize new
+    pairs. With ``advance_history=True``, history advances once per accepted
+    coordinate update, using configuration changes from the anchor to the
+    accepted state. Energy and gradients are then evaluated with that updated
+    history fixed. Line-search trials never commit history, and the initial
+    evaluation always holds history fixed.
     """
     import optax  # type: ignore[import-untyped]
 
@@ -534,27 +552,22 @@ def minimize(
     force_only = system.target_fn is None and not getattr(
         system.minimizer, "requires_value", True
     )
-    history_relaxation = force_only and system.force_model.history_shape(state.dim) != (
-        0,
+    analytical_gradient = (
+        system.target_fn is None
+        and system.force_model.supports_analytical_energy_gradient
     )
-    if system.target_fn is None:
-        if (
-            not system.force_model.supports_analytical_energy_gradient
-            and not force_only
-        ):
-            raise ValueError(
-                "Default minimization requires a force model with an analytical "
-                "energy gradient or a gradient-only optimizer; provide "
-                "target_fn or configure a compatible force model."
-            )
-        if any(
-            energy_fn is default_energy_func
-            for energy_fn in system.force_manager.energy_functions
-        ):
-            raise ValueError(
-                "Every custom force used by default minimization must provide a "
-                "matching energy function, or the system must provide target_fn."
-            )
+    mechanical_residuals = force_only or analytical_gradient
+    history_relaxation = advance_history and system.force_model.history_shape(
+        state.dim
+    ) != (0,)
+    if system.target_fn is None and any(
+        energy_fn is default_energy_func
+        for energy_fn in system.force_manager.energy_functions
+    ):
+        raise ValueError(
+            "Every custom force used by default minimization must provide a "
+            "matching energy function, or the system must provide target_fn."
+        )
 
     torque_tol = force_tol if torque_tol is None else torque_tol
     topology = body_topology(state.clump_id, state.fixed)
@@ -567,9 +580,12 @@ def minimize(
         anchor_state = replace(anchor_state, q=reference_q)
 
         def value_fn(params: dict[str, jax.Array]) -> Any:
-            if anchor_system.target_fn is None:
+            if analytical_gradient:
                 return _objective_energy(params, anchor_state, anchor_system, topology)
             trial = _delta_params_to_state(anchor_state, params, topology)
+            if anchor_system.target_fn is None:
+                trial, evaluated, energy = _evaluate_energy(trial, anchor_system)
+                return energy, (trial, evaluated)
             return anchor_system.target_fn(trial, anchor_system), (trial, anchor_system)
 
         return value_fn
@@ -598,6 +614,13 @@ def minimize(
                 ),
             }
             return None, grads, trial, evaluated
+        if history_relaxation and advance:
+            trial = _delta_params_to_state(
+                replace(anchor_state, q=reference_q), params, topology
+            )
+            _, anchor_system = _advance_history_forces(
+                anchor_state, trial, anchor_system
+            )
         (pe, (trial, evaluated)), grads = jax.value_and_grad(
             make_value_fn(anchor_state, anchor_system), has_aux=True
         )(params)
@@ -610,7 +633,7 @@ def minimize(
         pe: Any,
         evaluated: System,
     ) -> MinimizeInfo:
-        if evaluated.target_fn is None:
+        if mechanical_residuals:
             force = topology.gather_representatives(current.force)
             torque = topology.gather_representatives(current.torque)
         else:
@@ -697,8 +720,8 @@ def minimize(
     )
     if force_only:
         state, system, pe = _evaluate_energy(state, system)
-    elif system.target_fn is not None:
-        # Custom objective gradients need not have evaluated physical forces.
+    elif not mechanical_residuals:
+        # AD objectives need not have evaluated physical forces.
         state, system = _evaluate_readonly_forces(state, system)
     if system.target_fn is None:
         pe = pe / max(state.N, 1)

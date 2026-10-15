@@ -1058,13 +1058,18 @@ class System:
         max_steps: int = 10000,
         force_tol: float = 1e-12,
         torque_tol: float | None = None,
+        advance_history: bool = False,
     ) -> MinimizationResult:
-        """Relax until both free-body force and torque norms meet tolerance.
+        """Relax until both free-body residual norms meet tolerance.
 
         Returns an iterable four-value result with ``reason`` and ``info``
         diagnostics. Energy is reported per constituent sphere for the physical
-        objective. See :func:`jaxdem.minimizers.minimize` for convergence,
-        conservative force evaluation and optimizer behavior.
+        objective. Pair history is frozen unless ``advance_history=True``
+        requests displacement-driven updates after accepted optimizer steps.
+        Residuals are mechanical forces and torques for force-based relaxation,
+        or objective gradients for energies and targets differentiated by AD.
+        See :func:`jaxdem.minimizers.minimize` for convergence and optimizer
+        behavior.
         """
         from .minimizers import minimize
 
@@ -1074,6 +1079,7 @@ class System:
             max_steps=max_steps,
             force_tol=force_tol,
             torque_tol=torque_tol,
+            advance_history=advance_history,
         )
 
     def _serialize_force_functions(self) -> list[dict[str, Any]] | None:
