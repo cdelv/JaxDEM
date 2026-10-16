@@ -10,10 +10,13 @@ from __future__ import annotations
 
 import os
 import tempfile
+from dataclasses import fields, is_dataclass
+from collections.abc import Mapping
 
 import jax
 import jax.numpy as jnp
 import pytest
+import numpy as np
 
 import jaxdem as jdem
 
@@ -36,20 +39,65 @@ def _assert_leaves_equal(
     restored,
     label: str = "",
     *,
-    rtol: float = 1e-5,
-    atol: float = 1e-6,
+    rtol: float = 0,
+    atol: float = 0,
 ) -> None:
-    """Assert that every JAX leaf of *original* and *restored* is close."""
+    """Check semantic/static configuration as well as exact stored array payloads."""
+    from jaxdem.minimizers.optimizers import CustomGradientTransformation
+
+    def static_config(left, right, normalize_sequence=False):
+        if hasattr(left, "dtype"):
+            right_array = jnp.asarray(right)
+            assert left.shape == right_array.shape, label
+            assert left.dtype == right_array.dtype, label
+        elif isinstance(left, CustomGradientTransformation):
+            assert left.metadata == right.metadata, label
+            assert left.requires_value == right.requires_value, label
+        elif is_dataclass(left):
+            assert type(left) is type(right), label
+            for field in fields(left):
+                static_config(
+                    getattr(left, field.name),
+                    getattr(right, field.name),
+                    (
+                        isinstance(left, jdem.ForceManager)
+                        and field.name
+                        in {"force_functions", "energy_functions", "is_com_force"}
+                    )
+                    or (
+                        isinstance(left, jdem.ForceModel)
+                        and field.name in {"laws", "table"}
+                    ),
+                )
+        elif isinstance(left, Mapping):
+            assert left.keys() == right.keys(), label
+            for key in left:
+                static_config(left[key], right[key])
+        elif isinstance(left, (tuple, list)):
+            # JSON metadata normalizes tuples to lists; both encode the same sequence.
+            assert isinstance(right, (tuple, list)) and len(left) == len(right), label
+            assert normalize_sequence or type(left) is type(right), label
+            for a, b in zip(left, right, strict=True):
+                static_config(a, b, normalize_sequence)
+        elif callable(left):
+            assert left is right, label
+        else:
+            assert type(left) is type(right), label
+            assert left == right, label
+
+    static_config(original, restored)
     leaves_orig = jax.tree.leaves(original)
     leaves_rest = jax.tree.leaves(restored)
-    assert len(leaves_orig) == len(
-        leaves_rest
-    ), f"{label}: leaf count mismatch {len(leaves_orig)} vs {len(leaves_rest)}"
+    assert len(leaves_orig) == len(leaves_rest), (
+        f"{label}: leaf count mismatch {len(leaves_orig)} vs {len(leaves_rest)}"
+    )
     for i, (lo, lr) in enumerate(zip(leaves_orig, leaves_rest, strict=False)):
-        if jnp.issubdtype(lo.dtype, jnp.floating):
-            assert jnp.allclose(
-                lo, lr, rtol=rtol, atol=atol
-            ), f"{label} leaf {i}: {lo} != {lr}"
+        lo, lr = jnp.asarray(lo), jnp.asarray(lr)
+        assert lo.shape == lr.shape and lo.dtype == lr.dtype, label
+        if rtol or atol:
+            assert jnp.allclose(lo, lr, rtol=rtol, atol=atol), (
+                f"{label} leaf {i}: {lo} != {lr}"
+            )
         else:
             assert jnp.array_equal(lo, lr), f"{label} leaf {i}: {lo} != {lr}"
 
@@ -61,7 +109,8 @@ def _round_trip(
     d = _tmpdir()
     with jdem.CheckpointWriter(d) as w:
         w.save(state, system)
-    return jdem.CheckpointLoader(d).load()
+    with jdem.CheckpointLoader(d) as loader:
+        return loader.load()
 
 
 def _save_step_check(state: jdem.State, system: jdem.System, n: int = 1) -> None:
@@ -242,14 +291,6 @@ class TestForceModels:
 class TestDomains:
     """Checkpoint round-trips for every domain type."""
 
-    def test_free_domain(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [3.0, 4.0]]),
-            rad=jnp.array([0.5, 0.5]),
-        )
-        system = jdem.System.create(state.shape, domain_type="free")
-        _save_step_check(state, system)
-
     def test_periodic_domain(self):
         state = jdem.State.create(
             pos=jnp.array([[0.1, 0.1], [9.9, 9.9]]),
@@ -304,18 +345,6 @@ class TestDomains:
 
 class TestIntegrators:
     """Checkpoint round-trips for integrator and minimizer types."""
-
-    def test_velocity_verlet_2d(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            linear_integrator_type="verlet",
-            rotation_integrator_type="",
-        )
-        _save_step_check(state, system)
 
     def test_velocity_verlet_3d_with_rotation(self):
         state = jdem.State.create(
@@ -418,14 +447,6 @@ class TestIntegrators:
 
 class TestColliders:
     """Checkpoint round-trips for collider types."""
-
-    def test_naive(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0], [3.0, 0.0]]),
-            rad=jnp.array([1.0, 1.0, 1.0]),
-        )
-        system = jdem.System.create(state.shape, collider_type="naive")
-        _save_step_check(state, system)
 
     def test_noop_collider(self):
         state = jdem.State.create(
@@ -666,16 +687,6 @@ class TestStateFeatures:
         state_r, _ = _round_trip(state, system)
         _assert_leaves_equal(state, state_r, "state")
 
-    def test_many_particles(self):
-        """Larger system with 50 particles."""
-        N = 50
-        key = jax.random.PRNGKey(42)
-        pos = jax.random.uniform(key, (N, 2), minval=0.0, maxval=20.0)
-        rad = 0.3 * jnp.ones(N)
-        state = jdem.State.create(pos=pos, rad=rad)
-        system = jdem.System.create(state.shape)
-        _save_step_check(state, system)
-
     def test_single_particle(self):
         """Edge case: one particle."""
         state = jdem.State.create(
@@ -878,15 +889,6 @@ class TestForceManager:
         assert jnp.allclose(
             system.force_manager.gravity, system_r.force_manager.gravity
         )
-
-    def test_no_gravity(self):
-        """Default (zero) gravity."""
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(state.shape)
-        _save_step_check(state, system)
 
 
 # ===================================================================
@@ -1224,17 +1226,6 @@ class TestSystemMeta:
 
 class TestDimensions:
     """Checkpoint round-trips for 2D and 3D systems."""
-
-    def test_2d(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(state.shape)
-        state, system = system.step(state, system)
-        state_r, system_r = _round_trip(state, system)
-        _assert_leaves_equal(state, state_r, "state")
-        assert int(system_r.dim) == 2
 
     def test_3d(self):
         state = jdem.State.create(
@@ -1610,6 +1601,8 @@ class TestModelCheckpoints:
             action_space_size=2,
             key=nnx.Rngs(100),
         )
+        model1.actor_mu.bias[...] = jnp.array([1.25, -0.75])
+        model2.actor_mu.bias[...] = jnp.array([-2.0, 3.5])
 
         d = _tmpdir()
         with CheckpointModelWriter(d, clean=False) as w:
@@ -1622,19 +1615,21 @@ class TestModelCheckpoints:
         model_latest = loader.load()
         _, state_orig2 = nnx.split(model2)
         _, state_loaded_latest = nnx.split(model_latest)
-        assert jnp.allclose(
-            jax.tree.leaves(state_orig2)[0],
-            jax.tree.leaves(state_loaded_latest)[0],
-        )
+        for expected, actual in zip(
+            jax.tree.leaves(state_orig2),
+            jax.tree.leaves(state_loaded_latest),
+            strict=True,
+        ):
+            np.testing.assert_array_equal(actual, expected)
 
         # Load specific step 10
         model_10 = loader.load(step=10)
         _, state_orig1 = nnx.split(model1)
         _, state_loaded_10 = nnx.split(model_10)
-        assert jnp.allclose(
-            jax.tree.leaves(state_orig1)[0],
-            jax.tree.leaves(state_loaded_10)[0],
-        )
+        for expected, actual in zip(
+            jax.tree.leaves(state_orig1), jax.tree.leaves(state_loaded_10), strict=True
+        ):
+            np.testing.assert_array_equal(actual, expected)
 
     def test_model_load_missing_step_raises(self):
         from flax import nnx

@@ -7,6 +7,7 @@ frame options, and VTK writer-name resolution."""
 from pathlib import Path
 
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import jaxdem as jdem
@@ -60,11 +61,16 @@ def test_refresh_collider_after_resize(collider_type):
         assert refreshed.neighbor_list.shape == (bigger.N * refreshed.max_neighbors,)
         assert refreshed.row_offsets.shape == (bigger.N + 1,)
 
-    # Editing positions at the same N: the refreshed collider must step.
-    state.pos_c = state.pos_c + 10.0
-    system.collider = jdem.colliders.refresh_collider(state, system.collider)
-    state, system = system.step(state, system)
-    assert bool(jnp.all(jnp.isfinite(state.pos)))
+    # Evaluate the actual resized state; merely stepping the old N misses stale buffers.
+    from dataclasses import replace
+
+    resized_system = jdem.System.create(state=bigger, collider=refreshed)
+    actual, _ = jdem.System.evaluate_forces(bigger, resized_system)
+    reference, _ = jdem.System.evaluate_forces(
+        bigger, replace(resized_system, collider=jdem.Collider.create("naive"))
+    )
+    np.testing.assert_allclose(actual.force, reference.force, rtol=2e-6)
+    assert np.any(np.asarray(actual.force) != 0.0)
 
 
 def test_trajectory_rollout_initial_frame_via_zero_stride():
@@ -89,6 +95,14 @@ def test_vtk_writer_name_normalization(tmp_path: Path):
     writer.close()
     files = sorted(p.name for p in (tmp_path / "batch_00000000").glob("*.vtp"))
     assert any(f.startswith("spheres") for f in files)
+    import vtk
+    from vtk.util.numpy_support import vtk_to_numpy
+
+    reader = vtk.vtkXMLPolyDataReader()
+    reader.SetFileName(str(next((tmp_path / "batch_00000000").glob("spheres*.vtp"))))
+    reader.Update()
+    points = vtk_to_numpy(reader.GetOutput().GetPoints().GetData())
+    np.testing.assert_array_equal(points, [[0.0, 0.0, 0.0], [1.5, 0.0, 0.0]])
 
     with pytest.raises(KeyError, match="Unknown VTKBaseWriter"):
         jdem.VTKWriter(directory=tmp_path, writers=["not_a_writer"])

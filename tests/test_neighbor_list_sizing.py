@@ -2,6 +2,7 @@
 """Capacity measurements agree with geometric candidates and pooled builds."""
 
 import math
+from itertools import product
 from dataclasses import replace
 
 import jax
@@ -25,6 +26,8 @@ def _system(
 ):
     rng = np.random.default_rng(8)
     centers = rng.uniform(0, 4, (n_bodies, dim))
+    if n_bodies > 1:
+        centers[1] = centers[0] + np.eye(dim)[0] * 0.5
     kwargs = {}
     if clumps:
         centers = np.repeat(centers, 3, axis=0)
@@ -69,18 +72,19 @@ def _system(
     return state, system
 
 
-def _reference_counts(state, system, cutoff, skin):
+def _reference_pairs(state, system, cutoff, skin):
     pos = np.asarray(state.pos)
     box = np.asarray(system.domain.box_size)
-    dr = pos[:, None, :] - pos[None, :, :]
+    shifts = np.zeros((1, state.dim))
     if system.domain.periodic:
+        images = np.array(list(product(range(-2, 3), repeat=state.dim)))
+        shifts = images * box
         if hasattr(system.domain, "gamma"):
             a, b = system.domain.alpha, system.domain.beta
-            images = np.round(dr[..., b] / box[b])
-            dr[..., a] -= images * float(system.domain.gamma) * box[b]
-        dr -= box * np.round(dr / box)
-    distance_sq = np.sum(dr * dr, axis=-1)
-    radii = np.asarray(system.force_model.search_radii(state, system))
+            shifts[:, a] += images[:, b] * float(system.domain.gamma) * box[b]
+    dr = pos[:, None, None, :] - (pos[None, :, None, :] + shifts)
+    distance_sq = np.min(np.sum(dr * dr, axis=-1), axis=-1)
+    radii = np.asarray(state._rad)  # These fixtures use sphere-contact laws.
     pair_reach = radii[:, None] + radii[None, :] + skin
     valid = (distance_sq <= cutoff**2) & (distance_sq <= pair_reach**2)
     valid &= np.asarray(state.clump_id)[:, None] != np.asarray(state.clump_id)[None, :]
@@ -90,23 +94,37 @@ def _reference_counts(state, system, cutoff, skin):
             for dst in range(state.N):
                 if src in bonds[dst]:
                     valid[src, dst] = False
-    return valid.sum(axis=1)
+    return valid
 
 
-@pytest.mark.parametrize("dim", [2, 3])
-@pytest.mark.parametrize("domain", ["periodic", "leesedwards"])
-@pytest.mark.parametrize("backend", ["naive", "CellList", "MultiCellList"])
-def test_counts_match_geometry_and_cache_without_trial_capacity(dim, domain, backend):
+@pytest.mark.parametrize(
+    "dim,domain,backend,n_bodies",
+    [
+        (2, "periodic", "naive", 24),
+        (3, "leesedwards", "CellList", 6),
+        (2, "leesedwards", "MultiCellList", 6),
+        (3, "periodic", "CellList", 6),
+    ],
+)
+def test_counts_match_geometry_and_cache_without_trial_capacity(
+    dim, domain, backend, n_bodies
+):
     state, system = _system(
-        dim, clumps=True, domain=domain, backend=backend, n_bodies=32
+        dim, clumps=True, domain=domain, backend=backend, n_bodies=n_bodies
     )
     # Directed bond exclusions also exercise counts whose sum is not even.
     bonds = jnp.full((state.N, 1), -1).at[0, 0].set(3)
     state = replace(state, bond_id=bonds)
     stats = measure_neighbor_candidates(state, system, cutoff=1.2)
-    expected = _reference_counts(
+    unbonded = measure_neighbor_candidates(
+        state, replace(system, interact_same_bond_id=True), cutoff=1.2
+    )
+    assert unbonded.directed_pair_count - stats.directed_pair_count == 1
+    assert stats.directed_pair_count % 2 == 1
+    expected_pairs = _reference_pairs(
         state, system, stats.list_cutoff, float(system.collider.skin)
     )
+    expected = expected_pairs.sum(axis=1)
     np.testing.assert_array_equal(stats.degree, expected)
     assert stats.directed_pair_count == int(expected.sum())
     assert stats.max_degree == int(expected.max())
@@ -122,6 +140,12 @@ def test_counts_match_geometry_and_cache_without_trial_capacity(dim, domain, bac
     )
     built = check_and_rebuild(state, replace(system, collider=collider))
     np.testing.assert_array_equal(jnp.diff(built.collider.row_offsets), stats.degree)
+    for i in range(state.N):
+        start, end = map(int, built.collider.row_offsets[i : i + 2])
+        np.testing.assert_array_equal(
+            np.sort(built.collider.neighbor_list[start:end]),
+            np.flatnonzero(expected_pairs[i]),
+        )
     assert not bool(built.collider.overflow)
 
 

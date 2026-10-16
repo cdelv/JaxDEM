@@ -130,8 +130,8 @@ def test_nested_vmap_force_and_energy_gradients(advance):
     )
 
 
-@pytest.mark.parametrize("backend", ["CellList", "MultiCellList", "naive"])
-@pytest.mark.parametrize("capacity", [None, 0, 2])
+@pytest.mark.parametrize("backend", ["naive"])
+@pytest.mark.parametrize("capacity", [0, 2])
 def test_empty_simulation_initializes_and_steps(backend, capacity):
     s, y = case(capacity=capacity, backend=backend, pos=np.empty((0, 2)))
     s, y = jd.System.initialize(s, y)

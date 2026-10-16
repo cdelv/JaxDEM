@@ -92,9 +92,7 @@ def test_affine_shear_advances_contact_history(dim, alpha, beta, image_index):
     displacement = jnp.zeros(dim).at[alpha].set(0.12).at[beta].set(0.9)
     local_pos = jnp.stack([jnp.full(dim, 0.45), 0.45 - displacement])
     image_offset = jnp.zeros(dim).at[beta].set(image_index * box[beta])
-    image_offset = image_offset.at[alpha].set(
-        image_index * gamma * box[beta]
-    )
+    image_offset = image_offset.at[alpha].set(image_index * gamma * box[beta])
     state = jd.State.create(
         pos=local_pos.at[1].add(image_offset),
         rad=jnp.full(2, 0.5),
@@ -118,13 +116,8 @@ def test_affine_shear_advances_contact_history(dim, alpha, beta, image_index):
     history = updated.collider.get_history(sheared, updated, neighbors)
     rij = updated.domain.displacement(sheared.pos[0], sheared.pos[1], updated)
     normal = rij / jnp.linalg.norm(rij)
-    affine_displacement = jnp.zeros(dim).at[alpha].set(
-        dgamma * displacement[beta]
-    )
-    expected = (
-        affine_displacement
-        - jnp.vdot(affine_displacement, normal) * normal
-    )
+    affine_displacement = jnp.zeros(dim).at[alpha].set(dgamma * displacement[beta])
+    expected = affine_displacement - jnp.vdot(affine_displacement, normal) * normal
     np.testing.assert_allclose(history[0, 0, :dim], expected, atol=1e-12)
     np.testing.assert_allclose(history[1, 0, :dim], -expected, atol=1e-12)
     np.testing.assert_allclose(history[0, 0, dim:], normal, atol=1e-12)
@@ -141,9 +134,7 @@ def test_zero_affine_shear_does_not_advance_history_or_rebuild() -> None:
         rad=jnp.full(2, 0.5),
         mass=jnp.ones(2),
     )
-    domain = jd.Domain.create(
-        "leesedwards", dim=2, box_size=jnp.full(2, 10.0)
-    )
+    domain = jd.Domain.create("leesedwards", dim=2, box_size=jnp.full(2, 10.0))
     system = _contact_system(state, domain, restitution=1.0)
     state, system = system.initialize(state, system)
 
@@ -167,9 +158,7 @@ def test_minimization_does_not_repeat_affine_history_increment() -> None:
         rad=jnp.full(2, 0.5),
         mass=jnp.ones(2),
     )
-    domain = jd.Domain.create(
-        "leesedwards", dim=2, box_size=jnp.full(2, 10.0)
-    )
+    domain = jd.Domain.create("leesedwards", dim=2, box_size=jnp.full(2, 10.0))
     system = _contact_system(state, domain, restitution=1.0)
     state, system = system.initialize(state, system)
     sheared, system = system.domain.shear(state, system, 0.01)
@@ -186,7 +175,7 @@ def test_minimization_does_not_repeat_affine_history_increment() -> None:
     np.testing.assert_allclose(result.system.collider.history, history, atol=1e-15)
 
 
-def test_stateless_affine_shear_does_not_traverse_neighbor_list() -> None:
+def test_stateless_affine_shear_does_not_traverse_neighbor_list(monkeypatch) -> None:
     state = jd.State.create(
         pos=jnp.array([[0.0, 0.0], [0.0, 0.9]]),
         rad=jnp.full(2, 0.5),
@@ -206,14 +195,34 @@ def test_stateless_affine_shear_does_not_traverse_neighbor_list() -> None:
     state, system = system.initialize(state, system)
     builds = system.collider.n_build_times
 
-    _, updated = system.domain.shear(state, system, 0.01)
+    def forbidden(*args, **kwargs):
+        raise AssertionError("stateless affine shear must not traverse contact forces")
+
+    monkeypatch.setattr(type(system.collider), "compute_force", staticmethod(forbidden))
+    jax.clear_caches()
+
+    sheared, updated = system.domain.shear(state, system, 0.01)
 
     np.testing.assert_array_equal(updated.collider.n_build_times, builds)
+    np.testing.assert_allclose(sheared.pos, [[0.0, 0.0], [0.009, 0.9]], atol=1e-7)
+    np.testing.assert_array_equal(sheared.vel, state.vel)
+    np.testing.assert_array_equal(updated.collider.history, system.collider.history)
 
 
-@pytest.mark.parametrize("dim,alpha,beta", [(2, 0, 1), (2, 1, 0), (3, 2, 0)])
-@pytest.mark.parametrize("image_index", [-2, 0, 1])
-@pytest.mark.parametrize("gamma_dot", [-0.1, 0.0, 0.1])
+@pytest.mark.parametrize(
+    "dim,alpha,beta,image_index,gamma_dot",
+    [
+        (2, 0, 1, -2, -0.1),
+        (2, 1, 0, -2, 0.0),
+        (3, 2, 0, -2, 0.1),
+        (2, 1, 0, 0, -0.1),
+        (3, 2, 0, 0, 0.0),
+        (2, 0, 1, 0, 0.1),
+        (3, 2, 0, 1, -0.1),
+        (2, 0, 1, 1, 0.0),
+        (2, 1, 0, 1, 0.1),
+    ],
+)
 @pytest.mark.parametrize("advance_history", [False, True])
 def test_sheared_contact_matches_explicit_moving_image(
     dim, alpha, beta, image_index, gamma_dot, advance_history

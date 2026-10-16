@@ -204,6 +204,9 @@ def test_rescaling_removes_mass_weighted_body_drift() -> None:
     member_mass = jnp.array([1.0, 1.0, 6.0])
     drift = jnp.sum(state.vel * member_mass[:, None], axis=0) / member_mass.sum()
     np.testing.assert_allclose(drift, 0.0, atol=1e-6)
+    np.testing.assert_allclose(
+        0.5 * jnp.sum(member_mass[:, None] * state.vel**2), 1.0, rtol=2e-6
+    )
 
 
 def test_rescaling_drift_is_correct_below_unit_total_mass() -> None:
@@ -223,6 +226,9 @@ def test_rescaling_drift_is_correct_below_unit_total_mass() -> None:
     member_mass = jnp.array([0.1, 0.1, 0.6])
     drift = jnp.sum(state.vel * member_mass[:, None], axis=0) / member_mass.sum()
     np.testing.assert_allclose(drift, 0.0, atol=1e-6)
+    np.testing.assert_allclose(
+        0.5 * jnp.sum(member_mass[:, None] * state.vel**2), 1.0, rtol=2e-6
+    )
 
 
 @pytest.mark.parametrize(
@@ -267,6 +273,7 @@ def test_temperature_scaling_excludes_and_preserves_fixed_particles() -> None:
     np.testing.assert_allclose(compute_temperature(state, False, False), 0.5)
     scaled = scale_to_temperature(state, 2.0, False, False)
     np.testing.assert_allclose(scaled.vel[0], jnp.array([10.0, 0.0]))
+    np.testing.assert_allclose(scaled.vel[1], jnp.array([2.0, 0.0]), rtol=2e-6)
 
 
 def test_temperature_scaling_uses_body_mass_once_for_clump_drift() -> None:
@@ -280,6 +287,9 @@ def test_temperature_scaling_uses_body_mass_once_for_clump_drift() -> None:
     member_mass = jnp.array([1.0, 1.0, 6.0])
     drift = jnp.sum(scaled.vel * member_mass[:, None], axis=0) / member_mass.sum()
     np.testing.assert_allclose(drift, 0.0, atol=1e-6)
+    np.testing.assert_allclose(
+        0.5 * jnp.sum(member_mass[:, None] * scaled.vel**2), 1.0, rtol=2e-6
+    )
 
 
 def test_public_state_guards_survive_python_optimization() -> None:

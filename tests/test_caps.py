@@ -199,8 +199,15 @@ def test_spatial_loss_and_gradient_use_per_feature_noise_and_selected_observatio
     np.testing.assert_allclose(grad.slope[...], 0.4 * 2 * 0.7 * expected)
 
 
-@pytest.mark.parametrize("name", MODELS)
-@pytest.mark.parametrize("space", SPACES)
+@pytest.mark.parametrize(
+    "name,space",
+    [
+        ("ActorCritic", "Free"),
+        ("SharedActorCritic", "Box"),
+        ("LSTMActorCritic", "discrete"),
+        ("MinGRUActorCritic", "MaxNorm"),
+    ],
+)
 def test_both_caps_terms_train_with_all_models_and_action_spaces(name, space):
     model = make_model(
         name, space, obs_dim=1, action_dim=3 if space == "discrete" else 1
@@ -216,15 +223,19 @@ def test_both_caps_terms_train_with_all_models_and_action_spaces(name, space):
         caps_spatial_coeff=0.2,
         caps_noise_std=[0.1],
     )
-    before = tr.graphstate
+    before = [
+        np.asarray(x).copy() for x in jax.tree.leaves(nnx.state(tr.model, nnx.Param))
+    ]
     tr, _, metrics = tr.epoch(tr, jnp.array(0))
     jax.block_until_ready(metrics)
-    assert metrics["caps_temporal_loss"] >= 0
-    assert metrics["caps_spatial_loss"] >= 0
+    assert metrics["caps_temporal_loss"] > 0
+    assert metrics["caps_spatial_loss"] > 0
     assert all(np.isfinite(x).all() for x in jax.tree.leaves(metrics))
     assert any(
         not np.array_equal(a, b)
-        for a, b in zip(jax.tree.leaves(before), jax.tree.leaves(tr.graphstate))
+        for a, b in zip(
+            before, jax.tree.leaves(nnx.state(tr.model, nnx.Param)), strict=True
+        )
     )
 
 
@@ -265,6 +276,12 @@ def test_zero_weights_preserve_default_epoch_and_rng():
     b, td_b, metrics_b = explicit.epoch(explicit, jnp.array(0))
     np.testing.assert_array_equal(
         jax.random.key_data(a.key), jax.random.key_data(b.key)
+    )
+    expected_key = tr.key
+    for _ in range(2):
+        expected_key = jax.random.split(expected_key, 3)[0]
+    np.testing.assert_array_equal(
+        jax.random.key_data(a.key), jax.random.key_data(expected_key)
     )
     assert_trees_close(
         (a.graphstate, td_a, metrics_a), (b.graphstate, td_b, metrics_b), rtol=0, atol=0

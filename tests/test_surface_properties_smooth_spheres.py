@@ -22,15 +22,12 @@ sample only ``n_orientations = 1`` (and ``n_rolls = 1`` in 3D).
 
 from __future__ import annotations
 
-import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
 
 import jaxdem as jd
 from jaxdem.utils.surface_properties import compute_surface_properties
-
-jax.config.update("jax_enable_x64", True)
 
 
 def _single_sphere_state(radius: float, dim: int) -> jd.State:

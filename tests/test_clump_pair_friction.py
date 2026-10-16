@@ -17,7 +17,6 @@ coefficient:
 
 from __future__ import annotations
 
-import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -28,8 +27,6 @@ from jaxdem.utils import (
     get_group_contacts,
     get_sphere_rattler_ids,
 )
-
-jax.config.update("jax_enable_x64", True)
 
 
 def _build_system(

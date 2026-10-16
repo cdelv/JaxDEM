@@ -3,14 +3,11 @@
 """Tests for rigid and deformable facet use cases."""
 
 import dataclasses
-import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
 
 import jaxdem as jdem
-
-jax.config.update("jax_enable_x64", True)
 
 
 @pytest.mark.parametrize("dim", [2, 3])

@@ -1,4 +1,3 @@
-import math
 from dataclasses import dataclass, replace
 import jax
 import jax.numpy as jnp
@@ -25,11 +24,16 @@ def test_ppo_learning_rate_schedule_uses_epochs():
     schedule = _epoch_learning_rate_schedule(1.0, num_epochs=4, updates_per_epoch=2)
 
     values = jax.vmap(schedule)(jnp.arange(8))
-    assert jnp.allclose(values[::2], values[1::2])
-    assert values[0] > values[2] > values[4] > values[6]
+    assert jnp.allclose(
+        values,
+        jnp.repeat(
+            jnp.array([1.0, (2 + jnp.sqrt(2)) / 4, 0.5, (2 - jnp.sqrt(2)) / 4]), 2
+        ),
+    )
+    assert schedule(jnp.array(8)) == 0.0
 
 
-def test_ppo_schedule_continues_from_accumulated_optimizer_state():
+def test_ppo_schedule_counts_accumulated_updates():
     def sgd_factory(learning_rate, eps):
         del eps
         return optax.sgd(learning_rate)
@@ -44,7 +48,7 @@ def test_ppo_schedule_continues_from_accumulated_optimizer_state():
         params = optax.apply_updates(params, update)
         emitted.append(update)
 
-    # Continuing with this restored state resumes at the next optimizer update.
+    # Accumulation counts emitted optimizer updates, not minibatches.
     resumed_state = state
     for _ in range(2):
         update, resumed_state = tx.update(jnp.array(1.0), resumed_state, params)
@@ -58,7 +62,7 @@ def test_ppo_schedule_continues_from_accumulated_optimizer_state():
 
 def test_ppo_accumulates_raw_gradient_mean_before_clipping():
     accumulated = _build_optimizer(optax.adam, 1.0, 1.0, 2)
-    reference = _build_optimizer(optax.adam, 1.0, 1.0, 1)
+    reference = optax.chain(optax.clip_by_global_norm(1.0), optax.adam(1.0, eps=1e-12))
     accumulated_params = jnp.zeros(2)
     reference_params = jnp.zeros(2)
     accumulated_state = accumulated.init(accumulated_params)
@@ -188,14 +192,23 @@ def test_recurrent_full_reset_clears_nonfinite_carry(model_name):
 
     if model_name == "lstm":
         model = LSTMActorCritic(
-            2, 1, nnx.Rngs(2), hidden_features=4, lstm_features=4,
+            2,
+            1,
+            nnx.Rngs(2),
+            hidden_features=4,
+            lstm_features=4,
             carry_leading_shape=(2, 3),
         )
         carry_variables = (model.h, model.c)
     else:
         model = MinGRUActorCritic(
-            2, 1, nnx.Rngs(3), hidden_features=4, gru_features=4,
-            num_layers=1, carry_leading_shape=(2, 3),
+            2,
+            1,
+            nnx.Rngs(3),
+            hidden_features=4,
+            gru_features=4,
+            num_layers=1,
+            carry_leading_shape=(2, 3),
         )
         carry_variables = (model.h,)
 
@@ -233,6 +246,9 @@ def test_recurrent_reset_masks_individual_agents():
         model.reset((2, 3, 2), mask=mask)
         assert jnp.all(model.h.value[mask] == 0.0)
         assert jnp.all(model.h.value[~mask] == 1.0)
+        if hasattr(model, "c"):
+            assert jnp.all(model.c.value[mask] == 0.0)
+            assert jnp.all(model.c.value[~mask] == 1.0)
 
 
 @pytest.mark.parametrize("model_name", ["lstm", "mingru"])
@@ -292,39 +308,6 @@ def test_recurrent_replay_matches_online_rollout_across_inactive_gap(model_name)
             initial_carry=replay.carry,
         )
         assert jnp.allclose(aux["value"], jnp.squeeze(jnp.stack(online_values), -1))
-
-
-def test_clipped_surrogate_objective():
-    def clipped_actor_loss(ratio, advantage, eps):
-        ratio_bounded = jnp.where(
-            advantage >= 0,
-            jnp.minimum(ratio, 1.0 + eps),
-            jnp.maximum(ratio, 1.0 - eps),
-        )
-        return -(advantage * ratio_bounded)
-
-    eps = 0.2
-
-    l1 = clipped_actor_loss(jnp.array(1.1), jnp.array(1.0), eps)
-    assert jnp.allclose(l1, -1.1)
-
-    l2 = clipped_actor_loss(jnp.array(1.5), jnp.array(1.0), eps)
-    assert jnp.allclose(l2, -1.2)
-
-    l3 = clipped_actor_loss(jnp.array(0.5), jnp.array(-1.0), eps)
-    assert jnp.allclose(l3, 0.8)
-
-
-def test_entropy_continuous():
-    k = 3
-    mu = jnp.zeros(k)
-    sigma = jnp.ones(k)
-
-    dist = distrax.MultivariateNormalDiag(loc=mu, scale_diag=sigma)
-    entropy = dist.entropy()
-
-    expected_entropy = (k / 2.0) * math.log(2 * math.pi * math.e)
-    assert jnp.allclose(entropy, expected_entropy)
 
 
 def test_gradient_detachment():
@@ -554,6 +537,7 @@ class StatelessBanditEnv(Environment):
         return 1
 
 
+@pytest.mark.slow
 def test_stateless_bandit():
     env = StatelessBanditEnv.Create()
     model = BanditModel(
@@ -580,10 +564,12 @@ def test_stateless_bandit():
 
     dist, val = model(jnp.zeros((1, 1)))
 
-    # Verify the agent learned to output a positive mean action
-    assert dist.mean() > 0.5
-    # Verify the value function predicts the expected return (which should be ~1.0)
-    assert val.mean() > 0.5
+    # For this bandit E[r]=2*Phi(mu/sigma)-1; a large mean alone is insufficient.
+    from scipy.special import ndtr
+
+    expected_return = float(2 * ndtr(float(dist.loc[0, 0] / dist.scale_diag[0, 0])) - 1)
+    assert expected_return > 0.95
+    assert abs(float(val[0, 0]) - expected_return) < 0.15
 
 
 @Environment.register("DeterministicCorridor")
@@ -608,7 +594,7 @@ class DeterministicCorridorEnv(Environment):
         from dataclasses import replace
 
         new_pos = jnp.zeros_like(env.state.pos_c)
-        new_state = replace(env.state, pos_c=new_pos, pos_p=new_pos)
+        new_state = replace(env.state, pos_c=new_pos)
         return replace(
             env,
             state=new_state,
@@ -657,6 +643,7 @@ class DeterministicCorridorEnv(Environment):
         return 1
 
 
+@pytest.mark.slow
 def test_deterministic_corridor():
     from jaxdem.rl.models.mlp import SharedActorCritic
 
@@ -685,10 +672,17 @@ def test_deterministic_corridor():
 
     model, optimizer = nnx.merge(tr.graphdef, tr.graphstate)
     dist, val = model(jnp.zeros((1, 1)))
-    mean = dist.distribution.mean()
-
-    # Should strongly prefer moving right
-    assert mean[0, 0] > 0.55
+    # Evaluate an actual goal-reaching rollout with the squashed mean policy.
+    total_reward = 0.0
+    for _ in range(16):
+        dist, _ = model(env.observation(env))
+        action = dist.bijector.forward(dist.distribution.mean())
+        env = env.step(env, action)
+        total_reward += float(env.reward(env)[0])
+        if bool(env.terminated(env)):
+            break
+    assert bool(env.terminated(env))
+    assert total_reward >= 8.5
 
 
 @pytest.mark.parametrize("counts", [(-1, -1), (0, 0), (-1, 0)])
@@ -698,7 +692,11 @@ def test_lstm_truncation_bootstrap_preserves_rollout_carry(counts):
     env = vectorise_env(TimeLimitCounterEnv.Create(), n=2)
     env = replace(env, env_params={"count": jnp.asarray(counts)})
     model = LSTMActorCritic(
-        1, 1, nnx.Rngs(7), hidden_features=8, lstm_features=8,
+        1,
+        1,
+        nnx.Rngs(7),
+        hidden_features=8,
+        lstm_features=8,
         carry_leading_shape=(2, 1),
     )
     model.eval()
@@ -737,8 +735,13 @@ def test_lstm_epoch_bootstrap_does_not_advance_saved_carry():
     # Ensure a pass over a zero observation changes the recurrent state.
     model.encoder.layers[0].bias[...] = jnp.full((8,), 0.2)
     tr = PPOTrainer.Create(
-        env=TimeLimitCounterEnv.Create(), model=model, key=jax.random.key(12),
-        num_epochs=2, num_envs=2, num_steps_epoch=2, num_minibatches=1,
+        env=TimeLimitCounterEnv.Create(),
+        model=model,
+        key=jax.random.key(12),
+        num_epochs=2,
+        num_envs=2,
+        num_steps_epoch=2,
+        num_minibatches=1,
     )
     tr, trajectory, metrics = tr.epoch(tr, jnp.asarray(0))
     jax.block_until_ready(metrics)

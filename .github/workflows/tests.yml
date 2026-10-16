@@ -1,0 +1,45 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      extended:
+        description: Run extended learning validation
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  JAX_PLATFORMS: cpu
+  PYTHONDONTWRITEBYTECODE: '1'
+  OMP_NUM_THREADS: '1'
+  OPENBLAS_NUM_THREADS: '1'
+
+jobs:
+  correctness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.14'
+      - run: python -m pip install '.[io,rl]' pytest
+      - run: python -m pytest -q
+        env:
+          JAX_ENABLE_X64: '1'
+      - name: Float32 numerical checks
+        run: >-
+          python -m pytest -q tests/test_energy_conservation.py
+          tests/test_excluded_pairs.py tests/test_neighbor_force_blocks.py
+          tests/test_ppo_objective.py tests/test_action_spaces.py
+        env:
+          JAX_ENABLE_X64: '0'
+      - name: Extended learning checks
+        if: ${{ inputs.extended }}
+        run: python -m pytest -q --full -m slow

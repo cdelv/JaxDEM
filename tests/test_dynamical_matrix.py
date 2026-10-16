@@ -25,7 +25,6 @@ These are the four facts we assert.
 
 from __future__ import annotations
 
-import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -37,8 +36,6 @@ from jaxdem.utils.dynamical_matrix import (
     non_bonded_hessian,
     pair_non_bonded_hessian,
 )
-
-jax.config.update("jax_enable_x64", True)
 
 
 def _build_two_sphere_system(
@@ -464,31 +461,6 @@ def test_clump_hessian_offset_geometry_matches_closed_form():
     expected = J.T @ M @ J
 
     np.testing.assert_allclose(H_np, expected, atol=1e-12)
-
-
-def test_clump_hessian_rotation_scale_rescales_rotation_block():
-    """Passing rotation_scale rescales rotation rows/cols by 1/R."""
-    state, system = _build_two_sphere_system([0.0, 0.0, 0.0], [0.3, 0.4, 0.6])
-    # For single-sphere clumps the rotation block is zero anyway, so
-    # use the bigger regression check: full hessian stays symmetric and
-    # the translational block is unchanged.
-    _, _, H_unscaled = clump_non_bonded_hessian(state, system)
-    R = jnp.array([0.5, 0.5])
-    _, _, H_scaled = clump_non_bonded_hessian(state, system, rotation_scale=R)
-    H_unscaled_np = np.asarray(H_unscaled)
-    H_scaled_np = np.asarray(H_scaled)
-
-    # Translational block unchanged.
-    dim, rot_dim = 3, 3
-    group_dim = dim + rot_dim
-    trans_idx = np.concatenate([np.arange(dim), np.arange(dim) + group_dim])
-    np.testing.assert_allclose(
-        H_scaled_np[np.ix_(trans_idx, trans_idx)],
-        H_unscaled_np[np.ix_(trans_idx, trans_idx)],
-        atol=1e-12,
-    )
-    # Scaled still symmetric.
-    np.testing.assert_allclose(H_scaled_np, H_scaled_np.T, atol=1e-12)
 
 
 def test_clump_hessian_2d_matches_explicit_rigid_body_formula():

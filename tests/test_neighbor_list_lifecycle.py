@@ -9,7 +9,6 @@ import jax.numpy as jnp
 import numpy as np
 
 import jaxdem as jd
-from jaxdem.colliders._neighbor_cache import pair_sources, remap_history
 
 
 def _neighbor_system(pos, *, cutoff=1.0, max_neighbors=4, domain_type="free"):
@@ -31,17 +30,40 @@ def _neighbor_system(pos, *, cutoff=1.0, max_neighbors=4, domain_type="free"):
     return state, system
 
 
+def _pair_histories(collider):
+    pairs = {
+        (i, int(collider.neighbor_list[k])): np.asarray(collider.history[k]).copy()
+        for i in range(len(collider.row_offsets) - 1)
+        for k in range(int(collider.row_offsets[i]), int(collider.row_offsets[i + 1]))
+    }
+    assert len(pairs) == int(collider.row_offsets[-1])
+    return pairs
+
+
 def test_explicit_query_honors_cutoff_width_and_does_not_replace_force_cache():
     state, system = _neighbor_system([[0.0, 0.0], [0.4, 0.0], [2.0, 0.0]])
+    state, system = jd.System.initialize(state, system)
+    before = [np.asarray(x).copy() for x in jax.tree.leaves(system.collider)]
     state, queried_system, neighbors, overflow = system.collider.create_neighbor_list(
         state, system, 0.5, 2
     )
 
     assert neighbors.shape == (3, 2)
-    assert 1 in np.asarray(neighbors[0])
-    assert 2 not in np.asarray(neighbors[0])
+    np.testing.assert_array_equal(neighbors, [[1, -1], [0, -1], [-1, -1]])
     assert not bool(overflow)
-    assert int(queried_system.collider.n_build_times) == 0
+    for expected, actual in zip(
+        before, jax.tree.leaves(queried_system.collider), strict=True
+    ):
+        np.testing.assert_array_equal(actual, expected)
+    _, wide_system, wide, overflow = system.collider.create_neighbor_list(
+        state, system, 2.1, 2
+    )
+    np.testing.assert_array_equal(np.sort(wide, axis=-1), [[1, 2], [0, 2], [0, 1]])
+    assert not overflow
+    for expected, actual in zip(
+        before, jax.tree.leaves(wide_system.collider), strict=True
+    ):
+        np.testing.assert_array_equal(actual, expected)
 
 
 def test_zero_width_query_reports_qualifying_neighbors_as_overflow():
@@ -57,12 +79,18 @@ def test_periodic_metric_change_rebuilds_cached_force_list():
     state, system = _neighbor_system(
         [[0.1, 0.0], [9.9, 0.0]], cutoff=0.5, domain_type="periodic"
     )
-    state, system, _ = system.collider.compute_potential_energy(state, system)
+    state, system, energy = system.collider.compute_potential_energy(state, system)
+    np.testing.assert_allclose(energy, 0.5 * 1e4 * 0.2**2, rtol=2e-6)
+    assert _pair_histories(system.collider).keys() == {(0, 1), (1, 0)}
     first_count = int(system.collider.n_build_times)
     system = replace(
         system, domain=replace(system.domain, box_size=jnp.array([11.0, 10.0]))
     )
-    state, system, _ = system.collider.compute_potential_energy(state, system)
+    state, system, energy = system.collider.compute_potential_energy(state, system)
+    np.testing.assert_array_equal(energy, 0.0)
+    assert not _pair_histories(system.collider)
+    evaluated, _ = jd.System.evaluate_forces(state, system)
+    np.testing.assert_array_equal(evaluated.force, 0.0)
     assert int(system.collider.n_build_times) == first_count + 1
 
 
@@ -308,26 +336,21 @@ def test_history_survives_evaluation_refresh_and_initial_preparation(composite):
         np.testing.assert_array_equal(
             np.asarray(history)[np.asarray(system.collider.neighbor_list) >= 0], 1.0
         )
-    previous = system.collider.history
-    previous_neighbors = system.collider.neighbor_list
-    previous_sources = pair_sources(system.collider)
+    system = replace(
+        system,
+        collider=replace(
+            system.collider,
+            history=system.collider.history.at[:2, 0].set(jnp.array([11.0, 29.0])),
+        ),
+    )
+    previous = _pair_histories(system.collider)
     moved = replace(state, pos_c=state.pos_c + 0.2)
     moved, evaluated, _ = system.collider.compute_potential_energy(moved, system)
     assert int(evaluated.collider.n_build_times) > int(system.collider.n_build_times)
-    for before, after in zip(
-        jax.tree.leaves(previous), jax.tree.leaves(evaluated.collider.history)
-    ):
-        expected = remap_history(
-            before,
-            previous_sources,
-            previous_neighbors,
-            pair_sources(evaluated.collider),
-            evaluated.collider.neighbor_list,
-            law.init_history(
-                evaluated.collider.neighbor_list.shape, moved.pos.shape[-1]
-            ),
-        )
-        np.testing.assert_array_equal(after, expected)
+    actual = _pair_histories(evaluated.collider)
+    assert actual.keys() == previous.keys()
+    for pair in previous:
+        np.testing.assert_array_equal(actual[pair], previous[pair])
     refreshed = replace(
         evaluated,
         collider=jd.colliders.refresh_collider(moved, evaluated.collider, law),
@@ -395,6 +418,14 @@ def test_refresh_grows_history_capacity_without_losing_pair_memory():
         },
     )
     state, system = system.collider.compute_force(state, system)
+    system = replace(
+        system,
+        collider=replace(
+            system.collider,
+            history=system.collider.history.at[:2, 0].set(jnp.array([11.0, 29.0])),
+        ),
+    )
+    before = _pair_histories(system.collider)
     resized = jd.colliders.refresh_collider(
         state, replace(system.collider, max_neighbors=4), law
     )
@@ -402,8 +433,10 @@ def test_refresh_grows_history_capacity_without_losing_pair_memory():
     _, system = resized.compute_force(
         state, replace(system, collider=resized), advance_history=False
     )
-    valid = np.asarray(system.collider.neighbor_list) >= 0
-    np.testing.assert_array_equal(np.asarray(system.collider.history)[valid], 1.0)
+    after = _pair_histories(system.collider)
+    assert after.keys() == before.keys()
+    for pair in before:
+        np.testing.assert_array_equal(after[pair], before[pair])
     with pytest.raises(ValueError, match="reset_history"):
         jd.colliders.refresh_collider(
             state, replace(system.collider, max_neighbors=1), law
@@ -424,9 +457,9 @@ def test_refresh_growth_uses_force_history_initializer_for_new_slots():
             "secondary_collider_type": "naive",
         },
     )
-    old = replace(system.collider, history=system.collider.history * 3.0)
+    old = replace(system.collider, history=jnp.array([[21.0], [43.0]]))
     resized = jd.colliders.refresh_collider(state, replace(old, max_neighbors=3), law)
-    np.testing.assert_array_equal(resized.history[:2], 21.0)
+    np.testing.assert_array_equal(resized.history[:2], [[21.0], [43.0]])
     np.testing.assert_array_equal(resized.history[2:], 7.0)
 
 

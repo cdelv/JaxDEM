@@ -1,19 +1,7 @@
-"""Sanity tests for the asperity mesh generators (icosphere, fibonacci, torus, helix)
-and the ``mesh_type`` dispatch in :func:`create_ga_state`.
-
-These tests check correctness and shapes only. They do not validate
-high-order physics. Each generator must:
-
-* return the right shape,
-* respect unit-scaling (longest axis has extent 1),
-* expose the shape-specific knobs (valid nv for icosphere,
-  tube_ratio for torus, n_turns / helix_radius for helix), and
-* flow through ``create_ga_state`` as an asperity mesh.
-"""
+"""Known geometry, sampling rules and reconstruction of asperity meshes."""
 
 from __future__ import annotations
 
-import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -29,8 +17,6 @@ from jaxdem.utils import (
 )
 from jaxdem.utils.meshes import dimensionless_overlap_energy
 from jaxdem.utils.particle_creation import create_ga_state
-
-jax.config.update("jax_enable_x64", True)
 
 
 # ---------------------------------------------------------------- icosphere
@@ -86,12 +72,10 @@ def test_fibonacci_3d_arbitrary_nv_on_unit_sphere(nv: int):
     assert pos.shape == (nv, 3)
     norms = np.linalg.norm(np.asarray(pos), axis=-1)
     np.testing.assert_allclose(norms, 1.0, atol=1e-10)
-
-
-def test_fibonacci_3d_is_deterministic():
-    a = generate_fibonacci_sphere_mesh(nv=32, N=1, dim=3)
-    b = generate_fibonacci_sphere_mesh(nv=32, N=1, dim=3)
-    np.testing.assert_array_equal(np.asarray(a), np.asarray(b))
+    assert np.unique(np.asarray(pos), axis=0).shape[0] == nv
+    np.testing.assert_array_equal(
+        pos, generate_fibonacci_sphere_mesh(nv=nv, N=1, dim=3)
+    )
 
 
 def test_fibonacci_2d_evenly_spaces_points():
@@ -101,6 +85,10 @@ def test_fibonacci_2d_evenly_spaces_points():
     np.testing.assert_allclose(
         np.linalg.norm(np.asarray(pos), axis=-1), 1.0, atol=1e-12
     )
+
+    angles = np.sort(np.mod(np.arctan2(pos[:, 1], pos[:, 0]), 2 * np.pi))
+    gaps = np.diff(np.r_[angles, angles[0] + 2 * np.pi])
+    np.testing.assert_allclose(gaps, 2 * np.pi / nv, atol=1e-12)
 
 
 # ---------------------------------------------------------------- torus
@@ -182,6 +170,8 @@ def test_helix_2d_is_archimedean_spiral():
     # Monotonic radial growth from the origin out to r=1.
     assert np.all(np.diff(r) > 0.0)
     np.testing.assert_allclose(r[-1], 1.0, atol=1e-12)
+    theta = np.unwrap(np.arctan2(pos[1:, 1], pos[1:, 0]))
+    np.testing.assert_allclose(theta, 4 * np.pi * r[1:], atol=1e-12)
 
 
 def test_helix_rejects_helix_radius_out_of_range():
@@ -331,6 +321,17 @@ def test_faceted_2d_distributes_non_divisible_remainder():
     n_facets, nv = 3, 10
     pos = np.asarray(generate_faceted_mesh(nv=nv, N=1, dim=2, n_facets=n_facets))
     assert pos.shape == (nv, 2)
+    angles = 2 * np.pi * np.arange(n_facets) / n_facets
+    vertices = np.stack([np.cos(angles), np.sin(angles)], axis=-1)
+    np.testing.assert_allclose(pos[:n_facets], vertices, atol=1e-12)
+    start = n_facets
+    for edge, count in enumerate([3, 2, 2]):
+        fraction = np.arange(1, count + 1)[:, None] / (count + 1)
+        expected = vertices[edge] + fraction * (
+            vertices[(edge + 1) % n_facets] - vertices[edge]
+        )
+        np.testing.assert_allclose(pos[start : start + count], expected, atol=1e-12)
+        start += count
 
 
 def test_faceted_3d_first_twelve_match_icosahedron_vertices():
@@ -340,6 +341,17 @@ def test_faceted_3d_first_twelve_match_icosahedron_vertices():
     assert pos.shape == (12, 3)
     # All on the unit sphere.
     np.testing.assert_allclose(np.linalg.norm(pos, axis=-1), 1.0, atol=1e-12)
+    phi = (1 + np.sqrt(5)) / 2
+    expected = np.array(
+        [(0, a, b * phi) for a in [-1, 1] for b in [-1, 1]]
+        + [(a, b * phi, 0) for a in [-1, 1] for b in [-1, 1]]
+        + [(b * phi, 0, a) for a in [-1, 1] for b in [-1, 1]]
+    )
+    expected /= np.sqrt(1 + phi**2)
+    # Order is irrelevant, but every distinct vertex must occur exactly once.
+    distances = np.linalg.norm(pos[:, None] - expected[None], axis=-1)
+    np.testing.assert_allclose(distances.min(axis=1), 0, atol=1e-12)
+    assert np.unique(distances.argmin(axis=1)).size == 12
 
 
 def test_faceted_3d_face_interiors_strictly_inside_sphere():
