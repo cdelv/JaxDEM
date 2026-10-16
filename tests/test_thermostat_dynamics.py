@@ -1,5 +1,6 @@
 """Exact free-particle thermostat transitions, including small reduced units."""
 
+from dataclasses import replace
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -85,3 +86,46 @@ def test_rescaling_reaches_target_without_a_temperature_floor(speed, temperature
         temperature if speed > 0 else 0.0,
         atol=1e-7,
     )
+
+
+@pytest.mark.parametrize("utility", [False, True])
+@pytest.mark.parametrize("target", [0.0, 2.0])
+def test_temperature_scaling_has_the_analytical_velocity_jacobian(utility, target):
+    with jax.enable_x64(False):
+        state = jd.State.create(
+            pos=jnp.ones((3, 2)),
+            mass=jnp.array([1.0, 3.0, 1.0]),
+            fixed=jnp.array([False, False, True]),
+        )
+        system = jd.System.create(
+            state=state,
+            collider_type="",
+            linear_integrator_type="verlet_rescaling",
+            linear_integrator_kw={"temperature": target},
+        )
+
+        def rescale(velocity):
+            trial = replace(state, vel=velocity)
+            if utility:
+                return jd.utils.scale_to_temperature(trial, target, False, False).vel
+            return system.linear_integrator.finalize_step(trial, system)[0].vel
+
+        for speed in (0.0, 1e-16, 1.0):
+            velocity = jnp.array([[speed, 0.0], [-speed, 0.0], [0.7, 0.0]])
+            jacobian = np.asarray(jax.jacrev(rescale)(velocity)).reshape(6, 6)
+            assert np.isfinite(jacobian).all()
+            np.testing.assert_allclose(jacobian[4:, 4:], np.eye(2))
+            np.testing.assert_allclose(jacobian[:4, 4:], 0.0)
+            if target == 0:
+                np.testing.assert_array_equal(jacobian[:4], 0.0)
+            elif speed > 0:
+                expected = (
+                    np.eye(4)
+                    - np.outer([1.0, 0.0, -1.0, 0.0], [1.0, 0.0, -3.0, 0.0]) / 4
+                )
+                np.testing.assert_allclose(
+                    jacobian[:4, :4] * (speed / np.sqrt(target)),
+                    expected,
+                    rtol=3e-5,
+                    atol=2e-6,
+                )

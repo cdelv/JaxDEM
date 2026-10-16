@@ -380,6 +380,16 @@ def set_temperature(
     )
 
 
+@jax.jit(inline=True)
+def _temperature_scale(temperature: jax.Array, target: jax.Array | float) -> jax.Array:
+    """Multiplicative scale with finite zero-target and zero-energy derivatives."""
+    active = (temperature > 0.0) & (target > 0.0)
+    safe_temperature = jnp.where(active, temperature, 1.0)
+    safe_target = jnp.where(active, target, 1.0)
+    scale = jnp.sqrt(safe_target) / jnp.sqrt(safe_temperature)
+    return jnp.where(target > 0.0, scale, 0.0)
+
+
 def scale_to_temperature(
     state: State,
     target_temperature: float,
@@ -423,7 +433,7 @@ def scale_to_temperature(
     state.vel = vel
     temperature = compute_temperature(state, can_rotate, subtract_drift, k_B)
     state.vel = old_vel
-    scale = jnp.where(temperature > 0, jnp.sqrt(target_temperature / temperature), 1.0)
+    scale = _temperature_scale(temperature, target_temperature)
     vel = jnp.where(free[..., None], vel * scale, old_vel)
     # Angular velocities are scaled only when rotations participate in the
     # temperature; otherwise they are left untouched.
