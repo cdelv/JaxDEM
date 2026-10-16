@@ -16,7 +16,7 @@ from ...material_matchmakers import MaterialMatchmaker
 from ...materials import Material, MaterialTable
 from ...state import State
 from ...system import System
-from ...utils import lidar_2d, thermal
+from ...utils import lidar_2d, lidar_3d, thermal
 from ...utils.linalg import norm, unit
 from . import Environment
 
@@ -24,8 +24,17 @@ from . import Environment
 @jax.jit(inline=True, static_argnames=("N",))
 @partial(jax.named_call, name="multi_navigator._sample_objectives")
 def _sample_objectives(key: ArrayLike, N: int, box: jax.Array, rad: float) -> jax.Array:
-    r"""Sample *N* positions on a jittered 2-D grid."""
+    r"""Sample *N* positions on a jittered grid in two or three dimensions."""
     i = jax.lax.iota(int, N)
+    if box.shape[0] == 3:
+        side = int(round(N ** (1 / 3)))
+        if side**3 < N:
+            side += 1
+        cell = box / side
+        ijk = jnp.stack([i % side, (i // side) % side, i // (side * side)], axis=1)
+        base = (ijk + 0.5) * cell
+        noise = jax.random.uniform(key, (N, 3), minval=-1.0, maxval=1.0)
+        return base + noise * jnp.maximum(0.0, cell / 2 - rad)
     Lx, Ly = box.astype(float)
 
     nx = jnp.ceil(jnp.sqrt(N * Lx / Ly)).astype(int)
@@ -118,7 +127,8 @@ class MultiNavigator(Environment):
     Unit direction to objective   ``dim``
     Clamped displacement          ``dim``
     Velocity                      ``dim``
-    Normalized agent/wall LiDAR    ``n_lidar_rays``
+    Normalized agent/wall LiDAR    ``n_lidar_rays`` in 2-D;
+                                  ``n_lidar_rays * n_lidar_elevation`` in 3-D
     ============================  =================
 
     With ``dt = 0.002`` and ``skip_frames = 49``, each action spans 50
@@ -130,6 +140,9 @@ class MultiNavigator(Environment):
 
     n_lidar_rays: int = jax.tree.static()
     """Number of angular bins for each LiDAR sensor."""
+
+    n_lidar_elevation: int = jax.tree.static()
+    """Number of elevation bins in 3-D; unused in 2-D."""
 
     @classmethod
     @partial(jax.named_call, name="MultiNavigator.Create")
@@ -146,6 +159,8 @@ class MultiNavigator(Environment):
         n_lidar_rays: int = 16,
         kinetic_energy_coeff: float = 0.0,
         kinetic_energy_scale: float = 1.0,
+        dim: int = 2,
+        n_lidar_elevation: int = 4,
     ) -> MultiNavigator:
         r"""Create a multi-agent navigator environment.
 
@@ -154,7 +169,7 @@ class MultiNavigator(Environment):
         N : int
             Number of agents.
         min_box_size, max_box_size : float
-            Range for the random square domain side length sampled at each
+            Range for the random square or cube side length sampled at each
             :meth:`reset`.
         box_padding : float
             Extra padding around the domain in multiples of the particle
@@ -178,6 +193,10 @@ class MultiNavigator(Environment):
         kinetic_energy_scale : float
             Positive reference kinetic energy in simulation units. The energy
             factor is ``exp(-kinetic_energy_coeff * K / kinetic_energy_scale)``.
+        dim : int
+            Spatial dimension, either 2 (default) or 3.
+        n_lidar_elevation : int
+            Number of elevation bins for 3-D LiDAR; unused in 2-D.
 
         Returns
         -------
@@ -191,7 +210,10 @@ class MultiNavigator(Environment):
             raise ValueError("kinetic_energy_coeff must be finite and nonnegative")
         if not isfinite(kinetic_energy_scale) or kinetic_energy_scale <= 0:
             raise ValueError("kinetic_energy_scale must be finite and positive")
-        dim = 2
+        if dim not in (2, 3):
+            raise ValueError("dim must be 2 or 3")
+        if n_lidar_elevation < 1:
+            raise ValueError("n_lidar_elevation must be positive")
         state = State.create(pos=jnp.zeros((N, dim)))
         system = System.create(state.shape, rotation_integrator_type=None)
 
@@ -217,6 +239,7 @@ class MultiNavigator(Environment):
             system=system,
             env_params=env_params,
             n_lidar_rays=int(n_lidar_rays),
+            n_lidar_elevation=int(n_lidar_elevation),
         )
 
     @staticmethod
@@ -393,7 +416,8 @@ class MultiNavigator(Environment):
         - Unit vector to objective (shape (dim,))  --> Direction
         - Clamped delta to objective (shape (dim,)) --> Local precision
         - Velocity (shape (dim,))
-        - Agent/wall LiDAR proximity (shape (n_lidar_rays,))
+        - Agent/wall LiDAR proximity (shape (n_lidar_rays,) in 2-D,
+          (n_lidar_rays * n_lidar_elevation,) in 3-D)
 
         LiDAR reports normalized proximity
         :math:`p_k = \max(0, 1 - d_{\min,k} / r_{\max})`, with zero for
@@ -402,20 +426,22 @@ class MultiNavigator(Environment):
         Returns
         -------
         jax.Array
-            Array of shape ``(N, 3 * dim + n_lidar_rays)``
+            Array of shape ``(N, observation_space_size)``
 
         """
         delta = env.system.domain.displacement(
             env.state.pos_c, env.env_params["objective"], env.system
         )
         lr = env.env_params["lidar_range"]
-        _, _, lidar, _, _ = lidar_2d(
-            env.state,
-            env.system,
-            lr,
-            env.n_lidar_rays,
-            sense_edges=True,
-        )
+        if env.state.dim == 3:
+            _, _, lidar, _, _ = lidar_3d(
+                env.state, env.system, lr,
+                env.n_lidar_rays, env.n_lidar_elevation, sense_edges=True,
+            )
+        else:
+            _, _, lidar, _, _ = lidar_2d(
+                env.state, env.system, lr, env.n_lidar_rays, sense_edges=True,
+            )
         return jnp.concatenate(
             [
                 unit(delta),
@@ -497,7 +523,10 @@ class MultiNavigator(Environment):
     @property
     def observation_space_size(self) -> int:
         """Flattened observation size per agent. :meth:`observation` returns shape ``(A, observation_space_size)``."""
-        return 3 * self.state.dim + self.n_lidar_rays
+        lidar_bins = self.n_lidar_rays * (
+            self.n_lidar_elevation if self.state.dim == 3 else 1
+        )
+        return 3 * self.state.dim + lidar_bins
 
 
 __all__ = ["MultiNavigator"]
