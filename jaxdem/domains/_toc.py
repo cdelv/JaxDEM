@@ -35,9 +35,11 @@ def verlet_collision_fraction(
     stable form
 
     .. math::
-        \alpha = \frac{2 (-C)}{B + \sqrt{B^2 - 4 A C}}
+        \alpha = \frac{2 (-C)}{B - \sqrt{B^2 - 4 A C}}
 
-    when :math:`B < 0` and the standard form otherwise. The square root uses
+    when :math:`B < 0` and the standard form otherwise. Coefficients are
+    normalized by a common length scale before solving, so changing length
+    units does not underflow or overflow the discriminant. The square root uses
     the double-``where`` idiom so reverse-mode gradients stay finite when the
     solver clamps the discriminant to zero.
 
@@ -76,6 +78,13 @@ def verlet_collision_fraction(
     B_pos = v_0_n * dt
     d_wall_pos = delta + v_mid_n * dt
 
+    scale = jnp.maximum(
+        jnp.maximum(jnp.abs(A_pos), jnp.abs(B_pos)), jnp.abs(d_wall_pos)
+    )
+    # The root is homogeneous of degree zero; differentiating the scale is unnecessary.
+    scale = jax.lax.stop_gradient(jnp.where(scale > 0.0, scale, 1.0))
+    A_pos, B_pos, d_wall_pos = A_pos / scale, B_pos / scale, d_wall_pos / scale
+
     disc = B_pos * B_pos + 4.0 * A_pos * d_wall_pos
     disc = jnp.maximum(0.0, disc)
     # Double-where: sqrt must never see 0, even in the untaken branch,
@@ -85,11 +94,8 @@ def verlet_collision_fraction(
 
     alpha_stable = jnp.where(
         B_pos < 0,
-        2.0
-        * d_wall_pos
-        / jnp.where(B_pos - sqrt_disc < -1e-10, B_pos - sqrt_disc, -1.0),
-        (-B_pos - sqrt_disc)
-        / jnp.where(jnp.abs(2.0 * A_pos) > 1e-10, 2.0 * A_pos, 1.0),
+        2.0 * d_wall_pos / jnp.where(B_pos - sqrt_disc != 0.0, B_pos - sqrt_disc, -1.0),
+        (-B_pos - sqrt_disc) / jnp.where(A_pos != 0.0, 2.0 * A_pos, 1.0),
     )
     return jnp.clip(alpha_stable, 0.0, 1.0)
 
