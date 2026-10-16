@@ -134,6 +134,14 @@ def test_evaluation_preserves_history_and_queued_load_until_step() -> None:
 
 def test_box_rescale_advances_history_once_and_remaps_it() -> None:
     state, system = _history_system()
+    offsets = np.asarray(system.collider.row_offsets)
+    np.testing.assert_array_equal(np.diff(offsets), [1, 1])
+    memory = system.collider.history.at[offsets[0], 0].set(11).at[offsets[1], 0].set(29)
+    system = dataclasses.replace(
+        system, collider=dataclasses.replace(system.collider, history=memory)
+    )
+    queued = jnp.array([[3.0, 4.0], [-2.0, 1.0]])
+    system = system.force_manager.add_force(state, system, queued)
 
     def pair_history(col):
         offsets = np.asarray(col.row_offsets)
@@ -144,6 +152,7 @@ def test_box_rescale_advances_history_once_and_remaps_it() -> None:
         }
 
     remembered = pair_history(system.collider)
+    assert set(remembered) == {(0, 1), (1, 0)}
     packing_fraction = jd.utils.compute_packing_fraction(state, system)
 
     scaled_state, invalidated = scale_to_packing_fraction(
@@ -152,9 +161,15 @@ def test_box_rescale_advances_history_once_and_remaps_it() -> None:
     _, evaluated = jd.System.evaluate_forces(scaled_state, invalidated)
 
     # The affine rescale advances history exactly once; evaluation does not.
-    for pair, history in pair_history(evaluated.collider).items():
-        if pair in remembered:
-            np.testing.assert_array_equal(history, remembered[pair] + 1)
+    actual = pair_history(evaluated.collider)
+    assert set(actual) == set(remembered)
+    for pair, value in [((0, 1), 12), ((1, 0), 30)]:
+        np.testing.assert_array_equal(actual[pair], [value])
+    assert np.linalg.norm(np.asarray(scaled_state.force)) > 0
+    np.testing.assert_array_equal(evaluated.force_manager.external_force, queued)
+    np.testing.assert_array_equal(scaled_state.vel, state.vel)
+    assert evaluated.time == system.time
+    assert evaluated.step_count == system.step_count
 
 
 def test_evaluation_updates_free_bounds_after_particle_teleport() -> None:

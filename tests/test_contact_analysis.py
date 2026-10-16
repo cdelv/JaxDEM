@@ -110,12 +110,13 @@ def test_diagnostics_never_request_a_dense_neighbor_query(backend, monkeypatch):
 
 
 @pytest.mark.parametrize("backend", BACKENDS)
-def test_directed_bond_exclusions_match_the_configured_force_traversal(backend):
+def test_symmetrized_bond_exclusions_match_the_configured_force_traversal(backend):
     state = jd.State.create(
         pos=[[1.0, 1.0], [1.6, 1.0], [1.3, 1.5]],
         rad=jnp.full(3, 0.5),
         bond_id=[[1], [-1], [-1]],
     )
+    np.testing.assert_array_equal(state.bond_id, [[1], [0], [-1]])
     system = make_system(state, backend)
     _, system, data = contact.get_contacts(state, system)
     reference, _ = system.collider.compute_force(replace(state), system)
@@ -280,7 +281,12 @@ def test_group_contacts_preserve_cancelling_interactions():
     system = make_system(state)
     _, _, groups = contact.get_group_contacts(state, system)
     np.testing.assert_array_equal(groups.pair_ids, [[0, 1], [1, 0]])
-    np.testing.assert_allclose(groups.forces, 0, atol=1e-6)
+    np.testing.assert_allclose(
+        groups.forces, 0, atol=1e-14 if jax.config.jax_enable_x64 else 1e-6
+    )
+    np.testing.assert_allclose(
+        groups.friction, 0, atol=1e-14 if jax.config.jax_enable_x64 else 1e-6
+    )
     np.testing.assert_array_equal(groups.sphere_counts, [[2, 2], [2, 2]])
     np.testing.assert_array_equal(groups.contact_counts, [2, 2])
     _, _, vertices = contact.count_vertex_contacts(state, system)
@@ -291,7 +297,7 @@ def test_group_contacts_preserve_cancelling_interactions():
 
 def test_bond_components_and_sparse_group_labels_use_periodic_centroids():
     state = jd.State.create(
-        pos=[[7.8, 1.0], [0.2, 1.0], [0.9, 1.0], [1.3, 1.0]],
+        pos=[[7.8, 1.0], [0.2, 1.4], [0.9, 1.5], [1.3, 1.9]],
         rad=jnp.full(4, 0.5),
         bond_id=[[1], [0], [3], [2]],
     )
@@ -302,7 +308,7 @@ def test_bond_components_and_sparse_group_labels_use_periodic_centroids():
     )
     np.testing.assert_array_equal(groups.group_ids, [0, 1])
     np.testing.assert_array_equal(groups.pair_ids, [[0, 1], [1, 0]])
-    np.testing.assert_allclose(groups.friction, 0, atol=1e-6)
+    np.testing.assert_allclose(groups.friction, 12 / 41, atol=1e-6)
     np.testing.assert_array_equal(groups.sphere_counts, [[1, 1], [1, 1]])
     _, _, labeled = contact.get_group_contacts(
         state, system, group_by=jnp.array([42, 42, 9001, 9001]), contacts=data

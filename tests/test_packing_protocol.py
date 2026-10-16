@@ -185,7 +185,12 @@ def test_rescale_advances_history_once_and_preserves_load_and_integrator_state()
     state, system = jd.System.step(state, system)
     queued = jnp.array([[3.0, 4.0], [-2.0, 1.0]])
     system = system.force_manager.add_force(state, system, queued)
-    old_history = system.collider.history
+    offsets = np.asarray(system.collider.row_offsets)
+    np.testing.assert_array_equal(np.diff(offsets), [1, 1])
+    history = (
+        system.collider.history.at[offsets[0], 0].set(11).at[offsets[1], 0].set(29)
+    )
+    system = replace(system, collider=replace(system.collider, history=history))
     old_velocity = state.vel
     phi = jd.utils.compute_packing_fraction(state, system)
 
@@ -200,7 +205,8 @@ def test_rescale_advances_history_once_and_preserves_load_and_integrator_state()
     # The affine rescale advances pair history exactly once; the force
     # refresh afterwards does not.
     valid = updated.collider.neighbor_list >= 0
-    assert jnp.array_equal(updated.collider.history[valid], old_history[valid] + 1)
+    np.testing.assert_array_equal(updated.collider.neighbor_list[valid], [1, 0])
+    np.testing.assert_array_equal(updated.collider.history[valid], [[12], [30]])
     assert jnp.array_equal(updated.force_manager.external_force, queued)
     assert jnp.array_equal(result.vel, old_velocity)
     assert jnp.allclose(result.force, reevaluated.force)

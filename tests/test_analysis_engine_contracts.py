@@ -104,3 +104,21 @@ def test_max_pairs_rejects_estimate_before_allocation_or_enumeration():
     with np.testing.assert_raises_regex(ValueError, "exceeding max_pairs=100"):
         evaluate_binned(displacement, {"x": jnp.arange(2.0)}, bins, max_pairs=100)
     assert not bins.iterated
+
+    class UnderestimatedBins(BinSpec):
+        def num_bins(self):
+            return 1
+
+        def weight(self, b):
+            return 1
+
+        def iter_tuples(self, b):
+            yield from [(0, 1), (0, 2), (1, 2)]
+
+    def forbidden(*args):
+        raise AssertionError("pair budget must reject before running a kernel")
+
+    with pytest.raises(ValueError, match="more than max_pairs=2"):
+        evaluate_binned(
+            forbidden, {"x": jnp.arange(3.0)}, UnderestimatedBins(3), max_pairs=2
+        )

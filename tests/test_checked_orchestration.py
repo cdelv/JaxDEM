@@ -3,6 +3,7 @@
 from dataclasses import replace
 
 import jax.numpy as jnp
+import jax
 import numpy as np
 import pytest
 
@@ -141,7 +142,7 @@ def test_checked_batch_and_valid_step_match_unchecked(batch_size):
 def test_invalid_initial_state_is_not_advanced():
     state, system = _setup()
     state = replace(state, force=jnp.full_like(state.force, jnp.inf))
-    result = jdem.System.step_checked(state, system, n=0)
+    result = jdem.System.step_checked(state, system, n=3)
     assert int(result.status) == jdem.SimulationStatus.NONFINITE
     assert int(result.steps) == 0
 
@@ -195,6 +196,52 @@ def test_compression_reports_reached_target():
         max_n_outer_steps=0,
     )
     assert result.reason == CompressionReason.TARGET_REACHED
+
+
+def test_compression_rejects_later_failure_without_losing_the_accepted_state():
+    from tests.test_packing_protocol import _system, _RememberingSpring
+
+    state, system = _system(force_model=_RememberingSpring())
+    state = replace(state, fixed=jnp.ones_like(state.fixed))
+    state, system = jdem.System.initialize(state, system)
+    offsets = np.asarray(system.collider.row_offsets)
+    history = (
+        system.collider.history.at[offsets[0], 0].set(11).at[offsets[1], 0].set(29)
+    )
+    system = replace(
+        system,
+        collider=replace(system.collider, history=history),
+        target_fn=lambda st, sy: jnp.where(sy.domain.box_size[0] < 9.3, jnp.nan, 0.0),
+    )
+    queued = jnp.array([[1.0, 2.0], [-3.0, 4.0]])
+    system = system.force_manager.add_force(state, system, queued)
+    phi = float(compute_packing_fraction(state, system))
+    options = dict(step=phi / 10, max_n_min_steps_per_outer=0)
+    accepted = quasistatic_compress_to_packing_fraction(
+        state, system, phi * 1.3, max_n_outer_steps=1, **options
+    )
+    failed = quasistatic_compress_to_packing_fraction(
+        state, system, phi * 1.3, max_n_outer_steps=3, **options
+    )
+    assert accepted.steps == failed.steps == 1
+    assert failed.reason == CompressionReason.MINIMIZATION_FAILED
+    assert failed.minimizer_reason == TerminationReason.NONFINITE
+    np.testing.assert_allclose(
+        failed.system.domain.box_size, np.full(2, 10 / np.sqrt(1.1))
+    )
+    valid = failed.system.collider.neighbor_list >= 0
+    np.testing.assert_array_equal(failed.system.collider.neighbor_list[valid], [1, 0])
+    np.testing.assert_array_equal(failed.system.collider.history[valid], [[12], [30]])
+    np.testing.assert_array_equal(failed.system.force_manager.external_force, queued)
+    assert jax.tree.structure((accepted.state, accepted.system)) == jax.tree.structure(
+        (failed.state, failed.system)
+    )
+    for expected, actual in zip(
+        jax.tree.leaves((accepted.state, accepted.system)),
+        jax.tree.leaves((failed.state, failed.system)),
+        strict=True,
+    ):
+        np.testing.assert_array_equal(actual, expected)
 
 
 def test_compression_scaling_respects_nonzero_domain_anchor():

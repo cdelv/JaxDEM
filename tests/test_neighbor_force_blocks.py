@@ -174,3 +174,31 @@ def test_force_rows_support_forward_and_reverse_mode(advance_history, dim, monke
     np.testing.assert_allclose(
         jnp.sum(actual * direction), actual_jvp, rtol=_RTOL, atol=_ATOL
     )
+
+
+@pytest.mark.parametrize("advance_history", [False, True])
+def test_force_rows_preserve_history_tangents(advance_history):
+    state, system = _system(9)
+    collider = system.collider
+    slot = int(np.asarray(collider.row_offsets)[0])
+    destination = int(collider.neighbor_list[slot])
+    direction = jnp.zeros_like(collider.history).at[slot, 0, 0].set(1.0)
+
+    def evaluate(history):
+        changed = replace(system, collider=replace(collider, history=history))
+        force, _, updated = _neighbor_cache.forces(state, changed, advance_history)
+        return force, updated
+
+    _, (force_tangent, history_tangent) = jax.jvp(
+        evaluate, (collider.history,), (direction,)
+    )
+    expected = (
+        jnp.zeros_like(state.force).at[0].set(state.pos[destination] - state.pos[0])
+    )
+    np.testing.assert_allclose(force_tangent, expected, rtol=_RTOL, atol=_ATOL)
+    np.testing.assert_array_equal(history_tangent, direction)
+    gradient = jax.grad(lambda memory: jnp.sum(evaluate(memory)[0]))(collider.history)
+    np.testing.assert_allclose(
+        gradient[slot, 0, 0], jnp.sum(expected), rtol=_RTOL, atol=_ATOL
+    )
+    np.testing.assert_array_equal(gradient[:, 1, :], 0)

@@ -20,6 +20,40 @@ from jaxdem.rl.trainers.ppo_trainer import PPOTrainer
 from tests.test_ppo_alignment import _loss_args
 
 
+@pytest.mark.parametrize(
+    "middle_done,expected", [(False, [2.75, 3.5, 3.0]), (True, [2.0, 2.0, 3.0])]
+)
+def test_drip_epoch_returns_the_known_backward_reward_sequence(
+    monkeypatch, middle_done, expected
+):
+    from tests.test_caps import trajectory
+    from tests.test_ppo_math import BanditModel, TimeLimitCounterEnv
+
+    trainer = PPOTrainer.Create(
+        TimeLimitCounterEnv.Create(),
+        BanditModel(),
+        num_envs=1,
+        num_steps_epoch=3,
+        num_minibatches=1,
+        drip_decay=0.5,
+        learning_rate=0.0,
+    )
+    original = trajectory(
+        jnp.zeros((3, 1, 1, 1)),
+        done=jnp.array([False, middle_done, False]).reshape(3, 1, 1),
+    )
+    original = replace(original, reward=jnp.array([1.0, 2.0, 3.0]).reshape(3, 1, 1))
+
+    def rollout(env, graphdef, graphstate, key, *args, **kwargs):
+        return env, graphstate, key, original
+
+    monkeypatch.setattr(PPOTrainer, "trajectory_rollout", staticmethod(rollout))
+    # A fresh trace prevents a cached epoch from retaining an unrelated rollout.
+    _, collected, _ = jax.jit(PPOTrainer.epoch.__wrapped__)(trainer, jnp.array(0))
+    np.testing.assert_allclose(collected.reward[:, 0], expected)
+    np.testing.assert_array_equal(original.reward[:, 0, 0], [1.0, 2.0, 3.0])
+
+
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class CheckpointCounter(Environment):

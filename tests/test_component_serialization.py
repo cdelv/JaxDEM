@@ -262,6 +262,7 @@ def assert_round_trip_and_continue(tmp_path, storage, state, system):
     _assert_leaves_equal(
         expected[1], actual[1], "continued system", rtol=2e-6, atol=1e-7
     )
+    return restored
 
 
 @pytest.mark.parametrize("storage", ["hdf5", "orbax"])
@@ -286,7 +287,19 @@ def test_minimizer_and_importable_callbacks_keep_configuration(
         user_pre_step_actions=advance_shear_before_step,
         user_post_step_actions=mark_after_step,
     )
-    assert_round_trip_and_continue(tmp_path, storage, state, system)
+    restored = assert_round_trip_and_continue(tmp_path, storage, state, system)
+    # Exercise executable reconstruction, beyond comparing the saved metadata.
+    expected = factory(**kw)
+    actual = restored[1].minimizer
+    params = jnp.array([[0.7, -0.2], [0.4, 0.3]])
+    expected_state, actual_state = expected.init(params), actual.init(params)
+    for step in range(2):
+        gradient = 0.4 * params + (step + 1) * jnp.array([[0.1, -0.3], [0.2, 0.4]])
+        reference, expected_state = expected.update(gradient, expected_state, params)
+        update, actual_state = actual.update(gradient, actual_state, params)
+        _assert_leaves_equal(reference, update, "restored optimizer update")
+        _assert_leaves_equal(expected_state, actual_state, "restored optimizer state")
+        params = optax.apply_updates(params, reference)
 
 
 @pytest.mark.parametrize("architecture", ARCHITECTURES)
@@ -297,7 +310,21 @@ def test_model_parameters_action_space_and_nonzero_carry_continue(
     from flax import nnx
     from tests.test_caps import make_model
 
-    model = make_model(architecture, space)
+    if architecture == "SharedActorCritic" and space == "Box":
+        from jaxdem.rl.models import SharedActorCritic
+        from jaxdem.rl.action_spaces import BoxSpace
+
+        model = SharedActorCritic(
+            observation_space_size=2,
+            action_space_size=2,
+            key=nnx.Rngs(10),
+            architecture=[3, 5],
+            activation=nnx.tanh,
+            actor_sigma_head=True,
+            action_space=BoxSpace(x_min=-2.0, x_max=3.0, width=0.7, eps=0.01),
+        )
+    else:
+        model = make_model(architecture, space)
     observation = jnp.array([[0.3, -0.7], [0.6, 0.2]])
     model.reset(observation.shape)
     model(observation)

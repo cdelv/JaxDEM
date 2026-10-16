@@ -119,3 +119,44 @@ def test_empty_swarm_objectives_produce_zero_reward(environment):
     env = env.reset(env, jax.random.key(2))
     np.testing.assert_array_equal(env.reward(env), jnp.zeros(2))
     assert np.isfinite(env.observation(env)).all()
+
+
+def test_multiple_goals_use_best_settling_and_total_approach():
+    env = _sensor_env()
+    objectives = jnp.zeros((2, 4)).at[0, 0].set(9.0).at[0, 1].set(8.0)
+    peers = jnp.zeros_like(objectives)
+    ids = jnp.broadcast_to(jnp.arange(2)[:, None], peers.shape)
+    x = np.array([1.0, 2.0])
+    decay = 1 / 3
+    approach = np.exp(-decay * x) * (
+        0.01 / decay + 0.02 * (x * x / decay + 2 * x / decay**2 + 2 / decay**3)
+    )
+    expected = np.exp(-((x / 1.5) ** 4)).max() + 0.1 * approach.sum()
+    np.testing.assert_allclose(
+        shared_potential(objectives, peers, ids, env), [expected, 0.0]
+    )
+
+
+def test_objective_filter_preserves_own_far_and_disabled_goals():
+    env = _sensor_env()
+    objectives = jnp.array([[9.5, 7.0, 4.0, 0.0], [0.0, 0.0, 0.0, 0.0]])
+    ids = jnp.ones_like(objectives, dtype=int)
+    np.testing.assert_allclose(
+        filter_objectives(objectives, objectives, ids, env),
+        [[9.5, 0.0, 4.0, 0.0], [0.0, 0.0, 0.0, 0.0]],
+    )
+    env.env_params["hide_occupied_objectives"] = False
+    np.testing.assert_array_equal(
+        filter_objectives(objectives, objectives, ids, env), objectives
+    )
+
+
+def test_roller_action_smoothing_follows_the_known_step_response():
+    env = SwarmRoller.Create(N=2, num_objectives=0, n_lidar_rays=4, action_alpha=0.25)
+    env = env.reset(env, jax.random.key(9))
+    action = jnp.ones((2, *env.action_space_shape))
+    for value in (0.25, 0.4375, 0.578125):
+        env = env.step(env, action)
+        np.testing.assert_allclose(env.env_params["applied_action"], value)
+    env = env.reset(env, jax.random.key(10))
+    np.testing.assert_array_equal(env.env_params["applied_action"], 0.0)

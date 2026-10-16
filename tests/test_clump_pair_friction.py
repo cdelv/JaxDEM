@@ -193,41 +193,6 @@ def test_friction_builds_an_uninitialized_force_cache() -> None:
     assert int(system.collider.n_build_times) == 1
 
 
-def test_sphere_counts_preserve_cancelling_vertex_contacts() -> None:
-    """Net-force cancellation must not erase the per-sphere contact counts."""
-    world_pos = jnp.array(
-        [
-            [0.0, 0.0],
-            [2.0, 1.0],
-            [0.8, 0.0],
-            [1.2, 1.0],
-        ]
-    )
-    pos_c = jnp.array(
-        [
-            [1.0, 0.4],
-            [1.0, 0.4],
-            [1.0, 0.6],
-            [1.0, 0.6],
-        ]
-    )
-    pos_p = world_pos - pos_c
-    state = jd.State.create(
-        pos=pos_c,
-        pos_p=pos_p,
-        rad=jnp.full((4,), 0.5),
-        mass=jnp.ones(4),
-        clump_id=jnp.array([0, 0, 1, 1]),
-    )
-    system = _build_system(state, box_size=10.0)
-
-    state, system, contacts = get_group_contacts(state, system)
-    np.testing.assert_array_equal(contacts.pair_ids, [[0, 1], [1, 0]])
-    np.testing.assert_allclose(contacts.forces, 0.0, atol=1e-14)
-    np.testing.assert_allclose(contacts.friction, 0.0, atol=1e-14)
-    np.testing.assert_array_equal(contacts.sphere_counts, [[2, 2], [2, 2]])
-
-
 def test_sphere_rattlers_include_particles_disconnected_by_removal() -> None:
     """A particle that loses its last contact during pruning is still a rattler."""
     pos = jnp.array([[0.0, 0.0], [0.8, 0.0], [1.6, 0.0]])

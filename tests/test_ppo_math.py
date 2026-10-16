@@ -1,6 +1,7 @@
 from dataclasses import dataclass, replace
 import jax
 import jax.numpy as jnp
+import numpy as np
 import distrax
 import optax
 import pytest
@@ -150,7 +151,7 @@ def test_truncation_bootstraps_but_termination_does_not():
 
 def test_inactive_agents_do_not_contribute_advantages():
     mask = jnp.array([[True, False], [True, False]])
-    _, advantage = Trainer.compute_advantages(
+    target, advantage = Trainer.compute_advantages(
         value=jnp.zeros((2, 2)),
         reward=jnp.array([[1.0, 1e6], [1.0, 1e6]]),
         ratio=jnp.ones((2, 2)),
@@ -163,7 +164,8 @@ def test_inactive_agents_do_not_contribute_advantages():
         agent_mask=mask,
         unroll=1,
     )
-    assert jnp.allclose(advantage[:, 1], 0.0)
+    np.testing.assert_allclose(advantage, [[2.0, 0.0], [1.0, 0.0]])
+    np.testing.assert_allclose(target, [[2.0, 0.0], [1.0, 0.0]])
 
 
 def test_policy_heads_do_not_create_unused_sigma_parameters():

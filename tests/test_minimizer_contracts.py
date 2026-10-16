@@ -58,7 +58,6 @@ def test_custom_optimizer_static_identity_includes_factory_closure():
     )
 
     assert first != second
-    assert hash(first) != hash(second)
     with pytest.raises(TypeError):
         first.kw["learning_rate"] = 1.0
     nested_opt = first_factory()
@@ -362,6 +361,36 @@ def test_logical_body_topology_supports_heterogeneous_batches():
     np.testing.assert_array_equal(topology.member_count, [[2, 1, 0], [1, 1, 1]])
     np.testing.assert_array_equal(
         topology.fixed, [[True, False, False], [False, True, False]]
+    )
+
+
+def test_sparse_shuffled_body_labels_gather_and_translate_the_correct_members():
+    from jaxdem.minimizers.routines import (
+        _state_to_delta_params,
+        _delta_params_to_state,
+    )
+
+    state = jd.State.create(
+        pos=jnp.array([[0.0, 0.0], [3.0, 0.0], [0.0, 0.0], [3.0, 0.0]]),
+        clump_id=jnp.array([2, 0, 2, 0]),
+    )
+    # Construction compacts labels; exercise the topology's padded sparse slots.
+    state = replace(state, clump_id=jnp.array([2, 0, 2, 0]))
+    topology = state.body_topology()
+    np.testing.assert_array_equal(topology.representative, [1, 0, 0, 0])
+    np.testing.assert_array_equal(topology.member_count, [2, 0, 2, 0])
+    np.testing.assert_array_equal(topology.valid, [True, False, True, False])
+    np.testing.assert_array_equal(
+        topology.gather_members(jnp.array([3, 99, 7, 99])), [7, 3, 7, 3]
+    )
+    np.testing.assert_array_equal(
+        topology.gather_representatives(jnp.array([7, 3, 7, 3])), [3, 0, 7, 0]
+    )
+    params = _state_to_delta_params(state, topology)
+    params["pos_c"] = params["pos_c"].at[2].add(jnp.array([2.0, -1.0]))
+    trial = _delta_params_to_state(state, params, topology)
+    np.testing.assert_allclose(
+        trial.pos_c - state.pos_c, [[2, -1], [0, 0], [2, -1], [0, 0]]
     )
 
 

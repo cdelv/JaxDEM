@@ -239,6 +239,49 @@ def test_both_caps_terms_train_with_all_models_and_action_spaces(name, space):
     )
 
 
+def test_enabled_caps_epoch_matches_the_exact_linear_sgd_update(monkeypatch):
+    import optax
+    from tests.test_ppo_math import TimeLimitCounterEnv
+
+    def sgd(learning_rate, eps):
+        return optax.sgd(learning_rate)
+
+    trainer = PPOTrainer.Create(
+        TimeLimitCounterEnv.Create(),
+        LinearPolicy(),
+        num_envs=1,
+        num_steps_epoch=3,
+        num_minibatches=1,
+        optimizer=sgd,
+        learning_rate=0.01,
+        anneal_learning_rate=False,
+        max_grad_norm=float("inf"),
+        ppo_value_coeff=0.0,
+        ppo_entropy_coeff=0.0,
+        caps_temporal_coeff=0.3,
+        caps_spatial_coeff=0.4,
+        caps_noise_std=0.2,
+    )
+    td = trajectory(jnp.arange(3.0).reshape(3, 1, 1, 1))
+    rollout_key = jax.random.PRNGKey(73)
+
+    def rollout(env, graphdef, graphstate, key, *args, **kwargs):
+        return env, graphstate, rollout_key, td
+
+    monkeypatch.setattr(PPOTrainer, "trajectory_rollout", staticmethod(rollout))
+    updated, _, metrics = jax.jit(PPOTrainer.epoch.__wrapped__)(trainer, jnp.array(0))
+    next_key, noise_root = jax.random.split(rollout_key)
+    noise = 0.2 * jax.random.normal(jax.random.fold_in(noise_root, 0), (3, 1, 1))
+    mean_square_noise = np.mean(np.asarray(noise) ** 2)
+    expected = 0.7 - 0.01 * 2 * 0.7 * (0.3 + 0.4 * mean_square_noise)
+    np.testing.assert_allclose(updated.model.slope[...], expected, rtol=2e-6)
+    np.testing.assert_allclose(metrics["caps_temporal_loss"], 0.7**2, rtol=2e-6)
+    np.testing.assert_allclose(
+        metrics["caps_spatial_loss"], 0.7**2 * mean_square_noise, rtol=2e-6
+    )
+    np.testing.assert_array_equal(updated.key, next_key)
+
+
 def test_disabled_caps_does_not_evaluate_policy_outputs_or_spatial_branch():
     class NoCapsPolicy(LinearPolicy):
         @staticmethod

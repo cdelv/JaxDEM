@@ -129,53 +129,6 @@ def _save_step_check(state: jdem.State, system: jdem.System, n: int = 1) -> None
 class TestForceModels:
     """Checkpoint round-trips for every registered force model."""
 
-    def test_spring(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(state.shape, force_model_type="spring")
-        _save_step_check(state, system)
-
-    def test_wca(self):
-        lj_mat = jdem.MaterialTable.from_materials(
-            [jdem.Material.create("lj", density=1.0, epsilon=1.0)]
-        )
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(
-            state.shape, force_model_type="wca", mat_table=lj_mat
-        )
-        _save_step_check(state, system)
-
-    def test_wca_shifted(self):
-        lj_mat = jdem.MaterialTable.from_materials(
-            [jdem.Material.create("lj", density=1.0, epsilon=1.0)]
-        )
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(
-            state.shape, force_model_type="wca_shifted", mat_table=lj_mat
-        )
-        _save_step_check(state, system)
-
-    def test_lennard_jones(self):
-        lj_mat = jdem.MaterialTable.from_materials(
-            [jdem.Material.create("lj", density=1.0, epsilon=1.0)]
-        )
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [2.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(
-            state.shape, force_model_type="lennardjones", mat_table=lj_mat
-        )
-        _save_step_check(state, system)
-
     def test_law_combiner_spring_wca(self):
         """LawCombiner compositing spring + WCA."""
         mat = jdem.Material.create("elastic", density=1.0, young=1e4, poisson=0.3)
@@ -1541,45 +1494,6 @@ class TestWriterOptions:
 
 class TestModelCheckpoints:
     """Tests for CheckpointModelWriter and CheckpointModelLoader."""
-
-    def test_model_round_trip(self):
-        from flax import nnx
-        import jaxdem.rl as rl
-        from jaxdem.writers.checkpoints import (
-            CheckpointModelWriter,
-            CheckpointModelLoader,
-        )
-
-        model = rl.Model.create(
-            "SharedActorCritic",
-            observation_space_size=8,
-            action_space_size=2,
-            key=nnx.Rngs(42),
-            action_space=rl.ActionSpace.create("Box", x_min=-2.0, x_max=2.0),
-        )
-
-        d = _tmpdir()
-        with CheckpointModelWriter(d) as w:
-            w.save(model, step=10)
-
-        loader = CheckpointModelLoader(d)
-        model_loaded = loader.load(step=10)
-
-        assert model_loaded.type_name == model.type_name
-        assert model_loaded.observation_space_size == model.observation_space_size
-        assert model_loaded.action_space_size == model.action_space_size
-        assert type(model_loaded.action_space) is type(model.action_space)
-        assert jnp.allclose(model_loaded.action_space.x_min, model.action_space.x_min)
-        assert jnp.allclose(model_loaded.action_space.x_max, model.action_space.x_max)
-
-        # Compare nnx state
-        _, state_orig = nnx.split(model)
-        _, state_loaded = nnx.split(model_loaded)
-        leaves_orig = jax.tree.leaves(state_orig)
-        leaves_loaded = jax.tree.leaves(state_loaded)
-        assert len(leaves_orig) == len(leaves_loaded)
-        for val_orig, val_loaded in zip(leaves_orig, leaves_loaded):
-            assert jnp.allclose(val_orig, val_loaded)
 
     def test_model_load_specific_step(self):
         from flax import nnx

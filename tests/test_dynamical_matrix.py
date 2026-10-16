@@ -277,6 +277,10 @@ def test_pair_block_matches_analytical_in_contact(dim, pos_i, pos_j):
 
     expected = _analytical_pair_block(pos_i, pos_j, R=1.0, k=1.0, dim=dim)
     np.testing.assert_allclose(H_pair, expected, atol=1e-12)
+    np.testing.assert_allclose(H_pair, H_pair.T, atol=1e-12)
+    np.testing.assert_allclose(
+        H_pair @ np.vstack((np.eye(dim), np.eye(dim))), 0, atol=1e-12
+    )
 
 
 @pytest.mark.parametrize(
@@ -297,30 +301,6 @@ def test_pair_block_is_zero_out_of_contact(dim, pos_i, pos_j):
 
 
 # Pair-block structural properties
-
-
-@pytest.mark.parametrize(
-    "dim, pos_i, pos_j",
-    [
-        (2, [0.0, 0.0], [0.5, 0.5]),
-        (3, [0.0, 0.0, 0.0], [0.3, 0.4, 0.6]),
-    ],
-)
-def test_pair_block_is_symmetric_and_translation_invariant(dim, pos_i, pos_j):
-    state, system = _build_two_sphere_system(pos_i, pos_j)
-    _, _, pair_ids, blocks = pair_non_bonded_hessian(state, system)
-    pair_ids_np = np.asarray(pair_ids)
-    mask = (pair_ids_np[:, 0] == 0) & (pair_ids_np[:, 1] == 1)
-    k_index = int(np.argmax(mask))
-    H = np.asarray(blocks[k_index])
-
-    # H is a symmetric matrix.
-    np.testing.assert_allclose(H, H.T, atol=1e-12)
-
-    # Translational invariance: sum over (r_i, r_j) vanishes.
-    # For the 4-block [[h, -h], [-h, h]], column sums are zero.
-    np.testing.assert_allclose(H.sum(axis=0), 0.0, atol=1e-12)
-    np.testing.assert_allclose(H.sum(axis=1), 0.0, atol=1e-12)
 
 
 # Full system hessian — agrees with pair block for a 2-sphere system
@@ -377,36 +357,6 @@ def test_clump_hessian_matches_sphere_lift_for_single_sphere_clumps(dim):
     )
     H_rot = H_clump_np[np.ix_(rot_idx, rot_idx)]
     np.testing.assert_allclose(H_rot, 0.0, atol=1e-12)
-
-
-@pytest.mark.parametrize("dim", [2, 3])
-def test_clump_hessian_is_symmetric(dim):
-    """Clump hessian must be symmetric (second derivative of a scalar)."""
-    if dim == 2:
-        state, system = _build_two_sphere_system([0.0, 0.0], [0.5, 0.5])
-    else:
-        state, system = _build_two_sphere_system([0.0, 0.0, 0.0], [0.3, 0.4, 0.6])
-    _, _, H = clump_non_bonded_hessian(state, system)
-    H_np = np.asarray(H)
-    np.testing.assert_allclose(H_np, H_np.T, atol=1e-12)
-
-
-def test_clump_hessian_translational_null_mode():
-    """Sum of columns across translational DOFs must vanish (rigid
-    translation of the whole system leaves energy unchanged)."""
-    state, system = _build_two_sphere_system([0.0, 0.0, 0.0], [0.3, 0.4, 0.6])
-    _, _, H = clump_non_bonded_hessian(state, system)
-    H_np = np.asarray(H)
-    dim = 3
-    rot_dim = 3
-    group_dim = dim + rot_dim
-    n_clumps = 2
-    # Build a uniform translation eigenvector: translate every clump by
-    # the same (δR, 0, 0, 0) direction. Expect H @ v = 0.
-    v = np.zeros(n_clumps * group_dim)
-    for clump in range(n_clumps):
-        v[clump * group_dim] = 1.0  # translate in +x
-    np.testing.assert_allclose(H_np @ v, 0.0, atol=1e-12)
 
 
 def test_clump_hessian_offset_geometry_matches_closed_form():
@@ -527,6 +477,9 @@ def test_clump_hessian_2d_matches_explicit_rigid_body_formula():
     )
 
     np.testing.assert_allclose(H_np, expected, atol=1e-12)
+    np.testing.assert_allclose(H_np, H_np.T, atol=1e-12)
+    translation = np.tile(np.pad(np.eye(2), ((0, 1), (0, 0))), (H_np.shape[0] // 3, 1))
+    np.testing.assert_allclose(H_np @ translation, 0, atol=1e-12)
 
 
 def test_clump_hessian_3d_matches_explicit_rigid_body_formula():
@@ -590,6 +543,9 @@ def test_clump_hessian_3d_matches_explicit_rigid_body_formula():
     )
 
     np.testing.assert_allclose(H_np, expected, atol=1e-12)
+    np.testing.assert_allclose(H_np, H_np.T, atol=1e-12)
+    translation = np.tile(np.pad(np.eye(3), ((0, 3), (0, 0))), (H_np.shape[0] // 6, 1))
+    np.testing.assert_allclose(H_np @ translation, 0, atol=1e-12)
 
 
 # Cross-collider consistency.
@@ -616,20 +572,20 @@ def test_bonded_hessian_matches_analytical_harmonic_edge():
     """For a DP with two vertices and a single edge (harmonic-bond-like),
     the potential is
 
-        U = (1/2) · el · (L - L_0)^2 / L_0    (one edge, single sum)
+        U = (1/2) · el · (L - L_0)^2    (one edge, single sum)
 
-    which is a harmonic bond with effective stiffness ``k = el/L_0``.
+    which is a harmonic bond with stiffness ``k = el``.
     Its hessian with respect to ``(r_0, r_1)`` is
 
         h = k · n̂ n̂^T + (k · δ / L) · (I - n̂ n̂^T)
         H = [[h, -h], [-h, h]]
 
     where ``n̂ = (r_0 - r_1)/L``, ``δ = L - L_0``. The stretched geometry
-    ``L_0 = 1``, ``L = 1.5`` exercises both the radial (``n̂ n̂^T``) and
+    ``L_0 = 2``, ``L = 3`` exercises both the radial (``n̂ n̂^T``) and
     transverse (``(I - n̂ n̂^T)``) stiffening terms.
     """
-    # Rest configuration defines L_0 = 1.0.
-    vertices = jnp.array([[0.0, 0.0], [1.0, 0.0]], dtype=float)
+    # A nonunit rest length distinguishes absolute from relative extension.
+    vertices = jnp.array([[0.0, 0.0], [2.0, 0.0]], dtype=float)
     edges = jnp.array([[0, 1]], dtype=int)
     el_value = 2.0
 
@@ -641,7 +597,7 @@ def test_bonded_hessian_matches_analytical_harmonic_edge():
     )
 
     # Current (stretched) positions.
-    pos = jnp.array([[0.0, 0.0], [1.5, 0.0]], dtype=float)
+    pos = jnp.array([[0.0, 0.0], [3.0, 0.0]], dtype=float)
     state = jd.State.create(
         pos=pos,
         rad=jnp.full((2,), 0.1),
@@ -662,10 +618,10 @@ def test_bonded_hessian_matches_analytical_harmonic_edge():
     H_np = np.asarray(H)
 
     # Analytical harmonic-bond hessian.
-    L = 1.5
-    L_0 = 1.0
+    L = 3.0
+    L_0 = 2.0
     delta = L - L_0
-    k_eff = el_value / L_0
+    k_eff = el_value
     n = np.array([-1.0, 0.0])  # (r_0 - r_1)/L; sign irrelevant (n⊗n even)
     identity = np.eye(2)
     nn = np.outer(n, n)
@@ -673,6 +629,9 @@ def test_bonded_hessian_matches_analytical_harmonic_edge():
     expected = np.block([[h, -h], [-h, h]])
 
     np.testing.assert_allclose(H_np, expected, atol=1e-10)
+    np.testing.assert_allclose(dp.compute_potential_energy(pos, state, system), 1.0)
+    force, _ = dp.compute_forces(pos, state, system)
+    np.testing.assert_allclose(force, [[2.0, 0.0], [-2.0, 0.0]])
 
 
 def test_bonded_hessian_returns_zeros_when_no_bonded_model():

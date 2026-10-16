@@ -426,6 +426,16 @@ def test_create_ga_state_dispatches_to_each_mesh_type(
     )
     assert int(state.clump_id.max()) + 1 == 2
     assert state.N == 2 * nv
+    generators = {
+        "fibonacci": generate_fibonacci_sphere_mesh,
+        "icosphere": generate_icosphere_mesh,
+        "torus": generate_torus_mesh,
+        "helix": generate_helix_mesh,
+        "faceted": generate_faceted_mesh,
+    }
+    # The individually validated generator supplies a known dispatcher output.
+    expected = 0.9 * generators[mesh_type](nv=nv, N=2, dim=3, **kwargs)
+    np.testing.assert_allclose(state.pos.reshape(2, nv, 3), expected, atol=2e-6)
 
 
 def test_create_ga_state_dispatches_arclength_in_2d():
@@ -445,6 +455,8 @@ def test_create_ga_state_dispatches_arclength_in_2d():
     )
     assert int(state.clump_id.max()) + 1 == 2
     assert state.N == 2 * nv
+    expected = 0.9 * generate_arclength_mesh(nv=nv, N=2, dim=2, aspect_ratio=[1.0, 2.0])
+    np.testing.assert_allclose(state.pos.reshape(2, nv, 2), expected, atol=2e-6)
 
 
 def test_create_ga_state_rejects_unknown_mesh_type():
