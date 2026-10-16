@@ -44,14 +44,6 @@ if TYPE_CHECKING:  # pragma: no cover
 _CENTRAL_ID = 0
 _TRACER_ID = 1
 
-# Normal-force magnitude below which a probe is treated as "no contact". A
-# genuine contact at ``target_overlap`` produces a normal force many orders of
-# magnitude above this (stiffness x overlap), so this only trips when the
-# collider produced essentially zero force -- letting us report NaN, which is
-# distinguishable from a real frictionless (mu == 0) contact.
-_FORCE_CONTACT_EPS = 1e-30
-
-
 # --------------------------------------------------------------------------
 # Quaternion helpers
 # --------------------------------------------------------------------------
@@ -389,13 +381,13 @@ def _measure_probe(
     force = jnp.sum(state.force * central_mask[:, None], axis=0)
     force_n_mag = dot(force, direction)
     force_t_mag = norm(force - force_n_mag * direction)
-    # A probe "makes contact" iff the collider produced a non-negligible normal
+    # A probe "makes contact" iff the collider produced a positive normal
     # (repulsive) force along the center-to-center axis. Without one the friction
     # ratio is undefined, so mu and separation are reported as NaN. NaN (rather
     # than 0) is deliberate: it is distinguishable from a genuine frictionless
     # (mu == 0) contact, so callers can spot missed probes. jnp.where on both
     # branches keeps the gradient safe under jit/vmap.
-    contact = jnp.isfinite(contact_separation) & (force_n_mag > _FORCE_CONTACT_EPS)
+    contact = jnp.isfinite(contact_separation) & (force_n_mag > 0.0)
     safe_force_n = jnp.where(contact, force_n_mag, 1.0)
     mu = jnp.where(contact, jnp.abs(force_t_mag / safe_force_n), jnp.nan)
     separation = jnp.where(contact, separation, jnp.nan)
@@ -405,7 +397,7 @@ def _measure_probe(
     # collider that's already populated state.force has masked out
     # intra-clump pairs, so any nonzero entry must be an external
     # asperity contact).
-    has_contact = norm(state.force) > 0
+    has_contact = jnp.any(state.force != 0.0, axis=-1)
     n_central_contacts = jnp.sum(has_contact & central_mask)
     n_tracer_contacts = jnp.sum(has_contact & tracer_mask)
 
@@ -429,7 +421,7 @@ def _measure_probe(
     f_asperity_n = dot(f_asperity, direction)
     f_asperity_t = norm(f_asperity - f_asperity_n[:, None] * direction)
     asperity_denom = jnp.abs(f_asperity_n)
-    resolved = asperity_denom > _FORCE_CONTACT_EPS
+    resolved = asperity_denom > 0.0
     mu_asperity = jnp.where(
         resolved, f_asperity_t / jnp.where(resolved, asperity_denom, 1.0), jnp.inf
     )

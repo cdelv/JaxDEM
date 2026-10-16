@@ -79,9 +79,7 @@ def test_smooth_sphere_separation_is_uniform(
     separation = np.asarray(result["separation"])
     expected = r_central + r_tracer - target_overlap
 
-    # The bisection converges to max-overlap == target_overlap; the
-    # separation is monotone in max-overlap for smooth spheres, so the
-    # error is bounded by ``separation_tolerance`` (not target_overlap).
+    # The direct sphere intersection root is exact up to geometry roundoff.
     assert np.all(np.isfinite(separation)), "non-finite separation returned"
     np.testing.assert_allclose(separation, expected, atol=1e-8, rtol=0)
 
@@ -154,7 +152,7 @@ def test_smooth_sphere_sasa_from_separation(
     Method (matches the SASA example):
       * 3D: triangulate the approach directions on ``S^2`` (their 3D
         convex hull), lift triangle vertices to the SASA surface using the
-        bisection's per-direction separations, and sum Euclidean triangle
+        per-direction separations, and sum Euclidean triangle
         areas.
       * 2D: approach directions are equispaced on ``S^1``, so connecting
         consecutive lifted samples in order gives the inscribed polygon.
@@ -201,3 +199,27 @@ def test_smooth_sphere_sasa_from_separation(
     # discretization tolerance.
     assert sasa <= expected + 1e-12
     np.testing.assert_allclose(sasa, expected, rtol=rtol, atol=0)
+
+
+@pytest.mark.parametrize("dim", [2, 3])
+@pytest.mark.parametrize("stiffness", [1e-32, 1.0, 1e32])
+def test_surface_contact_and_friction_are_independent_of_force_units(dim, stiffness):
+    central = _single_sphere_state(0.5, dim)
+    tracer = _single_sphere_state(0.3, dim)
+    state = jd.State.merge(central, tracer)
+    material = jd.Material.create("elastic", young=stiffness, poisson=0.0, density=1.0)
+    system = jd.System.create(
+        state=state,
+        mat_table=jd.MaterialTable.from_materials([material]),
+        domain_type="periodic",
+        domain_kw={"box_size": jnp.full(dim, 8.0)},
+        collider_type="naive",
+    )
+    result = compute_surface_properties(
+        central, tracer, target_overlap=0.1, system=system, n_points=16
+    )
+    np.testing.assert_allclose(result["separation"], 0.7, rtol=0, atol=1e-14)
+    np.testing.assert_allclose(result["mu"], 0.0, atol=1e-14)
+    np.testing.assert_allclose(result["mu_asperity"], 0.0, atol=1e-14)
+    np.testing.assert_array_equal(result["n_central_contacts"], 1)
+    np.testing.assert_array_equal(result["n_tracer_contacts"], 1)
