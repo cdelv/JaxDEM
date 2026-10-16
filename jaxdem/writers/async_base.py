@@ -10,7 +10,7 @@ import queue
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Self
 
 from ._directory import prepare_output_directory
 
@@ -197,7 +197,7 @@ class BaseAsyncWriter:
         except Exception:
             pass
 
-    def __enter__(self) -> BaseAsyncWriter:
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, _exc_type: Any, _exc_val: Any, _exc_tb: Any) -> None:

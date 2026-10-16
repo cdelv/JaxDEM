@@ -5,6 +5,7 @@ This guide introduces JaxDEM checkpointing utilities:
 
 - :py:class:`~jaxdem.writers.CheckpointWriter`
 - :py:class:`~jaxdem.writers.CheckpointLoader`
+- :py:class:`~jaxdem.writers.H5Writer`
 
 Checkpoints are useful for long simulations, reproducibility, and restarting
 from intermediate steps.
@@ -191,5 +192,21 @@ with jdem.CheckpointLoader(directory=tmp_dir_bonded) as loader:
 #
 # You can load checkpoints saved this way from **any** script that has
 # ``my_forces`` on its Python path.
+
+# %%
+# HDF5 snapshots
+# ~~~~~~~~~~~~~~
+# H5Writer uses the shared asynchronous writer queue and the existing HDF5
+# encoding. Each saved State/System pair becomes a self-contained file.
+# Batches and trajectories keep their original array shapes in that file.
+# Numbering follows saved calls and continues after existing snapshots.
+
+h5_directory = Path(tmp_root.name) / "hdf5"
+with jdem.H5Writer(directory=h5_directory) as writer:
+    writer.save(state, system)
+
+state_h5, system_h5 = jdem.utils.h5.load(str(h5_directory / "snapshot_00000000.h5"))
+state_h5, system_h5 = jdem.System.step(state_h5, system_h5)
+print("HDF5 continuation step:", int(system_h5.step_count))
 
 tmp_root.cleanup()

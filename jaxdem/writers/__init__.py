@@ -2,7 +2,8 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Interface for defining data writers.
 
-This module provides the high-level VTKWriter and CheckpointWriter front ends.
+This module provides the high-level VTKWriter, H5Writer, and CheckpointWriter
+front ends.
 It also provides the VTKBaseWriter plugin interface and concrete writers
 (e.g., VTKSpheresWriter, VTKDomainWriter) that export JAX-based simulation
 snapshots to files.
@@ -116,6 +117,7 @@ if TYPE_CHECKING:
         CheckpointWriter as CheckpointWriter,
     )
 
+from .h5_writer import H5Writer
 from .vtk_deformable_particle_writer import (
     VTKDeformableEdgeAdjacenciesWriter,
     VTKDeformableEdgesWriter,
@@ -127,6 +129,7 @@ from .vtk_spheres_writer import VTKFacetSpheresWriter, VTKSpheresWriter
 from .vtk_writer import VTKWriter
 
 __all__ = [
+    "H5Writer",
     "VTKBaseWriter",
     "VTKDeformableEdgeAdjacenciesWriter",
     "VTKDeformableEdgesWriter",

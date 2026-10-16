@@ -232,7 +232,7 @@ def test_serialization_table_covers_all_builtin_classes(family):
     assert {factory._registry[name] for name in names} == expected
 
 
-@pytest.mark.parametrize("storage", ["hdf5", "orbax"])
+@pytest.mark.parametrize("storage", ["hdf5", "hdf5_async", "orbax"])
 @pytest.mark.parametrize(
     "family,name", CASES, ids=[f"{family}-{name or 'noop'}" for family, name in CASES]
 )
@@ -243,10 +243,15 @@ def test_component_configuration_and_continuation(tmp_path, storage, family, nam
 
 def assert_round_trip_and_continue(tmp_path, storage, state, system):
     state, system = jd.System.step(state, system)
-    if storage == "hdf5":
-        path = str(tmp_path / "state.h5")
-        h5.save((state, system), path)
-        restored = h5.load(path)
+    if storage in {"hdf5", "hdf5_async"}:
+        if storage == "hdf5_async":
+            with jd.H5Writer(directory=tmp_path) as writer:
+                writer.save(state, system)
+            path = tmp_path / "snapshot_00000000.h5"
+        else:
+            path = tmp_path / "state.h5"
+            h5.save((state, system), str(path))
+        restored = h5.load(str(path))
     else:
         with jd.CheckpointWriter(tmp_path / "checkpoint") as writer:
             writer.save(state, system)
@@ -265,7 +270,7 @@ def assert_round_trip_and_continue(tmp_path, storage, state, system):
     return restored
 
 
-@pytest.mark.parametrize("storage", ["hdf5", "orbax"])
+@pytest.mark.parametrize("storage", ["hdf5", "hdf5_async", "orbax"])
 @pytest.mark.parametrize("optimizer", ["fire", "damped_newtonian", "adam"])
 def test_minimizer_and_importable_callbacks_keep_configuration(
     tmp_path, storage, optimizer

@@ -54,6 +54,7 @@ if TYPE_CHECKING:
         CheckpointModelLoader as CheckpointModelLoader,
         CheckpointModelWriter as CheckpointModelWriter,
         CheckpointWriter as CheckpointWriter,
+        H5Writer as H5Writer,
         VTKBaseWriter,
         VTKWriter,
     )
@@ -68,6 +69,7 @@ __all__ = [
     "ForceManager",
     "ForceModel",
     "ForceRouter",
+    "H5Writer",
     "Integrator",
     "LawCombiner",
     "LinearIntegrator",
@@ -95,6 +97,7 @@ def __getattr__(name: str) -> Any:
         "CheckpointModelLoader",
         "CheckpointModelWriter",
         "CheckpointWriter",
+        "H5Writer",
         "VTKBaseWriter",
         "VTKWriter",
     }:

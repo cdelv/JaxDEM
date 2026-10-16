@@ -31,7 +31,8 @@ state, system = jd.System.initialize(state, system)
 state, system = jd.System.step(state, system, n=2)
 assert bool(jnp.all(jnp.isfinite(state.pos)))
 for get_feature in (lambda: jd.CheckpointWriter, lambda: jd.utils.save,
-                    lambda: jd.VTKWriter(directory="unused-optional-output")):
+                    lambda: jd.VTKWriter(directory="unused-optional-output"),
+                    lambda: jd.H5Writer(directory="unused-optional-output")):
     try:
         get_feature()
     except ImportError as exc:
@@ -66,6 +67,7 @@ from jaxdem.writers import *
 assert 'orbax' not in sys.modules
 assert 'vtk' not in sys.modules
 assert 'vtkmodules' not in sys.modules
+assert 'h5py' not in sys.modules
 """,
         ],
         check=True,
