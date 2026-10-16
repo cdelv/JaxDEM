@@ -34,6 +34,8 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
+from .linalg import dot, norm, norm2, unit
+
 # --------------------------------------------------------------------
 # Shared helpers
 # --------------------------------------------------------------------
@@ -103,8 +105,8 @@ def _sample_uniform_surface_points(
         n_candidates = max(32, 2 * (nv - accepted_count))
         current_key, sphere_key, accept_key = jax.random.split(current_key, 3)
         unit_points = jax.random.normal(sphere_key, shape=(n_candidates, axes.shape[0]))
-        unit_points /= jnp.linalg.norm(unit_points, axis=-1, keepdims=True)
-        weights = jnp.linalg.norm(unit_points * inv_axes, axis=-1)
+        unit_points = unit(unit_points)
+        weights = norm(unit_points * inv_axes)
         accept_prob = accept_scale * weights
         accepted_mask = (
             jax.random.uniform(accept_key, shape=(n_candidates,)) < accept_prob
@@ -151,7 +153,7 @@ def random_points_on_hyper_ellipsoid(
 
     if jnp.all(axes == axes[0]).item() or not use_uniform_sampling:
         points = jax.random.normal(key, shape=(N, nv, dim))
-        points /= jnp.linalg.norm(points, axis=-1, keepdims=True)
+        points = unit(points)
         points *= axes
         return (points[0] if N == 1 else points), axes
 
@@ -168,7 +170,7 @@ def riesz_energy(pos: jax.Array, alpha: float) -> jax.Array:
     r"""Riesz energy kernel.  alpha=1 reduces to the Thomson problem.  alpha=\infty reduces to the packing problem"""
     r_ij = pos[:, None, :] - pos[None, :, :]
     # squared distances (no gradient issue here)
-    d_sq = jnp.sum(r_ij**2, axis=-1)
+    d_sq = norm2(r_ij)
     # fill diagonal with 1.0 BEFORE sqrt, so grad(sqrt(1.0)) = 0.5, not inf
     n = pos.shape[0]
     d_sq = d_sq.at[jnp.diag_indices(n)].set(1.0)
@@ -183,7 +185,7 @@ def dimensionless_overlap_energy(
 ) -> jax.Array:
     """Harmonic penalty on pair overlap measured as fractional overlap."""
     r_ij = pos[:, None, :] - pos[None, :, :]
-    d_sq = jnp.sum(r_ij**2, axis=-1)
+    d_sq = norm2(r_ij)
     n = pos.shape[0]
     d_sq = d_sq.at[jnp.diag_indices(n)].set(1.0)
     d_ij = jnp.sqrt(d_sq)
@@ -199,14 +201,14 @@ def project_to_tangent(
 ) -> jax.Array:
     """Remove the normal component of the gradient (project onto tangent plane of surface)."""
     normal = pos / aspect_ratio**2
-    normal = normal / jnp.linalg.norm(normal, axis=-1, keepdims=True)
-    return grad - jnp.sum(grad * normal, axis=-1, keepdims=True) * normal
+    normal = unit(normal)
+    return grad - dot(grad, normal)[..., None] * normal
 
 
 def retract_to_surface(pos: jax.Array, aspect_ratio: jax.Array) -> jax.Array:
     """Project point back onto the ellipsoid/ellipse surface."""
     u = pos / aspect_ratio
-    u = u / jnp.linalg.norm(u, axis=-1, keepdims=True)
+    u = unit(u)
     return u * aspect_ratio
 
 

@@ -17,6 +17,7 @@ import jax.numpy as jnp
 import numpy as np
 
 from ._pair_candidates import _analysis_search_radii, _collect_pair_candidates
+from .linalg import norm2
 
 if TYPE_CHECKING:
     from ..state import State
@@ -54,9 +55,7 @@ def _hessian_pairs(
     if radii is not None:
         i, j = pairs.T
         dr = system.domain.displacement(state.pos[i], state.pos[j], system)
-        within_reach = np.asarray(
-            jnp.sum(dr * dr, axis=-1) <= (radii[i] + radii[j]) ** 2
-        )
+        within_reach = np.asarray(norm2(dr) <= (radii[i] + radii[j]) ** 2)
         pairs = pairs[within_reach]
         directions = directions[within_reach]
         histories = histories[within_reach]

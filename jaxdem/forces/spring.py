@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 
-from ..utils.linalg import cross, norm, norm2, unit, unit_and_norm
+from ..utils.linalg import cross, dot, norm, norm2, unit, unit_and_norm
 from . import ForceModel
 from .facet_contact import (
     get_facet_indices,
@@ -273,9 +273,7 @@ def _sphere_facet_pair(
     axis = jnp.zeros_like(normal).at[..., 0].set(1.0)
     axis = jnp.where(is_facet_i[..., None], axis, -axis)
     normal = jnp.where(norm2(normal)[..., None] > 0.0, normal, axis)
-    normal = jnp.where(
-        jnp.sum(normal * fallback_rij, axis=-1, keepdims=True) < 0.0, -normal, normal
-    )
+    normal = jnp.where(dot(normal, fallback_rij)[..., None] < 0.0, -normal, normal)
     n = jnp.where(r[..., None] > 0.0, n, normal)
 
     delta = thick_i + thick_j - d_sf
@@ -494,9 +492,7 @@ def _facet_facet_pair(
         normal,
         jnp.zeros_like(normal).at[..., 0].set(1.0),
     )
-    normal = jnp.where(
-        jnp.sum(normal * centers, axis=-1, keepdims=True) < 0.0, -normal, normal
-    )
+    normal = jnp.where(dot(normal, centers)[..., None] < 0.0, -normal, normal)
     normal = jnp.where(swap[..., None], -normal, normal)
     n = jnp.where(r[..., None] > 0.0, n, normal)
 

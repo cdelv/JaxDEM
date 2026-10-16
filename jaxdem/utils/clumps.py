@@ -338,7 +338,7 @@ def _union_properties_kernel(
             eye = jnp.eye(3, dtype=pos.dtype)
             inertia_origin = (sum_r_sq * eye - sum_outer) * sample_volume
             inertia = scale * (
-                inertia_origin - mass_mc * (jnp.sum(com**2) * eye - jnp.outer(com, com))
+                inertia_origin - mass_mc * (norm2(com) * eye - jnp.outer(com, com))
             )
             inertia = 0.5 * (inertia + inertia.T)
             eigvals, eigvecs = jnp.linalg.eigh(inertia)
@@ -357,7 +357,7 @@ def _union_properties_kernel(
             [jnp.cos(half_theta), 0.0, 0.0, jnp.sin(half_theta)],
             dtype=pos.dtype,
         )
-        inertia = scale * (sum_r_sq * sample_volume - mass_mc * jnp.sum(com**2))
+        inertia = scale * (sum_r_sq * sample_volume - mass_mc * norm2(com))
         return volume, com, inertia.reshape(1), q
 
     volume, com, inertia, q = jax.vmap(phase2_single)(

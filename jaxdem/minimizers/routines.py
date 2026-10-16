@@ -15,6 +15,7 @@ import jax.numpy as jnp
 from ..forces.force_manager import default_energy_func
 from ..topology import BodyTopology, body_topology
 from ..utils.quaternion import Quaternion
+from ..utils.linalg import cross, dot, norm, norm2
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -144,7 +145,7 @@ def convergence_info(
 
     def maximum_norm(value: jax.Array) -> jax.Array:
         free = jnp.where(fixed[..., None], 0.0, value)
-        return jnp.sqrt(jnp.max(jnp.sum(free * free, axis=-1), initial=0.0))
+        return jnp.max(norm(free), initial=0.0)
 
     force_max = maximum_norm(force)
     torque_max = maximum_norm(torque)
@@ -332,9 +333,7 @@ def _delta_params_to_state(
         rotvec = jnp.concatenate([jnp.zeros_like(params["pos_c"]), rotation], axis=-1)
         delta_q = Quaternion.from_rotvec(rotvec)
     else:
-        unit = rotation * jax.lax.rsqrt(
-            jnp.sum(rotation * rotation, axis=-1, keepdims=True)
-        )
+        unit = rotation * jax.lax.rsqrt(norm2(rotation)[..., None])
         delta_q = Quaternion.create(unit[..., :1], unit[..., 1:])
     body_q = Quaternion.create(
         topology.gather_representatives(state.q.w),
@@ -352,13 +351,9 @@ def _rotation_pullback(rotation: jax.Array, gradient: jax.Array) -> jax.Array:
     if rotation.shape[-1] == 1:
         return gradient
     w, xyz = rotation[..., :1], rotation[..., 1:]
-    scalar = -jnp.sum(xyz * gradient, axis=-1, keepdims=True)
-    vector = w * gradient + jnp.cross(gradient, xyz)
-    return (
-        2.0
-        * jnp.concatenate([scalar, vector], axis=-1)
-        / jnp.sum(rotation * rotation, axis=-1, keepdims=True)
-    )
+    scalar = -dot(xyz, gradient)[..., None]
+    vector = w * gradient + cross(gradient, xyz)
+    return 2.0 * jnp.concatenate([scalar, vector], axis=-1) / norm2(rotation)[..., None]
 
 
 def _rotation_residual(rotation: jax.Array, gradient: jax.Array) -> jax.Array:
@@ -367,7 +362,7 @@ def _rotation_residual(rotation: jax.Array, gradient: jax.Array) -> jax.Array:
         return gradient
     w, xyz = rotation[..., :1], rotation[..., 1:]
     gw, gxyz = gradient[..., :1], gradient[..., 1:]
-    return 0.5 * (w * gxyz - xyz * gw + jnp.cross(xyz, gxyz))
+    return 0.5 * (w * gxyz - xyz * gw + cross(xyz, gxyz))
 
 
 @jax.custom_vjp

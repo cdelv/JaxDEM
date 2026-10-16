@@ -13,6 +13,8 @@ import jax.numpy as jnp
 import numpy as np
 from numpy.typing import NDArray
 
+from .linalg import norm
+
 if TYPE_CHECKING:
     from ..minimizers import MinimizeInfo
     from ..state import State
@@ -182,9 +184,7 @@ def measure_neighbor_candidates(
     from ..colliders._neighbor_cache import count_pairs
 
     _validate_state(state)
-    _, skin, list_cutoff = _search_distances(
-        state, system, cutoff, skin, skin_fraction
-    )
+    _, skin, list_cutoff = _search_distances(state, system, cutoff, skin, skin_fraction)
     search_radii = system.force_model.search_radii(state, system)
     if state.N <= 64 or system.domain.search_geometry is None:
         collider = Collider.create("naive")
@@ -326,7 +326,7 @@ def estimate_neighbor_capacity(
     counts = jnp.bincount(group, length=n_bodies)
     centers = jax.ops.segment_sum(state.pos_c, group, num_segments=n_bodies)
     centers = centers / counts[:, None]
-    extents = jnp.linalg.norm(state.pos - centers[group], axis=-1) + state.rad
+    extents = norm(state.pos - centers[group]) + state.rad
     radii = jax.ops.segment_max(extents, group, num_segments=n_bodies)
     length_unit = float(jnp.max(radii))
     normalized_radii = radii / length_unit

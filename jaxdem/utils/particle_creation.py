@@ -24,6 +24,7 @@ from .meshes import (
     generate_torus_mesh,
 )
 from .quaternion import Quaternion
+from .linalg import norm, unit
 from .random_sphere_configuration import random_sphere_configuration
 
 MESH_TYPES = (
@@ -587,7 +588,7 @@ def _random_body_quaternions(n_bodies: int, dim: int, key: jax.Array) -> jax.Arr
     """Uniformly random per-body quaternions ``[w, x, y, z]`` in ``(n_bodies, 4)``."""
     if dim == 3:
         q4 = jax.random.normal(key, (n_bodies, 4))
-        return q4 / jnp.linalg.norm(q4, axis=-1, keepdims=True)
+        return unit(q4)
     theta = jax.random.uniform(key, (n_bodies,), minval=0.0, maxval=2.0 * jnp.pi)
     half = theta / 2.0
     return jnp.stack(
@@ -717,7 +718,7 @@ def distribute_bodies(
         jax.ops.segment_sum(state.pos_c, group_id, num_segments=n_bodies)
         / counts[:, None]
     )
-    dists = jnp.linalg.norm(state.pos - body_center[group_id], axis=-1) + state.rad
+    dists = norm(state.pos - body_center[group_id]) + state.rad
     body_radius = jax.ops.segment_max(dists, group_id, num_segments=n_bodies)
 
     new_centers, box_size = random_sphere_configuration(

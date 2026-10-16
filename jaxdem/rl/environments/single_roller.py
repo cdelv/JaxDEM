@@ -13,7 +13,7 @@ from jax.typing import ArrayLike
 
 from ...state import State
 from ...system import System
-from ...utils.linalg import cross, norm, unit
+from ...utils.linalg import cross, dot, norm, unit
 from . import Environment
 
 
@@ -55,7 +55,7 @@ def frictional_wall_force(
     force_n = (-k * penetration)[..., None] * n
 
     # Normal velocity damping (restitution)
-    v_n_scalar = jnp.sum(state.vel * n, axis=-1, keepdims=True)
+    v_n_scalar = dot(state.vel, n)[..., None]
     in_contact = (penetration < 0)[..., None]
     c_n = (2.0 * (1.0 - restitution) * jnp.sqrt(k * state.mass))[..., None]
     c_n = jnp.minimum(c_n, (0.5 * state.mass / system.dt)[..., None])
@@ -64,11 +64,11 @@ def frictional_wall_force(
     # Velocity at contact point
     radius_vec = -state.rad[..., None] * n
     v_at_contact = state.vel + cross(state.ang_vel, radius_vec)
-    v_n = jnp.sum(v_at_contact * n, axis=-1, keepdims=True) * n
+    v_n = dot(v_at_contact, n)[..., None] * n
     v_t = v_at_contact - v_n
 
     # Coulomb friction
-    f_t_mag = mu * jnp.sum(force_n * n, axis=-1, keepdims=True)
+    f_t_mag = mu * dot(force_n, n)[..., None]
     t_dir = unit(v_t)
     force_t = -f_t_mag * t_dir
 

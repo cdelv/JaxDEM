@@ -20,6 +20,7 @@ from .dynamical_matrix import (
     zero_mode_mask,
 )
 from .packing_utils import compute_packing_fraction
+from .linalg import norm
 
 if TYPE_CHECKING:
     from ..state import State
@@ -247,8 +248,7 @@ def _packing_data(
         forces=data.forces,
         torques=data.torques,
         displacements=data.displacements,
-        overlap=state.rad[data.pair_ids].sum(axis=1)
-        - jnp.linalg.norm(data.displacements, axis=1),
+        overlap=state.rad[data.pair_ids].sum(axis=1) - norm(data.displacements),
         mu=contact._pair_friction(data.forces, data.displacements),
         pair_species=None
         if species is None
@@ -281,7 +281,7 @@ def _packing_data(
     distance_sum = (
         jnp.zeros(n_slots, dtype=state.pos_c.dtype)
         .at[groups.pair_ids[:, 0]]
-        .add(jnp.linalg.norm(groups.displacements, axis=1))
+        .add(norm(groups.displacements))
     )
     neighbors = jnp.diff(clump_network.row_offsets)
     diameter = distance_sum / jnp.maximum(neighbors, 1)

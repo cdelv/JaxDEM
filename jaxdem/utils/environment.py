@@ -34,8 +34,12 @@ def _mask_agent_actions(action: jax.Array, mask: jax.Array) -> jax.Array:
 
 @partial(jax.jit, static_argnames=("skip_frames",), inline=True)
 def advance_action(
-    env: Environment, action: jax.Array, *, skip_frames: int = 0,
-    terminated: jax.Array | None = None, truncated: jax.Array | None = None,
+    env: Environment,
+    action: jax.Array,
+    *,
+    skip_frames: int = 0,
+    terminated: jax.Array | None = None,
+    truncated: jax.Array | None = None,
 ) -> tuple[Environment, jax.Array, jax.Array]:
     """Snapshot the action baseline once, then advance physics to its endpoint.
 
@@ -69,20 +73,29 @@ def advance_action(
         done_before = terminated | truncated
         # Slots can disappear between repeated physics steps. They must not
         # keep receiving the action sampled while they were active.
-        stepped = current.step(current, _mask_agent_actions(action, current.agent_mask(current)))
+        stepped = current.step(
+            current, _mask_agent_actions(action, current.agent_mask(current))
+        )
         current = jax.tree.map(
             lambda new, old: jnp.where(
-                done_before.reshape(done_before.shape + (1,)*(new.ndim-done_before.ndim)),
-                old, new,
-            ), stepped, current,
+                done_before.reshape(
+                    done_before.shape + (1,) * (new.ndim - done_before.ndim)
+                ),
+                old,
+                new,
+            ),
+            stepped,
+            current,
         )
         terminated = terminated | current.terminated(current)
         truncated = truncated | current.truncated(current)
         return (current, terminated, truncated), None
 
     (env, terminated, truncated), _ = jax.lax.scan(
-        step_fn, (env, terminated, truncated),
-        None, length=1 + skip_frames,
+        step_fn,
+        (env, terminated, truncated),
+        None,
+        length=1 + skip_frames,
     )
     return env, terminated, truncated
 
@@ -272,8 +285,11 @@ def _env_step(
     action, graphstate = model(obs, key, graphstate, **kw)
 
     env, _, _ = advance_action(
-        env, action, skip_frames=skip_frames,
-        terminated=env.terminated(env), truncated=env.truncated(env),
+        env,
+        action,
+        skip_frames=skip_frames,
+        terminated=env.terminated(env),
+        truncated=env.truncated(env),
     )
 
     return env, graphstate
@@ -303,7 +319,7 @@ def _bin_spherical(rij: jax.Array, n_azimuth: int, n_elevation: int) -> jax.Arra
     ``az_bin * n_elevation + el_bin``.
     """
     phi = jnp.arctan2(rij[..., 1], rij[..., 0])
-    r_xy = jnp.sqrt(rij[..., 0] ** 2 + rij[..., 1] ** 2)
+    r_xy = norm(rij[..., :2])
     theta = jnp.arctan2(rij[..., 2], r_xy)
 
     az = jnp.floor((phi + jnp.pi) * (n_azimuth / (2.0 * jnp.pi))).astype(int)

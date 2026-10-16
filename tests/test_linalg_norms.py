@@ -18,8 +18,8 @@ def test_tiny_nonzero_vectors_keep_their_norm_and_direction() -> None:
             [-2.0e-11, 4.0e-11, -8.0e-11],
         ]
     )
-    expected_norms = jnp.sqrt(jnp.sum(vectors * vectors, axis=-1))
-    expected_units = vectors / expected_norms[..., None]
+    expected_norms = np.array([5e-10, np.sqrt(84) * 1e-11])
+    expected_units = np.array([[0.6, 0.8, 0], [-2, 4, -8] / np.sqrt(84)])
 
     units, lengths = unit_and_norm(vectors)
 
@@ -29,6 +29,23 @@ def test_tiny_nonzero_vectors_keep_their_norm_and_direction() -> None:
     np.testing.assert_allclose(
         jnp.linalg.norm(units, axis=-1), jnp.ones(2), rtol=2e-6, atol=0.0
     )
+
+
+def test_surface_probe_orientation_has_a_finite_antipodal_pullback():
+    from jaxdem.utils.surface_properties import _quat_from_x_to_3d
+
+    for direction in (
+        jnp.array([1.0, 0.0, 0.0]),
+        jnp.array([-1.0, 0.0, 0.0]),
+        jnp.array([0.0, 0.6, 0.8]),
+    ):
+        q = _quat_from_x_to_3d(direction)
+        w, x, y, z = np.asarray(q)
+        rotated_x = np.array(
+            [1 - 2 * (y * y + z * z), 2 * (x * y + w * z), 2 * (x * z - w * y)]
+        )
+        np.testing.assert_allclose(rotated_x, direction, atol=1e-6)
+        assert np.isfinite(jax.jacrev(_quat_from_x_to_3d)(direction)).all()
 
 
 def test_zero_norm_outputs_and_reverse_mode_derivatives_are_finite() -> None:

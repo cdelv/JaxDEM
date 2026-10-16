@@ -27,7 +27,7 @@ from ._pair_candidates import (
     _record_overflow,
     _validate_state,
 )
-from .linalg import cross
+from .linalg import cross, dot, norm
 
 if TYPE_CHECKING:
     from ..state import State
@@ -438,8 +438,8 @@ def _group_labels(state: State, group_by: str | jax.Array) -> np.ndarray:
 @jax.jit
 def _pair_friction(forces: jax.Array, displacements: jax.Array) -> jax.Array:
     """Return ``|r cross F| / |r dot F|`` without normalizing the pair axis."""
-    normal = jnp.abs(jnp.sum(forces * displacements, axis=-1))
-    tangent = jnp.linalg.norm(cross(displacements, forces), axis=-1)
+    normal = jnp.abs(dot(forces, displacements))
+    tangent = norm(cross(displacements, forces))
     ratio = jnp.where(normal > 0, tangent / jnp.where(normal > 0, normal, 1), jnp.inf)
     ratio = jnp.where(jnp.any(displacements != 0, axis=-1), ratio, jnp.nan)
     return jnp.where(jnp.any(forces != 0, axis=-1), ratio, 0.0)

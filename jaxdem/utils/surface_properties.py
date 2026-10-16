@@ -35,6 +35,7 @@ import numpy as np
 
 from ..state import State
 from .quaternion import Quaternion
+from .linalg import dot, norm, norm2, unit
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
@@ -59,8 +60,7 @@ _FORCE_CONTACT_EPS = 1e-30
 def _quat_from_x_to_3d(d: jax.Array) -> jax.Array:
     """Unit quaternion ``[w, x, y, z]`` rotating ``[1, 0, 0]`` to unit vector ``d``."""
     q = jnp.array([1.0 + d[0], 0.0, -d[2], d[1]])
-    norm = jnp.linalg.norm(q)
-    return jnp.where(norm < 1e-8, jnp.array([0.0, 0.0, 1.0, 0.0]), q / norm)
+    return jnp.where(norm(q) < 1e-8, jnp.array([0.0, 0.0, 1.0, 0.0]), unit(q))
 
 
 def _quat_from_x_to_2d(d: jax.Array) -> jax.Array:
@@ -304,20 +304,20 @@ def _find_contact_at_overlap(
     com_c = base_pos_c[central_idx[0]]
     com_t = base_pos_c[tracer_idx[0]]
     ray = com_t - com_c
-    separation = jnp.linalg.norm(ray)
+    separation = norm(ray)
     direction = ray / separation
 
     # Work with rotated body offsets, avoiding subtraction of world positions.
     offsets = state._pos_p_rot
     delta = offsets[central_idx][:, None, :] - offsets[tracer_idx][None, :, :]
-    parallel = jnp.sum(delta * direction, axis=-1)
+    parallel = dot(delta, direction)
     perpendicular = delta - parallel[..., None] * direction
     radius = (
         state.rad[central_idx][:, None]
         + state.rad[tracer_idx][None, :]
         - target_overlap
     )
-    discriminant = radius * radius - jnp.sum(perpendicular * perpendicular, axis=-1)
+    discriminant = radius * radius - norm2(perpendicular)
     positive = discriminant > 0
     root = jnp.where(positive, jnp.sqrt(jnp.where(positive, discriminant, 1.0)), 0.0)
     entry = parallel + root
@@ -383,12 +383,12 @@ def _measure_probe(
     com_central = state.pos_c[jnp.argmax(central_mask)]
     com_tracer = state.pos_c[jnp.argmax(tracer_mask)]
     r_ij = com_central - com_tracer
-    separation = jnp.linalg.norm(r_ij)
+    separation = norm(r_ij)
     direction = r_ij / separation
 
     force = jnp.sum(state.force * central_mask[:, None], axis=0)
-    force_n_mag = jnp.sum(force * direction)
-    force_t_mag = jnp.linalg.norm(force - force_n_mag * direction)
+    force_n_mag = dot(force, direction)
+    force_t_mag = norm(force - force_n_mag * direction)
     # A probe "makes contact" iff the collider produced a non-negligible normal
     # (repulsive) force along the center-to-center axis. Without one the friction
     # ratio is undefined, so mu and separation are reported as NaN. NaN (rather
@@ -405,7 +405,7 @@ def _measure_probe(
     # collider that's already populated state.force has masked out
     # intra-clump pairs, so any nonzero entry must be an external
     # asperity contact).
-    has_contact = jnp.linalg.norm(state.force, axis=-1) > 0
+    has_contact = norm(state.force) > 0
     n_central_contacts = jnp.sum(has_contact & central_mask)
     n_tracer_contacts = jnp.sum(has_contact & tracer_mask)
 
@@ -426,10 +426,8 @@ def _measure_probe(
     # genuine divergence of the ratio rather than a failed measurement, hence
     # inf rather than the no-contact NaN.
     f_asperity = state.force[central_idx]
-    f_asperity_n = jnp.sum(f_asperity * direction, axis=-1)
-    f_asperity_t = jnp.linalg.norm(
-        f_asperity - f_asperity_n[:, None] * direction, axis=-1
-    )
+    f_asperity_n = dot(f_asperity, direction)
+    f_asperity_t = norm(f_asperity - f_asperity_n[:, None] * direction)
     asperity_denom = jnp.abs(f_asperity_n)
     resolved = asperity_denom > _FORCE_CONTACT_EPS
     mu_asperity = jnp.where(
