@@ -18,6 +18,7 @@ from ...state import State
 from ...system import System
 from ...utils import cross_lidar_2d, lidar_2d
 from . import Environment
+from ._swarm import filter_objectives, shared_potential
 from .single_roller import frictional_wall_force
 
 
@@ -505,46 +506,7 @@ class SwarmRoller(Environment):
         if env.num_objectives == 0:
             return jnp.zeros_like(env.state.rad)
         peers, objectives, peer_ids = SwarmRoller._sense(env)
-        lr = env.env_params["lidar_range"]
-        distance = lr - objectives
-        valid = objectives > 0
-        # All bin pairs matter: a peer and its nearby goal may straddle a bin edge.
-        angle = jnp.arange(env.n_lidar_rays) * (2 * jnp.pi / env.n_lidar_rays)
-        cosine = jnp.cos(angle[:, None] - angle[None, :])
-        peer_distance = lr - peers
-        separation_sq = jnp.maximum(
-            distance[:, :, None] ** 2
-            + peer_distance[:, None, :] ** 2
-            - 2 * distance[:, :, None] * peer_distance[:, None, :] * cosine,
-            0.0,
-        )
-        peer_valid = (
-            (peers > 0)
-            & (peer_ids >= 0)
-            & (peer_ids != jnp.arange(env.max_num_agents)[:, None])
-        )
-        scale = env.env_params["sharing_range"] * env.state.rad[:, None, None]
-        claims = jnp.where(
-            peer_valid[:, None, :],
-            jnp.exp(-((separation_sq / scale**2) ** 2)),
-            0.0,
-        ).sum(axis=-1)
-        # Include one prospective claim for self, even during approach.
-        weight = 1 / (1 + claims)
-        settling = jnp.exp(-((distance / (1.5 * env.state.rad[:, None])) ** 4))
-        # Settling at several nearby goals must not add their values.
-        local = jnp.where(valid, weight * settling, 0.0).max(axis=-1)
-        x = distance / env.state.rad[:, None]
-        decay = env.env_params["attraction_decay"]
-        # Integral from x to infinity of (c + b*x**2)*exp(-decay*x).
-        attraction = jnp.exp(-decay * x) * (
-            env.env_params["attraction_constant"] / decay
-            + env.env_params["attraction_quadratic"]
-            * (x**2 / decay + 2 * x / decay**2 + 2 / decay**3)
-        )
-        return local + env.env_params["attraction_coeff"] * jnp.where(
-            valid, weight * attraction, 0.0
-        ).sum(axis=-1)
+        return shared_potential(objectives, peers, peer_ids, env)
 
     @staticmethod
     @jax.jit(inline=True)
@@ -668,34 +630,7 @@ class SwarmRoller(Environment):
         """
         lidar, lidar_obj, peer_ids = SwarmRoller._sense(env)
         lr = env.env_params["lidar_range"]
-        distance = lr - lidar_obj
-        peer_distance = lr - lidar
-        theta = jnp.arange(env.n_lidar_rays) * (2 * jnp.pi / env.n_lidar_rays)
-        cosine = jnp.cos(theta[:, None] - theta[None, :])
-        delta2 = jnp.maximum(
-            distance[:, :, None] ** 2
-            + peer_distance[:, None, :] ** 2
-            - 2 * distance[:, :, None] * peer_distance[:, None, :] * cosine,
-            0,
-        )
-        valid_peer = (
-            (lidar > 0)
-            & (peer_ids >= 0)
-            & (peer_ids < env.max_num_agents)
-            & (peer_ids != jnp.arange(env.max_num_agents)[:, None])
-        )
-        occupied = jnp.any(
-            valid_peer[:, None, :] & (delta2 <= env.state.rad[:, None, None] ** 2),
-            axis=-1,
-        )
-        hide = (
-            env.env_params["hide_occupied_objectives"]
-            & (lidar_obj > 0)
-            & (distance < lr / 2)
-            & (distance > env.state.rad[:, None])
-            & occupied
-        )
-        lidar_obj = jnp.where(hide, 0, lidar_obj)
+        lidar_obj = filter_objectives(lidar_obj, lidar, peer_ids, env)
         return jnp.concatenate(
             [
                 env.state.vel[..., :2],

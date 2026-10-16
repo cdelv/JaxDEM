@@ -7,6 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import partial
 from math import isfinite
+from numbers import Integral
 
 import jax
 import jax.numpy as jnp
@@ -16,14 +17,15 @@ from ...material_matchmakers import MaterialMatchmaker
 from ...materials import Material, MaterialTable
 from ...state import State
 from ...system import System
-from ...utils import cross_lidar_2d, lidar_2d
+from ...utils import cross_lidar_2d, cross_lidar_3d, lidar_2d, lidar_3d
 from . import Environment
+from ._swarm import filter_objectives, shared_potential
 
 
 @jax.jit(static_argnames=("N",))
 @partial(jax.named_call, name="swarm_navigator._sample_objectives")
 def _sample_objectives(key: ArrayLike, N: int, box: jax.Array, gap: float) -> jax.Array:
-    r"""Sample positions on a jittered grid inside a rectangular box.
+    r"""Sample positions on a jittered grid inside a 2-D or 3-D box.
 
     Parameters
     ----------
@@ -32,14 +34,14 @@ def _sample_objectives(key: ArrayLike, N: int, box: jax.Array, gap: float) -> ja
     N : int
         Number of positions. Static under JIT; zero returns an empty array.
     box : jax.Array
-        Positive side lengths of the rectangle, shape ``(2,)``.
+        Positive side lengths, shape ``(2,)`` or ``(3,)``.
     gap : float
         Requested minimum center separation, in simulation length units.
 
     Returns
     -------
     jax.Array
-        Sampled positions of shape ``(N, 2)`` relative to the box origin.
+        Sampled positions of shape ``(N, dim)`` relative to the box origin.
 
     Notes
     -----
@@ -49,8 +51,18 @@ def _sample_objectives(key: ArrayLike, N: int, box: jax.Array, gap: float) -> ja
     separation cannot be guaranteed when the box is too small for the grid.
     """
     if N == 0:
-        return jnp.zeros((0, 2))
+        return jnp.zeros((0, box.shape[0]))
     i = jax.lax.iota(int, N)
+    if box.shape[0] == 3:
+        Lx, Ly, Lz = box.astype(float)
+        nx = jnp.ceil(jnp.cbrt(N * Lx**2 / (Ly * Lz))).astype(int)
+        ny = jnp.ceil(jnp.sqrt(N * Ly / (nx * Lz))).astype(int)
+        nz = jnp.ceil(N / (nx * ny)).astype(int)
+        cell = box / jnp.asarray([nx, ny, nz])
+        ijk = jnp.stack([i % nx, (i // nx) % ny, i // (nx * ny)], axis=-1)
+        base = (ijk + 0.5) * cell
+        noise = jax.random.uniform(key, (N, 3), minval=-1.0, maxval=1.0)
+        return base + noise * jnp.maximum(0.0, (cell - gap) / 2)
     Lx, Ly = box.astype(float)
     nx = jnp.ceil(jnp.sqrt(N * Lx / Ly)).astype(int)
     ny = jnp.ceil(N / nx).astype(int)
@@ -115,6 +127,39 @@ def _sample_padding_ring(
     return jnp.concatenate([bottom, top, left, right], axis=0)
 
 
+def _sample_padding_shell_3d(
+    key: ArrayLike, N: int, box: float, pad: float, gap: float
+) -> jax.Array:
+    """Fill six nonoverlapping slabs around the inner objective cube."""
+    t = pad / 2
+    L = box + pad
+    sizes = (
+        (t, L, L),
+        (t, L, L),
+        (box, t, L),
+        (box, t, L),
+        (box, box, t),
+        (box, box, t),
+    )
+    anchors = (
+        (-t, -t, -t),
+        (box, -t, -t),
+        (0, -t, -t),
+        (0, box, -t),
+        (0, 0, -t),
+        (0, 0, box),
+    )
+    keys = jax.random.split(key, 6)
+    return jnp.concatenate(
+        [
+            _sample_objectives(keys[i], N // 6 + (i < N % 6), jnp.asarray(size), gap)
+            + jnp.asarray(anchor)
+            for i, (size, anchor) in enumerate(zip(sizes, anchors, strict=True))
+        ],
+        axis=0,
+    )
+
+
 @Environment.register("swarmNavigator")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
@@ -122,10 +167,10 @@ class SwarmNavigator(Environment):
     r"""Multi-agent cooperative objective coverage with local sensing.
 
     Each agent controls a force vector that acts on a sphere in a reflective
-    box. Each step adds viscous drag ``-friction * vel``. The environment
-    samples objectives on a jittered grid inside the box. Agents spawn
-    in the padding ring around the box. Observations read live objective and
-    agent/wall LiDAR. By default, observations hide nearby objectives estimated
+    2-D or 3-D box. Each step adds viscous drag ``-friction * vel``.
+    Objectives lie on a jittered grid inside the box; agents spawn in its
+    padding ring or shell. Observations read live objective and agent/wall
+    LiDAR. By default, observations hide nearby objectives estimated
     to be covered by another agent, preserving the observing agent's own goal.
     Reward still uses the unfiltered scans and shares value among nearby claimants,
     combining flat settling with a wider approach potential. Local objective and
@@ -161,15 +206,16 @@ class SwarmNavigator(Environment):
     Feature                       Size
     ============================  =================
     Velocity                      ``dim``
-    Normalized objective LiDAR    ``n_lidar_rays``
-    Normalized agent/wall LiDAR   ``n_lidar_rays``
+    Normalized objective LiDAR    ``lidar_bins``
+    Normalized agent/wall LiDAR   ``lidar_bins``
     ============================  =================
 
     Velocity is not normalized. LiDAR stores proximity, with zero for empty
     or masked bins and one for coincident centers after normalization.
     With two spatial dimensions and the default 12 bins, each observation
-    has 26 entries. Methods describe one environment; use ``jax.vmap`` for
-    independent environment batches.
+    has 26 entries. In 3-D, ``lidar_bins = n_lidar_rays * n_lidar_elevation``;
+    default settings give 99 entries. Methods describe one environment;
+    use ``jax.vmap`` for independent environment batches.
 
     With ``dt = 0.002`` and ``skip_frames = 49``, one policy action spans
     50 physics steps (0.1 seconds). :func:`jaxdem.utils.advance_action`
@@ -195,6 +241,9 @@ class SwarmNavigator(Environment):
     n_lidar_rays: int = jax.tree.static()
     """Number of angular bins for each LiDAR sensor."""
 
+    n_lidar_elevation: int = jax.tree.static()
+    """Number of elevation bins in 3-D; unused in 2-D."""
+
     num_objectives: int = jax.tree.static()
     """Number of objectives sampled per environment."""
 
@@ -216,6 +265,8 @@ class SwarmNavigator(Environment):
         attraction_decay: float = 1 / 3,
         sharing_range: float = 1.5,
         hide_occupied_objectives: bool = True,
+        dim: int = 2,
+        n_lidar_elevation: int = 12,
     ) -> SwarmNavigator:
         r"""Create a swarm navigator environment.
 
@@ -226,9 +277,9 @@ class SwarmNavigator(Environment):
         num_objectives : int
             Number of objectives sampled per environment.
         box_size : float
-            Side length of the square domain that holds the objectives.
+            Side length of the square or cube that holds the objectives.
         box_padding : float
-            Total extra domain side length in particle radii. The spawn ring
+            Total extra domain side length in particle radii. The spawn ring or shell
             extends by half this amount on each side of the objective box.
         max_steps : int
             Episode length in physics steps.
@@ -257,6 +308,12 @@ class SwarmNavigator(Environment):
             A hidden reading becomes zero; farther goals behind it are not
             revealed. Applies only to observations, never reward or checkpoints.
             Set to False to recover the unfiltered observation.
+        dim : int
+            Spatial dimension, either 2 (default) or 3. Three-dimensional
+            agents and objectives occupy a volume, with agents in its
+            padding shell.
+        n_lidar_elevation : int
+            Positive number of elevation bins in 3-D; unused in 2-D.
 
         Returns
         -------
@@ -291,7 +348,14 @@ class SwarmNavigator(Environment):
         ):
             if not isfinite(value) or value <= 0:
                 raise ValueError(f"{name} must be finite and positive")
-        dim = 2
+        if isinstance(dim, bool) or not isinstance(dim, Integral) or dim not in (2, 3):
+            raise ValueError("dim must be 2 or 3")
+        if (
+            isinstance(n_lidar_elevation, bool)
+            or not isinstance(n_lidar_elevation, Integral)
+            or n_lidar_elevation < 1
+        ):
+            raise ValueError("n_lidar_elevation must be a positive integer")
         n_obj = int(num_objectives)
         state = State.create(pos=jnp.zeros((int(N), dim)))
         env_params = {
@@ -316,6 +380,7 @@ class SwarmNavigator(Environment):
             system=System.create(state.shape, rotation_integrator_type=None),
             env_params=env_params,
             n_lidar_rays=int(n_lidar_rays),
+            n_lidar_elevation=int(n_lidar_elevation),
             num_objectives=n_obj,
         )
 
@@ -346,10 +411,11 @@ class SwarmNavigator(Environment):
         center separation 2.05; undersized cells cannot guarantee this spacing.
         The reflecting domain has side length ``box_size + box_padding``
         and lower corner ``-box_padding / 2`` in each coordinate. Reset
-        constructs elastic material with density ``1 / pi``, Young's modulus
-        ``2e5``, and Poisson ratio 0.3. The physics time step is 0.002 and
+        constructs elastic material with unit-mass density (``1 / pi`` in
+        2-D, ``3 / (4*pi)`` in 3-D), Young's modulus ``2e5``, and Poisson ratio
+        0.3. The physics time step is 0.002 and
         rotation is disabled. Objective coordinates have shape
-        ``(num_objectives, 2)`` and are stored in ``env_params["objective"]``.
+        ``(num_objectives, dim)`` and are stored in ``env_params["objective"]``.
         """
         key_pos, key_obj = jax.random.split(key)
         N, rad = env.max_num_agents, 1.0
@@ -361,12 +427,22 @@ class SwarmNavigator(Environment):
         env.env_params["objective"] = _sample_objectives(
             key_obj, env.num_objectives, box, gap
         )
-        pos = _sample_padding_ring(key_pos, int(N), box_s, padding, gap)
+        if env.state.dim == 3:
+            pos = _sample_padding_shell_3d(key_pos, int(N), box_s, padding, gap)
+        else:
+            pos = _sample_padding_ring(key_pos, int(N), box_s, padding, gap)
         env.state = State.create(pos=pos, rad=rad * jnp.ones(N))
 
         matcher = MaterialMatchmaker.create("linear")
         mat_table = MaterialTable.from_materials(
-            [Material.create("elastic", density=1.0 / jnp.pi, young=2e5, poisson=0.3)],
+            [
+                Material.create(
+                    "elastic",
+                    density=(1 / jnp.pi if env.state.dim == 2 else 3 / (4 * jnp.pi)),
+                    young=2e5,
+                    poisson=0.3,
+                )
+            ],
             matcher=matcher,
         )
         env.system = System.create(
@@ -400,13 +476,13 @@ class SwarmNavigator(Environment):
         Returns
         -------
         lidar : jax.Array
-            Agent/wall proximity, shape ``(N, n_lidar_rays)``. Each bin keeps
+            Agent/wall proximity, shape ``(N, lidar_bins)``. Each bin keeps
             its nearest return; walls can hide peers in the same bin.
         lidar_obj : jax.Array
-            Objective proximity, shape ``(N, n_lidar_rays)``. These readings
+            Objective proximity, shape ``(N, lidar_bins)``. These readings
             are unfiltered, including objectives covered by other agents.
         ids : jax.Array
-            Agent/wall return IDs, shape ``(N, n_lidar_rays)``. Valid peer
+            Agent/wall return IDs, shape ``(N, lidar_bins)``. Valid peer
             returns use indices into the current particle array. Walls use
             ``-1``; empty bins use the observer's own index. Occupancy tests
             exclude self, negative IDs, and zero-proximity readings.
@@ -418,16 +494,36 @@ class SwarmNavigator(Environment):
         Empty bins return zero. Recover distance as :math:`d=L-\ell` only
         for a valid detection; a zero reading does not prove a target exists
         at distance :math:`L`. Observation normalization is applied later.
+        Three-dimensional bins flatten azimuth then elevation, with
+        ``lidar_bins = n_lidar_rays * n_lidar_elevation``.
         """
         objective = env.env_params["objective"]
         lr = env.env_params["lidar_range"]
 
-        _, _, lidar, ids, _ = lidar_2d(
-            env.state, env.system, lr, env.n_lidar_rays, sense_edges=True
-        )
-        lidar_obj, _, _ = cross_lidar_2d(
-            env.state.pos, objective, env.system, lr, env.n_lidar_rays
-        )
+        if env.state.dim == 3:
+            _, _, lidar, ids, _ = lidar_3d(
+                env.state,
+                env.system,
+                lr,
+                env.n_lidar_rays,
+                env.n_lidar_elevation,
+                sense_edges=True,
+            )
+            lidar_obj, _, _ = cross_lidar_3d(
+                env.state.pos,
+                objective,
+                env.system,
+                lr,
+                env.n_lidar_rays,
+                env.n_lidar_elevation,
+            )
+        else:
+            _, _, lidar, ids, _ = lidar_2d(
+                env.state, env.system, lr, env.n_lidar_rays, sense_edges=True
+            )
+            lidar_obj, _, _ = cross_lidar_2d(
+                env.state.pos, objective, env.system, lr, env.n_lidar_rays
+            )
         return lidar, lidar_obj, ids
 
     @staticmethod
@@ -457,46 +553,13 @@ class SwarmNavigator(Environment):
         if env.num_objectives == 0:
             return jnp.zeros_like(env.state.rad)
         peers, objectives, peer_ids = SwarmNavigator._sense(env)
-        lr = env.env_params["lidar_range"]
-        distance = lr - objectives
-        valid = objectives > 0
-        # All bin pairs matter: a peer and its nearby goal may straddle a bin edge.
-        angle = jnp.arange(env.n_lidar_rays) * (2 * jnp.pi / env.n_lidar_rays)
-        cosine = jnp.cos(angle[:, None] - angle[None, :])
-        peer_distance = lr - peers
-        separation_sq = jnp.maximum(
-            distance[:, :, None] ** 2
-            + peer_distance[:, None, :] ** 2
-            - 2 * distance[:, :, None] * peer_distance[:, None, :] * cosine,
-            0.0,
+        return shared_potential(
+            objectives,
+            peers,
+            peer_ids,
+            env,
+            n_elevation=env.n_lidar_elevation if env.state.dim == 3 else None,
         )
-        peer_valid = (
-            (peers > 0)
-            & (peer_ids >= 0)
-            & (peer_ids != jnp.arange(env.max_num_agents)[:, None])
-        )
-        scale = env.env_params["sharing_range"] * env.state.rad[:, None, None]
-        claims = jnp.where(
-            peer_valid[:, None, :],
-            jnp.exp(-((separation_sq / scale**2) ** 2)),
-            0.0,
-        ).sum(axis=-1)
-        # Include one prospective claim for self, even during approach.
-        weight = 1 / (1 + claims)
-        settling = jnp.exp(-((distance / (1.5 * env.state.rad[:, None])) ** 4))
-        # Settling at several nearby goals must not add their values.
-        local = jnp.where(valid, weight * settling, 0.0).max(axis=-1)
-        x = distance / env.state.rad[:, None]
-        decay = env.env_params["attraction_decay"]
-        # Integral from x to infinity of (c + b*x**2)*exp(-decay*x).
-        attraction = jnp.exp(-decay * x) * (
-            env.env_params["attraction_constant"] / decay
-            + env.env_params["attraction_quadratic"]
-            * (x**2 / decay + 2 * x / decay**2 + 2 / decay**3)
-        )
-        return local + env.env_params["attraction_coeff"] * jnp.where(
-            valid, weight * attraction, 0.0
-        ).sum(axis=-1)
 
     @staticmethod
     @jax.jit(inline=True)
@@ -587,8 +650,8 @@ class SwarmNavigator(Environment):
         Returns
         -------
         jax.Array
-            Shape ``(N, 2 + 2 * n_lidar_rays)``. Each row concatenates the
-            two velocity components, normalized objective proximity bins,
+            Shape ``(N, observation_space_size)``. Each row concatenates the
+            velocity components, normalized objective proximity bins,
             then normalized agent/wall proximity bins. Velocity is in
             simulation units; LiDAR channels lie in ``[0, 1]``.
 
@@ -619,6 +682,8 @@ class SwarmNavigator(Environment):
         Hidden readings become zero without revealing occluded goals. Reward
         retains the raw scans. Angular quantization and hidden peers can cause
         occupancy errors; this is not an exact global coverage test.
+        In 3-D, the cosine is the dot product of spherical bin-center unit
+        directions, including elevation.
 
         The half-range mask and own-goal exception were developed for this
         environment's experiments. The congestion-game and reward-shaping
@@ -627,34 +692,13 @@ class SwarmNavigator(Environment):
         """
         lidar, lidar_obj, peer_ids = SwarmNavigator._sense(env)
         lr = env.env_params["lidar_range"]
-        distance = lr - lidar_obj
-        peer_distance = lr - lidar
-        theta = jnp.arange(env.n_lidar_rays) * (2 * jnp.pi / env.n_lidar_rays)
-        cosine = jnp.cos(theta[:, None] - theta[None, :])
-        delta2 = jnp.maximum(
-            distance[:, :, None] ** 2
-            + peer_distance[:, None, :] ** 2
-            - 2 * distance[:, :, None] * peer_distance[:, None, :] * cosine,
-            0,
+        lidar_obj = filter_objectives(
+            lidar_obj,
+            lidar,
+            peer_ids,
+            env,
+            n_elevation=env.n_lidar_elevation if env.state.dim == 3 else None,
         )
-        valid_peer = (
-            (lidar > 0)
-            & (peer_ids >= 0)
-            & (peer_ids < env.max_num_agents)
-            & (peer_ids != jnp.arange(env.max_num_agents)[:, None])
-        )
-        occupied = jnp.any(
-            valid_peer[:, None, :] & (delta2 <= env.state.rad[:, None, None] ** 2),
-            axis=-1,
-        )
-        hide = (
-            env.env_params["hide_occupied_objectives"]
-            & (lidar_obj > 0)
-            & (distance < lr / 2)
-            & (distance > env.state.rad[:, None])
-            & occupied
-        )
-        lidar_obj = jnp.where(hide, 0, lidar_obj)
         return jnp.concatenate(
             [
                 env.state.vel,
@@ -752,6 +796,8 @@ class SwarmNavigator(Environment):
                d_{ik}^2+d_{iq}^2-2d_{ik}d_{iq}\cos(\theta_k-\theta_q),0\right).
 
         All bin pairs are compared, including across the angular wraparound.
+        In 3-D, spherical bin-center direction dot products replace the
+        planar cosine and account for both azimuth and elevation.
         Walls, self IDs, and empty peer bins contribute zero. No peer positions
         or other agents' objective scans are used. A wall can hide a peer in
         its bin, and bin-center directions approximate the true bearing.
@@ -810,7 +856,7 @@ class SwarmNavigator(Environment):
         Returns
         -------
         int
-            Number of force components, equal to ``state.dim`` (two).
+            Number of force components, equal to ``state.dim`` (two or three).
             Actions passed to :meth:`step` normally have shape
             ``(max_num_agents, action_space_size)``.
         """
@@ -823,7 +869,7 @@ class SwarmNavigator(Environment):
         Returns
         -------
         tuple[int]
-            ``(state.dim,)``, or ``(2,)`` for this environment. Used when
+            ``(state.dim,)``, either ``(2,)`` or ``(3,)``. Used when
             reshaping the batch of per-agent actions inside :meth:`step`.
         """
         return (self.state.dim,)
@@ -835,12 +881,15 @@ class SwarmNavigator(Environment):
         Returns
         -------
         int
-            ``state.dim + 2 * n_lidar_rays`` (26 with default settings).
+            ``state.dim + 2 * lidar_bins`` (26 with 2-D default settings).
             :meth:`observation` returns an array of shape
             ``(max_num_agents, observation_space_size)``. Filtering changes
             objective readings but not the observation size or channel order.
         """
-        return self.state.dim + 2 * self.n_lidar_rays
+        lidar_bins = self.n_lidar_rays * (
+            self.n_lidar_elevation if self.state.dim == 3 else 1
+        )
+        return self.state.dim + 2 * lidar_bins
 
 
 __all__ = ["SwarmNavigator"]
