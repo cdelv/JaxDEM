@@ -155,6 +155,17 @@ class Environment(Factory, ABC):
 
     @staticmethod
     @jax.jit
+    def checkpoint(env: Environment, action: jax.Array) -> Environment:
+        """Snapshot reward history before an action; stateless rewards need no work.
+
+        Overrides capture the required baseline without advancing physics.
+        ``utils.advance_action`` calls this once before its physics loop;
+        observations and rewards read the live endpoint before the next snapshot.
+        """
+        return env
+
+    @staticmethod
+    @jax.jit
     def observation(env: Environment) -> jax.Array:
         """Return the per-agent observation vector.
 
