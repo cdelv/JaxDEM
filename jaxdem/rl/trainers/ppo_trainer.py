@@ -687,96 +687,97 @@ class PPOTrainer(Trainer):
         directory = Path(directory)
         log_folder = directory / datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
-        if log:
-            directory.mkdir(parents=True, exist_ok=True)
-            writer = SummaryWriter(log_folder)
-            if writer:
-                _log_hparams_fallback(writer, tr_typed, step=0)
+        try:
+            if log:
+                directory.mkdir(parents=True, exist_ok=True)
+                writer = SummaryWriter(log_folder)
+                if writer:
+                    _log_hparams_fallback(writer, tr_typed, step=0)
 
-        # Precompute steps-per-epoch from Python-side constants (no JAX sync).
-        steps_per_epoch = (
-            int(tr_typed.env.max_num_agents)
-            * int(tr_typed.env.num_envs)
-            * int(tr_typed.num_steps_epoch)
-            * (1 + int(tr_typed.skip_frames))
-        )
-
-        # Warmup JIT (first call traces + compiles). Runs epoch ``start_epoch``
-        # so a resumed run executes every epoch index exactly once.
-        tr_typed, _td, data = tr_typed.epoch(
-            tr_typed, jnp.asarray(start_epoch, dtype=int)
-        )
-        if debug_overflow_checks and jnp.any(tr_typed.env.system.collider.overflow):
-            print("Warning: overflow detected in collider")
-
-        if writer is not None:
-            data_np = jax.device_get(data)
-            for k, v in data_np.items():
-                writer.add_scalar(k, float(v), global_step=start_epoch)
-            writer.flush()
-
-        start_time = time.perf_counter()
-
-        it = (
-            trange(start_epoch + 1, total_epochs)
-            if verbose
-            else range(start_epoch + 1, total_epochs)
-        )
-        for epoch in it:
-            # Dispatch is async — returns immediately with futures.
-            tr_typed, _td, data = tr_typed.epoch(
-                tr_typed, jnp.asarray(epoch, dtype=int)
+            # Precompute steps-per-epoch from Python-side constants (no JAX sync).
+            steps_per_epoch = (
+                int(tr_typed.env.max_num_agents)
+                * int(tr_typed.env.num_envs)
+                * int(tr_typed.num_steps_epoch)
+                * (1 + int(tr_typed.skip_frames))
             )
-            # NOTE: collider overflow is only checked here when explicitly
-            # requested -- `jnp.any` forces a host sync every epoch, defeating
-            # the async dispatch noted above. It is always checked once after
-            # the loop.
-            if debug_overflow_checks:
-                if jnp.any(tr_typed.env.system.collider.overflow):
-                    print("Warning: overflow detected in collider")
 
-            if (epoch % save_every == 0 or epoch == total_epochs - 1) and (
-                verbose or log
-            ):
-                # Single sync point: pull all metric scalars at once.
+            # Warmup JIT (first call traces + compiles). Runs epoch ``start_epoch``
+            # so a resumed run executes every epoch index exactly once.
+            tr_typed, _td, data = tr_typed.epoch(
+                tr_typed, jnp.asarray(start_epoch, dtype=int)
+            )
+            if debug_overflow_checks and jnp.any(tr_typed.env.system.collider.overflow):
+                print("Warning: overflow detected in collider")
+
+            if writer is not None:
                 data_np = jax.device_get(data)
+                for k, v in data_np.items():
+                    writer.add_scalar(k, float(v), global_step=start_epoch)
+                writer.flush()
 
-                elapsed = time.perf_counter() - start_time
-                sps = (epoch - start_epoch) * steps_per_epoch / max(elapsed, 1e-9)
+            start_time = time.perf_counter()
 
-                if verbose:
-                    set_postfix = getattr(it, "set_postfix", None)
-                    if set_postfix:
-                        set_postfix(
-                            {
-                                "steps/s": f"{sps:.2e}",
-                                "avg_score": f"{float(data_np['score']):.2f}",
-                            }
-                        )
+            it = (
+                trange(start_epoch + 1, total_epochs)
+                if verbose
+                else range(start_epoch + 1, total_epochs)
+            )
+            for epoch in it:
+                # Dispatch is async — returns immediately with futures.
+                tr_typed, _td, data = tr_typed.epoch(
+                    tr_typed, jnp.asarray(epoch, dtype=int)
+                )
+                # NOTE: collider overflow is only checked here when explicitly
+                # requested -- `jnp.any` forces a host sync every epoch, defeating
+                # the async dispatch noted above. It is always checked once after
+                # the loop.
+                if debug_overflow_checks:
+                    if jnp.any(tr_typed.env.system.collider.overflow):
+                        print("Warning: overflow detected in collider")
 
-                if log and writer is not None:
-                    for k, v in data_np.items():
-                        writer.add_scalar(k, float(v), global_step=epoch)
-                    writer.add_scalar("elapsed", elapsed, global_step=epoch)
-                    writer.add_scalar("steps_per_sec", sps, global_step=epoch)
-                    writer.flush()
+                if (epoch % save_every == 0 or epoch == total_epochs - 1) and (
+                    verbose or log
+                ):
+                    # Single sync point: pull all metric scalars at once.
+                    data_np = jax.device_get(data)
 
-        # Final summary (syncs once).
-        data_np = jax.device_get(data)
-        elapsed = time.perf_counter() - start_time
-        sps = (
-            max(total_epochs - 1 - start_epoch, 1)
-            * steps_per_epoch
-            / max(elapsed, 1e-9)
-        )
-        print(f"steps/s: {sps:.2e}, final avg_score: {float(data_np['score']):.2f}")
-        # Single end-of-training overflow check (one host sync total).
-        if jnp.any(tr_typed.env.system.collider.overflow):
-            print("Warning: overflow detected in collider")
-        if writer is not None:
-            writer.close()
+                    elapsed = time.perf_counter() - start_time
+                    sps = (epoch - start_epoch) * steps_per_epoch / max(elapsed, 1e-9)
 
-        return tr_typed
+                    if verbose:
+                        set_postfix = getattr(it, "set_postfix", None)
+                        if set_postfix:
+                            set_postfix(
+                                {
+                                    "steps/s": f"{sps:.2e}",
+                                    "avg_score": f"{float(data_np['score']):.2f}",
+                                }
+                            )
+
+                    if log and writer is not None:
+                        for k, v in data_np.items():
+                            writer.add_scalar(k, float(v), global_step=epoch)
+                        writer.add_scalar("elapsed", elapsed, global_step=epoch)
+                        writer.add_scalar("steps_per_sec", sps, global_step=epoch)
+                        writer.flush()
+
+            # Final summary (syncs once).
+            data_np = jax.device_get(data)
+            elapsed = time.perf_counter() - start_time
+            sps = (
+                max(total_epochs - 1 - start_epoch, 1)
+                * steps_per_epoch
+                / max(elapsed, 1e-9)
+            )
+            print(f"steps/s: {sps:.2e}, final avg_score: {float(data_np['score']):.2f}")
+            # Single end-of-training overflow check (one host sync total).
+            if jnp.any(tr_typed.env.system.collider.overflow):
+                print("Warning: overflow detected in collider")
+            return tr_typed
+        finally:
+            if writer is not None:
+                writer.close()
 
     @staticmethod
     @partial(jax.named_call, name="PPOTrainer.loss_fn")

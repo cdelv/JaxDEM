@@ -75,6 +75,48 @@ def test_completed_resume_is_noop_before_writer_or_epoch(tmp_path):
     assert not directory.exists()
 
 
+def test_resume_runs_each_remaining_epoch_once():
+    trainer = _FakeTrainer(stop_at_epoch=3)
+    result = PPOTrainer.train(trainer, verbose=False, log=False, start_epoch=1)
+    assert result is trainer
+    assert trainer.calls == [1, 2]
+
+
+@pytest.mark.parametrize("fail_at", [0, 1])
+def test_training_closes_writer_when_an_epoch_fails(tmp_path, monkeypatch, fail_at):
+    from jaxdem.rl.trainers import ppo_trainer
+
+    class Writer:
+        closes = 0
+
+        def add_scalar(self, *args, **kwargs):
+            pass
+
+        def flush(self):
+            pass
+
+        def close(self):
+            self.closes += 1
+
+    writer = Writer()
+    monkeypatch.setattr(ppo_trainer, "SummaryWriter", lambda _: writer)
+    monkeypatch.setattr(
+        ppo_trainer, "_log_hparams_fallback", lambda *args, **kwargs: None
+    )
+    trainer = _FakeTrainer()
+    original = trainer.epoch
+
+    def epoch(current, index):
+        if int(index) == fail_at:
+            raise RuntimeError("known epoch failure")
+        return original(current, index)
+
+    trainer.epoch = epoch
+    with pytest.raises(RuntimeError, match="known epoch failure"):
+        PPOTrainer.train(trainer, verbose=False, directory=tmp_path)
+    assert writer.closes == 1
+
+
 @pytest.mark.parametrize(
     "kwargs, message",
     [
