@@ -84,8 +84,7 @@ model = rl.Model.create(
 # Advantages are used without normalization. With 32 single-agent environments,
 # horizon 100, and the default four minibatches, each minibatch contains eight
 # complete horizon segments (800 transition slots), visited in contiguous order.
-# ``num_epochs`` counts rollout/update iterations, not replay passes. See
-# :doc:`/user_guide/ppo` for the equations, boundary rules, and optimizer details.
+# ``num_epochs`` counts rollout/update iterations, not replay passes.
 
 key = jax.random.key(6)
 tr = rl.Trainer.create(
