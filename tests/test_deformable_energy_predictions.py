@@ -129,12 +129,14 @@ def test_bending_wraps_signed_angles_and_has_the_correct_restoring_moment(dim):
     state = jd.State.create(pos=points(current))
     system = jd.System.create(state=state, collider_type="", bonded_force_model=model)
     delta = np.deg2rad(20.0)
+    # Wrapping a difference near 2*pi loses a few ulps before squaring it.
+    tolerance = max(1e-12, 64 * np.finfo(state.pos.dtype).eps)
     np.testing.assert_allclose(
         model.compute_potential_energy(state.pos, state, system),
         0.5 * 2.3 * 1.7 * delta**2,
-        rtol=2e-6,
+        rtol=tolerance,
     )
     derivative = jax.grad(
         lambda theta: model.compute_potential_energy(points(theta), state, system)
     )(current)
-    np.testing.assert_allclose(derivative, 2.3 * 1.7 * delta, rtol=2e-6)
+    np.testing.assert_allclose(derivative, 2.3 * 1.7 * delta, rtol=tolerance)
