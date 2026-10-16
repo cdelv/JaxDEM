@@ -17,6 +17,8 @@ from . import BondedForceModel
 from .deformable_particle import (
     DeformableParticleModel,
     _cat_optional,
+    _broadcast_tau_s,
+    _relax_reference,
     _merge_metric_field,
 )
 from ..utils.linalg import norm
@@ -48,7 +50,7 @@ class PlasticPerimeterDeformableParticleModel(DeformableParticleModel):
 
     .. math::
 
-        P_{K,0}^{\text{new}} &= P_{K,0} + \frac{1}{\tau_{s,K}} (P_K - P_{K,0})\,dt \\
+        P_{K,0}^{\text{new}} &= P_K + (P_{K,0}-P_K)e^{-dt/\tau_{s,K}} \\
         L_{e,0}^{\text{new}} &= L_{e,0}\;\frac{P_{K,0}^{\text{new}}}{P_{K,0}}
         \qquad \forall\, e \in K
 
@@ -107,6 +109,7 @@ class PlasticPerimeterDeformableParticleModel(DeformableParticleModel):
         gamma: ArrayLike | None = None,
         tau_s: ArrayLike | None = None,
         w_b: ArrayLike | None = None,  # compatibility with checkpointer.
+        vertex_count: int | None = None,
     ) -> Self:
         # Explicit two-arg super: dataclass(slots=True) recreates the class, so
         # zero-arg super()'s __class__ cell points at the discarded original
@@ -128,15 +131,13 @@ class PlasticPerimeterDeformableParticleModel(DeformableParticleModel):
             el=el,
             gamma=gamma,
             w_b=w_b,
+            vertex_count=vertex_count,
         )
 
         edges_id_arr = None
         tau_s_arr = None
         if base.el is not None and tau_s is not None:
             assert base.edges is not None
-
-            tau_s_arr = jnp.asarray(tau_s, dtype=float)
-            tau_s_arr = jnp.atleast_1d(tau_s_arr)
 
             if edges_id is not None:
                 edges_id_arr = jnp.asarray(edges_id, dtype=int)
@@ -148,12 +149,8 @@ class PlasticPerimeterDeformableParticleModel(DeformableParticleModel):
                 edges_id_arr.shape == base.edges.shape[:-1]
             ), f"edges_id.shape={edges_id_arr.shape} does not match edges.shape[:-1]={base.edges.shape[:-1]}."
 
-            num_bodies = int(jnp.max(edges_id_arr)) + 1
-            if tau_s_arr.ndim == 0 or tau_s_arr.shape == (1,):
-                tau_s_arr = jnp.full((num_bodies,), tau_s_arr.squeeze(), dtype=float)
-            assert tau_s_arr.shape == (
-                num_bodies,
-            ), f"tau_s.shape={tau_s_arr.shape} does not match number of edge-bodies ({num_bodies},)."
+            num_bodies = int(jnp.max(edges_id_arr)) + 1 if edges_id_arr.size else 0
+            tau_s_arr = _broadcast_tau_s(tau_s, (num_bodies,))
 
         return dataclasses.replace(base, edges_id=edges_id_arr, tau_s=tau_s_arr)
 
@@ -232,7 +229,7 @@ class PlasticPerimeterDeformableParticleModel(DeformableParticleModel):
         P_K = perimeters[..., 0]
         P_K_0 = perimeters[..., 1]
 
-        P_K_0_new = P_K_0 + (1.0 / self.tau_s) * (P_K - P_K_0) * dt
+        P_K_0_new = _relax_reference(P_K_0, P_K, dt, self.tau_s)
 
         scale = P_K_0_new / jnp.where(P_K_0 == 0.0, 1.0, P_K_0)
         new_initial_edge_lengths = L_e_0 * scale[self.edges_id]

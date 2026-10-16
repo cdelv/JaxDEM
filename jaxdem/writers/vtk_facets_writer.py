@@ -25,7 +25,8 @@ if TYPE_CHECKING:  # pragma: no cover
 class VTKFacetsWriter(VTKBaseWriter):
     """A :class:`VTKBaseWriter` that writes facets as thickened VTK cells.
 
-    The writer groups vertices by ``facet_id``. In 2D it expands each
+    The writer groups vertices by ``facet_id`` and unwraps them in one domain
+    displacement call using each facet's first vertex. In 2D it expands each
     2-vertex facet into a convex-hull polygon that covers the facet plus
     its thickness, or a quad when the hull is not available. In 3D it
     expands each 3-vertex facet into a convex-hull triangle mesh, or a
@@ -63,8 +64,14 @@ class VTKFacetsWriter(VTKBaseWriter):
 
         thick_arr = np.asarray(state.rad)[facet_mask]
 
-        # Group vertices by facet
-        unique_facets, inverse = np.unique(f_facet, return_inverse=True)
+        # Group vertices and unwrap them relative to each facet's first vertex.
+        unique_facets, first, inverse = np.unique(
+            f_facet, return_index=True, return_inverse=True
+        )
+        reference = f_pos[first][inverse]
+        f_pos = reference + np.asarray(
+            system.domain.displacement(f_pos, reference, system)
+        )
 
         # Fibonacci sphere for 3D Minkowski expansion
         samples = 42
@@ -93,16 +100,6 @@ class VTKFacetsWriter(VTKBaseWriter):
 
         for i in range(len(unique_facets)):
             idx = np.where(inverse == i)[0]
-
-            # Apply minimum image convention to keep facets contiguous in periodic domains
-            if system.domain.periodic:
-                box_size = np.asarray(system.domain.box_size)
-                # Unwrap relative to the first vertex
-                p0_ref = f_pos[idx[0]]
-                for j in range(1, len(idx)):
-                    dp = f_pos[idx[j]] - p0_ref
-                    dp = dp - box_size * np.round(dp / box_size)
-                    f_pos[idx[j]] = p0_ref + dp
 
             if len(idx) == 2 and pos.shape[-1] == 2:
                 # 2D line

@@ -7,8 +7,11 @@ the surface area. We take the mean of ``mu`` over the sampled approach
 directions. The directions form a near-uniform Fibonacci lattice
 on ``S^2``, so the mean is the surface-averaged friction to leading order.
 
-Numerics match :file:`sasa_calculation.py`: ``target_overlap = 1e-10``
-and ``separation_tolerance = 1e-12``, which requires x64.
+Sphere-ray intersections locate the first contact from outside.
+Numerics match :file:`sasa_calculation.py`: x64 resolves the small
+``target_overlap = 1e-10`` at the body's length scale.
+``separation_tolerance = 1e-12`` is a compatibility parameter, not an
+iteration tolerance.
 """
 
 # %%
@@ -31,7 +34,7 @@ central = create_ga_state(
     particle_radius=0.5,
     asperity_radius=0.1,
     particle_type="clump",
-    core_type="solid",  # clumps need a solid core for the sasa protocol to work reliably
+    core_type="solid",  # fill the central void so each approach ray meets the body
     n_samples=10_000_000,  # the default. ~10M samples give decent accuracy for the clump COM
     seed=0,
     mesh_kwargs={"steps": 1_000},

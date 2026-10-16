@@ -254,9 +254,9 @@ def j1(x: ArrayLike) -> JaxArray:
     # Double-where guard: evaluate each branch only on inputs where it is
     # well-defined so reverse-mode gradients stay finite (the large-x branch
     # contains 5/x and 1/sqrt(x), which produce NaN cotangents at x = 0).
-    ax_small = jnp.where(small, ax, 0.0)
+    x_small = jnp.where(small, x, 0.0)
     ax_large = jnp.where(small, 5.0, ax)
-    return jnp.sign(x) * jnp.where(small, _j1_small(ax_small), _j1_large_c(ax_large))
+    return jnp.where(small, _j1_small(x_small), jnp.sign(x) * _j1_large_c(ax_large))
 
 
 def _j0_small(x: JaxArray) -> JaxArray:

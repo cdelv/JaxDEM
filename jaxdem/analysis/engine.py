@@ -123,7 +123,8 @@ def evaluate_binned(
     Args:
         kernel: pure function called as `kernel(arrays, t0, t1, **kernel_kwargs)`.
         arrays: mapping of field name -> array with leading time axis, e.g.
-            pos: (T,N,d) or (T,S,N,d)
+            pos: (T,N,d) or (T,S,N,d). At least one frame is required to infer
+            kernel outputs, including for an empty pair selection.
         binspec: bin specification built on the host. Defines which indices to use.
         kernel_kwargs: extra keyword arguments for the kernel.
         jit: whether to jit the core compute.
@@ -152,6 +153,10 @@ def evaluate_binned(
     arrays_tree = {str(k): jnp.asarray(v) for k, v in arrays.items()}
 
     if P == 0:
+        if binspec.T == 0:
+            raise ValueError(
+                "At least one frame is required to infer the kernel output."
+            )
         # Infer the normal output tree without vmapping an empty axis. This is
         # well-defined when the input contains at least one frame, including a
         # custom BinSpec whose bins happen to be empty.

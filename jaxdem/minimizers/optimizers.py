@@ -6,17 +6,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import Any, NamedTuple
 
 import jax
 import jax.numpy as jnp
 import optax  # type: ignore[import-untyped]
-
-from ..utils.linalg import norm2
-from ..utils.quaternion import Quaternion
-
-if TYPE_CHECKING:
-    pass
 
 
 def _freeze_metadata(value: Any) -> Any:
@@ -56,66 +50,26 @@ def _thaw_metadata(value: Any) -> Any:
     return value
 
 
-@jax.jit
-def _quaternion_to_rotvec(q: Quaternion) -> jax.Array:
-    r"""Map a unit quaternion to its axis-angle rotation vector with correct gradients.
-
-    Parameters
-    ----------
-    q : Quaternion
-        The unit quaternion to convert.
-
-    Returns
-    -------
-    jax.Array
-        The 3D axis-angle rotation vector :math:`\vec{\theta} = \theta \hat{u}`.
-    """
-    q_u = q.unit(q)
-    sign = jnp.where(q_u.w < 0.0, -1.0, 1.0)
-    w = q_u.w * sign
-    xyz = q_u.xyz * sign
-
-    # 1. Compute norm safely, bypassing unit_and_norm
-    n2 = norm2(xyz)[..., None]
-    safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
-    s = jnp.sqrt(safe_n2)
-
-    # 2. Evaluate the singularity safely.
-    # At v=0, this term approaches 2.0.
-    factor = jnp.where(n2 == 0.0, 2.0, 2.0 * jnp.arctan2(s, w) / s)
-
-    # 3. Multiply by the un-normalized vector
-    return xyz * factor
-
-
-@jax.jit
-def _rotvec_to_quaternion(rotvec: jax.Array) -> Quaternion:
-    r"""Map an axis-angle rotation vector to a unit quaternion.
-
-    Parameters
-    ----------
-    rotvec : jax.Array
-        The 3D axis-angle rotation vector :math:`\vec{\theta} = \theta \hat{u}`.
-
-    Returns
-    -------
-    Quaternion
-        The corresponding unit quaternion.
-    """
-    return Quaternion.from_rotvec(rotvec)
-
-
 class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # type: ignore[misc]
     """Custom optax gradient transformation wrapper for DEM energy minimization.
 
     This class extends `optax.GradientTransformationExtraArgs` to support
     serialization and custom equality and hashing for minimization routines.
+    ``requires_value=False`` opts gradient-only optimizers into physical
+    force evaluation without computing energy at every iteration. Nested
+    wrappers inherit this capability from the supplied update function unless
+    explicitly overridden; plain Optax transformations require values by default.
+
+    Custom updates follow the Optax extra-argument interface and accept
+    unused keyword arguments. Factories can wrap plain transformations with
+    ``optax.with_extra_args_support`` before passing their functions here.
     """
 
     _constructor: Any
     type_name: str
     kw: Mapping[str, Any]
     _kw_key: Any
+    requires_value: bool
 
     def __new__(
         cls,
@@ -124,10 +78,20 @@ class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # ty
         _constructor: Any,
         kw: dict[str, Any],
         type_name: str = "",
+        *,
+        requires_value: bool | None = None,
     ) -> CustomGradientTransformation:
-        obj = super().__new__(cls, init_fn, update_fn)
+        if requires_value is None:
+            requires_value = bool(getattr(update_fn, "requires_value", True))
+
+        def update(updates: Any, state: Any, params: Any = None, **kwargs: Any) -> Any:
+            return update_fn(updates, state, params, **kwargs)
+
+        setattr(update, "requires_value", requires_value)
+        obj = super().__new__(cls, init_fn, update)
         object.__setattr__(obj, "_constructor", _constructor)
         object.__setattr__(obj, "type_name", type_name)
+        object.__setattr__(obj, "requires_value", requires_value)
         # Static JAX arguments must not change their equality/hash after they
         # have been used as compilation-cache keys.
         object.__setattr__(obj, "kw", _freeze_metadata(kw))
@@ -162,10 +126,18 @@ class CustomGradientTransformation(optax.GradientTransformationExtraArgs):  # ty
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, CustomGradientTransformation):
             return False
-        return self._constructor is other._constructor and self._kw_key == other._kw_key
+        return (
+            self._constructor is other._constructor
+            and self._kw_key == other._kw_key
+            and self.requires_value == other.requires_value
+        )
 
     def __hash__(self) -> int:
-        return hash((id(self._constructor), self._kw_key))
+        return hash((id(self._constructor), self._kw_key, self.requires_value))
+
+    def __ne__(self, other: Any) -> bool:
+        # tuple.__ne__ compares only init/update, bypassing our static metadata.
+        return not self == other
 
 
 class FIREState(NamedTuple):
@@ -380,7 +352,9 @@ def fire(
         "dt_max_scale": dt_max_scale,
         "dt_min_scale": dt_min_scale,
     }
-    return CustomGradientTransformation(init, update, fire, kw, type_name="fire")
+    return CustomGradientTransformation(
+        init, update, fire, kw, type_name="fire", requires_value=False
+    )
 
 
 class DampedNewtonianState(NamedTuple):
@@ -459,7 +433,12 @@ def damped_newtonian(
         "gamma": gamma,
     }
     return CustomGradientTransformation(
-        init, update, damped_newtonian, kw, type_name="damped_newtonian"
+        init,
+        update,
+        damped_newtonian,
+        kw,
+        type_name="damped_newtonian",
+        requires_value=False,
     )
 
 

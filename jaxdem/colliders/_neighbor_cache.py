@@ -3,8 +3,9 @@
 """Fixed-capacity packed directed pairs for the Verlet cache.
 
 Two search passes count neighbors and fill a shared pool without a per-particle
-capacity. CSR offsets identify each row;
-source IDs are decoded only for operations that require a flat edge list.
+capacity. CSR offsets identify each row. Force and energy evaluation visit occupied
+CSR rows in bounded batches. Small pools use a single flat pass to avoid
+row-loop launch overhead.
 """
 
 from __future__ import annotations
@@ -22,9 +23,8 @@ from ._partition import _cell_starts
 from .cell_list import _dedup_stencil_hashes, _get_spatial_partition
 
 _SEARCH_BATCH_SIZE = 16_384
-_ROW_FORCE_UNROLL = 4
-# Bound force temporaries while retaining enough parallel work per GPU launch.
-_ROW_BATCH_SIZE = 128 * 1024
+# Keep the more expensive 3D contact kernel within a smaller working set.
+_ROW_BATCH_SIZE = {2: 65_536, 3: 16_384}
 
 
 def pair_sources(col: Any) -> jax.Array:
@@ -48,24 +48,48 @@ def _capacity_offsets(counts: jax.Array, capacity: int) -> tuple[jax.Array, jax.
         lambda a, b: a + jnp.minimum(b, limit - a), jnp.minimum(counts, limit)
     )
     overflow = totals[-1] > capacity
-    return jnp.concatenate(
-        (jnp.zeros(1, dtype=counts.dtype), jnp.minimum(totals, capacity))
-    ), overflow
+    return (
+        jnp.concatenate(
+            (jnp.zeros(1, dtype=counts.dtype), jnp.minimum(totals, capacity))
+        ),
+        overflow,
+    )
 
 
-def build_pairs(state: Any, system: Any, cutoff: Any, capacity: int) -> tuple[Any, ...]:
-    return _search_pairs(state, system, cutoff, capacity)
+def build_pairs(
+    state: Any,
+    system: Any,
+    cutoff: Any,
+    capacity: int,
+    *,
+    search_radii: Any | None = None,
+    skin: Any = 0.0,
+) -> tuple[Any, ...]:
+    """Build pairs within a scalar search bound and optional per-pair reaches."""
+    return _search_pairs(state, system, cutoff, capacity, search_radii, skin)
 
 
 @jax.jit
-def count_pairs(state: Any, system: Any, cutoff: Any) -> tuple[Any, Any]:
+def count_pairs(
+    state: Any,
+    system: Any,
+    cutoff: Any,
+    *,
+    search_radii: Any | None = None,
+    skin: Any = 0.0,
+) -> tuple[Any, Any]:
     """Return directed row counts and hash overflow without allocating pairs."""
-    counts, overflow = _search_pairs(state, system, cutoff, None)
+    counts, overflow = _search_pairs(state, system, cutoff, None, search_radii, skin)
     return counts, overflow
 
 
 def _search_pairs(
-    state: Any, system: Any, cutoff: Any, capacity: int | None
+    state: Any,
+    system: Any,
+    cutoff: Any,
+    capacity: int | None,
+    search_radii: Any | None,
+    skin: Any,
 ) -> tuple[Any, ...]:
     n = state.N
     if n == 0:
@@ -118,9 +142,15 @@ def _search_pairs(
             & (hashes[safe] == target[..., None])
         )
         dr = system.domain.displacement(pos[src, None, None, :], pos[dst], system)
+        distance_sq = norm2(dr)
+        if search_radii is None:
+            within_reach = distance_sq <= cutoff_sq
+        else:
+            pair_reach = search_radii[src, None, None] + search_radii[dst] + skin
+            within_reach = (distance_sq <= cutoff_sq) & (distance_sq <= pair_reach**2)
         valid = (
             in_cell
-            & (norm2(dr) <= cutoff_sq)
+            & within_reach
             & valid_interaction_mask(
                 state.clump_id[dst],
                 state.clump_id[src, None, None],
@@ -246,13 +276,21 @@ def pair_values(
     history: Any,
     *,
     advance_history: bool,
+    quasistatic: bool = False,
 ) -> tuple[Any, ...]:
     """Evaluate scalar-pair laws with shared positions and interaction masking."""
     i = sources
     j, valid = _valid_pairs(state, system, i, neighbors)
     force, torque, updated = jax.vmap(
         lambda a, b, h: system.force_model.force(
-            a, b, pos, state, system, h, advance_history=advance_history
+            a,
+            b,
+            pos,
+            state,
+            system,
+            h,
+            advance_history=advance_history,
+            quasistatic=quasistatic,
         ),
         in_axes=(None if i.ndim == 0 else 0, 0, 0),
     )(i, j, history)
@@ -268,25 +306,34 @@ def pair_values(
 
 
 def check_and_rebuild(state: Any, system: Any) -> Any:
+    """Rebuild the pooled pair cache when the Verlet skin budget is exhausted.
+
+    Particle motion since the last build and any change of the periodic
+    geometry since the last build are both charged against the skin: a pair
+    separation can change by at most twice the largest displacement, plus
+    the domain's bound on image motion. Changes to the search axes, the
+    required reach, or the skin itself always rebuild.
+    """
     col, pos = system.collider, state.pos
+    dim = state.dim
     metric = system.domain.search_geometry_snapshot()
-    if metric.shape != (state.dim + 3,):
+    if metric.shape != (dim + 3,):
         raise ValueError(
-            f"Domain.search_geometry_snapshot() must have shape {(state.dim + 3,)}"
+            f"Domain.search_geometry_snapshot() must have shape {(dim + 3,)}"
         )
-    cutoff = jnp.maximum(
-        col.cutoff,
-        2 * jnp.max(system.force_model.search_radii(state, system), initial=0.0),
-    )
-    moved = jnp.max(norm2(pos - col.old_pos), initial=0.0) > col.skin**2 / 4
+    search_radii = system.force_model.search_radii(state, system)
+    cutoff = jnp.maximum(col.cutoff, 2 * jnp.max(search_radii, initial=0.0))
+
+    displacement = 2.0 * jnp.sqrt(jnp.max(norm2(pos - col.old_pos), initial=0.0))
     rebuild = (
-        moved
+        (displacement > col.skin)
         | (col.n_build_times == 0)
         | col.invalidated
-        | jnp.any(metric != col.metric_snapshot)
+        | jnp.any(metric[dim + 1 :] != col.metric_snapshot[dim + 1 :])
         | (cutoff != col.physical_cutoff_snapshot)
         | (col.skin != col.skin_snapshot)
     )
+    geometry_changed = jnp.any(metric != col.metric_snapshot)
 
     def build(_: Any) -> Any:
         nl, offsets, overflow = build_pairs(
@@ -294,6 +341,8 @@ def check_and_rebuild(state: Any, system: Any) -> Any:
             replace(system, collider=col.secondary_collider),
             cutoff + col.skin,
             col.neighbor_list.size,
+            search_radii=search_radii,
+            skin=col.skin,
         )
         initialized = system.force_model.init_history(nl.shape, state.dim)
         history = jax.lax.cond(
@@ -317,18 +366,22 @@ def check_and_rebuild(state: Any, system: Any) -> Any:
             overflow=overflow,
             old_pos=state.pos,
             n_build_times=col.n_build_times + 1,
-        )
-
-    col = jax.lax.cond(rebuild, build, lambda _: col, None)
-    return replace(
-        system,
-        collider=replace(
-            col,
             metric_snapshot=metric,
             physical_cutoff_snapshot=cutoff,
             skin_snapshot=col.skin,
             invalidated=jnp.asarray(False),
-        ),
+        )
+
+    def check_geometry(_: Any) -> Any:
+        drift = system.domain.search_geometry_drift(col.metric_snapshot, col.old_pos)
+        return jax.lax.cond(displacement + drift > col.skin, build, lambda _: col, None)
+
+    def update(_: Any) -> Any:
+        return jax.lax.cond(rebuild, build, check_geometry, None)
+
+    return replace(
+        system,
+        collider=jax.lax.cond(rebuild | geometry_changed, update, lambda _: col, None),
     )
 
 
@@ -359,14 +412,18 @@ def reindex_history(state: Any, system: Any, old: Any, new_to_old: jax.Array) ->
     return replace(system, collider=replace(col, history=history))
 
 
-def _row_reduce(col: Any, initial: Any, evaluate: Any) -> Any:
-    """Reduce row batches with one precomputed loop bound per batch."""
+def _row_reduce(col: Any, initial: Any, evaluate: Any, history: Any = None) -> Any:
+    """Reduce bounded row batches, optionally writing disjoint history slots."""
     n, capacity = col.row_offsets.size - 1, col.neighbor_list.size
     if n == 0 or capacity == 0:
-        return jax.tree.map(lambda x: jnp.broadcast_to(x, (n,) + x.shape), initial)
-    lanes = jnp.arange(_ROW_FORCE_UNROLL)
+        totals = jax.tree.map(lambda x: jnp.broadcast_to(x, (n,) + x.shape), initial)
+        return totals, history
+    dim = col.old_pos.shape[-1]
+    width = 2 * dim
+    batch_size = _ROW_BATCH_SIZE[dim]
+    lanes = jnp.arange(width)
 
-    def batch(rows: Any) -> Any:
+    def batch(history: Any, rows: Any) -> Any:
         indices, starts, ends = rows
         limit = jnp.max(ends - starts)
         totals = jax.tree.map(
@@ -374,53 +431,77 @@ def _row_reduce(col: Any, initial: Any, evaluate: Any) -> Any:
         )
 
         def body(carry: Any) -> Any:
-            offset, totals = carry
+            offset, totals, history = carry
             slots = starts[:, None] + offset + lanes
+            valid = slots < ends[:, None]
             safe = jnp.minimum(slots, capacity - 1)
-            neighbors = jnp.where(slots < ends[:, None], col.neighbor_list[safe], -1)
-            values = jax.vmap(evaluate)(indices, neighbors, safe)
+            neighbors = jnp.where(valid, col.neighbor_list[safe], -1)
+            values, updated = evaluate(indices, neighbors, safe)
             totals = jax.tree.map(lambda a, b: a + b.sum(axis=1), totals, values)
-            return offset + _ROW_FORCE_UNROLL, totals
+            if history is not None:
+                # CSR rows own disjoint intervals. Padding is dropped rather
+                # than allowed to overwrite the following row's history.
+                history = history.at[jnp.where(valid, slots, capacity)].set(
+                    updated, mode="drop", unique_indices=True
+                )
+            return offset + width, totals, history
 
-        return jax.lax.while_loop(lambda c: c[0] < limit, body, (0, totals))[1]
+        _, totals, history = jax.lax.while_loop(
+            lambda c: c[0] < limit, body, (0, totals, history)
+        )
+        return history, totals
 
     rows = (jnp.arange(n), col.row_offsets[:-1], col.row_offsets[1:])
-    if n <= _ROW_BATCH_SIZE:
-        return batch(rows)
-    full = n // _ROW_BATCH_SIZE * _ROW_BATCH_SIZE
-    batches = jax.lax.map(
-        batch, jax.tree.map(lambda x: x[:full].reshape(-1, _ROW_BATCH_SIZE), rows)
+    if n <= batch_size:
+        history, totals = batch(history, rows)
+        return totals, history
+    full = n // batch_size * batch_size
+    history, batches = jax.lax.scan(
+        batch,
+        history,
+        jax.tree.map(lambda x: x[:full].reshape(-1, batch_size), rows),
     )
-    results = jax.tree.map(lambda x: x.reshape((full,) + x.shape[2:]), batches)
+    totals = jax.tree.map(lambda x: x.reshape((full,) + x.shape[2:]), batches)
     if full < n:
-        tail = batch(jax.tree.map(lambda x: x[full:], rows))
-        results = jax.tree.map(lambda a, b: jnp.concatenate((a, b)), results, tail)
-    return results
+        history, tail = batch(history, jax.tree.map(lambda x: x[full:], rows))
+        totals = jax.tree.map(lambda a, b: jnp.concatenate((a, b)), totals, tail)
+    return totals, history
 
 
 @jax.custom_jvp
 def energy(state: Any, system: Any) -> Any:
+    """Sum half-weighted directed-pair energies over occupied CSR rows."""
     pos = state.pos
 
     def evaluate(i: Any, neighbors: Any, slots: Any) -> Any:
         j, valid = _valid_pairs(state, system, i, neighbors)
-        e = jax.vmap(lambda b: system.force_model.energy(i, b, pos, state, system))(j)
+        e = jax.vmap(
+            lambda b, h: system.force_model.energy(i, b, pos, state, system, h)
+        )(j, system.collider.history[slots])
         return jnp.where(valid, e, 0.0)
 
-    rows = _row_reduce(system.collider, jnp.asarray(0.0, dtype=pos.dtype), evaluate)
+    rows, _ = _row_reduce(
+        system.collider,
+        jnp.asarray(0.0, dtype=pos.dtype),
+        lambda i, neighbors, slots: (jax.vmap(evaluate)(i, neighbors, slots), None),
+    )
     return 0.5 * rows.sum()
 
 
-@partial(jax.custom_jvp, nondiff_argnums=(2,))
-def forces(state: Any, system: Any, advance_history: bool) -> tuple[Any, ...]:
-    """Accumulate four neighbors per row, preserving or advancing packed history."""
+@partial(jax.custom_jvp, nondiff_argnums=(2, 3))
+def forces(
+    state: Any, system: Any, advance_history: bool, quasistatic: bool = False
+) -> tuple[Any, ...]:
+    """Accumulate cached pairs by row, preserving or advancing packed history."""
     col = system.collider
     n, capacity = state.N, col.neighbor_list.size
     if n == 0 or capacity == 0:
         return jnp.zeros_like(state.force), jnp.zeros_like(state.torque), col.history
     pos = state.pos
-    width = _ROW_FORCE_UNROLL
-    starts, ends = col.row_offsets[:-1], col.row_offsets[1:]
+    # Choose by static buffer size, so small caches avoid a GPU row-loop launch.
+    if capacity < 2 * state.dim * _ROW_BATCH_SIZE[state.dim]:
+        return _flat_forces(state, system, advance_history, quasistatic)
+    write_history = col.history.size > 0 and advance_history
 
     def evaluate(i: Any, neighbors: Any, slots: Any) -> Any:
         return pair_values(
@@ -431,53 +512,33 @@ def forces(state: Any, system: Any, advance_history: bool) -> tuple[Any, ...]:
             neighbors,
             col.history[slots],
             advance_history=advance_history,
+            quasistatic=quasistatic,
         )
 
-    if col.history.size == 0 or not advance_history:
-        force, torque = _row_reduce(
-            col,
-            (
-                jnp.zeros(state.force.shape[1:], dtype=state.force.dtype),
-                jnp.zeros(state.torque.shape[1:], dtype=state.torque.dtype),
-            ),
-            lambda i, neighbors, slots: evaluate(i, neighbors, slots)[:2],
-        )
-        return force, torque + cross(state._pos_p_rot, force), col.history
-    # Flatten only this row block: profiling favors it for history-writing laws.
-    sources, lanes = jnp.repeat(jnp.arange(n), width), jnp.arange(width)
-    initial_history = system.force_model.init_history((capacity,), state.dim)
-    limit = jnp.max(ends - starts)
+    def evaluate_rows(i: Any, neighbors: Any, slots: Any) -> Any:
+        f, t, h = jax.vmap(evaluate)(i, neighbors, slots)
+        return (f, t), h if write_history else None
 
-    def body(carry: Any) -> Any:
-        offset, force, torque, history = carry
-        slots = starts[:, None] + offset + lanes
-        valid = slots < ends[:, None]
-        safe = jnp.minimum(slots, capacity - 1)
-        dst = jnp.where(valid, col.neighbor_list[safe], -1)
-        f, t, h = evaluate(sources, dst.reshape(-1), safe.reshape(-1))
-        force += f.reshape(n, width, -1).sum(axis=1)
-        torque += t.reshape(n, width, -1).sum(axis=1)
-        history = history.at[jnp.where(valid, slots, capacity).reshape(-1)].set(
-            h, mode="drop"
-        )
-        return offset + width, force, torque, history
-
-    _, force, torque, history = jax.lax.while_loop(
-        lambda x: x[0] < limit,
-        body,
+    (force, torque), history = _row_reduce(
+        col,
         (
-            jnp.asarray(0, dtype=int),
-            jnp.zeros_like(state.force),
-            jnp.zeros_like(state.torque),
-            initial_history,
+            jnp.zeros(state.force.shape[1:], dtype=state.force.dtype),
+            jnp.zeros(state.torque.shape[1:], dtype=state.torque.dtype),
         ),
+        evaluate_rows,
+        system.force_model.init_history((capacity,), state.dim)
+        if write_history
+        else None,
     )
-    return force, torque + cross(state._pos_p_rot, force), history
+    return (
+        force,
+        torque + cross(state._pos_p_rot, force),
+        history if write_history else col.history,
+    )
 
 
-# Dynamic row loops avoid work on unused slots but cannot be transposed by JAX.
-# Differentiate the same pair laws over fixed cache slots only when AD requests
-# a tangent; ordinary force/energy evaluation always uses the row traversal.
+# Dynamic row loops cannot be transposed by JAX. Differentiate the same pair
+# laws over fixed cache slots; the force evaluator also serves small pools.
 @energy.defjvp
 def _energy_jvp(primals: Any, tangents: Any) -> Any:
     def fixed_pairs(state: Any, system: Any) -> Any:
@@ -488,38 +549,46 @@ def _energy_jvp(primals: Any, tangents: Any) -> Any:
         j, valid = _valid_pairs(state, system, i, col.neighbor_list)
         pos = state.pos
         values = jax.vmap(
-            lambda a, b: system.force_model.energy(a, b, pos, state, system)
-        )(i, j)
+            lambda a, b, h: system.force_model.energy(a, b, pos, state, system, h)
+        )(i, j, col.history)
         return 0.5 * jnp.where(valid, values, 0.0).sum()
 
     return energy(*primals), jax.jvp(fixed_pairs, primals, tangents)[1]
 
 
-@forces.defjvp
-def _forces_jvp(advance_history: bool, primals: Any, tangents: Any) -> Any:
-    def fixed_pairs(state: Any, system: Any) -> Any:
-        col = system.collider
-        if state.N == 0 or col.neighbor_list.size == 0:
-            return (
-                jnp.zeros_like(state.force),
-                jnp.zeros_like(state.torque),
-                col.history,
-            )
-        src = pair_sources(col)
-        f, t, history = pair_values(
-            state,
-            system,
-            state.pos,
-            jnp.minimum(src, state.N - 1),
-            col.neighbor_list,
-            col.history,
-            advance_history=advance_history,
-        )
-        force = jnp.zeros_like(state.force).at[src].add(f, mode="drop")
-        torque = jnp.zeros_like(state.torque).at[src].add(t, mode="drop")
-        return force, torque + cross(state._pos_p_rot, force), history
+def _flat_forces(
+    state: Any, system: Any, advance_history: bool, quasistatic: bool
+) -> tuple[Any, ...]:
+    """Evaluate fixed pool slots for a small cache or an AD tangent."""
+    col = system.collider
+    if state.N == 0 or col.neighbor_list.size == 0:
+        return jnp.zeros_like(state.force), jnp.zeros_like(state.torque), col.history
+    src = pair_sources(col)
+    f, t, history = pair_values(
+        state,
+        system,
+        state.pos,
+        jnp.minimum(src, state.N - 1),
+        col.neighbor_list,
+        col.history,
+        advance_history=advance_history,
+        quasistatic=quasistatic,
+    )
+    force = jax.ops.segment_sum(f, src, num_segments=state.N + 1)[: state.N]
+    torque = jax.ops.segment_sum(t, src, num_segments=state.N + 1)[: state.N]
+    return force, torque + cross(state._pos_p_rot, force), history
 
-    return forces(*primals, advance_history), jax.jvp(fixed_pairs, primals, tangents)[1]
+
+@forces.defjvp
+def _forces_jvp(
+    advance_history: bool, quasistatic: bool, primals: Any, tangents: Any
+) -> Any:
+    def fixed_pairs(state: Any, system: Any) -> Any:
+        return _flat_forces(state, system, advance_history, quasistatic)
+
+    return forces(*primals, advance_history, quasistatic), jax.jvp(
+        fixed_pairs, primals, tangents
+    )[1]
 
 
 def refresh(

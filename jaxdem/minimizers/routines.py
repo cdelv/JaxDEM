@@ -7,7 +7,6 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass, replace
 from enum import IntEnum
-from functools import partial
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 import jax
@@ -53,11 +52,13 @@ class MinimizeInfo(NamedTuple):
         Boolean scalar indicating finite residual norms. Results from
         :func:`minimize` also require finite objective gradients and energy.
     force_max : jax.Array
-        Maximum Euclidean force norm over free bodies. For a custom target,
-        this is the maximum norm of its gradient with respect to body position.
+        Maximum Euclidean force norm over free bodies for mechanical
+        relaxation. Objectives differentiated by AD use the maximum norm of
+        their gradient with respect to body position.
     torque_max : jax.Array
-        Maximum Euclidean torque norm over free bodies. For a custom target,
-        this is the maximum norm of its gradient with respect to body rotation.
+        Maximum Euclidean torque norm over free bodies for mechanical
+        relaxation. Objectives differentiated by AD use the maximum norm of
+        their world angular gradient.
     status : jax.Array
         Integer scalar describing convergence:
 
@@ -140,12 +141,13 @@ def convergence_info(
     iteration counts and spatial search overflow are handled by :func:`minimize`.
     Use ``jax.vmap`` to evaluate independent systems.
     """
-    force_max = jnp.max(
-        jnp.linalg.norm(jnp.where(fixed[..., None], 0.0, force), axis=-1), initial=0.0
-    )
-    torque_max = jnp.max(
-        jnp.linalg.norm(jnp.where(fixed[..., None], 0.0, torque), axis=-1), initial=0.0
-    )
+
+    def maximum_norm(value: jax.Array) -> jax.Array:
+        free = jnp.where(fixed[..., None], 0.0, value)
+        return jnp.sqrt(jnp.max(jnp.sum(free * free, axis=-1), initial=0.0))
+
+    force_max = maximum_norm(force)
+    torque_max = maximum_norm(torque)
     finite = jnp.isfinite(force_max) & jnp.isfinite(torque_max)
     converged = finite & (force_max <= force_tol) & (torque_max <= torque_tol)
     return MinimizeInfo(
@@ -165,7 +167,7 @@ class MinimizationResult:
     Attributes
     ----------
     state : State
-        Final configuration with evaluated conservative forces and torques.
+        Final configuration with evaluated quasistatic forces and torques.
     system : System
         System associated with ``state``, including updated spatial search
         caches and overflow status.
@@ -224,26 +226,36 @@ def _evaluate_energy(state: State, system: System) -> tuple[State, System, jax.A
     return state, system, energy
 
 
-def _evaluate_readonly_forces(state: State, system: System) -> tuple[State, System]:
-    """Evaluate conservative forces without initialization or one-shot loads."""
-    conservative_state = replace(
-        state,
-        vel=jnp.zeros_like(state.vel),
-        ang_vel=jnp.zeros_like(state.ang_vel),
+def _conservative_manager_forces(state: State, system: System) -> tuple[State, System]:
+    """Add rate-independent managed forces without consuming buffered loads."""
+    moving_state = state
+    state = replace(
+        state, vel=jnp.zeros_like(state.vel), ang_vel=jnp.zeros_like(state.ang_vel)
     )
-    conservative_state, eval_system = system.collider.evaluate_force(
-        conservative_state, system
-    )
-
-    force_manager = eval_system.force_manager
+    force_manager = system.force_manager
+    domain = system.domain
     empty_manager = replace(
         force_manager,
         external_force=jnp.zeros_like(force_manager.external_force),
         external_force_com=jnp.zeros_like(force_manager.external_force_com),
         external_torque=jnp.zeros_like(force_manager.external_torque),
     )
-    eval_system = replace(eval_system, force_manager=empty_manager)
-    conservative_state, eval_system = eval_system.force_manager.apply(
+    system = replace(
+        system,
+        force_manager=empty_manager,
+        domain=domain.rates_between(domain, jnp.ones_like(system.dt)),
+    )
+    state, system = system.force_manager.apply(state, system)
+    state = replace(state, vel=moving_state.vel, ang_vel=moving_state.ang_vel)
+    return state, replace(system, force_manager=force_manager, domain=domain)
+
+
+def _evaluate_readonly_forces(state: State, system: System) -> tuple[State, System]:
+    """Evaluate rate-independent forces without touching history or loads."""
+    conservative_state, eval_system = system.collider.compute_force(
+        state, system, advance_history=False, quasistatic=True
+    )
+    conservative_state, eval_system = _conservative_manager_forces(
         conservative_state, eval_system
     )
     evaluated_state = replace(
@@ -253,8 +265,27 @@ def _evaluate_readonly_forces(state: State, system: System) -> tuple[State, Syst
     )
     return evaluated_state, replace(
         eval_system,
-        force_manager=force_manager,
         search_overflow=eval_system.search_overflow | eval_system.collider.overflow,
+    )
+
+
+def _advance_history_forces(
+    anchor_state: State, trial_state: State, system: System
+) -> tuple[State, System]:
+    """Advance pair history from anchor to trial and keep that traversal's forces."""
+    from ..colliders import advance_history
+
+    evaluated_state, evaluated = advance_history(
+        anchor_state, system, trial_state, system
+    )
+    evaluated_state, evaluated = _conservative_manager_forces(
+        evaluated_state, evaluated
+    )
+    return (
+        replace(
+            trial_state, force=evaluated_state.force, torque=evaluated_state.torque
+        ),
+        evaluated,
     )
 
 
@@ -262,20 +293,22 @@ def _evaluate_readonly_forces(state: State, system: System) -> tuple[State, Syst
 def _state_to_delta_params(
     state: State, topology: BodyTopology | None = None
 ) -> dict[str, jax.Array]:
-    """Pack positions and a zero rotation delta into a parameter dictionary.
+    """Pack body positions and identity rotations about a fixed reference.
 
-    Returns
-    -------
-    dict
-        A dictionary with keys 'pos_c' and 'rotvec' containing arrays.
+    Two-dimensional rotations are unwrapped angles. Three-dimensional
+    rotations are raw quaternions, normalized only when constructing a State.
+    Optimizer coordinates remain continuous throughout a minimization.
     """
     topology = (
         body_topology(state.clump_id, state.fixed) if topology is None else topology
     )
     body_pos = topology.gather_representatives(state.pos_c)
-    rot_dim = 1 if state.dim == 2 else 3
-    zeros = jnp.zeros(body_pos.shape[:-1] + (rot_dim,), dtype=body_pos.dtype)
-    return {"pos_c": body_pos, "rotvec": zeros}
+    width = 1 if state.dim == 2 else 4
+    rotation = jnp.zeros(body_pos.shape[:-1] + (width,), dtype=body_pos.dtype)
+    if state.dim == 3:
+        # Radius two gives the initial xyz coordinates unit angular scale.
+        rotation = rotation.at[..., 0].set(2.0)
+    return {"pos_c": body_pos, "rotation": rotation}
 
 
 @jax.jit
@@ -284,47 +317,60 @@ def _delta_params_to_state(
     params: dict[str, jax.Array],
     topology: BodyTopology | None = None,
 ) -> State:
-    """Unpack an anchored parameter dictionary back into a state.
+    """Map continuous optimizer coordinates to normalized body orientations.
 
-    The rotation block of ``params['rotvec']`` is a delta rotation vector that
-    the function applies (left-multiplies) to the current orientation of the
-    reference state.
-
-    Parameters
-    ----------
-    state : State
-        The reference (anchor) state from which to copy fields.
-    params : dict
-        A dictionary with keys 'pos_c' and 'rotvec'.
-
-    Returns
-    -------
-    State
-        The updated simulation state.
+    Rotations left-multiply the fixed reference ``state.q``. Keep this
+    reference unchanged throughout minimization; normalizing a raw quaternion
+    here does not modify the optimizer's parameters or accumulated state.
+    A zero raw quaternion is invalid and produces a nonfinite evaluation.
     """
     topology = (
         body_topology(state.clump_id, state.fixed) if topology is None else topology
     )
-    pos_c = params["pos_c"]
-    rotvec = params["rotvec"]
+    rotation = params["rotation"]
     if state.dim == 2:
-        rotvec = jnp.concatenate(
-            [jnp.zeros_like(pos_c), rotvec],
-            axis=-1,
+        rotvec = jnp.concatenate([jnp.zeros_like(params["pos_c"]), rotation], axis=-1)
+        delta_q = Quaternion.from_rotvec(rotvec)
+    else:
+        unit = rotation * jax.lax.rsqrt(
+            jnp.sum(rotation * rotation, axis=-1, keepdims=True)
         )
+        delta_q = Quaternion.create(unit[..., :1], unit[..., 1:])
     body_q = Quaternion.create(
         topology.gather_representatives(state.q.w),
         topology.gather_representatives(state.q.xyz),
     )
-    q = Quaternion.from_rotvec(rotvec) @ body_q
-    q = q.unit(q)
+    q = Quaternion.unit(delta_q @ body_q)
     member_q = Quaternion.create(
         topology.gather_members(q.w), topology.gather_members(q.xyz)
     )
-    return replace(state, pos_c=topology.gather_members(pos_c), q=member_q)
+    return replace(state, pos_c=topology.gather_members(params["pos_c"]), q=member_q)
 
 
-@partial(jax.custom_vjp)
+def _rotation_pullback(rotation: jax.Array, gradient: jax.Array) -> jax.Array:
+    """Pull a world angular gradient back to fixed optimizer coordinates."""
+    if rotation.shape[-1] == 1:
+        return gradient
+    w, xyz = rotation[..., :1], rotation[..., 1:]
+    scalar = -jnp.sum(xyz * gradient, axis=-1, keepdims=True)
+    vector = w * gradient + jnp.cross(gradient, xyz)
+    return (
+        2.0
+        * jnp.concatenate([scalar, vector], axis=-1)
+        / jnp.sum(rotation * rotation, axis=-1, keepdims=True)
+    )
+
+
+def _rotation_residual(rotation: jax.Array, gradient: jax.Array) -> jax.Array:
+    """Recover the world angular residual independently of quaternion scale."""
+    if rotation.shape[-1] == 1:
+        return gradient
+    w, xyz = rotation[..., :1], rotation[..., 1:]
+    gw, gxyz = gradient[..., :1], gradient[..., 1:]
+    return 0.5 * (w * gxyz - xyz * gw + jnp.cross(xyz, gxyz))
+
+
+@jax.custom_vjp
 def _objective_energy(
     trial_params: dict[str, jax.Array],
     state: State,
@@ -333,13 +379,14 @@ def _objective_energy(
 ) -> tuple[jax.Array, tuple[State, System]]:
     """Evaluate the potential energy of the trial parameters.
 
-    The rotation block of ``trial_params`` is a delta rotation vector anchored
-    at ``state.q`` (see ``_delta_params_to_state``).
+    Rotation coordinates are anchored at ``state.q``: an unwrapped angle in
+    2D or a raw normalized quaternion in 3D (see ``_delta_params_to_state``).
+    The analytical VJP includes the normalization pullback at every trial.
 
     Parameters
     ----------
     trial_params : dict
-        The dict of trial parameters containing 'pos_c' and 'rotvec'.
+        The dict of trial parameters containing 'pos_c' and 'rotation'.
     state : State
         The simulation state (anchor for the rotation parameters).
     system : System
@@ -378,7 +425,10 @@ def _objective_energy_fwd(
     )
     return (pe, (conservative_state, eval_system)), (
         -topology.gather_representatives(conservative_state.force),
-        -topology.gather_representatives(conservative_state.torque),
+        _rotation_pullback(
+            trial_params["rotation"],
+            -topology.gather_representatives(conservative_state.torque),
+        ),
     )
 
 
@@ -388,7 +438,7 @@ def _objective_energy_bwd(
     grad_pos, grad_rot = residual
     scale, _ = g
     return (
-        {"pos_c": grad_pos * scale, "rotvec": grad_rot * scale},
+        {"pos_c": grad_pos * scale, "rotation": grad_rot * scale},
         None,
         None,
         None,
@@ -398,13 +448,15 @@ def _objective_energy_bwd(
 _objective_energy.defvjp(_objective_energy_fwd, _objective_energy_bwd)
 
 
-@jax.jit(static_argnames=["max_steps"])
+@jax.jit(static_argnames=["max_steps", "advance_history"])
 def minimize(
     state: State,
     system: System,
     max_steps: int = 10000,
     force_tol: float = 1e-12,
     torque_tol: float | None = None,
+    *,
+    advance_history: bool = False,
 ) -> MinimizationResult:
     """Minimize the configured objective over body positions and orientations.
 
@@ -420,10 +472,18 @@ def minimize(
         Maximum number of optimizer updates. Defaults to 10000.
     force_tol : float, optional
         Absolute tolerance on the maximum Euclidean force norm over free
-        bodies. Defaults to ``1e-12``.
+        bodies. AD objectives use their body-position gradient instead.
+        Defaults to ``1e-12``.
     torque_tol : float or None, optional
         Absolute tolerance on the maximum Euclidean torque norm over free
-        bodies. ``None`` uses the numerical value of ``force_tol``.
+        bodies. AD objectives use their world angular gradient instead.
+        ``None`` uses the numerical value of ``force_tol``.
+    advance_history : bool, optional
+        Whether accepted optimizer updates advance pair history. Defaults to
+        ``False``, preserving stored history without accumulating slip from
+        optimizer motion. Updates occur once after each accepted step; trial
+        objective evaluations hold history fixed. Stateless force models
+        ignore this option.
 
     Returns
     -------
@@ -437,94 +497,154 @@ def minimize(
     ------
     ValueError
         If no optimizer is configured, or if the physical objective uses a
-        force model without an analytical energy gradient or a managed force
-        without a matching energy function.
+        managed force without a matching energy function.
 
     Notes
     -----
     Convergence requires both ``force_max <= force_tol`` and
     ``torque_max <= torque_tol`` with finite evaluations and complete spatial
     searches. Fixed bodies are excluded from the residual norms. Custom
-    targets use their translational and rotational objective gradients as
-    residuals. Energy magnitude and energy changes do not determine
-    convergence. Step exhaustion, nonfinite evaluations, and spatial search
-    overflow terminate the minimization unsuccessfully.
+    targets and energies without analytical physical gradients use their
+    translational and world angular AD gradients as residuals. These can
+    differ from mechanical forces for history-dependent laws. Energy
+    magnitude and energy changes do not determine convergence. Step exhaustion,
+    nonfinite evaluations, and spatial search overflow terminate the
+    minimization unsuccessfully.
 
-    For the physical objective, FIRE and damped Newtonian evaluate conservative
-    forces initially and after each update, and energy once at exit.
-    Line-search optimizers and custom targets evaluate the objective during
-    optimization.
+    For the physical objective, gradient-only optimizers
+    (``requires_value=False``, including FIRE and damped Newtonian) evaluate
+    residual forces initially and after each update, and energy once at exit.
+    Gradient-only optimizers also support force conventions that are not
+    analytical energy gradients. Value-based optimizers use the analytical
+    physical gradient when available and otherwise differentiate the energy
+    directly with stored history fixed. Custom targets use ordinary AD
+    through the State mapping. These optimizers evaluate the objective during
+    optimization. AD through built-in collider energy requires Naive or
+    NeighborList; direct CellList and MultiCellList traversals do not support
+    reverse-mode differentiation.
 
-    Each rigid body has one set of optimization coordinates. Rotation
-    increments are anchored to the current orientation after each update.
-    Force evaluation holds contact history fixed and excludes damping and
-    queued loads. Velocities, queued loads, time, and integrator state are
-    unchanged by relaxation.
+    Each rigid body has one set of continuous optimization coordinates.
+    Two-dimensional rotations use an unwrapped angle about the initial
+    orientation; three-dimensional rotations use a raw quaternion normalized
+    only when constructing the trial state. The initial orientation reference
+    and optimizer coordinates are retained, so transformations that remember
+    parameter differences (including L-BFGS) receive consistent coordinates.
+    A zero raw quaternion is invalid and terminates with a nonfinite result.
+    Quaternion sign and radial redundancy do not guarantee convergence for
+    every optimizer; convergence uses world angular residuals independently
+    of the raw quaternion scale.
+    Forces are always evaluated rate-independently: dashpots and other
+    velocity terms are off, so relaxation does not depend on ``dt``. Pair
+    history is frozen by default; existing spring memory still contributes to
+    force evaluation. Search rebuilds remap surviving pairs and initialize new
+    pairs. With ``advance_history=True``, history advances once per accepted
+    coordinate update, using configuration changes from the anchor to the
+    accepted state. Energy and gradients are then evaluated with that updated
+    history fixed. Line-search trials never commit history, and the initial
+    evaluation always holds history fixed.
     """
     import optax  # type: ignore[import-untyped]
-
-    from .optimizers import CustomGradientTransformation, damped_newtonian, fire
 
     if system.minimizer is None:
         raise ValueError(
             "No minimizer configured in System. Please configure `minimizer` in System.create."
         )
-    if system.target_fn is None:
-        if not system.force_model.supports_analytical_energy_gradient:
-            raise ValueError(
-                "Default minimization requires a force model with an analytical "
-                "energy gradient; provide target_fn or explicitly opt in a "
-                "conservative custom force model."
-            )
-        if any(
-            energy_fn is default_energy_func
-            for energy_fn in system.force_manager.energy_functions
-        ):
-            raise ValueError(
-                "Every custom force used by default minimization must provide a "
-                "matching energy function, or the system must provide target_fn."
-            )
+    force_only = system.target_fn is None and not getattr(
+        system.minimizer, "requires_value", True
+    )
+    analytical_gradient = (
+        system.target_fn is None
+        and system.force_model.supports_analytical_energy_gradient
+    )
+    mechanical_residuals = force_only or analytical_gradient
+    history_relaxation = advance_history and system.force_model.history_shape(
+        state.dim
+    ) != (0,)
+    if system.target_fn is None and any(
+        energy_fn is default_energy_func
+        for energy_fn in system.force_manager.energy_functions
+    ):
+        raise ValueError(
+            "Every custom force used by default minimization must provide a "
+            "matching energy function, or the system must provide target_fn."
+        )
 
     torque_tol = force_tol if torque_tol is None else torque_tol
     topology = body_topology(state.clump_id, state.fixed)
     fixed = ~topology.valid | topology.fixed
     mask = ~fixed[..., None]
-    force_only = (
-        system.target_fn is None
-        and isinstance(system.minimizer, CustomGradientTransformation)
-        and system.minimizer._constructor in (fire, damped_newtonian)
-    )
+
+    reference_q = state.q
 
     def make_value_fn(anchor_state: State, anchor_system: System) -> Any:
+        anchor_state = replace(anchor_state, q=reference_q)
+
         def value_fn(params: dict[str, jax.Array]) -> Any:
-            if anchor_system.target_fn is None:
+            if analytical_gradient:
                 return _objective_energy(params, anchor_state, anchor_system, topology)
             trial = _delta_params_to_state(anchor_state, params, topology)
+            if anchor_system.target_fn is None:
+                trial, evaluated, energy = _evaluate_energy(trial, anchor_system)
+                return energy, (trial, evaluated)
             return anchor_system.target_fn(trial, anchor_system), (trial, anchor_system)
 
         return value_fn
 
     def eval_step(
-        anchor_state: State, anchor_system: System, params: dict[str, jax.Array]
+        anchor_state: State,
+        anchor_system: System,
+        params: dict[str, jax.Array],
+        *,
+        advance: bool,
     ) -> tuple[Any, dict[str, jax.Array], State, System]:
         if force_only:
-            trial = _delta_params_to_state(anchor_state, params, topology)
-            trial, evaluated = _evaluate_readonly_forces(trial, anchor_system)
+            trial = _delta_params_to_state(
+                replace(anchor_state, q=reference_q), params, topology
+            )
+            if history_relaxation and advance:
+                trial, evaluated = _advance_history_forces(
+                    anchor_state, trial, anchor_system
+                )
+            else:
+                trial, evaluated = _evaluate_readonly_forces(trial, anchor_system)
             grads = {
                 "pos_c": -topology.gather_representatives(trial.force),
-                "rotvec": -topology.gather_representatives(trial.torque),
+                "rotation": _rotation_pullback(
+                    params["rotation"], -topology.gather_representatives(trial.torque)
+                ),
             }
             return None, grads, trial, evaluated
+        if history_relaxation and advance:
+            trial = _delta_params_to_state(
+                replace(anchor_state, q=reference_q), params, topology
+            )
+            _, anchor_system = _advance_history_forces(
+                anchor_state, trial, anchor_system
+            )
         (pe, (trial, evaluated)), grads = jax.value_and_grad(
             make_value_fn(anchor_state, anchor_system), has_aux=True
         )(params)
         return pe, grads, trial, evaluated
 
     def diagnostics(
-        grads: dict[str, jax.Array], pe: Any, evaluated: System
+        current: State,
+        params: dict[str, jax.Array],
+        grads: dict[str, jax.Array],
+        pe: Any,
+        evaluated: System,
     ) -> MinimizeInfo:
+        if mechanical_residuals:
+            force = topology.gather_representatives(current.force)
+            torque = topology.gather_representatives(current.torque)
+        else:
+            force = grads["pos_c"]
+            torque = _rotation_residual(params["rotation"], grads["rotation"])
         info = convergence_info(
-            grads["pos_c"], grads["rotvec"], fixed, force_tol, torque_tol
+            force,
+            torque,
+            fixed,
+            force_tol,
+            torque_tol,
         )
         finite = info.finite & jnp.all(
             jnp.stack([jnp.all(jnp.isfinite(x)) for x in jax.tree.leaves(grads)])
@@ -547,20 +667,20 @@ def minimize(
 
     params = _state_to_delta_params(state, topology)
     opt_state = system.minimizer.init(params)
-    pe, grads, state, system = eval_step(state, system, params)
+    pe, grads, state, system = eval_step(state, system, params, advance=False)
     carry = (
         state,
         system,
         0,
         pe,
-        _state_to_delta_params(state, topology),
+        params,
         opt_state,
         grads,
     )
 
     def condition(c: tuple[Any, ...]) -> jax.Array:
-        _, evaluated, steps, pe, _, _, grads = c
-        info = diagnostics(grads, pe, evaluated)
+        current, evaluated, steps, pe, params, _, grads = c
+        info = diagnostics(current, params, grads, pe, evaluated)
         return (steps < max_steps) & (info.status == MAX_STEPS)
 
     def step(c: tuple[Any, ...]) -> tuple[Any, ...]:
@@ -582,27 +702,28 @@ def minimize(
             )
         updates = jax.tree.map(lambda x: jnp.where(mask, x, 0.0), updates)
         next_params = optax.apply_updates(params, updates)
-        next_params = jax.tree.map(
-            lambda n, p: jnp.where(mask, n, p), next_params, params
+        pe, grads, current, evaluated = eval_step(
+            current, evaluated, next_params, advance=True
         )
-        pe, grads, current, evaluated = eval_step(current, evaluated, next_params)
         return (
             current,
             evaluated,
             steps + 1,
             pe,
-            _state_to_delta_params(current, topology),
+            next_params,
             opt_state,
             grads,
         )
 
-    state, system, steps, pe, _, _, grads = jax.lax.while_loop(condition, step, carry)
+    state, system, steps, pe, params, _, grads = jax.lax.while_loop(
+        condition, step, carry
+    )
     if force_only:
         state, system, pe = _evaluate_energy(state, system)
-    elif system.target_fn is not None:
-        # Custom objective gradients need not have evaluated physical forces.
+    elif not mechanical_residuals:
+        # AD objectives need not have evaluated physical forces.
         state, system = _evaluate_readonly_forces(state, system)
     if system.target_fn is None:
         pe = pe / max(state.N, 1)
-    info = diagnostics(grads, pe, system)
+    info = diagnostics(state, params, grads, pe, system)
     return MinimizationResult(state, system, steps, pe, info.reason, info)

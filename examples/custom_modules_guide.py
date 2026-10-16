@@ -71,6 +71,7 @@ class PairAttractor(jdem.ForceModel):
         history: jax.Array,
         *,
         advance_history: bool = True,
+        quasistatic: bool = False,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
         rij = system.domain.displacement(pos[i], pos[j], system)
         mask = jnp.asarray(i != j, dtype=rij.dtype)[..., None]
@@ -82,7 +83,12 @@ class PairAttractor(jdem.ForceModel):
     @staticmethod
     @jax.jit(inline=True)
     def energy(
-        i: int, j: int, pos: jax.Array, state: jdem.State, system: jdem.System
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: jdem.State,
+        system: jdem.System,
+        history: jax.Array,
     ) -> jax.Array:
         rij = system.domain.displacement(pos[i], pos[j], system)
         model = cast(PairAttractor, system.force_model)
@@ -169,9 +175,13 @@ print("Mean position after centering:", jnp.mean(state.pos, axis=0))
 @dataclass(slots=True)
 class NoContactCollider(jdem.Collider):
     @staticmethod
-    @jax.jit(inline=True)
+    @jax.jit(inline=True, static_argnames=("advance_history", "quasistatic"))
     def compute_force(
-        state: jdem.State, system: jdem.System
+        state: jdem.State,
+        system: jdem.System,
+        *,
+        advance_history: bool = True,
+        quasistatic: bool = False,
     ) -> tuple[jdem.State, jdem.System]:
         state.force *= 0
         state.torque *= 0

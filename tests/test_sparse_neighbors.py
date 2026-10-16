@@ -52,6 +52,38 @@ def test_shared_capacity_has_no_per_particle_limit(backend):
         )
 
 
+def test_force_cache_uses_pair_specific_search_radii_after_invalidation():
+    state = jd.State.create(
+        pos=jnp.array([[0.0, 0.0], [1.0, 0.0], [1.35, 0.0]]),
+        rad=jnp.array([1.0, 0.1, 0.1]),
+    )
+    system = jd.System.create(
+        state=state,
+        collider_type="NeighborList",
+        collider_kw={
+            "cutoff": 2.0,
+            "skin": 0.05,
+            "max_neighbors": 3,
+            "secondary_collider_type": "naive",
+        },
+    )
+    actual, system = jd.System.initialize(state, system)
+    np.testing.assert_array_equal(system.collider.row_offsets, [0, 1, 2, 2])
+    np.testing.assert_array_equal(system.collider.neighbor_list[:2], [1, 0])
+    reference, _ = jd.System.initialize(
+        state, replace(system, collider=jd.Collider.create("naive"))
+    )
+    np.testing.assert_allclose(actual.force, reference.force)
+
+    previous_builds = int(system.collider.n_build_times)
+    expanded_radii = jnp.array([1.0, 0.1, 0.4])
+    expanded = replace(state, rad=expanded_radii, _rad=expanded_radii)
+    invalidated = replace(system, collider=system.collider.invalidate())
+    _, rebuilt = invalidated.collider.compute_force(expanded, invalidated)
+    assert int(rebuilt.collider.n_build_times) == previous_builds + 1
+    np.testing.assert_array_equal(rebuilt.collider.row_offsets, [0, 2, 4, 6])
+
+
 @pytest.mark.parametrize("capacity,n", [(0, 3), (1, 3), (2, 3), (8, 3), (1, 5)])
 def test_global_overflow_and_padding(capacity, n):
     pos = [[0.0, 0.0], [0.1, 0.0], [0.2, 0.0]] + [[10.0 * i, 0.0] for i in range(3, n)]
@@ -132,10 +164,10 @@ class Remember(jd.forces.SpringForce):
         return jnp.full(pair_shape + (2, 2), 7.0)
 
     @staticmethod
-    def force(i, j, pos, state, system, history, *, advance_history=True):
-        f, t, _ = jd.forces.SpringForce.force(
-            i, j, pos, state, system, history, advance_history=advance_history
-        )
+    def force(
+        i, j, pos, state, system, history, *, advance_history=True, quasistatic=False
+    ):
+        f, t, _ = jd.forces.SpringForce.force(i, j, pos, state, system, history)
         return f, t, history + advance_history
 
 
@@ -287,12 +319,8 @@ def test_row_energy_gradients_match_all_pairs(n):
 
 
 @pytest.mark.parametrize("n", [3, 9, 17])
-def test_stateless_rows_match_all_pairs_for_uneven_degrees(n, monkeypatch):
-    from jaxdem.colliders import _neighbor_cache
-
-    # Exercise multiple complete batches and a partial batch with a small case.
-    monkeypatch.setattr(_neighbor_cache, "_ROW_BATCH_SIZE", 4)
-    # Empty, partially filled, and several full force blocks in one cache.
+def test_stateless_rows_match_all_pairs_for_uneven_degrees(n):
+    # Empty, partially filled, and several full rows in one cache.
     pos = np.zeros((n + 2, 3))
     pos[:n, 0] = np.linspace(0.0, 0.7, n)
     pos[n:, 0] = [10.0, 20.0]

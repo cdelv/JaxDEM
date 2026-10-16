@@ -34,7 +34,6 @@ def stack(pairs):
 def test_batched_lifecycle_matches_independent_runs(batch_size, history, monkeypatch):
     from jaxdem.colliders import _neighbor_cache
 
-    monkeypatch.setattr(_neighbor_cache, "_ROW_BATCH_SIZE", 4)
     monkeypatch.setattr(_neighbor_cache, "_SEARCH_BATCH_SIZE", 4)
     pairs = []
     for degree in [3, 0, 5][:batch_size]:

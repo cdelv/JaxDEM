@@ -245,9 +245,8 @@ class DynamicMultiCellList(Collider):
 
     The incremental ``insert``/``move``/``remove`` operations of the CPU
     original do **not** carry over. JAX rebuilds the partition functionally
-    each step as a permutation plus a segmented reduction. This is the price
-    of running on GPU/TPU, batching with ``vmap``, and differentiating
-    through the simulation.
+    each step as a permutation plus a segmented reduction to run on GPU/TPU
+    and support batching with ``vmap``.
 
     Constructor Parameters
     ----------------------
@@ -268,6 +267,13 @@ class DynamicMultiCellList(Collider):
       stencil size, :math:`\langle K \rangle` = average occupancy), reduced by
       AABB cell-skipping.
     - Memory: :math:`O(N)`.
+
+    Notes
+    -----
+    Direct force and energy traversal supports forward differentiation.
+    Its dynamic ``lax.while_loop`` cannot be transposed for reverse mode.
+    For ``jax.grad`` or reverse differentiation through simulation steps, use
+    ``NeighborList`` with ``secondary_collider_type="MultiCellList"``.
     """
 
     supported_search_geometries = frozenset(
@@ -360,9 +366,15 @@ class DynamicMultiCellList(Collider):
         )
 
     @staticmethod
-    @jax.jit(inline=True)
+    @jax.jit(inline=True, static_argnames=("advance_history", "quasistatic"))
     @partial(jax.named_call, name="DynamicMultiCellList.compute_force")
-    def compute_force(state: State, system: System) -> tuple[State, System]:
+    def compute_force(
+        state: State,
+        system: System,
+        *,
+        advance_history: bool = True,
+        quasistatic: bool = False,
+    ) -> tuple[State, System]:
         """Compute pairwise contact forces and torques with DynamicMultiCellList.
 
         Parameters
@@ -389,7 +401,7 @@ class DynamicMultiCellList(Collider):
             system,
             cell_size,
             collider.neighbor_mask,
-            partial(_force_pair_fn, system=system),
+            partial(_force_pair_fn, system=system, quasistatic=quasistatic),
             (
                 jnp.zeros(state.force.shape[1:], dtype=state.force.dtype),
                 jnp.zeros(state.torque.shape[1:], dtype=state.torque.dtype),

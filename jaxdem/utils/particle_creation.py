@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from typing import Any, Callable, Literal, Sequence
+from typing import Any, Literal, Sequence
 
 import jax
 import jax.numpy as jnp
@@ -745,6 +745,25 @@ def distribute_bodies(
     return state, jnp.asarray(box_size)
 
 
+def _surface_hull(
+    points: np.ndarray[Any, Any],
+) -> tuple[np.ndarray[Any, Any], Any, np.ndarray[Any, Any]]:
+    """Local hull geometry and coordinate uncertainty at the input precision."""
+    from scipy.spatial import ConvexHull
+
+    local = np.asarray(points, dtype=float)
+    center = np.mean(local, axis=0)
+    local = local - center
+    error = np.finfo(points.dtype).eps * (
+        32 * np.max(np.abs(local), axis=0) + np.abs(center)
+    )
+    hull = ConvexHull(local)
+    if len(hull.vertices) < len(points):
+        # Merge roundoff-sized facets when boundary fillers need triangulation.
+        hull = ConvexHull(local, qhull_options=f"C-{np.min(error)}")
+    return local, hull, error
+
+
 def ga_surface_mask(
     state: State,
     *,
@@ -753,7 +772,8 @@ def ga_surface_mask(
     """Per-body surface mask: ``True`` iff the node lies on the convex hull of its body.
 
     For each body, runs ``scipy.spatial.ConvexHull`` on the body's node
-    positions and flags the hull vertices as surface. For bodies with too
+    positions and marks every hull-boundary node as surface, including
+    collinear edge fillers and coplanar face fillers. For bodies with too
     few nodes to form a hull (``<= dim + 1``) or that trigger a Qhull
     numerical failure, the function marks all their nodes as surface.
 
@@ -776,7 +796,7 @@ def ga_surface_mask(
     jax.Array
         ``(N,)`` bool mask, ``True`` for surface nodes.
     """
-    from scipy.spatial import ConvexHull  # type: ignore[import-untyped]
+    from scipy.spatial import QhullError  # type: ignore[import-untyped]
 
     group_id, n_bodies = _resolve_body_grouping(state, group_by)
     gid_np = np.asarray(group_id)
@@ -792,9 +812,15 @@ def ga_surface_mask(
             mask[idxs] = True
             continue
         try:
-            hull = ConvexHull(pts)
+            local, hull, error = _surface_hull(pts)
             mask[idxs[hull.vertices]] = True
-        except Exception:
+            normals = hull.equations[:, :-1]
+            tolerance = np.abs(normals) @ error
+            missing = np.setdiff1d(np.arange(len(pts)), hull.vertices)
+            for node in missing:
+                distance = normals @ local[node] + hull.equations[:, -1]
+                mask[idxs[node]] = np.any(np.abs(distance) <= tolerance)
+        except QhullError:
             mask[idxs] = True
     return jnp.asarray(mask)
 
@@ -894,59 +920,99 @@ def _body_surface_topology_2d(
 def _body_surface_topology_3d(
     surface_pos: np.ndarray,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Convex-hull triangulation for a single 3D body.
+    """Triangulate a nondegenerate convex boundary, retaining coplanar fillers.
 
-    Returns ``(elements_local, adjacency_local, initial_bending)``. Faces
-    are the hull simplices reoriented so that each triangle's vertex
-    ordering produces an outward-pointing normal. The function derives the
-    adjacency from ``hull.neighbors``.
-
-    The re-orientation matters because
-    :func:`~jaxdem.bonded_forces.deformable_particle.compute_element_properties_3D`
-    computes signed per-face volume contributions (divergence theorem).
-    With inconsistent triangle orientation the signed contributions can
-    cancel or flip the body's total volume negative, which in turn
-    makes ``E_content = ec * (C - C0)^2 / C0`` negative when compressed.
+    Ordinary hull triangles are oriented in one batch. Hull planes identify
+    flat faces with extra nodes for a planar triangulation; shared triangle
+    edges define adjacency. Faces point outward for signed body volumes.
     """
-    from scipy.spatial import ConvexHull
+    from scipy.spatial import Delaunay, QhullError
 
     try:
-        hull = ConvexHull(surface_pos)
-    except Exception:
-        return (
-            np.empty((0, 3), dtype=int),
-            np.empty((0, 2), dtype=int),
-            np.empty((0,), dtype=float),
+        local, hull, error = _surface_hull(surface_pos)
+    except QhullError as exc:
+        raise ValueError(
+            "3D surface nodes must form a nondegenerate convex hull."
+        ) from exc
+
+    equations = hull.equations
+    missing = np.setdiff1d(np.arange(len(surface_pos)), hull.vertices)
+    if not missing.size:
+        elements_local = hull.simplices.copy()
+        a, b, c = local[elements_local].transpose(1, 0, 2)
+        inward = np.sum(np.cross(b - a, c - a) * equations[:, :3], axis=1) < 0
+        elements_local[inward] = elements_local[inward][:, [0, 2, 1]]
+        sources = np.repeat(np.arange(len(elements_local)), 3)
+        neighbors = hull.neighbors.ravel()
+        keep = sources < neighbors
+        adjacency_local = np.column_stack((sources[keep], neighbors[keep]))
+    else:
+        eps = np.max(error / np.max(np.abs(local), axis=0))
+        tolerance = np.abs(equations[:, :3]) @ error
+        visited = np.zeros(len(equations), dtype=bool)
+        faces: list[np.ndarray[Any, Any]] = []
+        for face, equation in enumerate(equations):
+            if visited[face]:
+                continue
+            normal = equation[:3]
+            distance = local[missing] @ normal + equation[3]
+            extras = missing[np.abs(distance) <= tolerance[face]]
+            if not extras.size:
+                triangles = hull.simplices[face][None, :].copy()
+                visited[face] = True
+            else:
+                same_plane = (
+                    np.max(np.abs(equations[:, :3] - normal), axis=1) <= eps
+                ) & (
+                    np.abs(equations[:, 3] - equation[3]) <= tolerance + tolerance[face]
+                )
+                visited |= same_plane
+                ids = np.unique(
+                    np.concatenate((hull.simplices[same_plane].ravel(), extras))
+                )
+                # Dropping the axis most aligned with the normal gives a stable
+                # planar projection without another coordinate-frame object.
+                axis = np.argmax(np.abs(normal))
+                projected = np.delete(local[ids], axis, axis=1)
+                # Snap projected edge fillers onto the shared polygon boundary.
+                # This changes triangulation coordinates, not physical positions.
+                plane = hull.simplices[same_plane]
+                edges = np.concatenate(
+                    [plane[:, pair] for pair in ([0, 1], [1, 2], [2, 0])]
+                )
+                edges, counts = np.unique(
+                    np.sort(edges, axis=1), axis=0, return_counts=True
+                )
+                for edge in edges[counts == 1]:
+                    start, end = np.delete(local[edge], axis, axis=1)
+                    tangent = end - start
+                    parameter = (projected - start) @ tangent / np.dot(tangent, tangent)
+                    perpendicular = np.array([-tangent[1], tangent[0]])
+                    near = np.abs((projected - start) @ perpendicular) <= (
+                        np.abs(perpendicular) @ np.delete(error, axis)
+                    )
+                    near &= (parameter > 0) & (parameter < 1)
+                    projected[near] = start + parameter[near, None] * tangent
+                triangles = ids[Delaunay(projected).simplices]
+                if np.unique(triangles).size != ids.size:
+                    raise ValueError("Surface triangulation omitted boundary nodes.")
+            a, b, c = local[triangles].transpose(1, 0, 2)
+            inward = np.cross(b - a, c - a) @ normal < 0
+            triangles[inward] = triangles[inward][:, [0, 2, 1]]
+            faces.append(triangles)
+        elements_local = np.concatenate(faces)
+        if np.unique(elements_local).size != len(surface_pos):
+            raise ValueError("Marked surface nodes must lie on the convex boundary.")
+        edges = np.concatenate(
+            [elements_local[:, pair] for pair in ([0, 1], [1, 2], [2, 0])]
         )
-
-    simplices = np.array(hull.simplices, dtype=int, copy=True)
-    outward_normals = np.asarray(hull.equations)[:, :3]  # (F, 3)
-    v0 = surface_pos[simplices[:, 0]]
-    v1 = surface_pos[simplices[:, 1]]
-    v2 = surface_pos[simplices[:, 2]]
-    face_normals = np.cross(v1 - v0, v2 - v0)
-    needs_flip = np.einsum("fi,fi->f", face_normals, outward_normals) < 0.0
-    # Swap the last two vertex indices on inwardly-oriented faces so that
-    # (v1 - v0) x (v2 - v0) aligns with the hull's outward normal.
-    if np.any(needs_flip):
-        flipped = simplices.copy()
-        flipped[needs_flip, 1] = simplices[needs_flip, 2]
-        flipped[needs_flip, 2] = simplices[needs_flip, 1]
-        simplices = flipped
-
-    elements_local = simplices
-    F = elements_local.shape[0]
-    adj_set: set[tuple[int, int]] = set()
-    neighbors = np.asarray(hull.neighbors)
-    for i in range(F):
-        for nb in neighbors[i]:
-            nb = int(nb)
-            if nb >= 0 and nb != i:
-                lo, hi = (i, nb) if i < nb else (nb, i)
-                adj_set.add((lo, hi))
-    if not adj_set:
-        return elements_local, np.empty((0, 2), dtype=int), np.empty((0,), dtype=float)
-    adjacency_local = np.array(sorted(adj_set), dtype=int)
+        _, inverse, counts = np.unique(
+            np.sort(edges, axis=1), axis=0, return_inverse=True, return_counts=True
+        )
+        if np.any(counts != 2):
+            raise ValueError("The convex boundary triangulation must be closed.")
+        face_ids = np.tile(np.arange(len(elements_local)), 3)
+        adjacency_local = np.sort(face_ids[np.argsort(inverse)].reshape(-1, 2), axis=1)
     init_bend = np.asarray(
         _initial_bending_3d(
             jnp.asarray(surface_pos),
@@ -1019,7 +1085,9 @@ def create_dp_container(
 
     For each body (grouped by ``group_by``) the function computes the
     surface topology from the node positions: polar-angle-ordered polygon
-    segments in 2D, or ``scipy.spatial.ConvexHull`` triangulation in 3D.
+    segments in 2D, or triangulated convex-hull faces in 3D, including
+    coplanar filler nodes. Nonconvex 3D bodies require explicit surface
+    elements through ``DeformableParticleModel.Create``.
     It wires interior nodes (those flagged ``False`` in ``is_surface``) to
     surface nodes as extra ``edges`` carrying the body's ``el`` coefficient.
     These nodes never participate in surface ``elements`` /
@@ -1041,7 +1109,7 @@ def create_dp_container(
     em, ec, eb, el, gamma
         Per-body elastic coefficients. ``None`` disables the term.
     tau_s
-        Per-body plastic yield threshold. Required whenever
+        Per-body plastic relaxation time. Required whenever
         ``plasticity_type`` is not ``None``.
     plasticity_type
         One of ``"edge"``, ``"perimeter"``, ``"bending"``, or ``None`` /
@@ -1054,8 +1122,8 @@ def create_dp_container(
         :func:`ga_surface_mask` (per-body convex hull), which is correct
         for hollow, solid, and phantom core-type DPs from
         :func:`create_ga_state` and for any other approximately-convex
-        body. Pass an explicit mask to override — useful for non-convex
-        bodies where the convex-hull test would misclassify pocket nodes.
+        body. Pass an explicit mask to control the boundary/interior
+        classification. A mask does not specify nonconvex 3D connectivity.
     interior_edges
         How to connect interior nodes to surface nodes. ``"fan"`` (default)
         connects every interior node to every surface node in its body.
@@ -1370,31 +1438,22 @@ def _resolve_material_table(
     return jd.MaterialTable.from_materials([material], matcher=matcher)
 
 
-def _make_collider_kw_resolver(
-    collider_type: str, collider_kw: dict[str, Any] | None
-) -> Callable[[State], dict[str, Any]]:
-    """Build the per-state collider-kw resolver shared by the system builders."""
-    user_collider_kw = dict(collider_kw) if collider_kw is not None else None
-    collider_key = _normalize_key(collider_type)
-
-    def _resolve(current_state: State) -> dict[str, Any]:
-        if user_collider_kw is None:
-            if collider_key == "neighborlist":
-                return dict(
-                    state=current_state,
-                    cutoff=float(2.0 * jnp.max(current_state.rad)),
-                    skin_fraction=0.05,
-                    safety_factor=5.0,
-                )
-            if collider_key == "celllist":
-                return dict(state=current_state)
-            return {}
-        kw = dict(user_collider_kw)
-        if "state" in kw or collider_key in ("neighborlist", "celllist"):
-            kw["state"] = current_state  # refresh reference
-        return kw
-
-    return _resolve
+def _builder_collider_options(
+    state: State, collider_type: str, collider_kw: dict[str, Any] | None
+) -> dict[str, Any]:
+    """Apply preparation defaults and refresh an explicit state reference."""
+    if collider_kw is None:
+        if _normalize_key(collider_type) == "neighborlist":
+            return dict(
+                cutoff=float(2.0 * jnp.max(state.rad)),
+                skin_fraction=0.05,
+                safety_factor=5.0,
+            )
+        return {}
+    kw = dict(collider_kw)
+    if "state" in kw:
+        kw["state"] = state
+    return kw
 
 
 def build_ga_system(
@@ -1668,8 +1727,6 @@ def build_ga_system(
         e_int=e_int,
     )
 
-    _resolve_collider_kw = _make_collider_kw_resolver(collider_type, collider_kw)
-
     # Build a FIRE system for quasistatic compression. It mirrors the
     # returned system's collider / domain / bonded-force setup so that the
     # PE landscape FIRE sees is the same one the user will simulate on.
@@ -1678,14 +1735,14 @@ def build_ga_system(
     # translation-only at the rigid level; DP internal relaxation comes
     # from the bonded-force model).
     fire_kw: dict[str, Any] = dict(
-        state_shape=state.shape,
+        state=state,
         dt=float(fire_dt),
         minimizer=jd.minimizers.fire,
         minimizer_kw={"dt": float(fire_dt)},
         domain_type=domain_type,
         force_model_type="spring",
         collider_type=collider_type,
-        collider_kw=_resolve_collider_kw(state),
+        collider_kw=_builder_collider_options(state, collider_type, collider_kw),
         mat_table=mat_table,
         domain_kw={"box_size": box_size},
     )
@@ -1712,7 +1769,7 @@ def build_ga_system(
     # Build the final system with the user's integrator / collider.
     final_box_size = fire_system.domain.box_size
     final_kw: dict[str, Any] = dict(
-        state_shape=state.shape,
+        state=state,
         dt=float(dt),
         linear_integrator_type=linear_integrator_type,
         rotation_integrator_type=rotation_integrator_type,
@@ -1721,7 +1778,7 @@ def build_ga_system(
         domain_type=domain_type,
         force_model_type=force_model_type,
         collider_type=collider_type,
-        collider_kw=_resolve_collider_kw(state),
+        collider_kw=_builder_collider_options(state, collider_type, collider_kw),
         mat_table=mat_table,
         domain_kw={"box_size": final_box_size},
         minimizer=minimizer,
@@ -1834,18 +1891,16 @@ def build_sphere_system(
         e_int=e_int,
     )
 
-    _resolve_collider_kw = _make_collider_kw_resolver(collider_type, collider_kw)
-
     # FIRE system for compression.
     fire_system = jd.System.create(
-        state_shape=state.shape,
+        state=state,
         dt=float(fire_dt),
         minimizer=jd.minimizers.fire,
         minimizer_kw={"dt": float(fire_dt)},
         domain_type=domain_type,
         force_model_type="spring",
         collider_type=collider_type,
-        collider_kw=_resolve_collider_kw(state),
+        collider_kw=_builder_collider_options(state, collider_type, collider_kw),
         mat_table=mat_table,
         domain_kw={"box_size": box_size_init},
     )
@@ -1867,7 +1922,7 @@ def build_sphere_system(
 
     final_box_size = fire_system.domain.box_size
     final_system = jd.System.create(
-        state_shape=state.shape,
+        state=state,
         dt=float(dt),
         linear_integrator_type=linear_integrator_type,
         rotation_integrator_type=rotation_integrator_type,
@@ -1876,7 +1931,7 @@ def build_sphere_system(
         domain_type=domain_type,
         force_model_type=force_model_type,
         collider_type=collider_type,
-        collider_kw=_resolve_collider_kw(state),
+        collider_kw=_builder_collider_options(state, collider_type, collider_kw),
         mat_table=mat_table,
         domain_kw={"box_size": final_box_size},
         minimizer=minimizer,

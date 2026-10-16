@@ -409,9 +409,10 @@ print(f"Shape of positions (B, N, dim): {state.pos.shape}")
 # :py:meth:`jaxdem.writers.VTKWriter.save` understands these layouts. By
 # default (``trajectory=False``) it treats all leading axes as independent
 # batches. Pass ``trajectory=True`` to tell the writer which axis is time
-# (``trajectory_axis``, default 0). The writer swaps that axis to the front,
-# keeps it as ``T``, and flattens any remaining leading axes into a single
-# batch axis ``B``. The result is ``(T, B, N, dim)`` internally.
+# (``trajectory_axis``, default 0). It preserves the order of the other
+# leading axes and flattens them into a single batch index in row-major order.
+# Trajectories need a System with matching leading axes so each frame retains
+# its own time and step count.
 
 batched_state = jdem.State.stack([batched_state, batched_state, batched_state])
 print(f"Shape of stacked positions (T, B, N, dim): {batched_state.pos.shape}")

@@ -69,7 +69,7 @@ def _system(
     return state, system
 
 
-def _reference_counts(state, system, cutoff):
+def _reference_counts(state, system, cutoff, skin):
     pos = np.asarray(state.pos)
     box = np.asarray(system.domain.box_size)
     dr = pos[:, None, :] - pos[None, :, :]
@@ -79,7 +79,10 @@ def _reference_counts(state, system, cutoff):
             images = np.round(dr[..., b] / box[b])
             dr[..., a] -= images * float(system.domain.gamma) * box[b]
         dr -= box * np.round(dr / box)
-    valid = np.sum(dr * dr, axis=-1) <= cutoff**2
+    distance_sq = np.sum(dr * dr, axis=-1)
+    radii = np.asarray(system.force_model.search_radii(state, system))
+    pair_reach = radii[:, None] + radii[None, :] + skin
+    valid = (distance_sq <= cutoff**2) & (distance_sq <= pair_reach**2)
     valid &= np.asarray(state.clump_id)[:, None] != np.asarray(state.clump_id)[None, :]
     if not bool(system.interact_same_bond_id):
         bonds = np.asarray(state.bond_id)
@@ -101,7 +104,9 @@ def test_counts_match_geometry_and_cache_without_trial_capacity(dim, domain, bac
     bonds = jnp.full((state.N, 1), -1).at[0, 0].set(3)
     state = replace(state, bond_id=bonds)
     stats = measure_neighbor_candidates(state, system, cutoff=1.2)
-    expected = _reference_counts(state, system, stats.list_cutoff)
+    expected = _reference_counts(
+        state, system, stats.list_cutoff, float(system.collider.skin)
+    )
     np.testing.assert_array_equal(stats.degree, expected)
     assert stats.directed_pair_count == int(expected.sum())
     assert stats.max_degree == int(expected.max())
@@ -141,6 +146,17 @@ def test_skin_search_radius_and_bond_settings():
         ).directed_pair_count
         == 2
     )
+
+
+def test_candidate_measurement_uses_pair_specific_search_radii():
+    state = jd.State.create(
+        pos=[[0.0, 0.0], [1.0, 0.0], [1.35, 0.0]],
+        rad=[1.0, 0.1, 0.1],
+    )
+    system = jd.System.create(state=state)
+    stats = measure_neighbor_candidates(state, system, cutoff=2.0, skin=0.05)
+    np.testing.assert_array_equal(stats.degree, [1, 1, 0])
+    assert stats.list_cutoff == pytest.approx(2.05)
 
 
 def test_periodic_seam_and_skin_only_pairs():

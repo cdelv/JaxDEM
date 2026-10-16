@@ -5,8 +5,9 @@
 from __future__ import annotations
 
 from abc import ABC
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
+from functools import partial
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import jax
@@ -68,9 +69,36 @@ class Domain(Factory, ABC):
         """Return fixed-shape geometry data used to validate search caches."""
         return jnp.zeros((self.box_size.shape[0] + 3,), dtype=self.box_size.dtype)
 
-    def shear_search_parameters(self) -> tuple[jax.Array, int, int] | None:
-        """Return ``(gamma, alpha, beta)`` for shear-periodic hashing."""
-        return None
+    def search_geometry_drift(
+        self, previous: jax.Array, old_pos: jax.Array
+    ) -> jax.Array:
+        """Bound image motion since the geometry snapshot of the last cache build."""
+        return jnp.asarray(0.0, dtype=self.box_size.dtype)
+
+    def neighbor_cells(
+        self,
+        coords: jax.Array,
+        image: jax.Array,
+        grid_dims: jax.Array,
+        cell_size: jax.Array,
+    ) -> jax.Array:
+        """Adjust wrapped stencil cells for the domain's periodic image rule.
+
+        ``coords`` and signed ``image`` counts have shape ``(N, stencil, dim)``.
+        The base rule keeps the orthogonal stencil; shear-periodic domains may
+        expand it to cover fractional image offsets.
+        """
+        return coords
+
+    def rates_between(self, old: Domain, dt: jax.Array) -> Domain:
+        """Return this domain with image rates for the change from ``old`` over ``dt``.
+
+        Domains with moving periodic images (shear strain, box length) set
+        the rate fields that :meth:`relative_velocity` reads, so a finite
+        geometry change can be expressed as velocities. The base domain has
+        no moving images and returns itself.
+        """
+        return self
 
     @property
     def periodic(self) -> bool:
@@ -197,6 +225,87 @@ class Domain(Factory, ABC):
     @jax.jit(inline=True)
     def _displacement(ri: jax.Array, rj: jax.Array, system: System) -> jax.Array:
         return system.domain.displacement(ri, rj, system)
+
+    @staticmethod
+    @jax.jit(inline=True)
+    def relative_velocity(
+        ri: jax.Array,
+        rj: jax.Array,
+        vi: jax.Array,
+        vj: jax.Array,
+        system: System,
+    ) -> jax.Array:
+        """Return relative velocity for the image selected by ``displacement``.
+
+        ``ri`` and ``rj`` are the particle centers used to select that image.
+        ``vi`` and ``vj`` may include rotational contact-point velocities.
+        Domains with moving periodic images override this operation to add
+        the image's translational velocity offset.
+        """
+        return vi - vj
+
+    @staticmethod
+    @jax.jit(inline=True)
+    @partial(jax.named_call, name="Domain.resize")
+    def resize(
+        state: State,
+        system: System,
+        box_size: jax.Array,
+        group_id: jax.Array | None = None,
+    ) -> tuple[State, System]:
+        """Rescale the box to ``box_size`` and move bodies affinely about the anchor.
+
+        Clumps translate with their stored centers of mass, keeping member
+        offsets and orientations fixed. Explicit groups translate together
+        using the mean of their ``pos_c`` values. Pair history is advanced once
+        for the resulting relative motion without time passing, so velocities,
+        ``dt``, and rate-dependent forces play no part. Caches rebuild when
+        the geometry change exhausts their skin.
+
+        The history update is not a no-op even though the map is affine.
+        Bodies move rigidly, so two member spheres of different bodies are
+        displaced by the difference of their body offsets, which is not
+        parallel to their contact normal; the tangential spring of such a
+        contact changes. For single spheres under isotropic scaling the
+        relative displacement is purely normal and the stored spring is
+        unchanged. Periodic images move with the box, so the domain's
+        ``box_rate`` supplies their velocity and a pair interacting across a
+        boundary sees only its true relative motion.
+
+        Parameters
+        ----------
+        state, system : State, System
+            Configuration to rescale.
+        box_size : jax.Array
+            New box lengths, shape ``(dim,)``.
+        group_id : jax.Array, optional
+            Optional per-particle group labels, shape ``(N,)``. Each group
+            translates using its mean ``pos_c``. Without labels, stored centers
+            move directly. Passing bond-graph component labels preserves a
+            deformable body's shape during the resize.
+        """
+        from ..colliders import advance_history
+
+        domain = system.domain
+        new_box = jnp.asarray(box_size, dtype=domain.box_size.dtype)
+        scale = new_box / domain.box_size
+        if group_id is None:
+            offset = (state.pos_c - domain.anchor) * (scale - 1.0)
+        else:
+            total = jax.ops.segment_sum(state.pos_c, group_id, num_segments=state.N)
+            counts = jax.ops.segment_sum(
+                jnp.ones((state.N,), dtype=state.pos_c.dtype),
+                group_id,
+                num_segments=state.N,
+            )
+            com = total / jnp.maximum(counts[:, None], 1.0)
+            offset = ((com - domain.anchor) * (scale - 1.0))[group_id]
+        new_state = replace(state, pos_c=state.pos_c + offset)
+        new_system = replace(
+            system, domain=replace(domain, box_size=new_box, inv_box_size=1.0 / new_box)
+        )
+        _, new_system = advance_history(state, system, new_state, new_system)
+        return new_state, new_system
 
     @staticmethod
     @jax.jit(inline=True)

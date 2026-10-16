@@ -15,6 +15,7 @@ from ..utils.linalg import cross, norm, norm2, unit, unit_and_norm
 from . import ForceModel
 from .facet_contact import (
     get_facet_indices,
+    facet_normal,
     facet_search_radii,
     point_segment_distance,
     point_triangle_distance,
@@ -84,6 +85,7 @@ class SpringForce(ForceModel):
         history: jax.Array,
         *,
         advance_history: bool = True,
+        quasistatic: bool = False,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
         """Compute the linear spring force on particle :math:`i` from particle :math:`j`.
 
@@ -103,7 +105,7 @@ class SpringForce(ForceModel):
             Simulation system configuration.
         history : jax.Array
             Pair history, returned unchanged by this stateless law.
-        advance_history : bool, optional
+        advance_history, quasistatic : bool, optional
             Unused by this stateless law.
 
         Returns
@@ -115,11 +117,11 @@ class SpringForce(ForceModel):
         """
         R = state.rad[i] + state.rad[j]
         rij = system.domain._displacement(pos[i], pos[j], system)
-        # Preserve unit_and_norm's regularization while grouping the scalar
-        # factors before multiplying by the displacement vector.
         n2 = norm2(rij)
-        inv = jnp.where(n2 == 0.0, 0.0, jax.lax.rsqrt(jnp.maximum(n2, 1e-16)))
-        r = n2 * inv
+        zero = n2 == 0.0
+        safe_n2 = jnp.where(zero, 1.0, n2)
+        inv = jnp.where(zero, 0.0, jax.lax.rsqrt(safe_n2))
+        r = jnp.where(zero, 0.0, jnp.sqrt(safe_n2))
 
         mi, mj = state.mat_id[i], state.mat_id[j]
         k = system.mat_table.young_eff[mi, mj]
@@ -136,7 +138,12 @@ class SpringForce(ForceModel):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="SpringForce.energy")
     def energy(
-        i: int, j: int, pos: jax.Array, state: State, system: System
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
     ) -> jax.Array:
         """Compute the linear spring potential energy between particle :math:`i` and particle :math:`j`.
 
@@ -199,7 +206,10 @@ def _sphere_facet_pair(
     Returns ``(k, delta, is_contact, w, n, c_1, thick_i, is_rigid)`` where
     ``delta`` is the (masked) overlap, ``w`` the partition-of-unity weight,
     ``n`` the contact normal and ``c_1`` the contact point on body ``i``.
-    XLA dead-code elimination removes the quantities a caller does not use.
+    At zero separation, a deterministic facet normal supplies a reciprocal
+    repulsive force. It is a contact convention, not the derivative of the
+    unsigned-distance energy at an intersection. Positive-distance normals
+    follow the closest-point displacement. XLA removes unused quantities.
     """
     dim = pos.shape[-1]
 
@@ -257,7 +267,16 @@ def _sphere_facet_pair(
     fallback_rij = system.domain._displacement(
         state.pos_c[idx0_i], state.pos_c[idx0_j], system
     )
-    n = jnp.where(r[..., None] > 1e-7, n, unit(fallback_rij))
+    normal = facet_normal(v_a, v_b, v_c, system)
+    normal = jnp.where(is_facet_i[..., None], normal, -normal)
+    normal = jnp.where(norm2(normal)[..., None] > 0.0, normal, unit(fallback_rij))
+    axis = jnp.zeros_like(normal).at[..., 0].set(1.0)
+    axis = jnp.where(is_facet_i[..., None], axis, -axis)
+    normal = jnp.where(norm2(normal)[..., None] > 0.0, normal, axis)
+    normal = jnp.where(
+        jnp.sum(normal * fallback_rij, axis=-1, keepdims=True) < 0.0, -normal, normal
+    )
+    n = jnp.where(r[..., None] > 0.0, n, normal)
 
     delta = thick_i + thick_j - d_sf
     is_contact = (delta > 0) * compute_interaction
@@ -295,8 +314,15 @@ class SphereFacetSpringForce(ForceModel):
 
     The contact thickness comes from the facet vertices' ``state.rad``
     (set through ``State.add_facet(thickness=...)``). The force model itself
-    has no thickness parameter.
+    has no thickness parameter. Zero-distance normals are force conventions,
+    so physical relaxation requires a gradient-only optimizer. Value-based
+    optimization requires a custom energy target differentiated through AD.
     """
+
+    @property
+    def supports_analytical_energy_gradient(self) -> bool:
+        """Zero-distance contact normals are force conventions, not energy gradients."""
+        return False
 
     def search_radii(self, state: State, system: System) -> jax.Array:
         """Include current facet extent and contact thickness in search bounds."""
@@ -314,6 +340,7 @@ class SphereFacetSpringForce(ForceModel):
         history: jax.Array,
         *,
         advance_history: bool = True,
+        quasistatic: bool = False,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
         k, delta, is_contact, w, n, c_1, thick_i, is_rigid = _sphere_facet_pair(
             i, j, pos, state, system
@@ -339,7 +366,12 @@ class SphereFacetSpringForce(ForceModel):
     @staticmethod
     @jax.jit(inline=True)
     def energy(
-        i: int, j: int, pos: jax.Array, state: State, system: System
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
     ) -> jax.Array:
         k, delta, is_contact, w, n, c_1, thick_i, is_rigid = _sphere_facet_pair(
             i, j, pos, state, system
@@ -365,7 +397,10 @@ def _facet_facet_pair(
     Returns ``(k, delta, is_contact, w, n, c_ff_1, thick_i, is_rigid)`` where
     ``delta`` is the (masked) overlap, ``w`` the partition-of-unity weight,
     ``n`` the contact normal and ``c_ff_1`` the contact point on facet ``i``.
-    XLA dead-code elimination removes the quantities a caller does not use.
+    At zero separation, a deterministic facet normal supplies a reciprocal
+    repulsive force. It is a contact convention, not the derivative of the
+    unsigned-distance energy at an intersection. Positive-distance normals
+    follow the closest-point displacement. XLA removes unused quantities.
     """
     dim = pos.shape[-1]
     i_arr = jnp.asarray(i)
@@ -447,10 +482,23 @@ def _facet_facet_pair(
     rij = system.domain._displacement(c_ff_1, c_ff_2, system)
     n, r = unit_and_norm(rij)
 
-    fallback_rij = system.domain._displacement(
-        state.pos_c[idx0_i], state.pos_c[idx0_j], system
+    center_a = jnp.where(swap[..., None], state.pos_c[idx0_j], state.pos_c[idx0_i])
+    center_b = jnp.where(swap[..., None], state.pos_c[idx0_i], state.pos_c[idx0_j])
+    centers = system.domain._displacement(center_a, center_b, system)
+    normal = facet_normal(tA_a, tA_b, tA_c if dim == 3 else None, system)
+    other = facet_normal(tB_a, tB_b, tB_c if dim == 3 else None, system)
+    normal = jnp.where(norm2(normal)[..., None] > 0.0, normal, other)
+    normal = jnp.where(norm2(normal)[..., None] > 0.0, normal, unit(centers))
+    normal = jnp.where(
+        norm2(normal)[..., None] > 0.0,
+        normal,
+        jnp.zeros_like(normal).at[..., 0].set(1.0),
     )
-    n = jnp.where(r[..., None] > 1e-7, n, unit(fallback_rij))
+    normal = jnp.where(
+        jnp.sum(normal * centers, axis=-1, keepdims=True) < 0.0, -normal, normal
+    )
+    normal = jnp.where(swap[..., None], -normal, normal)
+    n = jnp.where(r[..., None] > 0.0, n, normal)
 
     v_idx_i = jnp.argmax(idxs_i == i_arr[..., None], axis=-1)
     w_vertex_i = jnp.take_along_axis(
@@ -489,8 +537,15 @@ class FacetFacetSpringForce(ForceModel):
 
     The contact thickness comes from the facet vertices' ``state.rad``
     (set through ``State.add_facet(thickness=...)``). The force model itself
-    has no thickness parameter.
+    has no thickness parameter. Zero-distance normals are force conventions,
+    so physical relaxation requires a gradient-only optimizer. Value-based
+    optimization requires a custom energy target differentiated through AD.
     """
+
+    @property
+    def supports_analytical_energy_gradient(self) -> bool:
+        """Zero-distance contact normals are force conventions, not energy gradients."""
+        return False
 
     def search_radii(self, state: State, system: System) -> jax.Array:
         """Include current facet extent and contact thickness in search bounds."""
@@ -508,6 +563,7 @@ class FacetFacetSpringForce(ForceModel):
         history: jax.Array,
         *,
         advance_history: bool = True,
+        quasistatic: bool = False,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
         k, delta, is_contact, w, n, c_ff_1, thick_i, is_rigid = _facet_facet_pair(
             i, j, pos, state, system
@@ -533,7 +589,12 @@ class FacetFacetSpringForce(ForceModel):
     @staticmethod
     @jax.jit(inline=True)
     def energy(
-        i: int, j: int, pos: jax.Array, state: State, system: System
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
     ) -> jax.Array:
         k, delta, is_contact, w, n, c_ff_1, thick_i, is_rigid = _facet_facet_pair(
             i, j, pos, state, system

@@ -28,13 +28,15 @@ class _ScalarHistoryForce(jd.ForceModel):
         return state.rad
 
     @staticmethod
-    def force(i, j, pos, state, system, history, *, advance_history=True):
+    def force(
+        i, j, pos, state, system, history, *, advance_history=True, quasistatic=False
+    ):
         force = (pos[j] - pos[i]) * history[..., None]
         torque = jnp.zeros(j.shape + state.torque[i].shape, dtype=force.dtype)
         return force, torque, history + advance_history
 
     @staticmethod
-    def energy(i, j, pos, state, system):
+    def energy(i, j, pos, state, system, history):
         return jnp.zeros(jnp.shape(j), dtype=pos.dtype)
 
 
@@ -55,13 +57,15 @@ class _MatrixHistoryForce(jd.ForceModel):
         return state.rad
 
     @staticmethod
-    def force(i, j, pos, state, system, history, *, advance_history=True):
+    def force(
+        i, j, pos, state, system, history, *, advance_history=True, quasistatic=False
+    ):
         force = (pos[j] - pos[i]) * history[..., 0, 0, None]
         torque = jnp.zeros(j.shape + state.torque[i].shape, dtype=force.dtype)
         return force, torque, history + advance_history
 
     @staticmethod
-    def energy(i, j, pos, state, system):
+    def energy(i, j, pos, state, system, history):
         return jnp.zeros(jnp.shape(j), dtype=pos.dtype)
 
 

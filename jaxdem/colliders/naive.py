@@ -4,9 +4,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import jax
 import jax.numpy as jnp
@@ -64,11 +64,77 @@ class NaiveSimulator(Collider):
       - **For large systems (:math:`N \ge 10^4`)**: The quadratic complexity :math:`O(N^2)` becomes a severe
         performance bottleneck, and spatial partitioning colliders are significantly faster.
 
+    Pair History
+    ------------
+    The collider stores force-model history densely: ``history[i, j]`` is the
+    stored history of the directed pair ``(i, j)``, the interaction on ``i``
+    from ``j``. Every pair keeps the same slot for the life of the collider,
+    so no remapping is ever needed. Stateless laws have a zero-width trailing
+    axis, which costs nothing. :meth:`System.create` allocates the buffer.
+
     Complexity
     ----------
     - Time: :math:`O(N^2)`.
-    - Memory: :math:`O(N)` (the collider stores no neighbor tables or grid structures).
+    - Memory: :math:`O(N^2 H)` for a law with history width :math:`H`, otherwise :math:`O(N)`.
     """
+
+    history: jax.Array = field(
+        default_factory=lambda: jnp.zeros((0, 0, 0)), kw_only=True
+    )
+    """Dense directed pair history with force-model-defined trailing dimensions."""
+
+    def history_pair_shape(self, state_shape: tuple[int, ...]) -> tuple[int, ...]:
+        n = state_shape[-2]
+        return tuple(state_shape[:-2]) + (n, n)
+
+    def refresh(
+        self,
+        state: State,
+        force_model: Any | None = None,
+        *,
+        reset_history: bool = False,
+    ) -> Collider:
+        """Reallocate the dense history when the particle count changes."""
+        history = self.history
+        tail = history.shape[2:]
+        if history.shape[:2] == (state.N, state.N) and not reset_history:
+            return self
+        if force_model is not None:
+            history = force_model.init_history((state.N, state.N), state.dim)
+        elif tail == (0,) or reset_history:
+            history = jnp.zeros((state.N, state.N) + tail, dtype=history.dtype)
+        else:
+            raise ValueError("force_model is required to initialize refreshed history")
+        return replace(self, history=history)
+
+    def reindex_history(
+        self, state: State, system: System, new_to_old: jax.Array
+    ) -> System:
+        """Gather the dense history rows and columns of the surviving particles."""
+        if self.history.size == 0:
+            return system
+        history = self.history[new_to_old][:, new_to_old]
+        return replace(system, collider=replace(system.collider, history=history))
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """The naive collider has no construction parameters to persist."""
+        return {}
+
+    @staticmethod
+    def get_history(
+        state: State, system: System, neighbor_list: jax.Array
+    ) -> jax.Array:
+        """Gather stored history for an explicit ``(N, k)`` pair query."""
+        collider = system.collider
+        history = _dense_history(state, system, collider.history)
+        rows = jnp.arange(state.N)[:, None]
+        gathered = history[rows, jnp.maximum(neighbor_list, 0)]
+        initialized = system.force_model.init_history(neighbor_list.shape, state.dim)
+        mask = (neighbor_list >= 0).reshape(
+            neighbor_list.shape + (1,) * (gathered.ndim - 2)
+        )
+        return jnp.where(mask, gathered, initialized)
 
     @staticmethod
     @jax.jit(inline=True)
@@ -79,7 +145,8 @@ class NaiveSimulator(Collider):
         r"""Compute the total potential energy of the system with a naive :math:`O(N^2)` all-pairs loop.
 
         This method iterates over all particle pairs (i, j) and sums the
-        potential energy contributions of the ``system.force_model``.
+        potential energy contributions of the ``system.force_model``, using
+        the stored pair history.
 
         Parameters
         ----------
@@ -96,24 +163,23 @@ class NaiveSimulator(Collider):
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
         pos = state.pos
+        history = _dense_history(state, system, system.collider.history)
 
-        def row_energy(i: jax.Array, st: State, sys: System) -> jax.Array:
+        def row_energy(i: jax.Array, row_history: jax.Array) -> jax.Array:
             e_ij = jax.vmap(
-                sys.force_model.energy, in_axes=(None, 0, None, None, None)
-            )(i, iota, pos, st, sys)
+                lambda j, h: system.force_model.energy(i, j, pos, state, system, h)
+            )(iota, row_history)
             mask = valid_interaction_mask(
-                st.clump_id[i],
-                st.clump_id,
-                st.bond_id[i],
+                state.clump_id[i],
+                state.clump_id,
+                state.bond_id[i],
                 iota,
-                sys.interact_same_bond_id,
+                system.interact_same_bond_id,
             )
             e_ij = jnp.where(mask > 0, e_ij, 0.0)
             return 0.5 * e_ij.sum(axis=0)
 
-        energy = jnp.sum(
-            jax.vmap(row_energy, in_axes=(0, None, None))(iota, state, system)
-        )
+        energy = jnp.sum(jax.vmap(row_energy)(iota, history))
         return state, system, energy
 
     @staticmethod
@@ -205,13 +271,20 @@ class NaiveSimulator(Collider):
         return state, system, nl, jnp.any(overflows)
 
     @staticmethod
-    @jax.jit(inline=True)
+    @jax.jit(inline=True, static_argnames=("advance_history", "quasistatic"))
     @partial(jax.named_call, name="NaiveSimulator.compute_force")
-    def compute_force(state: State, system: System) -> tuple[State, System]:
+    def compute_force(
+        state: State,
+        system: System,
+        *,
+        advance_history: bool = True,
+        quasistatic: bool = False,
+    ) -> tuple[State, System]:
         r"""Compute the total force acting on each particle with a naive :math:`O(N^2)` all-pairs loop.
 
         This method sums the force contributions of the ``system.force_model``
-        over all particle pairs (i, j) and updates the particle forces.
+        over all particle pairs (i, j) and updates the particle forces. With
+        ``advance_history`` the dense pair history is advanced in place.
 
         Parameters
         ----------
@@ -219,43 +292,86 @@ class NaiveSimulator(Collider):
             The current state of the simulation.
         system : System
             The configuration of the simulation.
+        advance_history : bool, optional
+            Advance the stored pair history over this step.
+        quasistatic : bool, optional
+            Forwarded to the force law. True omits velocity-dependent terms.
 
         Returns
         -------
         Tuple[State, System]
-            A tuple containing the updated ``State`` object with computed forces
-            and the unmodified ``System`` object.
+            The updated ``State`` with computed forces and the ``System`` with
+            the (possibly advanced) pair history.
 
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
         pos_p = state._pos_p_rot
         pos = state.pos
+        collider = system.collider
+        allocated = _history_allocated(state, system, collider.history)
+        if (
+            advance_history
+            and not allocated
+            and system.force_model.history_shape(state.dim) != (0,)
+        ):
+            raise ValueError(
+                "NaiveSimulator history is not allocated for this state. Build the "
+                "system with System.create or call refresh_collider."
+            )
+        history = _dense_history(state, system, collider.history)
+        initialized = system.force_model.init_history(iota.shape, state.dim)
 
         def per_particle_i(
-            i: jax.Array, pos_pi: jax.Array, st: State, sys: System
-        ) -> tuple[jax.Array, jax.Array]:
-            history = sys.force_model.init_history(iota.shape, pos.shape[-1])
-            res_f, res_t, _ = sys.force_model.force(
-                i, iota, pos, st, sys, history, advance_history=False
+            i: jax.Array, pos_pi: jax.Array, row_history: jax.Array
+        ) -> tuple[jax.Array, jax.Array, jax.Array]:
+            res_f, res_t, new_history = system.force_model.force(
+                i,
+                iota,
+                pos,
+                state,
+                system,
+                row_history,
+                advance_history=advance_history,
+                quasistatic=quasistatic,
             )
             mask = valid_interaction_mask(
-                st.clump_id[i],
-                st.clump_id,
-                st.bond_id[i],
+                state.clump_id[i],
+                state.clump_id,
+                state.bond_id[i],
                 iota,
-                sys.interact_same_bond_id,
-            )[..., None]
-            res_f = jnp.where(mask > 0, res_f, 0.0)
-            res_t = jnp.where(mask > 0, res_t, 0.0)
+                system.interact_same_bond_id,
+            )
+            res_f = jnp.where(mask[..., None] > 0, res_f, 0.0)
+            res_t = jnp.where(mask[..., None] > 0, res_t, 0.0)
+            if advance_history:
+                keep = mask.reshape(mask.shape + (1,) * (new_history.ndim - 1))
+                new_history = jnp.where(keep > 0, new_history, initialized)
+            else:
+                new_history = row_history
             f_i = jnp.sum(res_f, axis=0)
             t_i = jnp.sum(res_t, axis=0) + cross(pos_pi, f_i)
-            return f_i, t_i
+            return f_i, t_i, new_history
 
-        state.force, state.torque = jax.vmap(
-            per_particle_i, in_axes=(0, 0, None, None)
-        )(iota, pos_p, state, system)
+        state.force, state.torque, history = jax.vmap(per_particle_i)(
+            iota, pos_p, history
+        )
+        if not (advance_history and allocated):
+            return state, system
+        return state, replace(system, collider=replace(collider, history=history))
 
-        return state, system
+
+def _history_allocated(state: State, system: System, history: jax.Array) -> bool:
+    """Whether ``history`` is the ``(N, N, H)`` buffer for this state and law."""
+    n = state.N
+    tail = system.force_model.history_shape(state.dim)
+    return history.shape == (n, n) + tail
+
+
+def _dense_history(state: State, system: System, history: jax.Array) -> jax.Array:
+    """Return the ``(N, N, H)`` history, or the law's initial history if unallocated."""
+    if _history_allocated(state, system, history):
+        return history
+    return system.force_model.init_history((state.N, state.N), state.dim)
 
 
 __all__ = ["NaiveSimulator"]

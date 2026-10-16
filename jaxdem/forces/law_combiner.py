@@ -87,7 +87,7 @@ class LawCombiner(ForceModel):
         return radii
 
     @staticmethod
-    @jax.jit(static_argnames=("advance_history",))
+    @jax.jit(static_argnames=("advance_history", "quasistatic"))
     @partial(jax.named_call, name="LawCombiner.force")
     def force(
         i: int,
@@ -98,6 +98,7 @@ class LawCombiner(ForceModel):
         history: jax.Array,
         *,
         advance_history: bool = True,
+        quasistatic: bool = False,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
         f_shape = jnp.shape(j) + jnp.shape(state.force[i])
         t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
@@ -121,6 +122,7 @@ class LawCombiner(ForceModel):
                 sub_system,
                 h,
                 advance_history=advance_history,
+                quasistatic=quasistatic,
             )
             force += f
             torque += t
@@ -153,8 +155,11 @@ class LawCombiner(ForceModel):
         pos: jax.Array,
         state: State,
         system: System,
+        history: jax.Array,
     ) -> jax.Array:
-        """Compute the total potential energy of the interaction between particle :math:`i` and particle :math:`j` by summing all contained laws.
+        """Sum the pair energies of the contained laws.
+
+        Each law receives its own slice of the concatenated pair history.
 
         Parameters
         ----------
@@ -168,6 +173,8 @@ class LawCombiner(ForceModel):
             Current state of the simulation.
         system : System
             Simulation system configuration.
+        history : jax.Array
+            Concatenated pair history of the contained laws.
 
         Returns
         -------
@@ -176,13 +183,18 @@ class LawCombiner(ForceModel):
             particles :math:`i` and :math:`j`.
 
         """
-        # Initialize accumulator with shape of j. If j is an array (e.g., neighbor list),
-        # this accumulator will broadcast properly. If j is a scalar, it's a scalar.
         e = jnp.zeros(jnp.shape(j), dtype=float)
         combiner = cast(LawCombiner, system.force_model)
+        offset = 0
         for law in combiner.laws:
+            child_shape = law.history_shape(pos.shape[-1])
+            width = math.prod(child_shape)
+            child_history = history[..., offset : offset + width].reshape(
+                (*history.shape[:-1], *child_shape)
+            )
             sub_system = dataclasses.replace(system, force_model=law)
-            e = e + law.energy(i, j, pos, state, sub_system)
+            e = e + law.energy(i, j, pos, state, sub_system, child_history)
+            offset += width
         return e
 
 

@@ -26,9 +26,11 @@ class MatrixHistorySpring(jd.forces.SpringForce):
         )
 
     @staticmethod
-    def force(i, j, pos, state, system, history, *, advance_history=True):
+    def force(
+        i, j, pos, state, system, history, *, advance_history=True, quasistatic=False
+    ):
         force, torque, _ = jd.forces.SpringForce.force(
-            i, j, pos, state, system, history, advance_history=advance_history
+            i, j, pos, state, system, history
         )
         return force * history[0, 0], torque, history + advance_history
 

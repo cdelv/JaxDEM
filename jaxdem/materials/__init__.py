@@ -39,8 +39,15 @@ class Material(Factory):
     density: float
 
 
-from .elastic_mats import Elastic, ElasticFriction
+from .elastic_mats import CundallStrackParameters, Elastic, ElasticFriction
 from .lj_mats import LJMaterial
 from .material_table import MaterialTable
 
-__all__ = ["Elastic", "ElasticFriction", "LJMaterial", "Material", "MaterialTable"]
+__all__ = [
+    "CundallStrackParameters",
+    "Elastic",
+    "ElasticFriction",
+    "LJMaterial",
+    "Material",
+    "MaterialTable",
+]

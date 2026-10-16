@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from enum import IntEnum
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING, Any
 import jax
 import jax.numpy as jnp
 
-from ..colliders import invalidate_collider
 from ..minimizers import TerminationReason
 
 if TYPE_CHECKING:
@@ -78,38 +77,14 @@ def _scale_to_packing_fraction_grouped(
     per iteration.
     """
     # All box dimensions are scaled by a single common factor so anisotropic
-    # boxes keep their aspect ratio and positions stay inside the box.
+    # boxes keep their aspect ratio and positions stay inside the box. The
+    # domain moves each body about the anchor, keeps body sizes, and advances
+    # any pair history for the affine step.
     box_size = system.domain.box_size
     scale_factor = (
         compute_particle_volume(state) / (new_packing_fraction * jnp.prod(box_size))
     ) ** (1.0 / state.dim)
-    new_box_size = box_size * scale_factor
-    new_domain = replace(
-        system.domain, box_size=new_box_size, inv_box_size=1.0 / new_box_size
-    )
-
-    # For spheres and clumps, we can just rescale the positions via state.pos_c * scale_factor
-    # But, for DPs, we need to scale the com positions
-    # Both behaviors can be generalized by scaling the DP com positions, finding the offset
-    # before and after the scaling, and applying the offset to state.pos_c
-    # This preserves the size of the DPs, clumps, and spheres, uniformly
-    total_pos = jax.ops.segment_sum(state.pos_c, group_id, num_segments=state.N)
-    dp_counts = jax.ops.segment_sum(
-        jnp.ones((state.N,), dtype=state.pos_c.dtype),
-        group_id,
-        num_segments=state.N,
-    )
-    dp_com = total_pos / jnp.maximum(
-        dp_counts[:, None], 1.0
-    )  # avoid divide by zero errors for empty clumps (MAY NOT BE NEEDED)
-    offset = (dp_com - system.domain.anchor) * (scale_factor - 1.0)
-
-    state.pos_c = state.pos_c + offset[group_id]
-    new_system = replace(system, domain=new_domain)
-
-    new_system = replace(new_system, collider=invalidate_collider(new_system.collider))
-
-    return state, new_system
+    return system.domain.resize(state, system, box_size * scale_factor, group_id)
 
 
 @jax.jit

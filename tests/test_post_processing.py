@@ -448,11 +448,13 @@ class ConstantPairEnergy(jd.ForceModel):
         return state.rad
 
     @staticmethod
-    def force(i, j, pos, state, system, history, *, advance_history=True):
+    def force(
+        i, j, pos, state, system, history, *, advance_history=True, quasistatic=False
+    ):
         return jnp.zeros_like(state.force[i]), jnp.zeros_like(state.torque[i]), history
 
     @staticmethod
-    def energy(i, j, pos, state, system):
+    def energy(i, j, pos, state, system, history):
         dr = system.domain.displacement(pos[i], pos[j], system)
         return jnp.where(
             (i != j) & (jnp.sum(dr * dr) < (state.rad[i] + state.rad[j]) ** 2),

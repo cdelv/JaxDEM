@@ -130,6 +130,23 @@ print("Langevin gamma:", system.linear_integrator.gamma)
 # custom wrapper (`CustomGradientTransformation`) that tracks the constructor
 # function and arguments for serialization.
 #
+# Force-only optimizers (``requires_value=False``, including FIRE and damped
+# Newtonian) also support contact history and facet force conventions.
+# Minimization freezes stored pair history by default. Pass
+# ``advance_history=True`` to ``System.minimize`` to update displacement-dependent
+# history after accepted steps. Both modes disable velocity-dependent forces.
+# Value-based optimizers use analytical physical gradients when available,
+# otherwise they differentiate energy with stored history fixed. For frictional
+# laws, that energy gradient can differ from the mechanical contact force.
+# AD through collider energy requires Naive or NeighborList; direct CellList
+# and MultiCellList traversals do not support reverse-mode differentiation.
+# A custom ``target_fn`` uses ordinary AD through the State mapping.
+#
+# Every optimizer uses the same continuous body coordinates: positions and
+# unwrapped angles in 2D, or raw quaternions normalized for the State in 3D.
+# Rotations use a fixed reference throughout minimization, preserving the
+# meaning of accumulated optimizer gradients and parameter history.
+#
 # For checkpoint serialization, JaxDEM saves the import path of the constructor
 # function (e.g. ``"jaxdem.minimizers.fire"`` or ``"optax.adam"``) and the dictionary
 # of keyword parameters. Upon restoration, it resolves and calls the function to
@@ -199,8 +216,11 @@ print("Minimizer:", system.minimizer.type_name)
 # JaxDEM provides a convenience method
 # :py:meth:`~jaxdem.system.System.minimize` that runs a
 # ``while_loop`` until both free-body force and torque norms meet tolerance.
+# Custom targets use their position and world-angular gradient norms;
+# those residuals can differ from the State's physical forces and torques.
 # Step limits, nonfinite values and search overflow are unsuccessful exits.
-# FIRE and damped Newtonian evaluate energy once after relaxation.
+# With the physical objective, FIRE and damped Newtonian evaluate energy once
+# after relaxation. Custom targets are evaluated during optimization.
 
 state = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
@@ -237,6 +257,6 @@ print(f"Force residual: {result.info.force_max}, torque residual: {result.info.t
 #
 # Fixed Particles
 # ~~~~~~~~~~~~~~~~~
-# Particles with ``state.fixed = True`` are **immobile**: the integrator
-# multiplies velocity updates by ``(1 - fixed)`` so their velocity stays
-# constant. See :doc:`../auto_examples/state_guide` for how to set this field.
+# Particles with ``state.fixed = True`` keep their prescribed linear and
+# angular velocities; forces do not accelerate them. Zero velocity keeps
+# them stationary. See :doc:`../auto_examples/state_guide` for this field.

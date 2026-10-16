@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from abc import ABC
+import dataclasses
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
@@ -82,14 +83,69 @@ class Collider(Factory, ABC):
         """Whether this collider caches state-size-dependent search data."""
         return False
 
-    @property
-    def supports_history(self) -> bool:
-        """Whether this collider implements the NeighborList history contract."""
-        return False
+    def history_pair_shape(
+        self, state_shape: tuple[int, ...]
+    ) -> tuple[int, ...] | None:
+        """Leading shape of the stored pair history for ``state_shape``.
+
+        ``None`` means this collider has no persistent pair memory, so it can
+        only run stateless force laws.
+        """
+        return None
+
+    def refresh(
+        self,
+        state: State,
+        force_model: Any | None = None,
+        *,
+        reset_history: bool = False,
+    ) -> Collider:
+        """Rebuild this collider for a (possibly resized) ``state``.
+
+        A stateless collider returns itself. A collider with search caches
+        is rebuilt through its ``Create`` signature: every parameter whose
+        name matches a dataclass field on this instance is forwarded, plus
+        the new ``state``. Colliders with pair history override this to
+        carry their history across, using ``force_model`` to initialize new
+        slots; ``reset_history`` discards it instead.
+        """
+        from inspect import signature
+
+        create_fn = getattr(type(self), "Create", None)
+        if not self.stateful or create_fn is None:
+            return self
+        kwargs: dict[str, Any] = {}
+        for pname in signature(create_fn).parameters:
+            if pname == "state":
+                kwargs[pname] = state
+            elif pname == "search_range" and hasattr(self, "neighbor_mask"):
+                kwargs[pname] = int(jnp.max(jnp.abs(self.neighbor_mask)))
+            elif pname not in ("cls", "self") and hasattr(self, pname):
+                kwargs[pname] = getattr(self, pname)
+        return cast(Collider, create_fn(**kwargs))
+
+    def reindex_history(
+        self, state: State, system: System, new_to_old: jax.Array
+    ) -> System:
+        """Transfer this collider's stored pair history onto a reindexed state.
+
+        ``system.collider`` must already be allocated for ``state`` and
+        ``new_to_old[k]`` is the original index of particle ``k``. Pairs that
+        survive keep their history; new pairs and padding start from the
+        force law's initial history. Colliders without pair memory return
+        ``system`` unchanged.
+        """
+        return system
 
     @staticmethod
-    @jax.jit(inline=True)
-    def compute_force(state: State, system: System) -> tuple[State, System]:
+    @jax.jit(inline=True, static_argnames=("advance_history", "quasistatic"))
+    def compute_force(
+        state: State,
+        system: System,
+        *,
+        advance_history: bool = True,
+        quasistatic: bool = False,
+    ) -> tuple[State, System]:
         """Compute the total force acting on each particle in the simulation.
 
         This base implementation is a concrete no-op: it zeroes the ``force``
@@ -108,6 +164,11 @@ class Collider(Factory, ABC):
             The current state of the simulation.
         system : System
             The configuration of the simulation.
+        advance_history : bool, optional
+            Advance stored pair history over this step. Colliders without
+            pair memory ignore it.
+        quasistatic : bool, optional
+            Forwarded to the force law. True omits velocity-dependent terms.
 
         Returns
         -------
@@ -124,13 +185,16 @@ class Collider(Factory, ABC):
     @jax.jit(inline=True)
     def evaluate_force(state: State, system: System) -> tuple[State, System]:
         """Evaluate forces without advancing contact history."""
-        return system.collider.compute_force(state, system)
+        return system.collider.compute_force(state, system, advance_history=False)
 
     @staticmethod
     def get_history(
         state: State, system: System, neighbor_list: jax.Array
     ) -> jax.Array:
-        """Return initialized history for an explicit pair query."""
+        """Return stored history for an explicit ``(N, k)`` pair query.
+
+        Colliders without pair memory return the force law's initial history.
+        """
         return system.force_model.init_history(neighbor_list.shape, state.dim)
 
     @staticmethod
@@ -231,10 +295,8 @@ class Collider(Factory, ABC):
               than ``max_neighbors`` neighbors within the cutoff.
 
         """
-        if max_neighbors == 0:
-            n_a = pos_a.shape[0]
-            empty = jnp.empty((n_a, 0), dtype=int)
-            return empty, jnp.asarray(False)
+        if max_neighbors < 0:
+            raise ValueError("max_neighbors must be nonnegative.")
 
         n_b = pos_b.shape[0]
         iota_b = jax.lax.iota(dtype=int, size=n_b)
@@ -299,83 +361,80 @@ def refresh_collider(
     *,
     reset_history: bool = False,
 ) -> Collider:
-    """Rebuild a stateful collider for a (possibly resized) state.
-
-    Stateless colliders (``naive``) have no state-size-dependent buffers, so
-    this function returns them unchanged. For stateful colliders
-    (``CellList``, ``MultiCellList``, ``NeighborList``), it reads the
-    ``Create`` signature. It forwards every parameter whose name matches a
-    dataclass field on the current collider instance, plus the new ``state``.
-    Parameters not stored on the collider (e.g. ``number_density`` and
-    ``safety_factor`` on :class:`NeighborList`) use the ``Create`` defaults.
+    """Rebuild a collider for a (possibly resized) state.
 
     Use this after editing a state in ways the collider caches cannot track
     (changing the particle count, teleporting particles, rescaling the box).
     Supply ``force_model`` when growing nonempty history so new slots use its
     initializer. Changing particle count with nonempty history, shrinking its
     capacity, or changing particle identities requires ``reset_history=True``.
+    See :meth:`Collider.refresh`.
 
     Example
     -------
     >>> system.collider = jdem.colliders.refresh_collider(state, system.collider)
     """
-    from inspect import signature
+    return collider.refresh(state, force_model, reset_history=reset_history)
 
-    if not collider.stateful:
-        return collider
 
-    create_fn = getattr(type(collider), "Create", None)
-    if create_fn is None:
-        return collider
+def advance_history(
+    state_old: State, system_old: System, state_new: State, system_new: System
+) -> tuple[State, System]:
+    """Advance pair history for a change of configuration without time passing.
 
-    def _stored_search_range(c: Any) -> int | None:
-        if not hasattr(c, "neighbor_mask"):
-            return None
-        return int(jnp.max(jnp.abs(c.neighbor_mask)))
+    The motion from ``(state_old, system_old)`` to ``(state_new, system_new)``
+    is expressed as velocities over ``system_new.dt``: body translation and
+    rotation increments divided by ``dt`` for the particles, and the domain's
+    image rates for moving periodic images. The force model is evaluated once
+    at the new configuration with ``advance_history=True`` and
+    ``quasistatic=True``, so ``dt`` cancels exactly and no velocity-
+    dependent force acts.
 
-    def _stored_create_kwargs(c: Any) -> dict[str, Any]:
-        kwargs: dict[str, Any] = {}
-        if c.stateful:
-            kwargs["state"] = state
-        if hasattr(c, "cell_size"):
-            kwargs["cell_size"] = c.cell_size
-        search_range = _stored_search_range(c)
-        if search_range is not None:
-            kwargs["search_range"] = search_range
-        return kwargs
+    Used by affine box deformation (:meth:`Domain.shear`,
+    :meth:`Domain.resize`) and by relaxation. Dynamics does not call it: the
+    integrator's own velocities advance history inside ``compute_force``.
 
-    if isinstance(collider, NeighborList):
-        secondary_collider = collider.secondary_collider
-        new_collider = type(collider).Create(
-            state=state,
-            cutoff=collider.cutoff,
-            skin=collider.skin,
-            max_neighbors=collider.max_neighbors,
-            secondary_collider_type=secondary_collider.type_name,
-            secondary_collider_kw=_stored_create_kwargs(secondary_collider),
-        )
-        from ._neighbor_cache import refresh
+    This relies on the ``quasistatic`` contract of :meth:`ForceModel.force`:
+    the law produces no velocity-dependent force, and its history update
+    depends on velocity only through ``velocity * dt``. A law that breaks
+    either rule gives a ``dt``-dependent result here.
 
-        return cast(
-            Collider,
-            refresh(
-                state, collider, new_collider, force_model, reset_history=reset_history
-            ),
-        )
+    Returns
+    -------
+    state : State
+        ``state_new`` with the rate-independent forces and torques of the new
+        configuration.
+    system : System
+        ``system_new`` with the advanced collider history and updated overflow
+        flag. The domain and ``dt`` are those of ``system_new``.
 
-    kwargs: dict[str, Any] = {}
-    for pname in signature(create_fn).parameters:
-        if pname in ("cls", "self"):
-            continue
-        if pname == "state":
-            kwargs[pname] = state
-        elif pname == "search_range":
-            search_range = _stored_search_range(collider)
-            if search_range is not None:
-                kwargs[pname] = search_range
-        elif hasattr(collider, pname):
-            kwargs[pname] = getattr(collider, pname)
-    return cast(Collider, create_fn(**kwargs))
+    This is a trace-time no-op for stateless force laws.
+    """
+    from ..utils.quaternion import Quaternion
+
+    if system_new.force_model.history_shape(state_new.dim) == (0,):
+        return state_new, system_new
+    dt = system_new.dt
+    vel = (state_new.pos_c - state_old.pos_c) / dt
+    rotvec = Quaternion.to_rotvec(state_new.q @ Quaternion.conj(state_old.q))
+    if state_new.dim == 2:
+        rotvec = rotvec[..., 2:]
+    moving_state = dataclasses.replace(state_new, vel=vel, ang_vel=rotvec / dt)
+    moving_system = dataclasses.replace(
+        system_new, domain=system_new.domain.rates_between(system_old.domain, dt)
+    )
+    moving_state, advanced = moving_system.collider.compute_force(
+        moving_state, moving_system, advance_history=True, quasistatic=True
+    )
+    state = dataclasses.replace(
+        state_new, force=moving_state.force, torque=moving_state.torque
+    )
+    system = dataclasses.replace(
+        system_new,
+        collider=advanced.collider,
+        search_overflow=system_new.search_overflow | advanced.collider.overflow,
+    )
+    return state, system
 
 
 from .cell_list import DynamicCellList
@@ -389,6 +448,7 @@ __all__ = [
     "DynamicMultiCellList",
     "NaiveSimulator",
     "NeighborList",
+    "advance_history",
     "invalidate_collider",
     "refresh_collider",
     "valid_interaction_mask",

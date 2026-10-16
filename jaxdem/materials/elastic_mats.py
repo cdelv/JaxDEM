@@ -48,4 +48,24 @@ class ElasticFriction(Material):
     that opposes the relative angular velocity at the contact."""
 
 
-__all__ = ["Elastic", "ElasticFriction"]
+@Material.register("cundallstrackparams")
+@jax.tree_util.register_dataclass
+@dataclass(slots=True)
+class CundallStrackParameters(Material):
+    r"""Direct coefficients for the Cundall--Strack force law.
+
+    Pair stiffnesses and damping coefficients are harmonic means of the
+    corresponding particle values. Sliding friction is mixed by the callable
+    configured on
+    :class:`~jaxdem.forces.cundall_strack.CundallStrackForce`.
+    """
+
+    k_n: float
+    k_t: float
+    b_n: float
+    b_t: float
+    mu: float
+    mu_r: float = 0.0
+
+
+__all__ = ["CundallStrackParameters", "Elastic", "ElasticFriction"]

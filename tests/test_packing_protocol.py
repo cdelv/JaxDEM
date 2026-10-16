@@ -128,9 +128,11 @@ class _RememberingSpring(jd.forces.SpringForce):
         return (1,)
 
     @staticmethod
-    def force(i, j, pos, state, system, history, *, advance_history=True):
+    def force(
+        i, j, pos, state, system, history, *, advance_history=True, quasistatic=False
+    ):
         force, torque, _ = jd.forces.SpringForce.force(
-            i, j, pos, state, system, history, advance_history=advance_history
+            i, j, pos, state, system, history
         )
         return force, torque, history + advance_history
 
@@ -143,7 +145,7 @@ class _InitializationMarker(jd.LinearIntegrator):
         return replace(state, vel=state.vel + 7.0), system
 
 
-def test_rescale_refresh_preserves_history_queued_load_and_integrator_state():
+def test_rescale_advances_history_once_and_preserves_load_and_integrator_state():
     state, system = _system(
         force_model=_RememberingSpring(), integrator=_InitializationMarker()
     )
@@ -162,7 +164,10 @@ def test_rescale_refresh_preserves_history_queued_load_and_integrator_state():
     )
     reevaluated, _ = jd.System.evaluate_forces(result, updated)
 
-    assert jnp.array_equal(updated.collider.history, old_history)
+    # The affine rescale advances pair history exactly once; the force
+    # refresh afterwards does not.
+    valid = updated.collider.neighbor_list >= 0
+    assert jnp.array_equal(updated.collider.history[valid], old_history[valid] + 1)
     assert jnp.array_equal(updated.force_manager.external_force, queued)
     assert jnp.array_equal(result.vel, old_velocity)
     assert jnp.allclose(result.force, reevaluated.force)

@@ -55,11 +55,13 @@ def make_system(
 
 def all_pairs_energy(pos, state, system):
     indices = jnp.arange(state.N)
+    query = jnp.broadcast_to(indices, (state.N, state.N))
+    history = system.collider.get_history(state, system, query)
     energies = jax.vmap(
-        lambda i: jax.vmap(
-            lambda j: system.force_model.energy(i, j, pos, state, system)
-        )(indices)
-    )(indices)
+        lambda i, row: jax.vmap(
+            lambda j, h: system.force_model.energy(i, j, pos, state, system, h)
+        )(indices, row)
+    )(indices, history)
     valid = jax.vmap(
         lambda i: jd.colliders.valid_interaction_mask(
             state.clump_id[i],
@@ -152,14 +154,16 @@ class WellEnergy(jd.ForceModel):
         return 2 * state.rad
 
     @staticmethod
-    def energy(i, j, pos, state, system):
+    def energy(i, j, pos, state, system, history):
         dr = system.domain.displacement(pos[i], pos[j], system)
         r2 = jnp.sum(dr * dr)
         displacement = r2 - system.force_model.equilibrium_distance**2
         return jnp.where((i != j) & (r2 < 4.0), displacement**2 / 8, 0.0)
 
     @staticmethod
-    def force(i, j, pos, state, system, history, *, advance_history=True):
+    def force(
+        i, j, pos, state, system, history, *, advance_history=True, quasistatic=False
+    ):
         dr = system.domain.displacement(pos[i], pos[j], system)
         r2 = jnp.sum(dr * dr)
         displacement = r2 - system.force_model.equilibrium_distance**2

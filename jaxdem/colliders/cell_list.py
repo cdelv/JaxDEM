@@ -105,45 +105,9 @@ def _get_spatial_partition(
     if system.domain.periodic:
         neighbor_cell_coords, periodic_image = wrapped_offset_coords()
 
-        # A gradient-boundary image in Lees-Edwards shifts the queried image
-        # along the flow direction. Two adjacent alpha cells cover fractional
-        # shifts conservatively; duplicate cells are removed during traversal.
-        shear = system.domain.shear_search_parameters()
-        if shear is not None:
-            gamma, alpha, beta = shear
-            beta_image = periodic_image[..., beta]
-            alpha_shift = (
-                -beta_image.astype(cell_size.dtype)
-                * gamma
-                * system.domain.box_size[beta]
-                / cell_size[alpha]
-            )
-            lo = jnp.floor(alpha_shift).astype(offsets.dtype)
-            hi = jnp.ceil(alpha_shift).astype(offsets.dtype)
-            alpha_offsets = jnp.stack((lo, hi), axis=-1).reshape(
-                lo.shape[0], 2 * lo.shape[1]
-            )
-            expanded = jnp.repeat(neighbor_cell_coords, 2, axis=1)
-            alpha_base = expanded[..., alpha]
-            alpha_nonnegative = alpha_offsets >= 0
-            alpha_mag = jnp.where(
-                alpha_nonnegative, alpha_offsets, -alpha_offsets
-            ).astype(hash_dtype)
-            alpha_dim = grid_dims[alpha]
-            alpha_rem = alpha_mag % alpha_dim
-            alpha_pos = jnp.where(
-                (alpha_rem == 0) | (alpha_base < alpha_dim - alpha_rem),
-                alpha_base + alpha_rem,
-                alpha_base - (alpha_dim - alpha_rem),
-            )
-            alpha_neg = jnp.where(
-                alpha_rem > alpha_base,
-                alpha_dim - (alpha_rem - alpha_base),
-                alpha_base - alpha_rem,
-            )
-            neighbor_cell_coords = expanded.at[..., alpha].set(
-                jnp.where(alpha_nonnegative, alpha_pos, alpha_neg)
-            )
+        neighbor_cell_coords = system.domain.neighbor_cells(
+            neighbor_cell_coords, periodic_image, grid_dims, cell_size
+        )
         neighbor_cell_hashes = jnp.dot(
             neighbor_cell_coords.astype(hash_dtype), grid_strides
         )
@@ -173,8 +137,16 @@ def _get_spatial_partition(
 @partial(jax.named_call, name="cell_list._dedup_stencil_hashes")
 def _dedup_stencil_hashes(stencil_hashes: jax.Array) -> jax.Array:
     """Deduplicate one particle's stencil hashes using the unsigned sentinel."""
-    mask = jnp.triu(stencil_hashes[:, None] == stencil_hashes[None, :], k=1)
-    is_duplicate = jnp.any(mask, axis=0)
+    indices = jnp.arange(stencil_hashes.size)
+    is_duplicate = jnp.zeros(stencil_hashes.shape, dtype=bool)
+    # Small static slices fuse with their reductions instead of materializing
+    # an (N, stencil, stencil) temporary for a large shear-periodic stencil.
+    for start in range(0, stencil_hashes.size, 16):
+        end = min(start + 16, stencil_hashes.size)
+        mask = (indices[start:end, None] < indices[None, :]) & (
+            stencil_hashes[start:end, None] == stencil_hashes[None, :]
+        )
+        is_duplicate |= jnp.any(mask, axis=0)
     sentinel = jnp.bitwise_not(jnp.asarray(0, stencil_hashes.dtype))
     return jnp.where(is_duplicate, sentinel, stencil_hashes)
 
@@ -454,6 +426,10 @@ class DynamicCellList(Collider):
 
     Notes
     -----
+    - **Differentiation**: Direct force and energy traversal supports forward
+      mode. Its dynamic ``lax.while_loop`` cannot be transposed for reverse
+      mode. For ``jax.grad`` or reverse differentiation through simulation
+      steps, use ``NeighborList`` with ``secondary_collider_type="CellList"``.
     - **Batching with ``vmap``**: If you use ``jax.vmap`` to evaluate multiple
       simulation environments simultaneously, be aware of JAX's SIMD execution model.
       The innermost ``while`` loop executes sequentially. It must keep
@@ -579,9 +555,15 @@ class DynamicCellList(Collider):
         )
 
     @staticmethod
-    @jax.jit(inline=True)
+    @jax.jit(inline=True, static_argnames=("advance_history", "quasistatic"))
     @partial(jax.named_call, name="DynamicCellList.compute_force")
-    def compute_force(state: State, system: System) -> tuple[State, System]:
+    def compute_force(
+        state: State,
+        system: System,
+        *,
+        advance_history: bool = True,
+        quasistatic: bool = False,
+    ) -> tuple[State, System]:
         """Compute pairwise contact forces and torques with DynamicCellList.
 
         Parameters
@@ -608,7 +590,7 @@ class DynamicCellList(Collider):
             system,
             cell_size,
             collider.neighbor_mask,
-            partial(_force_pair_fn, system=system),
+            partial(_force_pair_fn, system=system, quasistatic=quasistatic),
             (
                 jnp.zeros(state.force.shape[1:], dtype=state.force.dtype),
                 jnp.zeros(state.torque.shape[1:], dtype=state.torque.dtype),

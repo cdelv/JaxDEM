@@ -99,7 +99,7 @@ class ForceRouter(ForceModel):
         return radii
 
     @staticmethod
-    @jax.jit(static_argnames=("advance_history",))
+    @jax.jit(static_argnames=("advance_history", "quasistatic"))
     @partial(jax.named_call, name="ForceRouter.force")
     def force(
         i: int,
@@ -110,6 +110,7 @@ class ForceRouter(ForceModel):
         history: jax.Array,
         *,
         advance_history: bool = True,
+        quasistatic: bool = False,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
         router = cast(ForceRouter, system.force_model)
         S = len(router.table)
@@ -139,6 +140,7 @@ class ForceRouter(ForceModel):
                     sys_law,
                     h_ab,
                     advance_history=advance_history,
+                    quasistatic=quasistatic,
                 )
 
                 f_map[(a, b)] = jnp.asarray(f, dtype=float)
@@ -243,8 +245,12 @@ class ForceRouter(ForceModel):
         pos: jax.Array,
         state: State,
         system: System,
+        history: jax.Array,
     ) -> jax.Array:
-        """Compute the potential energy of the interaction between particle :math:`i` and particle :math:`j` with the law their species select.
+        """Compute the pair energy with the law the species select.
+
+        Every law in the table is evaluated on its own slice of the
+        concatenated history and the result is selected by species pair.
 
         Parameters
         ----------
@@ -258,6 +264,8 @@ class ForceRouter(ForceModel):
             Current state of the simulation.
         system : System
             Simulation system configuration.
+        history : jax.Array
+            Concatenated pair history of the table's laws.
 
         Returns
         -------
@@ -268,23 +276,26 @@ class ForceRouter(ForceModel):
         """
         router = cast(ForceRouter, system.force_model)
         S = len(router.table)
-
         si = state.species_id[i]
         sj = state.species_id[j]
         idx = si * S + sj
 
         e_map = {}
-
+        offset = 0
         for a in range(S):
             for b in range(a, S):
                 law = router.table[a][b]
-                sys_law = dataclasses.replace(system, force_model=law)
-
-                e = law.energy(i, j, pos, state, sys_law)
-
+                child_shape = law.history_shape(pos.shape[-1])
+                width = math.prod(child_shape)
+                child_history = history[..., offset : offset + width].reshape(
+                    (*history.shape[:-1], *child_shape)
+                )
+                sub_system = dataclasses.replace(system, force_model=law)
+                e = law.energy(i, j, pos, state, sub_system, child_history)
                 e_map[(a, b)] = jnp.asarray(e, dtype=float)
                 if a != b:
                     e_map[(b, a)] = e_map[(a, b)]
+                offset += width
 
         e_results = [e_map[(a, b)] for a in range(S) for b in range(S)]
         idx_e = idx
@@ -292,9 +303,7 @@ class ForceRouter(ForceModel):
             while idx_e.ndim < e_results[0].ndim:
                 idx_e = idx_e[..., None]
             idx_e = jnp.broadcast_to(idx_e, e_results[0].shape)
-
-        e_final = jax.lax.select_n(idx_e, *e_results)
-        return e_final
+        return jax.lax.select_n(idx_e, *e_results)
 
 
 __all__ = ["ForceRouter"]

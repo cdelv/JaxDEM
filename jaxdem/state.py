@@ -209,7 +209,10 @@ class State:
 
     fixed: jax.Array
     """
-    Boolean array indicating if a particle is fixed (immobile). Shape is `(..., N)`.
+    Boolean array marking particles with prescribed motion. Shape is `(..., N)`.
+
+    Their linear and angular velocities are unaffected by forces and torques.
+    Zero prescribed velocities keep them stationary.
 
     Identical on every member of a rigid clump.
     """
@@ -2665,8 +2668,9 @@ def _broadcast_mesh_param(
 def _compute_single_mesh_properties(
     vertices: jax.Array, faces: jax.Array, dim: int, filled: bool
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
-    # vertices: (V_mesh, dim)
-    # faces: (F, V_face)
+    """Integrate mesh mass moments in local coordinates to avoid cancellation."""
+    origin = vertices[0] if vertices.shape[0] else jnp.zeros(dim, dtype=vertices.dtype)
+    vertices = vertices - origin
     A = vertices[faces[:, 0]]
     B = vertices[faces[:, 1]]
     if dim == 3:
@@ -2692,7 +2696,7 @@ def _compute_single_mesh_properties(
             trace_cov = jnp.trace(cov_com)
             I_tensor = trace_cov * jnp.eye(3) - cov_com
 
-            return com, I_tensor, total_vol
+            return com + origin, I_tensor, total_vol
         else:
             cross_prod = linalg.cross(B - A, C - A)
             Area = 0.5 * linalg.norm(cross_prod)
@@ -2715,7 +2719,7 @@ def _compute_single_mesh_properties(
             trace_cov = jnp.trace(cov_com)
             I_tensor = trace_cov * jnp.eye(3) - cov_com
 
-            return com, I_tensor, total_area
+            return com + origin, I_tensor, total_area
     else:
         if filled:
             Area = 0.5 * linalg.cross(A, B)[..., 0]
@@ -2736,7 +2740,7 @@ def _compute_single_mesh_properties(
             cov_com = total_cov - total_area * (com[:, None] * com[None, :])
 
             I_polar = jnp.trace(cov_com)
-            return com, I_polar, total_area
+            return com + origin, I_polar, total_area
         else:
             Length = linalg.norm(B - A)
             COM_seg = (A + B) / 2.0
@@ -2756,4 +2760,4 @@ def _compute_single_mesh_properties(
             cov_com = total_cov - total_len * (com[:, None] * com[None, :])
 
             I_polar = jnp.trace(cov_com)
-            return com, I_polar, total_len
+            return com + origin, I_polar, total_len

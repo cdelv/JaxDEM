@@ -26,6 +26,11 @@ class ForceModel(Factory, ABC):
     Concrete subclasses implement specific force and energy models, such as
     linear springs and Hertzian contacts.
 
+    Every law has the same :meth:`force` and :meth:`energy` signatures. A law
+    without pair memory returns its ``history`` argument unchanged and ignores
+    ``advance_history``; a law without velocity-dependent terms ignores
+    ``quasistatic``.
+
     Notes:
     ------
     - The :meth:`force` and :meth:`energy` methods must handle the case where
@@ -57,11 +62,11 @@ class ForceModel(Factory, ABC):
     def supports_analytical_energy_gradient(self) -> bool:
         """Whether force is the negative analytical gradient of ``energy``.
 
-        Translational components use center positions and rotational components
-        use the minimizer's incremental rotation coordinates. Force laws are
-        assumed to satisfy this contract by default. Laws that do not must
-        override this property with ``False``; they require an explicit target
-        for minimization.
+        Translational components use body-center positions and rotational
+        components use world angular increments. Force laws are assumed to
+        satisfy this contract by default. Laws that do not must override this
+        property with ``False``; value-based minimizers then differentiate
+        ``energy`` directly, with stored pair history held fixed.
         """
         return True
 
@@ -76,7 +81,7 @@ class ForceModel(Factory, ABC):
 
     @staticmethod
     @abstractmethod
-    @jax.jit
+    @jax.jit(static_argnames=("advance_history", "quasistatic"))
     def force(
         i: int,
         j: int,
@@ -86,6 +91,7 @@ class ForceModel(Factory, ABC):
         history: jax.Array,
         *,
         advance_history: bool = True,
+        quasistatic: bool = False,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
         """Compute the force and torque on particle :math:`i` from particle :math:`j`.
 
@@ -101,23 +107,40 @@ class ForceModel(Factory, ABC):
             Current state of the simulation.
         system : System
             Simulation system configuration.
+        history : jax.Array
+            Stored pair memory with trailing shape ``history_shape(dim)``.
+            Laws without memory return it unchanged.
+        advance_history : bool, optional
+            Advance the stored memory over this step. When false, the law
+            evaluates with the stored memory and returns it exactly.
+        quasistatic : bool, optional
+            No time passes during this evaluation. ``state.vel``,
+            ``state.ang_vel``, and the domain's image rates then encode a
+            finite displacement divided by ``system.dt`` (see
+            :func:`jaxdem.colliders.advance_history`). The law must switch
+            off every velocity-dependent force, and its memory update must
+            depend on velocity only through ``velocity * system.dt``, so the
+            result is independent of ``dt``.
 
         Returns
         -------
         Tuple[jax.Array, jax.Array, jax.Array]
-            ``(force, torque, history)``. The history output is unchanged for
-            stateless laws and when ``advance_history=False``.
+            ``(force, torque, history)``.
 
         """
         raise NotImplementedError
 
     @staticmethod
-    @abstractmethod
     @jax.jit
     def energy(
-        i: int, j: int, pos: jax.Array, state: State, system: System
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
     ) -> jax.Array:
-        """Compute the potential energy of the interaction between particle :math:`i` and particle :math:`j`.
+        """Compute the pair potential energy.
 
         Parameters
         ----------
@@ -131,6 +154,8 @@ class ForceModel(Factory, ABC):
             Current state of the simulation.
         system : System
             Simulation system configuration.
+        history : jax.Array
+            Stored pair memory. Laws without memory ignore it.
 
         Returns
         -------
@@ -139,7 +164,9 @@ class ForceModel(Factory, ABC):
             :math:`i` and :math:`j`.
 
         """
-        raise NotImplementedError
+        raise NotImplementedError(
+            f"{type(system.force_model).__name__} does not implement pair energy."
+        )
 
     def search_radii(self, state: State, system: System) -> jax.Array:
         """Return conservative radii for a single search snapshot.
@@ -189,7 +216,15 @@ class ForceModel(Factory, ABC):
         return ()
 
 
-from .cundall_strack import CundallStrackForce
+from .cundall_strack import (
+    CundallStrackContactData,
+    CundallStrackForce,
+    arithmetic_mean_friction,
+    geometric_mean_friction,
+    get_cundall_strack_contacts,
+    maximum_friction,
+    minimum_friction,
+)
 from .force_manager import ForceManager
 from .hertz import HertzianForce
 from .law_combiner import LawCombiner
@@ -201,6 +236,7 @@ from .wca_shifted import WCAShifted
 
 __all__ = [
     "WCA",
+    "CundallStrackContactData",
     "CundallStrackForce",
     "ForceManager",
     "ForceModel",
@@ -212,4 +248,9 @@ __all__ = [
     "WCAShifted",
     "SphereFacetSpringForce",
     "FacetFacetSpringForce",
+    "arithmetic_mean_friction",
+    "geometric_mean_friction",
+    "get_cundall_strack_contacts",
+    "maximum_friction",
+    "minimum_friction",
 ]

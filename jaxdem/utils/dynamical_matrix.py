@@ -16,7 +16,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from ._pair_candidates import _collect_pair_candidates
+from ._pair_candidates import _analysis_search_radii, _collect_pair_candidates
 
 if TYPE_CHECKING:
     from ..state import State
@@ -26,18 +26,32 @@ if TYPE_CHECKING:
 _HESSIAN_BATCH_SIZE = 128
 
 
-def _hessian_pairs(state: State, system: System) -> tuple[System, jax.Array, jax.Array]:
-    """Collect unique sphere pairs and their two directed interaction masks."""
-    system, pairs, valid, _ = _collect_pair_candidates(state, system)
-    directed = np.asarray(pairs)[np.asarray(valid)]
+def _hessian_pairs(
+    state: State, system: System
+) -> tuple[System, jax.Array, jax.Array, jax.Array]:
+    """Collect unique sphere pairs, their directed masks, and directed histories.
+
+    ``histories[m, 0]`` is the stored history of the directed pair
+    ``(i, j)`` and ``histories[m, 1]`` that of ``(j, i)``.
+    """
+    system, pairs, valid, history = _collect_pair_candidates(state, system)
+    keep = np.asarray(valid)
+    directed = np.asarray(pairs)[keep]
+    directed_history = np.asarray(history)[keep]
     pairs_np, inverse = np.unique(
         np.sort(directed, axis=1), axis=0, return_inverse=True
     )
+    inverse = np.asarray(inverse).reshape(-1)
+    reverse = (directed[:, 0] > directed[:, 1]).astype(int)
     directions = np.zeros((len(pairs_np), 2), dtype=bool)
-    directions[inverse, (directed[:, 0] > directed[:, 1]).astype(int)] = True
+    directions[inverse, reverse] = True
+    histories = np.zeros(
+        (len(pairs_np), 2) + directed_history.shape[1:], dtype=directed_history.dtype
+    )
+    histories[inverse, reverse] = directed_history
     pairs = jnp.asarray(pairs_np)
-    if len(pairs_np):
-        radii = system.force_model.search_radii(state, system)
+    radii = _analysis_search_radii(state, system) if len(pairs_np) else None
+    if radii is not None:
         i, j = pairs.T
         dr = system.domain.displacement(state.pos[i], state.pos[j], system)
         within_reach = np.asarray(
@@ -45,7 +59,8 @@ def _hessian_pairs(state: State, system: System) -> tuple[System, jax.Array, jax
         )
         pairs = pairs[within_reach]
         directions = directions[within_reach]
-    return system, pairs, jnp.asarray(directions)
+        histories = histories[within_reach]
+    return system, pairs, jnp.asarray(directions), jnp.asarray(histories)
 
 
 def _rotation_perturbation(omega: jax.Array, p_lab: jax.Array) -> jax.Array:
@@ -65,6 +80,7 @@ def _pair_hessian_block(
     system: System,
     pair: jax.Array,
     directions: jax.Array,
+    histories: jax.Array,
     clumps: bool,
 ) -> jax.Array:
     """Differentiate one unordered pair's contribution to total energy."""
@@ -80,8 +96,12 @@ def _pair_hessian_block(
             di = di + _rotation_perturbation(qi[dim:], state._pos_p_rot[i])
             dj = dj + _rotation_perturbation(qj[dim:], state._pos_p_rot[j])
         displaced = pos.at[i].add(di).at[j].add(dj)
-        forward = system.force_model.energy(i, j, displaced, state, system)
-        reverse = system.force_model.energy(j, i, displaced, state, system)
+        forward = system.force_model.energy(
+            i, j, displaced, state, system, histories[0]
+        )
+        reverse = system.force_model.energy(
+            j, i, displaced, state, system, histories[1]
+        )
         return 0.5 * (
             jnp.where(directions[0], forward, 0.0)
             + jnp.where(directions[1], reverse, 0.0)
@@ -96,6 +116,7 @@ def _pair_blocks(
     system: System,
     pairs: jax.Array,
     directions: jax.Array,
+    histories: jax.Array,
     *,
     clumps: bool,
 ) -> jax.Array:
@@ -103,8 +124,8 @@ def _pair_blocks(
     if not pairs.shape[0]:
         return jnp.empty((0, 2 * dof, 2 * dof), dtype=state.pos_c.dtype)
     return jax.lax.map(
-        lambda args: _pair_hessian_block(state, system, args[0], args[1], clumps),
-        (pairs, directions),
+        lambda args: _pair_hessian_block(state, system, *args, clumps),
+        (pairs, directions, histories),
         batch_size=min(pairs.shape[0], _HESSIAN_BATCH_SIZE),
     )
 
@@ -115,6 +136,7 @@ def _assemble_hessian(
     system: System,
     pairs: jax.Array,
     directions: jax.Array,
+    histories: jax.Array,
     *,
     clumps: bool,
     n_bodies: int,
@@ -127,28 +149,34 @@ def _assemble_hessian(
         return matrix
 
     def accumulate(
-        matrix: jax.Array, args: tuple[jax.Array, jax.Array]
+        matrix: jax.Array, args: tuple[jax.Array, jax.Array, jax.Array]
     ) -> tuple[jax.Array, None]:
-        pair_batch, direction_batch = args
+        pair_batch, direction_batch, history_batch = args
         blocks = jax.vmap(
-            lambda pair, mask: _pair_hessian_block(state, system, pair, mask, clumps)
-        )(pair_batch, direction_batch)
+            lambda pair, mask, hist: _pair_hessian_block(
+                state, system, pair, mask, hist, clumps
+            )
+        )(pair_batch, direction_batch, history_batch)
         bodies = state.clump_id[pair_batch] if clumps else pair_batch
         rows = (bodies[..., None] * dof + jnp.arange(dof)).reshape(-1, 2 * dof)
         return matrix.at[rows[:, :, None], rows[:, None, :]].add(blocks), None
 
     batch_size = min(n_pairs, _HESSIAN_BATCH_SIZE)
-    full = n_pairs // batch_size * batch_size
+    batches = n_pairs // batch_size
+    full = batches * batch_size
     matrix, _ = jax.lax.scan(
         accumulate,
         matrix,
         (
-            pairs[:full].reshape(-1, batch_size, 2),
-            directions[:full].reshape(-1, batch_size, 2),
+            pairs[:full].reshape(batches, batch_size, 2),
+            directions[:full].reshape(batches, batch_size, 2),
+            histories[:full].reshape(batches, batch_size, *histories.shape[1:]),
         ),
     )
     if full < n_pairs:
-        matrix, _ = accumulate(matrix, (pairs[full:], directions[full:]))
+        matrix, _ = accumulate(
+            matrix, (pairs[full:], directions[full:], histories[full:])
+        )
     return matrix
 
 
@@ -184,8 +212,8 @@ def pair_non_bonded_hessian(
     Collection is a host operation; differentiation runs in compiled batches.
     An incomplete collider search raises ValueError before differentiation.
     """
-    system, pairs, directions = _hessian_pairs(state, system)
-    blocks = _pair_blocks(state, system, pairs, directions, clumps=False)
+    system, pairs, directions, histories = _hessian_pairs(state, system)
+    blocks = _pair_blocks(state, system, pairs, directions, histories, clumps=False)
     return state, system, pairs, blocks
 
 
@@ -201,9 +229,9 @@ def non_bonded_hessian(state: State, system: System) -> tuple[State, System, jax
     Candidate collection runs on the host. Particle dynamics and contact
     history are unchanged. Incomplete searches raise ValueError.
     """
-    system, pairs, directions = _hessian_pairs(state, system)
+    system, pairs, directions, histories = _hessian_pairs(state, system)
     matrix = _assemble_hessian(
-        state, system, pairs, directions, clumps=False, n_bodies=state.N
+        state, system, pairs, directions, histories, clumps=False, n_bodies=state.N
     )
     return state, system, matrix
 
@@ -258,7 +286,7 @@ def clump_non_bonded_hessian(
     searches raise ValueError. See :func:`pair_non_bonded_hessian` for the
     directed energy weighting and inclusion of zero-force candidates.
     """
-    system, pairs, directions = _hessian_pairs(state, system)
+    system, pairs, directions, histories = _hessian_pairs(state, system)
     n_clumps = int(jnp.max(state.clump_id, initial=-1)) + 1
     scales = None
     if rotation_scale is not None:
@@ -270,7 +298,7 @@ def clump_non_bonded_hessian(
                 "rotation_scale must contain one positive finite length per clump ID."
             )
     matrix = _assemble_hessian(
-        state, system, pairs, directions, clumps=True, n_bodies=n_clumps
+        state, system, pairs, directions, histories, clumps=True, n_bodies=n_clumps
     )
     if scales is not None:
         dof = state.dim + state.ang_vel.shape[-1]
@@ -325,6 +353,8 @@ def zero_mode_mask(
         all-``False``.
     """
     e = jnp.asarray(eigenvalues)
+    if e.size < 2:
+        return jnp.zeros_like(e, dtype=bool)
     abs_e = jnp.abs(e)
     sorted_idx = jnp.argsort(abs_e)
     sorted_abs = abs_e[sorted_idx]

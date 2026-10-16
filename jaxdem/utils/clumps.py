@@ -208,8 +208,14 @@ def _union_properties_kernel(
 
     Returns ``(volume, mass, com, inertia, q, pos_p)`` with one leading
     clump axis.
+    Moments use a local origin for each body; only the returned COM is moved
+    back to the world frame.
     """
     n_clumps, nv, dim = pos.shape
+    # Accumulate moments near each body, avoiding cancellation of world-scale
+    # second moments when subtracting the center-of-mass contribution.
+    origin = pos[:, 0, :]
+    pos = pos - origin[:, None, :]
     n_batches = max(1, (n_samples + sample_batch_size - 1) // sample_batch_size)
     effective_samples = n_batches * sample_batch_size
     points_u = _generate_golden_lattice(effective_samples, dim=dim).reshape(
@@ -360,7 +366,7 @@ def _union_properties_kernel(
     quat = Quaternion(q[:, None, 0:1], q[:, None, 1:])
     pos_p = Quaternion.rotate_back(quat, pos - com[:, None, :])
 
-    return volume, total_mass, com, inertia, q, pos_p
+    return volume, total_mass, com + origin, inertia, q, pos_p
 
 
 def compute_clump_properties(

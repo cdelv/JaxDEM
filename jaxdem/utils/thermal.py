@@ -334,6 +334,18 @@ def compute_temperature(
     return jnp.where(n_dof > 0, 2 * ke / (k_B * n_dof), 0.0)
 
 
+def _validate_temperature(state: State, target_temperature: float, k_B: float) -> None:
+    """Reject invalid thermal setup before changing velocities."""
+    if not math.isfinite(target_temperature) or target_temperature < 0:
+        raise ValueError("`target_temperature` must be finite and nonnegative.")
+    if not math.isfinite(k_B) or k_B <= 0:
+        raise ValueError("`k_B` must be finite and positive.")
+    if state.pos_c.ndim != 2:
+        raise ValueError(
+            "Velocity scaling accepts one snapshot; use jax.vmap for stacked states."
+        )
+
+
 def set_temperature(
     state: State,
     target_temperature: float,
@@ -361,6 +373,7 @@ def set_temperature(
         Boltzmann constant (default is 1.0).
 
     """
+    _validate_temperature(state, target_temperature, k_B)
     state = _assign_random_velocities(state, subtract_drift, seed)
     return scale_to_temperature(
         state, target_temperature, can_rotate, subtract_drift, k_B
@@ -390,14 +403,7 @@ def scale_to_temperature(
     k_B : float, optional
         Boltzmann's constant (default is 1.0).
     """
-    if not math.isfinite(target_temperature) or target_temperature < 0:
-        raise ValueError("`target_temperature` must be finite and nonnegative.")
-    if not math.isfinite(k_B) or k_B <= 0:
-        raise ValueError("`k_B` must be finite and positive.")
-    if state.pos_c.ndim != 2:
-        raise ValueError(
-            "Velocity scaling accepts one snapshot; use jax.vmap for stacked states."
-        )
+    _validate_temperature(state, target_temperature, k_B)
     free = ~state.fixed
     if subtract_drift:
         count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]

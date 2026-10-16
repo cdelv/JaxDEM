@@ -61,12 +61,16 @@ def _save_state_system(state: State, system: System) -> tuple[State, System]:
 
 @jax.jit(inline=True)
 def _step_once(state: State, system: System) -> tuple[State, System]:
+    start_time, tentative_time = system.time, system.time + system.dt
     system = dataclasses.replace(
         system,
-        time=system.time + system.dt,
+        time=tentative_time,
         step_count=system.step_count + 1,
     )
     state, system = system.user_pre_step_actions(state, system)
+    system = dataclasses.replace(
+        system, time=start_time + system.dt + (system.time - tentative_time)
+    )
     state, system = system.domain.apply(state, system)
     system = dataclasses.replace(
         system,
@@ -234,7 +238,12 @@ class System:
     user_pre_step_actions: Callable[[State, System], tuple[State, System]] = (
         jax.tree.static(default=_save_state_system)
     )
-    """Function called before every step to perform user-defined actions."""
+    """Function called before every step to perform user-defined actions.
+
+    The callback sees the tentative end time using the entering dt. The
+    recorded end time uses the callback's dt; any callback change to time is
+    retained as an offset from the tentative end time.
+    """
 
     user_post_step_actions: Callable[[State, System], tuple[State, System]] = (
         jax.tree.static(default=_save_state_system)
@@ -584,29 +593,35 @@ class System:
             collider = Collider.create(collider_type, **collider_kw)
 
         history_shape = force_model.history_shape(state_shape[-1])
-        if history_shape != (0,) and not collider.supports_history:
-            force_name = type(force_model).__name__
-            collider_name = type(collider).__name__
-            raise ValueError(
-                f"Force model '{force_name}' has nonempty pair history "
-                f"{history_shape}, but collider '{collider_name}' cannot persist it."
-            )
-        if collider.supports_history:
+        pair_shape = collider.history_pair_shape(tuple(state_shape))
+        if pair_shape is None:
+            if history_shape != (0,):
+                force_name = type(force_model).__name__
+                collider_name = type(collider).__name__
+                raise ValueError(
+                    f"Force model '{force_name}' has nonempty pair history "
+                    f"{history_shape}, but collider '{collider_name}' cannot persist it."
+                )
+        else:
             from dataclasses import replace
 
-            pair_shape = tuple(state_shape[:-2]) + (
-                state_shape[-2] * cast(Any, collider).max_neighbors,
-            )
             expected_shape = pair_shape + history_shape
             history = cast(Any, collider).history
-            if history.shape == pair_shape + (0,) and history_shape != (0,):
+            if history.shape != expected_shape:
+                # A zero-width buffer for this pair shape, or an all-zero
+                # placeholder, is unallocated; anything else is a mismatch.
+                placeholder = history.size == 0 and (
+                    history.shape[: len(pair_shape)] == pair_shape
+                    or all(d == 0 for d in history.shape)
+                )
+                if not placeholder:
+                    raise ValueError(
+                        f"{type(collider).__name__} history has shape {history.shape}, "
+                        f"expected {expected_shape} for force model "
+                        f"'{type(force_model).__name__}'."
+                    )
                 history = force_model.init_history(pair_shape, state_shape[-1])
                 collider = replace(cast(Any, collider), history=history)
-            elif history.shape != expected_shape:
-                raise ValueError(
-                    f"NeighborList history has shape {history.shape}, expected "
-                    f"{expected_shape} for force model '{type(force_model).__name__}'."
-                )
 
         if domain is None:
             domain = Domain.create(domain_type, dim=dim, **domain_kw)
@@ -1048,13 +1063,18 @@ class System:
         max_steps: int = 10000,
         force_tol: float = 1e-12,
         torque_tol: float | None = None,
+        advance_history: bool = False,
     ) -> MinimizationResult:
-        """Relax until both free-body force and torque norms meet tolerance.
+        """Relax until both free-body residual norms meet tolerance.
 
         Returns an iterable four-value result with ``reason`` and ``info``
         diagnostics. Energy is reported per constituent sphere for the physical
-        objective. See :func:`jaxdem.minimizers.minimize` for convergence,
-        conservative force evaluation and optimizer behavior.
+        objective. Pair history is frozen unless ``advance_history=True``
+        requests displacement-driven updates after accepted optimizer steps.
+        Residuals are mechanical forces and torques for force-based relaxation,
+        or objective gradients for energies and targets differentiated by AD.
+        See :func:`jaxdem.minimizers.minimize` for convergence and optimizer
+        behavior.
         """
         from .minimizers import minimize
 
@@ -1064,6 +1084,7 @@ class System:
             max_steps=max_steps,
             force_tol=force_tol,
             torque_tol=torque_tol,
+            advance_history=advance_history,
         )
 
     def _serialize_force_functions(self) -> list[dict[str, Any]] | None:

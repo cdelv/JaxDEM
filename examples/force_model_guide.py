@@ -252,8 +252,19 @@ print("History advanced:", bool(jnp.any(history_system.collider.history != 0)))
 # when pair identities or the history layout changed and old values cannot be
 # mapped. Checkpoints retain pair history and continue the same trajectory.
 #
-# Energy support is separate from history. Cundall--Strack reports normal
-# elastic energy only: the energy API has no pair history, so it excludes
-# tangential stored energy and dissipative losses. Its
-# ``supports_analytical_energy_gradient`` is false; minimization needs an
-# explicit objective, and this value is not total mechanical energy.
+# Every law has the same signature: ``force(i, j, pos, state, system, history,
+# advance_history=, quasistatic=)`` returns ``(force, torque, history)`` and
+# ``energy(i, j, pos, state, system, history)`` returns a scalar. A stateless
+# law returns its history unchanged; a law with memory declares
+# ``history_shape`` and advances it. ``CundallStrackForce`` reports normal plus
+# tangential spring energy from the stored history. Dissipated work is not part
+# of the energy. The naive collider also stores history, densely as
+# ``history[i, j]``, which is the simplest choice for small frictional systems.
+#
+# Affine changes through ``domain.shear`` and ``domain.resize`` advance
+# displacement-dependent history with :func:`jaxdem.colliders.advance_history`.
+# Minimization freezes existing pair history by default. Opt in with
+# ``system.minimize(state, system, advance_history=True)`` to advance it after
+# accepted optimizer steps. This retains the stored spring
+# when updates are disabled; it does not reset frictional memory. Both modes
+# use ``quasistatic=True``, disabling velocity-dependent forces.

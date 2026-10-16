@@ -50,14 +50,6 @@ def main():
         from jaxdem.colliders import _neighbor_cache
 
         _neighbor_cache._SEARCH_BATCH_SIZE = a.search_batch
-    if a.row_width is not None:
-        from jaxdem.colliders import _neighbor_cache
-
-        _neighbor_cache._ROW_FORCE_UNROLL = a.row_width
-    if a.row_batch is not None:
-        from jaxdem.colliders import _neighbor_cache
-
-        _neighbor_cache._ROW_BATCH_SIZE = a.row_batch
     s, y = make_case(a.n, a.capacity, a.scenario)
     if a.collider != "NeighborList":
         y = replace(y, collider=jd.Collider.create(a.collider, state=s, cell_size=1.15))

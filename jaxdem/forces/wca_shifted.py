@@ -49,6 +49,7 @@ class WCAShifted(ForceModel):
         history: jax.Array,
         *,
         advance_history: bool = True,
+        quasistatic: bool = False,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
         mi, mj = state.mat_id[i], state.mat_id[j]
         eps = system.mat_table.epsilon_eff[mi, mj]
@@ -83,7 +84,12 @@ class WCAShifted(ForceModel):
     @jax.jit(inline=True)
     @partial(jax.named_call, name="WCAShifted.energy")
     def energy(
-        i: int, j: int, pos: jax.Array, state: State, system: System
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
     ) -> jax.Array:
         mi, mj = state.mat_id[i], state.mat_id[j]
         eps = system.mat_table.epsilon_eff[mi, mj]

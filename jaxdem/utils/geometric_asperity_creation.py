@@ -1299,7 +1299,7 @@ def generate_ga_deformable_state(
             raise ValueError(
                 f"plasticity_type={plasticity_type!r} requires tau_s to be provided"
             )
-        plastic_dp_kwargs = dict(
+        plastic_dp_kwargs: dict[str, Any] = dict(
             vertices=state.pos,
             elements=container.elements,
             edges=container.edges,

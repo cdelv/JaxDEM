@@ -90,6 +90,89 @@ def test_explicit_neighbor_capacity_is_exact(capacity):
     assert collider.history.shape == (state.N * capacity, 0)
 
 
+def test_naive_collider_stores_dense_history_and_advances_it():
+    state = jd.State.create(pos=jnp.array([[0.0, 0.0], [10.0, 0.0], [30.0, 0.0]]))
+    system = jd.System.create(
+        state=state, force_model=RememberingSpring(), collider_type="naive"
+    )
+    assert system.collider.history_pair_shape(state.pos.shape) == (3, 3)
+    assert system.collider.history.shape == (3, 3, 1)
+    np.testing.assert_array_equal(system.collider.history, 0.0)
+
+    # Initialization is read-only.
+    state, system = jd.System.initialize(state, system)
+    np.testing.assert_array_equal(system.collider.history, 0.0)
+
+    off_diagonal = ~np.eye(3, dtype=bool)
+    state, system = system.collider.compute_force(state, system)
+    history = np.asarray(system.collider.history)[..., 0]
+    np.testing.assert_array_equal(history[off_diagonal], 1.0)
+    np.testing.assert_array_equal(history[~off_diagonal], 0.0)
+
+    # Every pair keeps its slot no matter how far particles move.
+    moved = replace(
+        state,
+        pos_c=state.pos_c + jnp.array([[100.0, 0.0], [-200.0, 0.0], [300.0, 0.0]]),
+    )
+    _, system = system.collider.compute_force(moved, system)
+    history = np.asarray(system.collider.history)[..., 0]
+    np.testing.assert_array_equal(history[off_diagonal], 2.0)
+    assert system.collider.invalidate() is system.collider
+
+    query = jnp.array([[1, 2], [0, -1], [-1, -1]])
+    queried = system.collider.get_history(moved, system, query)
+    np.testing.assert_array_equal(queried[..., 0], [[2.0, 2.0], [2.0, 0.0], [0.0, 0.0]])
+
+
+def test_naive_stateless_law_keeps_zero_width_history():
+    state = jd.State.create(pos=jnp.array([[0.0, 0.0], [0.3, 0.0]]))
+    system = jd.System.create(state=state, collider_type="naive")
+    assert system.collider.history.shape == (2, 2, 0)
+    state, system = jd.System.initialize(state, system)
+    _, system = jd.System.step(state, system)
+    assert system.collider.history.shape == (2, 2, 0)
+
+
+def test_refresh_naive_history_for_new_particle_count():
+    state = jd.State.create(pos=jnp.zeros((2, 2)))
+    law = SeededSpring()
+    system = jd.System.create(state=state, force_model=law, collider_type="naive")
+    np.testing.assert_array_equal(system.collider.history, 7.0)
+    larger = jd.State.create(pos=jnp.zeros((4, 2)))
+    refreshed = jd.colliders.refresh_collider(larger, system.collider, law)
+    assert refreshed.history.shape == (4, 4, 1)
+    np.testing.assert_array_equal(refreshed.history, 7.0)
+    same = jd.colliders.refresh_collider(state, system.collider, law)
+    assert same is system.collider
+
+
+def test_naive_history_checkpoint_continues_exactly(tmp_path):
+    state = replace(
+        jd.State.create(pos=jnp.array([[0.0, 0.0], [0.3, 0.0]])),
+        fixed=jnp.ones(2, dtype=bool),
+    )
+    system = jd.System.create(
+        state=state, force_model=RememberingSpring(), collider_type="naive"
+    )
+    state, system = jd.System.initialize(state, system)
+    state, system = jd.System.step(state, system)
+
+    checkpoint_dir = tmp_path / "naive-history"
+    with jd.CheckpointWriter(checkpoint_dir) as writer:
+        writer.save(state, system)
+    restored_state, restored_system = jd.CheckpointLoader(checkpoint_dir).load()
+
+    np.testing.assert_array_equal(
+        restored_system.collider.history, system.collider.history
+    )
+    expected = jd.System.step(state, system)
+    actual = jd.System.step(restored_state, restored_system)
+    for expected_leaf, actual_leaf in zip(
+        jax.tree.leaves(expected), jax.tree.leaves(actual), strict=True
+    ):
+        np.testing.assert_array_equal(actual_leaf, expected_leaf)
+
+
 @jax.tree_util.register_dataclass
 @jd.ForceModel.register("remembering-spring-test")
 @dataclass(slots=True)
@@ -98,9 +181,11 @@ class RememberingSpring(jd.forces.SpringForce):
         return (1,)
 
     @staticmethod
-    def force(i, j, pos, state, system, history, *, advance_history=True):
+    def force(
+        i, j, pos, state, system, history, *, advance_history=True, quasistatic=False
+    ):
         force, torque, _ = jd.forces.SpringForce.force(
-            i, j, pos, state, system, history, advance_history=advance_history
+            i, j, pos, state, system, history
         )
         return force, torque, history + advance_history
 
@@ -115,9 +200,11 @@ class SeededSpring(jd.forces.SpringForce):
         return jnp.full(pair_shape + (1,), 7.0)
 
     @staticmethod
-    def force(i, j, pos, state, system, history, *, advance_history=True):
+    def force(
+        i, j, pos, state, system, history, *, advance_history=True, quasistatic=False
+    ):
         force, torque, _ = jd.forces.SpringForce.force(
-            i, j, pos, state, system, history, advance_history=advance_history
+            i, j, pos, state, system, history
         )
         scale = history[..., 0, None]
         return force * scale, torque * scale, history

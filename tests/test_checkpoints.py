@@ -1187,6 +1187,7 @@ class TestSystemMeta:
                 "box_size": jnp.array([7.0, 8.0, 9.0]),
                 "anchor": jnp.array([-1.0, -2.0, -3.0]),
                 "gamma": 0.375,
+                "gamma_dot": 0.125,
                 "alpha": 2,
                 "beta": 0,
             },
@@ -1197,6 +1198,7 @@ class TestSystemMeta:
 
         assert system_r.domain.alpha == 2
         assert system_r.domain.beta == 0
+        assert jnp.array_equal(system_r.domain.gamma_dot, system.domain.gamma_dot)
         assert system_r.user_pre_step_actions is advance_shear_before_step
         assert system_r.user_post_step_actions is mark_after_step
         state_a, system_a = system.step(state, system)
