@@ -153,7 +153,8 @@ class VelocityVerletRescaling(VelocityVerlet):
         n_dof = (n_dof_v - dim * integrator.subtract_drift) + n_dof_w * can_rot
 
         T_current = 2.0 * ke_total / (integrator.k_B * jnp.maximum(n_dof, 1.0))
-        scale = jnp.sqrt(integrator.temperature / jnp.maximum(T_current, 1e-30))
+        safe_temperature = jnp.where(T_current > 0.0, T_current, 1.0)
+        scale = jnp.sqrt(integrator.temperature / safe_temperature)
         scale = jnp.where(should_rescale, scale, 1.0)[..., None, None]
 
         state.vel = jnp.where(free, state.vel * scale, state.vel)
