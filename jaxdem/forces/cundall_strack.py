@@ -12,6 +12,7 @@ import jax
 import jax.numpy as jnp
 
 from ..utils.linalg import cross, dot, norm, norm2, unit, unit_and_norm
+from ..utils.linalg import harmonic_mean as _harmonic_mean
 from . import ForceModel
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -96,15 +97,7 @@ def arithmetic_mean_friction(mu_i: jax.Array, mu_j: jax.Array) -> jax.Array:
 
 def geometric_mean_friction(mu_i: jax.Array, mu_j: jax.Array) -> jax.Array:
     """Mix sliding-friction coefficients with their geometric mean."""
-    return jnp.sqrt(mu_i * mu_j)
-
-
-def _harmonic_mean(value_i: jax.Array, value_j: jax.Array) -> jax.Array:
-    """Return a zero-safe harmonic mean that preserves equal inputs."""
-    is_zero = (value_i == 0.0) | (value_j == 0.0)
-    safe_i = jnp.where(is_zero, 1.0, value_i)
-    safe_j = jnp.where(is_zero, 1.0, value_j)
-    return jnp.where(is_zero, 0.0, 2.0 * safe_i * safe_j / (safe_i + safe_j))
+    return jnp.sqrt(mu_i) * jnp.sqrt(mu_j)
 
 
 def _rotate_about_axis(v: jax.Array, axis: jax.Array, angle: jax.Array) -> jax.Array:
@@ -208,13 +201,15 @@ def _contact_response_with_coefficients(
     Ft_trial = -kt[..., None] * xi_eval - gamma_t[..., None] * vt_vec
     Ft_norm = norm(Ft_trial)
     Ft_max = mu_ij * Fn
-    Ft = Ft_trial * jnp.minimum(1.0, Ft_max / jnp.maximum(Ft_norm, 1e-30))[..., None]
+    safe_norm = jnp.where(Ft_norm > 0.0, Ft_norm, 1.0)
+    Ft = Ft_trial * jnp.minimum(1.0, Ft_max / safe_norm)[..., None]
     Ft *= is_contact[..., None]
 
     # Return-map the spring at sliding contacts so stored displacement
     # cannot wind up beyond the Coulomb surface.
-    xi_returned = -(Ft + gamma_t[..., None] * vt_vec) / jnp.maximum(
-        kt[..., None], 1e-30
+    safe_kt = jnp.where(kt > 0.0, kt, 1.0)[..., None]
+    xi_returned = jnp.where(
+        kt[..., None] > 0.0, -(Ft + gamma_t[..., None] * vt_vec) / safe_kt, 0.0
     )
     sliding = Ft_norm > Ft_max
     mobilized = is_contact & (Ft_norm > 0.0) & (Ft_norm >= Ft_max)

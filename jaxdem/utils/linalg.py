@@ -11,6 +11,21 @@ import jax.numpy as jnp
 
 
 @jax.jit(inline=True)
+@partial(jax.named_call, name="utils.harmonic_mean")
+def harmonic_mean(a: jax.Array, b: jax.Array) -> jax.Array:
+    """Return ``2*a*b/(a+b)`` without dimensionful products; both zero gives zero."""
+    zero = (a == 0.0) & (b == 0.0)
+    small = jnp.where(jnp.abs(a) < jnp.abs(b), a, b)
+    large = jnp.where(jnp.abs(a) < jnp.abs(b), b, a)
+    small = jnp.where(zero, 1.0, small)
+    large = jnp.where(zero, 1.0, large)
+    # Power-of-two scaling keeps both the ratio and its derivatives in range.
+    mantissa, exponent = jnp.frexp(large)
+    ratio = jnp.ldexp(small, -exponent) / mantissa
+    return jnp.where(zero, 0.0, small / (0.5 + 0.5 * ratio))
+
+
+@jax.jit(inline=True)
 @partial(jax.named_call, name="utils.cross")
 def cross(a: jax.Array, b: jax.Array) -> jax.Array:
     r"""Computes the cross product of two vectors, 'a' and 'b', along their last axis.

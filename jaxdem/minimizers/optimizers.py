@@ -312,12 +312,12 @@ def fire(
         v_half = jax.tree.map(lambda vt, f: vt + f * new_dt / 2.0, v_temp, F)
 
         def normalize(x: jax.Array) -> jax.Array:
-            return optax.safe_norm(x, min_norm=1e-16, axis=-1, keepdims=True)
+            return optax.safe_norm(x, min_norm=0.0, axis=-1, keepdims=True)
 
         v_half_norm = jax.tree.map(normalize, v_half)
         F_norm = jax.tree.map(normalize, F)
         mixing_ratio = jax.tree.map(
-            lambda fn, vn: jnp.where(fn > 1e-16, vn / fn * new_alpha, 0.0),
+            lambda fn, vn: vn / jnp.where(fn > 0.0, fn, 1.0) * new_alpha,
             F_norm,
             v_half_norm,
         )
