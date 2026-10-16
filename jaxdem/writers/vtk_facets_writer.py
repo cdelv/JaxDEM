@@ -32,6 +32,7 @@ class VTKFacetsWriter(VTKBaseWriter):
     expands each 3-vertex facet into a convex-hull triangle mesh, or a
     flat prism when the hull is not available. It also attaches per-vertex
     :class:`State` fields and quaternion components as ``PointData`` arrays.
+    Each expanded point inherits the fields of its source vertex.
     """
 
     @classmethod
@@ -113,7 +114,9 @@ class VTKFacetsWriter(VTKBaseWriter):
                     ordered_pts = pts[hull.vertices]
                     new_pos.extend(ordered_pts)
                     new_thick.extend([t] * len(ordered_pts))
-                    point_source_idx.extend([idx[0]] * len(ordered_pts))
+                    point_source_idx.extend(
+                        np.repeat(idx, len(circle_pts))[hull.vertices]
+                    )
 
                     poly_cell = vtk.vtkPolygon()
                     poly_cell.GetPointIds().SetNumberOfIds(len(ordered_pts))
@@ -125,14 +128,15 @@ class VTKFacetsWriter(VTKBaseWriter):
                     # Fallback to simple quad
                     dx = p1[0] - p0[0]
                     dy = p1[1] - p0[1]
-                    L = np.sqrt(dx * dx + dy * dy) + 1e-12
+                    L = np.hypot(dx, dy)
+                    L = np.where(L > 0, L, 1.0)
                     nx, ny = -dy / L, dx / L
                     n = np.array([nx, ny])
                     new_pos.extend(
                         [p0 + n * t / 2, p1 + n * t / 2, p1 - n * t / 2, p0 - n * t / 2]
                     )
                     new_thick.extend([t] * 4)
-                    point_source_idx.extend([idx[0]] * 4)
+                    point_source_idx.extend(idx[[0, 1, 1, 0]])
                     quad = vtk.vtkQuad()
                     quad.GetPointIds().SetId(0, pt_idx)
                     quad.GetPointIds().SetId(1, pt_idx + 1)
@@ -154,7 +158,7 @@ class VTKFacetsWriter(VTKBaseWriter):
                     hull = ConvexHull(pts, qhull_options="QJ")
                     new_pos.extend(pts)
                     new_thick.extend([t] * len(pts))
-                    point_source_idx.extend([idx[0]] * len(pts))
+                    point_source_idx.extend(np.repeat(idx, len(sphere_pts)))
 
                     for simplex in hull.simplices:
                         tri = vtk.vtkTriangle()
@@ -168,7 +172,8 @@ class VTKFacetsWriter(VTKBaseWriter):
                     v1 = p1 - p0
                     v2 = p2 - p0
                     n = np.cross(v1, v2)
-                    n = n / (np.linalg.norm(n) + 1e-12)
+                    length = np.linalg.norm(n)
+                    n = n / np.where(length > 0, length, 1.0)
                     new_pos.extend(
                         [
                             p0 + n * t / 2,
@@ -180,7 +185,7 @@ class VTKFacetsWriter(VTKBaseWriter):
                         ]
                     )
                     new_thick.extend([t] * 6)
-                    point_source_idx.extend([idx[0]] * 6)
+                    point_source_idx.extend(np.tile(idx, 2))
 
                     tri1 = vtk.vtkTriangle()
                     tri1.GetPointIds().SetId(0, pt_idx)
