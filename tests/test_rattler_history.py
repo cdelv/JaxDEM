@@ -10,7 +10,6 @@ import numpy as np
 import pytest
 
 import jaxdem as jd
-from jaxdem.colliders._neighbor_cache import pair_sources
 from jaxdem.utils.contacts import remove_rattlers
 
 
@@ -92,17 +91,27 @@ def _system(dim=2, backend="naive", law=None, *, clumps=False, initialized=True)
 def _pairs(state, system):
     col = system.collider
     valid = col.neighbor_list >= 0
-    src, dst = pair_sources(col)[valid], col.neighbor_list[valid]
+    src = jnp.array(
+        [
+            i
+            for i in range(state.N)
+            for _ in range(int(col.row_offsets[i]), int(col.row_offsets[i + 1]))
+        ],
+        dtype=int,
+    )
+    dst = col.neighbor_list[valid]
     history = col.history[valid]
     force, torque, _ = jax.vmap(
         lambda i, j, h: system.force_model.force(
             i, j, state.pos, state, system, h, advance_history=False
         )
     )(src, dst, history)
-    return {
+    result = {
         (int(i), int(j)): (np.asarray(h), np.asarray(f), np.asarray(t))
         for i, j, h, f, t in zip(src, dst, history, force, torque)
     }
+    assert len(result) == len(src)
+    return result
 
 
 def _assert_preserved(before, state, system, kept):
@@ -160,6 +169,17 @@ def test_nonvector_and_composite_history_survives_removal(composition):
     elif composition == "router":
         law = jd.ForceRouter.from_dict(1, {(0, 0): law})
     state, system = _system(law=law)
+    col = system.collider
+    history = np.asarray(col.history).copy()
+    for i in range(state.N):
+        for slot in range(int(col.row_offsets[i]), int(col.row_offsets[i + 1])):
+            j = int(col.neighbor_list[slot])
+            payload = 100 * i + 10 * j + np.arange(1.0, 5.0)
+            if composition == "matrix":
+                history[slot] = payload.reshape(2, 2)
+            else:
+                history[slot, -4:] = payload
+    system = replace(system, collider=replace(col, history=jnp.asarray(history)))
     before = _pairs(state, system)
 
     reduced, updated = remove_rattlers(state, system, jnp.array([0, 2, 5]))

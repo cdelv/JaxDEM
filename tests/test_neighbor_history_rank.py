@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import jaxdem as jd
@@ -98,6 +99,8 @@ def _case(force_model, capacity):
     for _ in force_model.history_shape(state.dim):
         values = values[..., None]
     history = history + values
+    if force_model.history_shape(state.dim) == (2, 2):
+        history = history + jnp.arange(4).reshape(2, 2)
     collider = replace(
         system.collider, neighbor_list=neighbors, row_offsets=offsets, history=history
     )
@@ -127,5 +130,11 @@ def test_neighbor_history_supports_arbitrary_payload_rank(
 
     assert updated_system.collider.history.shape == history.shape
     assert jnp.array_equal(updated_system.collider.history, expected)
-    assert jnp.all(jnp.isfinite(result.force))
-    assert jnp.all(jnp.isfinite(result.torque))
+    force = np.zeros((3, 2))
+    if capacity:
+        coefficient = np.asarray(history[:2])
+        if coefficient.ndim == 3:
+            coefficient = coefficient[:, 0, 0]
+        force[:2] = np.diff(np.asarray(state.pos), axis=0) * coefficient[:, None]
+    np.testing.assert_allclose(result.force, force, rtol=2e-6, atol=1e-7)
+    np.testing.assert_array_equal(result.torque, np.zeros((3, 1)))

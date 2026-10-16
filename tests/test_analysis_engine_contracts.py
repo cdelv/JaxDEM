@@ -2,8 +2,14 @@ from __future__ import annotations
 
 import jax.numpy as jnp
 import numpy as np
+import pytest
 
-from jaxdem.analysis import BinSpec, TimeBins, clear_jit_cache, evaluate_binned
+from jaxdem.analysis import (
+    BinSpec,
+    LagBinsExact,
+    clear_jit_cache,
+    evaluate_binned,
+)
 from jaxdem.analysis import engine
 
 
@@ -36,17 +42,28 @@ class OverBudgetBins(BinSpec):
         raise AssertionError("budget must reject before enumeration")
 
 
-def test_chunked_analysis_matches_single_shot_for_many_pairs():
-    arrays = {"x": jnp.arange(2001, dtype=float)}
-    bins = TimeBins(2001)
+@pytest.mark.parametrize("jit", [False, True])
+@pytest.mark.parametrize("chunk_size", [None, 7])
+def test_chunked_analysis_matches_quadratic_displacements(jit, chunk_size):
+    # For x(t)=t^2, the displacement sum at lag l is l*(T-l)*(T-1).
+    frames, lags = 23, np.array([1, 3, 8])
+    arrays = {"x": jnp.arange(frames, dtype=float) ** 2}
+    bins = LagBinsExact(frames, lags)
 
-    single = evaluate_binned(displacement, arrays, bins, jit=False)
-    chunked = evaluate_binned(displacement, arrays, bins, jit=False, chunk_size=37)
+    def kernel(values, i, j):
+        delta = displacement(values, i, j)
+        return {"delta": delta, "vector": jnp.stack([delta, -2 * delta], axis=-1)}
 
-    np.testing.assert_array_equal(chunked.counts, single.counts)
-    np.testing.assert_allclose(chunked.sums, single.sums)
-    np.testing.assert_allclose(chunked.mean, single.mean)
-    assert chunked.pairs.pair_i.shape == (2001,)
+    result = evaluate_binned(kernel, arrays, bins, jit=jit, chunk_size=chunk_size)
+    counts = frames - lags
+    sums = lags * counts * (frames - 1)
+    np.testing.assert_array_equal(result.counts, counts)
+    np.testing.assert_allclose(result.sums["delta"], sums)
+    np.testing.assert_allclose(result.mean["delta"], lags * (frames - 1))
+    np.testing.assert_allclose(
+        result.sums["vector"], np.stack([sums, -2 * sums], axis=-1)
+    )
+    assert result.pairs.pair_i.size == counts.sum()
 
 
 def test_empty_pairs_preserve_kernel_output_tree_and_bin_shapes():
@@ -66,10 +83,18 @@ def test_empty_pairs_preserve_kernel_output_tree_and_bin_shapes():
 def test_analysis_jit_cache_is_bounded_and_explicitly_clearable():
     clear_jit_cache()
     arrays = {"x": jnp.arange(2.0)}
-    bins = TimeBins(2)
+    bins = LagBinsExact(2, [1])
     for scale in range(engine._JIT_CACHE_MAXSIZE + 5):
-        evaluate_binned(displacement, arrays, bins, kernel_kwargs={"scale": scale})
+        result = evaluate_binned(
+            displacement, arrays, bins, kernel_kwargs={"scale": scale}
+        )
+        np.testing.assert_allclose(result.sums, [scale])
+        np.testing.assert_allclose(result.mean, [scale])
     assert len(engine._JIT_CACHE) == engine._JIT_CACHE_MAXSIZE
+    np.testing.assert_allclose(
+        evaluate_binned(displacement, arrays, bins, kernel_kwargs={"scale": 1}).sums,
+        [1],
+    )
     clear_jit_cache()
     assert not engine._JIT_CACHE
 

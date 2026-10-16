@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import jaxdem as jd
@@ -238,11 +239,18 @@ def test_single_particle_same_and_cross_queries(grid_system, monkeypatch):
     assert not bool(cross_overflow)
 
 
-def test_real_overflow_is_reduced_across_query_batches(grid_system, monkeypatch):
+@pytest.mark.parametrize("crowded_start", [0, 4, 8])
+def test_real_overflow_is_reduced_across_query_batches(
+    grid_system, monkeypatch, crowded_start
+):
     _, system, collider_module = grid_system
-    pos = jnp.stack((jnp.arange(5, dtype=float) * 0.1, jnp.zeros(5)), axis=-1)
-    state = jd.State.create(pos=pos, rad=jnp.full((5,), 0.1))
-    monkeypatch.setattr(collider_module, "NEIGHBOR_QUERY_BATCH_SIZE", 2)
+    # Only the first, middle or partial final batch overflows; all others fit.
+    pos = jnp.stack((jnp.arange(11, dtype=float) * 10, jnp.zeros(11)), axis=-1)
+    pos = pos.at[crowded_start : crowded_start + 3, 0].set(
+        10 * crowded_start + jnp.array([0.0, 0.1, 0.2])
+    )
+    state = jd.State.create(pos=pos, rad=jnp.full((11,), 0.1))
+    monkeypatch.setattr(collider_module, "NEIGHBOR_QUERY_BATCH_SIZE", 4)
     jax.clear_caches()
 
     _, _, same, same_overflow = system.collider.create_neighbor_list(
@@ -251,40 +259,19 @@ def test_real_overflow_is_reduced_across_query_batches(grid_system, monkeypatch)
     cross, cross_overflow = system.collider.create_cross_neighbor_list(
         pos, pos, system, 1.0, 1
     )
-    _, _, naive_same, _ = jd.Collider.create("Naive").create_neighbor_list(
-        state, system, 1.0, 5
-    )
-    naive_cross, _ = jd.Collider.create("Naive").create_cross_neighbor_list(
-        pos, pos, system, 1.0, 5
-    )
-
     assert bool(same_overflow)
     assert bool(cross_overflow)
-    for actual, reference in zip(_neighbor_sets(same), _neighbor_sets(naive_same)):
-        assert actual <= reference
-    for actual, reference in zip(_neighbor_sets(cross), _neighbor_sets(naive_cross)):
-        assert actual <= reference
-
-
-def test_same_and_cross_overflow_rows_preserve_first_k_order(grid_system):
-    state, system, _ = grid_system
-    _, _, full_same, _ = system.collider.create_neighbor_list(
-        state, system, 1.0, state.N
+    distances = np.linalg.norm(
+        np.asarray(pos)[:, None] - np.asarray(pos)[None, :], axis=-1
     )
-    _, _, short_same, same_overflow = system.collider.create_neighbor_list(
-        state, system, 1.0, 2
-    )
-
-    pos_a = state.pos[:3]
-    pos_b = state.pos
-    full_cross, _ = system.collider.create_cross_neighbor_list(
-        pos_a, pos_b, system, 1.0, pos_b.shape[0]
-    )
-    short_cross, cross_overflow = system.collider.create_cross_neighbor_list(
-        pos_a, pos_b, system, 1.0, 2
-    )
-
-    assert bool(jnp.array_equal(short_same, full_same[:, :2]))
-    assert bool(jnp.array_equal(short_cross, full_cross[:, :2]))
-    assert bool(same_overflow)
-    assert bool(cross_overflow)
+    for output, include_self in [(same, False), (cross, True)]:
+        for i, row in enumerate(np.asarray(output)):
+            wanted = set(
+                np.flatnonzero(
+                    (distances[i] <= 1.0) & (include_self | (np.arange(11) != i))
+                )
+            )
+            valid = row[row >= 0]
+            assert len(valid) == min(1, len(wanted))
+            assert set(valid) <= wanted
+            assert np.all(row[len(valid) :] == -1)

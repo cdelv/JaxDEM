@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import threading
-import time
 from types import SimpleNamespace
 from typing import Any
 
@@ -121,24 +120,51 @@ def test_submit_after_close_is_rejected_without_queue_hang(tmp_path: Any) -> Non
     writer.block_until_ready()
 
 
-def test_submit_racing_close_finishes_every_accepted_task(tmp_path: Any) -> None:
-    writer = BaseAsyncWriter(directory=tmp_path, max_workers=2, max_queue_size=1)
+def test_submit_racing_close_finishes_every_accepted_task(
+    tmp_path: Any, monkeypatch
+) -> None:
+    writer = BaseAsyncWriter(directory=tmp_path, max_workers=1, max_queue_size=1)
     accepted: list[int] = []
+    executed: list[int] = []
+    started, release, blocked = threading.Event(), threading.Event(), threading.Event()
+
+    def task(value):
+        if value == 0:
+            started.set()
+            assert release.wait(timeout=5.0)
+        executed.append(value)
+
+    original_put = writer._queue.put
+
+    def observed_put(item):
+        if item is not None and item[1] == (2,):
+            blocked.set()  # Third submission holds the lifecycle lock at a full queue.
+        return original_put(item)
+
+    monkeypatch.setattr(writer._queue, "put", observed_put)
 
     def producer() -> None:
         for value in range(100):
             try:
-                writer.submit(accepted.append, value)
+                writer.submit(task, value)
+                accepted.append(value)
             except RuntimeError:
                 return
 
     thread = threading.Thread(target=producer)
     thread.start()
-    time.sleep(0.001)
-    writer.close()
-    thread.join(timeout=2.0)
-    assert not thread.is_alive()
-    assert accepted == list(range(len(accepted)))
+    assert started.wait(timeout=5.0) and blocked.wait(timeout=5.0)
+    closer = threading.Thread(target=writer.close)
+    closer.start()
+    release.set()
+    thread.join(timeout=5.0)
+    closer.join(timeout=5.0)
+    assert not thread.is_alive() and not closer.is_alive()
+    assert len(accepted) >= 3
+    assert sorted(executed) == sorted(accepted)
+    assert len(set(executed)) == len(executed)
+    with pytest.raises(RuntimeError, match="closed"):
+        writer.submit(task, 100)
 
 
 def test_clean_is_opt_in_and_protects_working_directory(

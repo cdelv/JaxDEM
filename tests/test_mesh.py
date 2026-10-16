@@ -2,13 +2,10 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Tests for mesh and facet creation functions."""
 
-import jax
 import jax.numpy as jnp
 import numpy as np
 
 import jaxdem as jdem
-
-jax.config.update("jax_enable_x64", True)
 
 
 def test_add_facet_with_safety_factor():
@@ -82,6 +79,29 @@ def test_add_mesh_rigid_and_flexible():
     inertia_hollow = state_hollow.inertia[0]
     assert not np.allclose(inertia_rigid, inertia_hollow)
 
+    # Uniform solid right tetrahedron: V=1/6, COM=(1/4,1/4,1/4),
+    # covariance diag=3/80, offdiag=-1/80. Reconstruct the world tensor
+    # independently of the production quaternion helpers/eigenvector ordering.
+    np.testing.assert_allclose(com_rigid, [0.25] * 3, atol=2e-7)
+    np.testing.assert_allclose(state_rigid.volume, 1 / 6, rtol=2e-6)
+    xyz = np.asarray(state_rigid.q.xyz[0])
+    w = float(state_rigid.q.w[0, 0])
+    x, y, z = xyz
+    skew = np.array([[0, -z, y], [z, 0, -x], [-y, x, 0]])
+    rotation = np.eye(3) + 2 * w * skew + 2 * skew @ skew
+    from jaxdem.state import INERTIA_REGULARIZATION
+
+    moments = np.asarray(inertia_rigid) - 4 * INERTIA_REGULARIZATION
+    expected_tensor = 4 * (np.eye(3) / 16 + np.ones((3, 3)) / 80)
+    np.testing.assert_allclose(
+        rotation @ np.diag(moments) @ rotation.T, expected_tensor, rtol=2e-6, atol=2e-7
+    )
+    np.testing.assert_allclose(
+        state_rigid.pos,
+        np.asarray(vertices)[np.asarray(faces)].reshape(-1, 3),
+        atol=2e-6,
+    )
+
     # Flexible mesh
     state_flex = jdem.State.add_mesh(
         state, vertices, faces, thickness=0.1, rigid=False, mass=4.0
@@ -93,156 +113,93 @@ def test_add_mesh_rigid_and_flexible():
 
 def test_rigid_icosahedron():
     from jaxdem.utils.meshes import _icosahedron_faces, _icosahedron_vertices
+    from jaxdem.state import INERTIA_REGULARIZATION
 
-    # 1. Create a rigid icosahedron
-    state = jdem.State.create()
-    vertices = _icosahedron_vertices() * 2.0  # radius 2
-    faces = _icosahedron_faces()
-
-    key = jax.random.PRNGKey(42)
-    key_v, key_w = jax.random.split(key)
-    vel = jax.random.uniform(key_v, (3,), minval=-5.0, maxval=5.0)
-    ang_vel = jax.random.uniform(key_w, (3,), minval=-2.0, maxval=2.0)
-
-    # 1.1 First check inertia
+    vertices = np.asarray(_icosahedron_vertices()) * 2
+    velocity = np.array([0.2, -0.3, 0.1])
     state = jdem.State.add_mesh(
-        state,
+        jdem.State.create(),
         vertices,
-        faces,
+        _icosahedron_faces(),
         rigid=True,
         filled=True,
         mass=10.0,
-        vel=vel,
-        ang_vel=ang_vel,
+        vel=jnp.asarray(velocity),
+        ang_vel=jnp.array([0.0, 0.0, 1.0]),
     )
-
-    # From Monte Carlo and volume/density scaling:
-    # V ~ 20.289, unit_density_inertia ~ 23.491
-    # Expected I = 10.0 * 23.491 / 20.289 = ~11.5787
-    expected_inertia = 11.578708763999668
-
-    computed_inertia = state.inertia[0, 0]  # principal inertia
-    np.testing.assert_allclose(computed_inertia, expected_inertia, rtol=1e-3)
-
-    # 1.2 Add reflective box and random velocity
+    # Solid regular icosahedron: I=M*a^2*(3+sqrt(5))/20, R=2.
+    phi = (1 + np.sqrt(5)) / 2
+    edge_squared = 16 / (1 + phi**2)
+    expected_inertia = 10 * edge_squared * (3 + np.sqrt(5)) / 20
+    np.testing.assert_allclose(
+        state.inertia, expected_inertia + 10 * INERTIA_REGULARIZATION, rtol=2e-6
+    )
+    before = np.asarray(state.pos)
+    center = np.asarray(state.pos_c[0])
     system = jdem.System.create(
-        state.shape,
-        domain_type="reflect",
-        collider_type="naive",
-        dt=0.001,
-        domain_kw={
-            "box_size": jnp.array([10.0, 10.0, 10.0]),
-            "anchor": jnp.array([-2.0, -2.0, -2.0]),
-        },
+        state=state,
+        dt=0.01,
+        collider_type="",
+        domain_type="free",
         linear_integrator_type="verlet",
         rotation_integrator_type="verletspiral",
     )
-
-    # Let it bounce around
-    state, system = system.step(state, system, n=50000)
-
-    # 1.3 Check that vertices still represent the icosahedron correctly
-    num_mesh_vertices = len(faces) * 3
-
-    # In JaxDEM, rigid clump slave particles store their relative positions in pos_p.
-    # The distance from the center of mass is simply the norm of pos_p.
-    distances = jnp.linalg.norm(state.pos_p[:num_mesh_vertices], axis=-1)
-
-    np.testing.assert_allclose(distances, 2.0, atol=1e-5)
+    state, system = jdem.System.initialize(state, system)
+    final, _ = jdem.System.step(state, system, n=4)
+    theta = 0.04
+    rotation = np.array(
+        [
+            [np.cos(theta), -np.sin(theta), 0],
+            [np.sin(theta), np.cos(theta), 0],
+            [0, 0, 1],
+        ]
+    )
+    expected = center + theta * velocity + (before - center) @ rotation.T
+    np.testing.assert_allclose(final.pos, expected, rtol=2e-6, atol=2e-6)
+    np.testing.assert_allclose(
+        final.vel, np.broadcast_to(velocity, final.vel.shape), atol=2e-7
+    )
+    np.testing.assert_allclose(
+        final.q.w**2 + jnp.sum(final.q.xyz**2, axis=-1, keepdims=True), 1.0, atol=2e-6
+    )
 
 
 def test_flexible_mesh():
-    from jaxdem.utils.meshes import _icosahedron_faces, _icosahedron_vertices
-
-    # 1. Create a flexible icosahedron (rigid=False)
-    state = jdem.State.create()
-    vertices = _icosahedron_vertices() * 2.0  # radius 2
-    faces = _icosahedron_faces()
-
+    # Interior triangle contact: barycentric weights (1/2,1/4,1/4).
+    # A compliant spring permits overlap; force and vertex reactions are exact.
+    triangle = jnp.array([[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [0.0, 2.0, 0.0]])
     state = jdem.State.add_mesh(
-        state,
-        vertices,
-        faces,
+        jdem.State.create(),
+        triangle,
+        jnp.array([[0, 1, 2]]),
         rigid=False,
         filled=False,
-        mass=10.0,
-        thickness=1e-2,
+        thickness=0.1,
+        mass=3.0,
+        species_id=1,
     )
-
-    # Note: Flexible particles do not have a uniform 'center of mass' constraint.
-    # They are just individual facet particles.
-
-    # 2. Add normal spheres falling on top
-    N_spheres = 10
-    sphere_rad = 0.2
-
-    grid_x, grid_y = jnp.meshgrid(
-        jnp.linspace(-1.5, 1.5, int(jnp.sqrt(N_spheres))),
-        jnp.linspace(-1.5, 1.5, int(jnp.sqrt(N_spheres))),
+    sphere = jdem.State.create(
+        pos=jnp.array([[0.5, 0.5, 0.2]]),
+        rad=jnp.array([0.2]),
+        species_id=jnp.array([0]),
     )
-
-    sphere_pos = jnp.stack(
-        [grid_x.flatten(), grid_y.flatten(), jnp.full(grid_x.size, 5.0)], axis=-1
+    state = jdem.State.merge(state, sphere)
+    table = jdem.MaterialTable.from_materials(
+        [jdem.Material.create("elastic", young=1.0, density=1.0, poisson=0.25)]
     )
-    sphere_rads = jnp.full(grid_x.size, sphere_rad)
-    sphere_mass = jnp.full(grid_x.size, 0.1)
-
-    # We add spheres with an initial downward velocity
-    state = jdem.State.add_clump(
-        state,
-        pos=sphere_pos,
-        rad=sphere_rads,
-        mass=sphere_mass,
-        vel=jnp.array([0.0, 0.0, -2.0]),
+    law = jdem.ForceRouter.from_dict(
+        2, {(0, 1): jdem.ForceModel.create("sphere_facet_spring")}
     )
-
     system = jdem.System.create(
-        state.shape,
-        domain_type="reflect",
-        collider_type="naive",
-        dt=0.001,
-        domain_kw={
-            "box_size": jnp.array([10.0, 10.0, 10.0]),
-            "anchor": jnp.array([-5.0, -5.0, -2.0]),
-        },
-        linear_integrator_type="verlet",
-        rotation_integrator_type="verletspiral",
+        state=state, force_model=law, mat_table=table, collider_type="naive", dt=0.01
     )
-
-    state, system, _ = system.trajectory_rollout(state, system, n=1, stride=3000)
-
-    # 3. Check that no spheres penetrated into the icosahedron.
-    # A point is inside the icosahedron if it is on the negative half-space of ALL facet planes.
-
-    sphere_mask = state.facet_id == -1
-    sph_pos = state.pos_c[sphere_mask]
-
-    facet_mask = state.facet_id != -1
-    fac_pos = state.pos_c[facet_mask]
-    fac_q = jax.tree.map(lambda x: x[facet_mask], state.q)
-
-    # Reconstruct facet normals
-    # Facet vertices are initially arranged to form a triangle in xy plane if pos_p was reconstructed
-    # Or we can just use the quaternion since facets point their normal in the Z direction locally.
-
-    # In JaxDEM, a facet's normal is the rotated z-axis (0, 0, 1)
-    normals = jax.vmap(lambda q: q.rotate(q, jnp.array([0.0, 0.0, 1.0])))(fac_q)
-
-    # Distance from each sphere to each plane
-    # If a sphere is inside, it's behind ALL planes.
-    # We check if there's any sphere that is behind all planes by more than its radius.
-
-    # For each sphere, compute signed distance to all facet planes
-    # dot(pos - plane_center, normal)
-    # fac_pos is the center of the facet.
-
-    def check_sphere_inside(s_pos, s_rad):
-        # distance = (s_pos - fac_pos) \cdot normals
-        distances = jnp.sum((s_pos[None, :] - fac_pos) * normals, axis=-1)
-        # It's strictly inside if distance < -s_rad for all facets
-        is_inside = jnp.all(distances < -s_rad)
-        return is_inside
-
-    any_inside = jax.vmap(check_sphere_inside)(sph_pos, state.rad[sphere_mask])
-
-    assert not jnp.any(any_inside), "A sphere penetrated the flexible mesh!"
+    evaluated, _ = jdem.System.evaluate_forces(state, system)
+    expected = np.array([[0, 0, -0.05], [0, 0, -0.025], [0, 0, -0.025], [0, 0, 0.1]])
+    np.testing.assert_allclose(evaluated.force, expected, rtol=2e-6, atol=1e-7)
+    state, system = jdem.System.initialize(state, system)
+    advanced, _ = jdem.System.step(state, system)
+    expected_pos = (
+        np.asarray(state.pos)
+        + 0.5 * system.dt**2 * expected / np.asarray(state.mass)[:, None]
+    )
+    np.testing.assert_allclose(advanced.pos, expected_pos, rtol=2e-6, atol=1e-8)

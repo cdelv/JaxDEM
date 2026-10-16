@@ -376,7 +376,7 @@ def compute_clump_properties(
     sample_batch_size: int = 4096,
     clump_batch_size: int = 32,
 ) -> State:
-    """Compute mass / COM / inertia / orientation for every multi-sphere clump.
+    """Compute volume / mass / COM / inertia / orientation for every multi-sphere clump.
 
     The function treats each clump (group of spheres sharing
     ``state.clump_id``) as the union of its spheres with per-vertex
@@ -426,6 +426,7 @@ def compute_clump_properties(
     )
 
     inertia_width = inertia_g.shape[-1]
+    tv = jnp.zeros((n_groups,), dtype=pos.dtype).at[multi_ids].set(volume_g)
     tm = jnp.zeros((n_groups,), dtype=pos.dtype).at[multi_ids].set(mass_g)
     cm = jnp.zeros((n_groups, dim), dtype=pos.dtype).at[multi_ids].set(com_g)
     it = (
@@ -449,6 +450,7 @@ def compute_clump_properties(
     new_pos_p = new_q.rotate_back(new_q, pos - new_com)
     state = replace(
         state,
+        volume=jnp.where(is_clump, tv[state.clump_id], state.volume),
         mass=new_mass,
         pos_c=new_com,
         inertia=new_inertia,

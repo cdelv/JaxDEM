@@ -133,7 +133,8 @@ def test_minimizer_does_not_invoke_integrator_initialization():
     assert bool(jnp.isfinite(energy))
 
 
-def test_custom_force_controls_default_minimizer_capability():
+@pytest.mark.parametrize("law", [CustomDefaultSpring(), CustomOptOutSpring()])
+def test_gradient_only_minimizer_accepts_custom_force(law):
     state = jd.State.create(pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]), rad=jnp.ones(2))
     base = jd.System.create(
         state=state,
@@ -142,17 +143,12 @@ def test_custom_force_controls_default_minimizer_capability():
         minimizer_kw={"dt": 1.0e-4},
     )
 
-    opted_out = replace(base, force_model=CustomOptOutSpring())
-    with pytest.raises(ValueError, match="analytical energy gradient"):
-        opted_out.minimize(state, opted_out, max_steps=0)
-
-    default_capability = replace(base, force_model=CustomDefaultSpring())
-    assert default_capability.force_model.supports_analytical_energy_gradient
-    _, _, steps, energy = default_capability.minimize(
-        state, default_capability, max_steps=0
-    )
+    system = replace(base, force_model=law)
+    final, _, steps, energy = system.minimize(state, system, max_steps=0)
     assert int(steps) == 0
-    assert bool(jnp.isfinite(energy))
+    k = float(system.mat_table.young_eff[0, 0])
+    np.testing.assert_allclose(final.force, [[-0.5 * k, 0], [0.5 * k, 0]])
+    np.testing.assert_allclose(energy, 0.5 * k * 0.5**2 / state.N)
 
 
 def test_custom_force_target_fallback_does_not_require_capability():

@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import jaxdem as jd
@@ -25,6 +26,9 @@ def _system(*, force_model=None, integrator=None):
         domain_type="periodic",
         domain_kw={"box_size": jnp.array([10.0, 10.0])},
         force_model=force_model,
+        mat_table=jd.MaterialTable.from_materials(
+            [jd.Material.create("elastic", young=1.0, poisson=0.25, density=1.0)]
+        ),
         linear_integrator=integrator,
         collider_type="NeighborList" if force_model is not None else "CellList",
         collider_kw=(
@@ -44,6 +48,10 @@ def _system(*, force_model=None, integrator=None):
 @pytest.mark.parametrize("strides", [[], [0], [0, 1]])
 def test_protocol_supports_zero_one_and_two_frames(strides):
     state, system = _system()
+    state = replace(state, vel=jnp.array([[0.1, 0.2], [-0.1, 0.3]]))
+    state, system = jd.System.initialize(
+        state, replace(system, collider=jd.Collider.create(""))
+    )
     phi = jd.utils.compute_packing_fraction(state, system)
     targets = jnp.full((len(strides),), phi)
 
@@ -54,7 +62,27 @@ def test_protocol_supports_zero_one_and_two_frames(strides):
     assert states.pos_c.shape[0] == len(strides)
     assert systems.time.shape == (len(strides),)
     assert int(final_system.step_count) == sum(strides)
-    assert jnp.all(jnp.isfinite(final_state.force))
+    times = np.cumsum(strides) * float(system.dt)
+    expected = np.asarray(state.pos_c)[None] + times[:, None, None] * np.asarray(
+        state.vel
+    )
+    np.testing.assert_allclose(states.pos_c, expected, atol=1e-7)
+    np.testing.assert_allclose(systems.time, times, atol=1e-7)
+    np.testing.assert_array_equal(systems.step_count, np.cumsum(strides))
+    np.testing.assert_allclose(
+        systems.domain.box_size, np.full((len(strides), 2), 10.0)
+    )
+    np.testing.assert_array_equal(states.force, np.zeros((len(strides), 2, 2)))
+    np.testing.assert_allclose(
+        final_state.pos_c, expected[-1] if strides else state.pos_c
+    )
+    np.testing.assert_array_equal(final_state.vel, state.vel)
+    if not strides:
+        from tests.test_checkpoints import _assert_leaves_equal
+
+        _assert_leaves_equal(
+            (state, system), (final_state, final_system), "empty protocol"
+        )
 
 
 @pytest.mark.parametrize(
@@ -94,9 +122,14 @@ def test_protocol_matches_explicit_step_scale_and_evaluate_sequence():
     strides = jnp.array([0, 2], dtype=int)
     targets = jnp.array([phi / 0.95**2, phi / 0.9**2])
 
-    actual_state, actual_system, _ = run_packing_fraction_protocol(
-        state, system, strides=strides, phi_at_frames=targets
+    actual_state, actual_system, (frames, frame_systems) = (
+        run_packing_fraction_protocol(
+            state, system, strides=strides, phi_at_frames=targets
+        )
     )
+    np.testing.assert_allclose(frames.pos_c[0], 0.95 * state.pos_c, atol=1e-7)
+    np.testing.assert_allclose(frame_systems.domain.box_size[0], [9.5, 9.5])
+    np.testing.assert_allclose(frames.force[0], [[-0.24, 0.0], [0.24, 0.0]], rtol=2e-6)
 
     expected_state, expected_system = state, system
     for stride, target in zip(strides, targets, strict=True):
@@ -171,3 +204,8 @@ def test_rescale_advances_history_once_and_preserves_load_and_integrator_state()
     assert jnp.array_equal(updated.force_manager.external_force, queued)
     assert jnp.array_equal(result.vel, old_velocity)
     assert jnp.allclose(result.force, reevaluated.force)
+    np.testing.assert_allclose(updated.domain.box_size, [9.0, 9.0])
+    np.testing.assert_allclose(result.pos_c, 0.9 * state.pos_c, atol=1e-7)
+    np.testing.assert_allclose(
+        result.force - queued, [[-0.28, 0.0], [0.28, 0.0]], rtol=2e-6
+    )

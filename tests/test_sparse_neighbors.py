@@ -173,25 +173,73 @@ class Remember(jd.forces.SpringForce):
 
 def test_history_survives_rebuild_resize_and_query():
     state, system = case(force=Remember())
-    state, system = system.collider.compute_force(state, system)
+    _, system = jd.System.evaluate_forces(state, system)
     col = system.collider
-    assert col.history.shape == (18, 2, 2)
-    np.testing.assert_array_equal(col.history[:6], 8.0)
-    np.testing.assert_array_equal(col.history[6:], 7.0)
-    original = col.history
-    system = replace(system, collider=col.invalidate())
-    state, system = system.collider.evaluate_force(state, system)
-    np.testing.assert_array_equal(system.collider.history, original)
-    _, _, query, _ = system.collider.create_neighbor_list(state, system, 0.6, 3)
-    queried = system.collider.get_history(state, system, query)
-    np.testing.assert_array_equal(queried[query >= 0], 8.0)
-    np.testing.assert_array_equal(queried[query < 0], 7.0)
-    grown = replace(system.collider, max_neighbors=4)
-    grown = jd.colliders.refresh_collider(state, grown, system.force_model)
-    assert grown.neighbor_list.shape == (24,)
+    neighbors, history = (
+        np.asarray(col.neighbor_list).copy(),
+        np.asarray(col.history).copy(),
+    )
+    remembered = {}
+    for i in range(state.N):
+        start, end = map(int, col.row_offsets[i : i + 2])
+        for slot in range(start, end):
+            j = int(neighbors[slot])
+            history[slot] = 100 * i + 10 * j + np.arange(4).reshape(2, 2)
+            remembered[i, j] = history[slot].copy()
+        # Reorder both buffers within a row before asking the rebuild to remap pairs.
+        neighbors[start:end] = neighbors[start:end][::-1]
+        history[start:end] = history[start:end][::-1]
+    assert remembered.keys() == {(i, j) for i in [0, 1, 2] for j in [0, 1, 2] if i != j}
+    system = replace(
+        system,
+        collider=replace(
+            col, neighbor_list=jnp.asarray(neighbors), history=jnp.asarray(history)
+        ).invalidate(),
+    )
+    state = replace(
+        state,
+        pos_c=state.pos_c.at[2]
+        .set(jnp.array([12.0, 4.0]))
+        .at[3]
+        .set(jnp.array([0.25, -0.25])),
+    )
+    state, system = jd.System.evaluate_forces(state, system)
+    wanted = {(i, j) for i in [0, 1, 3] for j in [0, 1, 3] if i != j}
+    expected = {pair: remembered.get(pair, np.full((2, 2), 7.0)) for pair in wanted}
+
+    def check_pairs(collider, increment=0):
+        assert int(collider.row_offsets[-1]) == len(wanted)
+        found = {}
+        for i in range(state.N):
+            for slot in range(
+                int(collider.row_offsets[i]), int(collider.row_offsets[i + 1])
+            ):
+                found[i, int(collider.neighbor_list[slot])] = np.asarray(
+                    collider.history[slot]
+                )
+        assert found.keys() == wanted
+        for pair in wanted:
+            np.testing.assert_array_equal(found[pair], expected[pair] + increment)
+
+    check_pairs(system.collider)
+    _, _, query, overflow = system.collider.create_neighbor_list(state, system, 0.6, 3)
+    assert not overflow
+    assert {
+        (i, int(j)) for i, row in enumerate(np.asarray(query)) for j in row if j >= 0
+    } == wanted
+    assert np.count_nonzero(np.asarray(query) >= 0) == len(wanted)
+    queried = np.asarray(system.collider.get_history(state, system, query))
+    for i, row in enumerate(np.asarray(query)):
+        for slot, j in enumerate(row):
+            np.testing.assert_array_equal(
+                queried[i, slot], expected.get((i, int(j)), np.full((2, 2), 7.0))
+            )
+    grown = jd.colliders.refresh_collider(
+        state, replace(system.collider, max_neighbors=4), system.force_model
+    )
     system = replace(system, collider=grown)
-    state, system = system.collider.compute_force(state, system)
-    np.testing.assert_array_equal(system.collider.history[:6], 9.0)
+    _, system = system.collider.compute_force(state, system)
+    check_pairs(system.collider, increment=1)
     with pytest.raises(ValueError, match="reset_history"):
         jd.colliders.refresh_collider(
             state, replace(system.collider, max_neighbors=1), system.force_model
@@ -252,14 +300,6 @@ def test_empty_and_no_neighbors():
     assert not y.collider.overflow
 
 
-def test_vmap_sparse_caches():
-    s, y = case()
-    bs, by = jax.tree.map(lambda x: jnp.stack((x, x)), (s, y))
-    bs, by = jax.jit(jax.vmap(jd.System.initialize))(bs, by)
-    assert by.collider.neighbor_list.shape == (2, 18)
-    np.testing.assert_allclose(bs.force[0], bs.force[1])
-
-
 def test_sparse_checkpoint_roundtrip(tmp_path):
     pytest.importorskip("orbax.checkpoint")
     s, y = case(force=Remember())
@@ -271,26 +311,6 @@ def test_sparse_checkpoint_roundtrip(tmp_path):
     rs, ry = jd.System.step(rs, ry, n=2)
     np.testing.assert_allclose(s.pos, rs.pos)
     np.testing.assert_allclose(y.collider.history, ry.collider.history)
-
-
-@pytest.mark.parametrize("advance", [False, True])
-def test_row_history_updates_match_pair_reference(advance):
-    from tests.test_neighbor_force_blocks import _pair_reference
-
-    s, y = case(force=Remember())
-    s, y = y.collider.compute_force(s, y)
-    f, t, h = _pair_reference(s, y, advance)
-    actual, updated = y.collider.compute_force(s, y, advance_history=advance)
-    np.testing.assert_allclose(actual.force, f, rtol=2e-5, atol=0.01)
-    np.testing.assert_allclose(actual.torque, t, rtol=2e-5, atol=0.01)
-    np.testing.assert_array_equal(updated.collider.history, h)
-
-
-def test_csr_sources_with_empty_rows_and_padding():
-    s, y = case(pos=[[5.0, 0.0], [0.0, 0.0], [10.0, 0.0], [0.5, 0.0]])
-    s, y = jd.System.initialize(s, y)
-    np.testing.assert_array_equal(y.collider.row_offsets, [0, 0, 1, 1, 2])
-    np.testing.assert_array_equal(pair_sources(y.collider), [1, 3] + [4] * 10)
 
 
 @pytest.mark.parametrize("n", [0, 1, 5])

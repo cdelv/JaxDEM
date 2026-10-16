@@ -95,16 +95,24 @@ def test_initialize_computes_loads_and_invokes_both_integrator_hooks():
 @pytest.mark.parametrize("batch_size", [1, 2])
 def test_initialize_supports_batched_states(batch_size):
     states = [
-        jd.State.create(pos=jnp.zeros((2, 2)), mass=jnp.ones(2))
-        for _ in range(batch_size)
+        jd.State.create(
+            pos=jnp.zeros((2, 2)),
+            mass=jnp.array([1.0, 2.0]) * (i + 1),
+            vel=jnp.full((2, 2), 0.1 * (i + 1)),
+        )
+        for i in range(batch_size)
     ]
     systems = [
         jd.System.create(
             state=state_i,
             collider_type="",
-            force_manager_kw={"gravity": jnp.array([1.0, -2.0])},
+            dt=0.1 * (i + 1),
+            linear_integrator=BackwardHalfKick(),
+            minimizer=jd.fire,
+            minimizer_kw={"dt": 0.01},
+            force_manager_kw={"gravity": jnp.array([1.0, -2.0]) * (i + 1)},
         )
-        for state_i in states
+        for i, state_i in enumerate(states)
     ]
     state = jax.tree.map(lambda *xs: jnp.stack(xs), *states)
     system = jax.tree.map(lambda *xs: jnp.stack(xs), *systems)
@@ -112,10 +120,17 @@ def test_initialize_supports_batched_states(batch_size):
     initialized, initialized_system = jd.System.initialize(state, system)
 
     assert initialized.pos.shape == (batch_size, 2, 2)
-    np.testing.assert_allclose(
-        initialized.force,
-        jnp.broadcast_to(jnp.array([1.0, -2.0]), initialized.force.shape),
-    )
+    for i in range(batch_size):
+        np.testing.assert_allclose(
+            initialized.force[i],
+            np.array([1.0, 2.0])[:, None] * np.array([1.0, -2.0]) * (i + 1) ** 2,
+        )
+        np.testing.assert_allclose(
+            initialized.vel[i],
+            np.broadcast_to(
+                0.1 * (i + 1) - 0.05 * (i + 1) ** 2 * np.array([1.0, -2.0]), (2, 2)
+            ),
+        )
     np.testing.assert_array_equal(initialized_system.time, system.time)
     np.testing.assert_array_equal(initialized_system.step_count, system.step_count)
 

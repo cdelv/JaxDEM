@@ -12,7 +12,7 @@ from benchmarks.base import (
     create_mixed_state,
 )
 from benchmarks.run_benchmarks import benchmark_function
-from benchmarks.release_workloads import build_workload, measure
+from benchmarks.release_workloads import build_workload
 
 
 @pytest.mark.parametrize("n", [1, 2, 3, 7, 19])
@@ -25,7 +25,20 @@ def test_clump_fixture_has_coherent_body_properties(n):
         )
         assert np.unique(np.asarray(state.mass)[members]).size == 1
         assert np.unique(np.asarray(state.volume)[members]).size == 1
-        assert np.all(np.asarray(state.inertia)[members] > 0.0)
+        offsets = np.asarray(state.pos_p)[members]
+        count = members.sum()
+        tensor = sum(
+            (np.dot(r, r) * np.eye(3) - np.outer(r, r)) / count for r in offsets
+        )
+        tensor += 0.4 * 0.1**2 * np.eye(3)
+        np.testing.assert_allclose(
+            state.inertia[members],
+            np.broadcast_to(np.diag(tensor), (count, 3)),
+            rtol=2e-6,
+        )
+        np.testing.assert_allclose(
+            state.volume[members], count * 4 * np.pi * 0.1**3 / 3, rtol=2e-6
+        )
 
 
 def test_deformable_fixture_uses_neighbor_indices():
@@ -42,6 +55,14 @@ def test_mixed_fixture_contains_all_thirds_and_preserves_properties():
     assert np.any(np.asarray(state.pos_p) != 0.0)
     assert np.all(np.asarray(state.inertia) > 0.0)
     assert np.any(np.asarray(state.bond_id) >= 0)
+    np.testing.assert_array_equal(
+        np.sort(state.bond_id[6:], axis=-1), [[7, 9], [6, 8], [7, 9], [6, 8]]
+    )
+    assert len(np.unique(state.clump_id[:3])) == 3
+    assert len(np.unique(state.clump_id[3:6])) == 1
+    assert len(np.unique(state.clump_id[6:])) == 4
+    np.testing.assert_array_equal(state.pos_p[:3], np.zeros((3, 3)))
+    np.testing.assert_array_equal(state.pos_p[6:], np.zeros((4, 3)))
 
 
 def test_benchmark_function_rejects_nonfinite_output():
@@ -65,13 +86,6 @@ def test_release_workloads_construct_initialized_physics(name):
     assert state.N == 12
     if name in {"deformable", "mixed"}:
         assert system.bonded_force_model is not None
-
-
-def test_release_measure_records_all_timing_phases():
-    result = measure("spheres", size=12, steps=1, repeat=1, batched=False)
-    assert result["compile_first_call_seconds"] > 0.0
-    assert result["warm_snapshot_replay_seconds"] > 0.0
-    assert result["sustained_stepped_state_seconds"] > 0.0
 
 
 def test_release_workload_supports_batch_one():

@@ -4,6 +4,7 @@
 import jax
 import jax.numpy as jnp
 import pytest
+import numpy as np
 
 import jaxdem as jdem
 
@@ -12,7 +13,7 @@ def body_torque(
     pos: jax.Array, state: jdem.State, system: jdem.System
 ) -> tuple[jax.Array, jax.Array]:
     """Return zero force and a torque that is constant in the body frame."""
-    tx_val = 0.025  # Rad * 0.5 = 0.05 * 0.5
+    tx_val = 1.0
     # Create torque in body frame: [tx_val, 0, 0]
     torque_body = jnp.zeros_like(state.ang_vel)
     torque_body = torque_body.at[..., 0].set(tx_val)
@@ -23,75 +24,39 @@ def body_torque(
 
 @pytest.mark.parametrize("rot_integrator", ["spiral", "verletspiral"])
 def test_aspherical_rotation(rot_integrator):
-    # Parameters from checkRotAlgorithmNonSpherical.py
-    rho = 7750.0
-    Rad = 0.05
-    Height = 0.15
-    Mass = rho * jnp.pi * Rad * Rad * Height
-    Ix = 0.5 * Mass * Rad * Rad
-    Iy = Mass * Height * Height / 12.0 + 0.25 * Mass * Rad * Rad
-    Iz = Iy
-    tx = Rad * 0.5
-    wx0 = 0.3
-    wy0 = -0.9
-    wz0 = 0.6
-
+    # Dimensionless symmetric top: I=(1,2,2), unit torque along body x.
+    initial = np.array([0.3, -0.9, 0.6])
     state = jdem.State.create(
-        pos=jnp.array([[0.0, 0.0, 0.0]]),
-        ang_vel=jnp.array([[wx0, wy0, wz0]]),
-        inertia=jnp.array([[Ix, Iy, Iz]]),
-        mass=jnp.array([Mass]),
-        rad=jnp.array([Rad]),
+        pos=jnp.zeros((1, 3)),
+        ang_vel=jnp.asarray(initial[None]),
+        inertia=jnp.array([[1.0, 2.0, 2.0]]),
+        mass=jnp.ones(1),
     )
-
-    dt = 1.0e-5
-    steps = 70000  # 0.7s total time
-
     system = jdem.System.create(
-        state.shape,
-        linear_integrator_type="verlet",
+        state=state,
+        collider_type="",
+        dt=1 / 512,
         rotation_integrator_type=rot_integrator,
-        dt=dt,
-        force_manager_kw={
-            "force_functions": [(body_torque, None)],
-        },
-        collider_type="naive",
+        force_manager_kw={"force_functions": [(body_torque, None)]},
     )
-
-    @jax.jit
-    def run_sim(state, system):
-        def body_fn(i, val):
-            s, sys = val
-            return sys.step(s, sys)
-
-        return jax.lax.fori_loop(0, steps, body_fn, (state, system))
-
-    final_state, final_system = run_sim(state, system)
-
-    # Calculate analytical solution at t = 0.7
-    t = 0.7
-    A = (Ix - Iy) * (Iz - Ix) / (Iy * Iz)
-    B = Iy / (Iz - Ix)
-    sqrt_A = jnp.sqrt(-A)
-    E = 2.0 * tx * B / Ix
-    wx = wx0 + tx * t / Ix
-
-    eta = 0.5 * Ix * sqrt_A / tx
-    C = E * eta
-    K1 = (C * wy0 * jnp.cos(eta * wx0**2) - wz0 * jnp.sin(eta * wx0**2)) / C
-    K2 = (C * wy0 * jnp.sin(eta * wx0**2) + wz0 * jnp.cos(eta * wx0**2)) / C
-    D = eta * wx**2
-
-    wy = K1 * jnp.cos(D) + K2 * jnp.sin(D)
-    wz = C * (K2 * jnp.cos(D) - K1 * jnp.sin(D))
-    ww = jnp.array([wx, wy, wz])
-
-    # Get current angular velocity in body frame
-    q = final_state.q
-    w_body = q.rotate_back(q, final_state.ang_vel[0])
-
-    error = jnp.log10(jnp.linalg.norm(w_body - ww) / jnp.linalg.norm(ww))
-
-    assert (
-        error < -4.0
-    ), f"Error in aspherical {rot_integrator} algorithm too big: {error}"
+    state, system = jdem.System.initialize(state, system)
+    final, _ = jdem.System.step(state, system, n=512)
+    # Euler equations give wx=.3+t and a rotation of (wy,wz) by
+    # phase=(J-Ix)/J * integral(wx dt)=.5*(.3+.5)=.4 at t=1.
+    phase = 0.4
+    expected = np.array(
+        [
+            1.3,
+            initial[1] * np.cos(phase) + initial[2] * np.sin(phase),
+            initial[2] * np.cos(phase) - initial[1] * np.sin(phase),
+        ]
+    )
+    w, x, y, z = float(final.q.w[0, 0]), *np.asarray(final.q.xyz[0])
+    skew = np.array([[0.0, -z, y], [z, 0.0, -x], [-y, x, 0.0]])
+    rotation = np.eye(3) + 2 * w * skew + 2 * skew @ skew
+    body = rotation.T @ np.asarray(final.ang_vel[0])
+    np.testing.assert_allclose(body, expected, rtol=2e-5, atol=2e-5)
+    np.testing.assert_allclose(
+        body[1:] @ body[1:], initial[1:] @ initial[1:], rtol=2e-5
+    )
+    np.testing.assert_allclose(w * w + x * x + y * y + z * z, 1.0, atol=2e-6)

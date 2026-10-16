@@ -19,6 +19,47 @@ from jaxdem.minimizers.routines import (
 from jaxdem.utils.jamming import bisection_jam, pe_band_jam, pressure_bisection_jam
 
 
+@pytest.mark.parametrize("dim", [2, 3])
+def test_minimize_known_rigid_pose(dim):
+    # A nonsymmetric body has a unique target pose; its exact minimum is zero.
+    body = np.array([[1.0, 0.0], [-0.5, 0.6], [-0.5, -0.6]])
+    body = np.pad(body, ((0, 0), (0, dim - 2)))
+    if dim == 2:
+        angle = 0.5
+        rotation = np.array(
+            [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
+        )
+    else:
+        axis = np.array([1.0, 2.0, 3.0]) / np.sqrt(14)
+        x, y, z = axis
+        skew = np.array([[0, -z, y], [z, 0, -x], [-y, x, 0]])
+        rotation = np.eye(3) + np.sin(0.5) * skew + (1 - np.cos(0.5)) * skew @ skew
+    target = body @ rotation.T + np.arange(dim) * 0.2
+    state = jd.State.add_clump(
+        jd.State.create(dim=dim), pos=jnp.asarray(body + 1.0), rad=jnp.full(3, 0.1)
+    )
+    system = jd.System.create(
+        state=state,
+        collider_type="",
+        minimizer=optax.sgd,
+        minimizer_kw={"learning_rate": 0.1},
+        target_fn=lambda trial, _: (
+            0.5 * jnp.sum((trial.pos - jnp.asarray(target)) ** 2)
+        ),
+    )
+    result = minimize(state, system, max_steps=300, force_tol=1e-6, torque_tol=1e-6)
+    assert result.info.converged
+    np.testing.assert_allclose(result.state.pos, target, atol=3e-6)
+    expected_distances = np.linalg.norm(body[:, None] - body[None], axis=-1)
+    actual = np.asarray(result.state.pos)
+    np.testing.assert_allclose(
+        np.linalg.norm(actual[:, None] - actual[None], axis=-1),
+        expected_distances,
+        atol=2e-6,
+    )
+    assert result.energy < 1e-10
+
+
 def pair(dim=2, overlap=1e-7):
     pos = jnp.zeros((2, dim)).at[1, 0].set(1.0 - overlap)
     st = jd.State.create(pos=pos, rad=jnp.full(2, 0.5), mass=jnp.ones(2))

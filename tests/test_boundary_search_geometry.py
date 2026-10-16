@@ -15,7 +15,6 @@ import pytest
 
 import jaxdem as jdem
 from jaxdem.colliders import DynamicCellList, DynamicMultiCellList
-from jaxdem.colliders._partition import _grid_params
 from jaxdem.domains import Domain, LeesEdwardsDomain, SearchGeometry
 
 
@@ -111,17 +110,6 @@ def test_builtin_domains_match_cell_search_capabilities(domain_type):
     collider.validate_domain(domain)
 
 
-def test_grid_hash_dtype_and_preoverflow_guard():
-    hash_dtype = jnp.uint64 if jax.config.jax_enable_x64 else jnp.uint32
-    side = 2**32 if jax.config.jax_enable_x64 else 2**16
-    dims, strides, _, overflow = _grid_params(
-        jnp.asarray([side, side], dtype=float), jnp.asarray(1.0), False
-    )
-    assert dims.dtype == hash_dtype
-    assert strides.dtype == hash_dtype
-    assert bool(overflow)
-
-
 @pytest.mark.parametrize("x64,bits", [("0", 32), ("1", 64)])
 def test_unsigned_hash_boundary_in_fresh_process(x64, bits):
     code = f"""
@@ -132,7 +120,7 @@ from jaxdem.colliders._partition import _grid_params
 from jaxdem.colliders.cell_list import _get_spatial_partition
 from jaxdem.domains import PeriodicDomain
 from typing import NamedTuple
-assert jax.config.jax_enable_x64 is {x64 == '1'}
+assert jax.config.jax_enable_x64 is {x64 == "1"}
 dtype = jnp.uint{bits}
 safe = 2 ** ({bits} // 2) - 1
 unsafe = 2 ** ({bits} // 2)
@@ -141,7 +129,7 @@ for side, expected in [(safe, False), (unsafe, True)]:
         jnp.asarray([float(side), float(side)]), jnp.asarray(1.0), False)
     assert dims.dtype == dtype and strides.dtype == dtype
     assert bool(overflow) is expected
-if {x64 == '0'}:
+if {x64 == "0"}:
     class TinySystem(NamedTuple):
         domain: object
     domain = PeriodicDomain.Create(1, box_size=jnp.asarray([float(2**31 + 1024)]))
@@ -234,7 +222,8 @@ def test_3d_unwrapped_tiny_box_matches_independent_image_oracle(collider_cls):
     )
     assert not bool(overflow)
     for actual, wanted in zip(np.asarray(nl), expected, strict=True):
-        assert set(actual[actual >= 0]) == set(wanted)
+        np.testing.assert_array_equal(np.sort(actual[actual >= 0]), sorted(wanted))
+        assert np.all(actual[len(wanted) :] == -1)
 
 
 @pytest.mark.parametrize("collider_cls", [DynamicCellList, DynamicMultiCellList])
@@ -289,7 +278,8 @@ def test_random_unwrapped_le_search_matches_physical_images(
     )
     assert not bool(overflow)
     for actual, wanted in zip(np.asarray(nl), expected, strict=True):
-        assert set(actual[actual >= 0]) == set(wanted)
+        np.testing.assert_array_equal(np.sort(actual[actual >= 0]), sorted(wanted))
+        assert np.all(actual[len(wanted) :] == -1)
 
 
 @pytest.mark.parametrize("collider_type", ["naive", "CellList", "MultiCellList"])

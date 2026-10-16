@@ -75,7 +75,10 @@ def test_force_and_energy_evaluations_do_not_advance_plasticity(kind: str) -> No
     np.testing.assert_array_equal(getattr(system.bonded_force_model, field), reference)
 
 
-def test_edge_reference_updates_once_per_step() -> None:
+@pytest.mark.parametrize(
+    "dt,tau", [(1e-6, 1.0), (0.1, 1.0), (10.0, 1.0), (0.1, np.inf)]
+)
+def test_edge_reference_updates_once_per_step(dt, tau) -> None:
     state = jd.State.create(
         pos=jnp.array([[0.0, 0.0], [2.0, 0.0]]),
         fixed=jnp.ones(2, dtype=bool),
@@ -85,11 +88,11 @@ def test_edge_reference_updates_once_per_step() -> None:
         edges=jnp.array([[0, 1]]),
         initial_edge_lengths=jnp.array([1.0]),
         el=1.0,
-        tau_s=1.0,
+        tau_s=tau,
     )
     system = jd.System.create(
         state=state,
-        dt=0.1,
+        dt=dt,
         bonded_force_model=model,
         collider_type="",
         rotation_integrator_type="",
@@ -99,10 +102,13 @@ def test_edge_reference_updates_once_per_step() -> None:
     np.testing.assert_allclose(force, [[1.0, 0.0], [-1.0, 0.0]])
     np.testing.assert_allclose(model.initial_edge_lengths, [1.0])
 
-    for expected in (1.1, 1.19, 1.271):
+    for step in (1, 2, 3):
         state, system = jd.System.step(state, system)
         np.testing.assert_allclose(
-            system.bonded_force_model.initial_edge_lengths, [expected]
+            system.bonded_force_model.initial_edge_lengths - 1.0,
+            [-np.expm1(-dt * step / tau)],
+            rtol=2e-6,
+            atol=4 * np.finfo(np.asarray(model.initial_edge_lengths).dtype).eps,
         )
 
 
@@ -124,6 +130,49 @@ def test_batched_steps_update_each_reference_independently() -> None:
         stepped_system.bonded_force_model.initial_edge_lengths,
         jnp.stack([item.initial_edge_lengths for item in expected]),
     )
+
+
+@pytest.mark.parametrize("kind", ["perimeter", "bending"])
+def test_held_geometry_reference_follows_exponential_and_shortest_angle(kind):
+    if kind == "perimeter":
+        pos = jnp.array([[0.0, 0.0], [2.0, 0.0], [2.0, 3.0]])
+        model = jd.BondedForceModel.create(
+            "PlasticPerimeterDeformableParticleModel",
+            vertices=pos,
+            edges=jnp.array([[0, 1], [1, 2]]),
+            initial_edge_lengths=jnp.ones(2),
+            el=1.0,
+            tau_s=2.0,
+        )
+    else:
+        pos = jnp.array([[-1.0, 0.0], [0.0, 0.0], [0.0, 1.0]])
+        model = jd.BondedForceModel.create(
+            "PlasticBendingDeformableParticleModel",
+            vertices=pos,
+            elements=jnp.array([[0, 1], [1, 2]]),
+            element_adjacency=jnp.array([[0, 1]]),
+            initial_bendings=jnp.array([-np.pi + 0.1]),
+            eb=1.0,
+            tau_s=2.0,
+        )
+    state = jd.State.create(pos=pos, fixed=jnp.ones(3, bool))
+    system = jd.System.create(
+        state=state,
+        bonded_force_model=model,
+        collider_type="",
+        rotation_integrator_type="",
+        dt=0.2,
+    )
+    for step in [1, 2, 3]:
+        state, system = jd.System.step(state, system)
+        if kind == "perimeter":
+            expected = np.full(2, (5 - 3 * np.exp(-0.1 * step)) / 2)
+            actual = system.bonded_force_model.initial_edge_lengths
+        else:
+            # Current signed bend=+pi/2; the shortest route from -pi+.1 is negative.
+            expected = [-np.pi + 0.1 - np.expm1(-0.1 * step) * (-np.pi / 2 - 0.1)]
+            actual = system.bonded_force_model.initial_bendings
+        np.testing.assert_allclose(actual, expected, rtol=2e-6)
 
 
 @pytest.mark.parametrize("kind", ["edge", "perimeter", "bending"])

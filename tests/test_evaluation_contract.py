@@ -69,7 +69,10 @@ def _history_system() -> tuple[jd.State, jd.System]:
 
 
 @pytest.mark.parametrize("optimizer", [jd.fire, jd.damped_newtonian])
-def test_relaxation_advances_history_per_step_and_preserves_loads(optimizer) -> None:
+@pytest.mark.parametrize("advance_history", [False, True])
+def test_relaxation_advances_history_per_step_and_preserves_loads(
+    optimizer, advance_history
+) -> None:
     state, system = _history_system()
     state = dataclasses.replace(
         state,
@@ -82,13 +85,17 @@ def test_relaxation_advances_history_per_step_and_preserves_loads(optimizer) -> 
     system = system.force_manager.add_force(state, system, queued)
     history = np.asarray(system.collider.history).copy()
 
-    result = system.minimize(state, system, max_steps=3, force_tol=0.0, torque_tol=0.0)
+    options = {"advance_history": True} if advance_history else {}
+    result = system.minimize(
+        state, system, max_steps=3, force_tol=0.0, torque_tol=0.0, **options
+    )
 
     assert int(result.steps) == 3
     # The initial evaluation is read-only; each accepted step advances once.
     valid = np.asarray(result.system.collider.neighbor_list) >= 0
     np.testing.assert_array_equal(
-        np.asarray(result.system.collider.history)[valid], history[valid] + 3
+        np.asarray(result.system.collider.history)[valid],
+        history[valid] + 3 * advance_history,
     )
     np.testing.assert_array_equal(result.system.force_manager.external_force, queued)
     np.testing.assert_array_equal(result.state.vel, state.vel)

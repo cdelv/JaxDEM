@@ -204,12 +204,8 @@ def test_tiny_coulomb_forces_use_the_true_trial_norm(
 
     coulomb_limit = abs(float(force[0]))
     expected_tangential = min(tangential_displacement, coulomb_limit)
-    np.testing.assert_allclose(
-        force[1], -expected_tangential, rtol=1.0e-12, atol=0.0
-    )
-    np.testing.assert_allclose(
-        returned[1], expected_tangential, rtol=1.0e-12, atol=0.0
-    )
+    np.testing.assert_allclose(force[1], -expected_tangential, rtol=1.0e-12, atol=0.0)
+    np.testing.assert_allclose(returned[1], expected_tangential, rtol=1.0e-12, atol=0.0)
 
 
 def test_tiny_sticking_history_does_not_decay_without_motion() -> None:
@@ -503,9 +499,7 @@ def test_elastic_neighbor_energy_includes_stored_tangential_spring() -> None:
 
     _, _, energy = system.collider.compute_potential_energy(state, system)
 
-    np.testing.assert_allclose(
-        energy, 0.5 * 50.0 * 0.2**2 + 0.5 * 25.0 * 0.1**2
-    )
+    np.testing.assert_allclose(energy, 0.5 * 50.0 * 0.2**2 + 0.5 * 25.0 * 0.1**2)
 
 
 @pytest.mark.parametrize("composition", ["combiner", "router"])
@@ -543,9 +537,7 @@ def test_composed_cundall_strack_uses_history_energy(composition) -> None:
 
     _, _, energy = system.collider.compute_potential_energy(state, system)
 
-    np.testing.assert_allclose(
-        energy, 0.5 * 50.0 * 0.2**2 + 0.5 * 25.0 * 0.1**2
-    )
+    np.testing.assert_allclose(energy, 0.5 * 50.0 * 0.2**2 + 0.5 * 25.0 * 0.1**2)
 
 
 def test_zero_step_relaxation_leaves_history_untouched() -> None:
@@ -602,7 +594,10 @@ def test_advance_history_does_not_depend_on_dt_or_damping() -> None:
     "optimizer", [jd.minimizers.fire, jd.minimizers.damped_newtonian]
 )
 @pytest.mark.parametrize("parameterization", ["elastic", "coefficients"])
-def test_force_minimizers_advance_contact_history(optimizer, parameterization) -> None:
+@pytest.mark.parametrize("advance_history", [False, True])
+def test_force_minimizers_advance_contact_history(
+    optimizer, parameterization, advance_history
+) -> None:
     state = jd.State.create(
         pos=jnp.array([[0.0, 0.0], [0.8, 0.0], [0.0, 0.85]]),
         rad=jnp.full(3, 0.5),
@@ -643,14 +638,55 @@ def test_force_minimizers_advance_contact_history(optimizer, parameterization) -
         minimizer_kw={"dt": 1.0e-3},
     )
 
+    _, system = jd.System.evaluate_forces(state, system)
+    col = system.collider
+    initial = np.asarray(col.history).copy()
+    sources = np.repeat(np.arange(state.N), np.diff(np.asarray(col.row_offsets)))
+    targets = np.asarray(col.neighbor_list)[: len(sources)]
+    old_normals = np.asarray(state.pos)[sources] - np.asarray(state.pos)[targets]
+    old_normals /= np.linalg.norm(old_normals, axis=-1, keepdims=True)
+    tangents = np.stack([-old_normals[:, 1], old_normals[:, 0]], axis=-1)
+    initial[: len(sources), :2] = 0.002 * tangents
+    initial[: len(sources), 2:] = old_normals
+    system = replace(system, collider=replace(col, history=jnp.asarray(initial)))
+    options = {"advance_history": True} if advance_history else {}
     result = system.minimize(
-        state, system, max_steps=1, force_tol=-1.0, torque_tol=-1.0
+        state,
+        system,
+        max_steps=1,
+        force_tol=-1.0,
+        torque_tol=-1.0,
+        **options,
     )
 
     valid = result.system.collider.neighbor_list >= 0
     tangential = result.system.collider.history[valid, : state.dim]
     assert int(result.steps) == 1
-    assert bool(jnp.any(jnp.abs(tangential) > 0.0))
+    if advance_history:
+        pos = np.asarray(result.state.pos)
+        normal = pos[sources] - pos[targets]
+        normal /= np.linalg.norm(normal, axis=-1, keepdims=True)
+        tangent = np.stack([-normal[:, 1], normal[:, 0]], axis=-1)
+        translation = np.asarray(result.state.pos_c - state.pos_c)
+        angle = 2 * np.arctan2(
+            np.asarray(result.state.q.xyz)[:, 2], np.asarray(result.state.q.w)[:, 0]
+        )
+        motion = translation[sources] - translation[targets]
+        motion -= (
+            np.asarray(state.rad)[sources] * angle[sources]
+            + np.asarray(state.rad)[targets] * angle[targets]
+        )[:, None] * tangent
+        expected = (
+            0.002 * tangent
+            + motion
+            - np.sum(motion * normal, axis=-1, keepdims=True) * normal
+        )
+        np.testing.assert_allclose(tangential, expected, rtol=2e-6, atol=1e-10)
+        np.testing.assert_allclose(
+            result.system.collider.history[valid, 2:], normal, atol=2e-6
+        )
+    else:
+        np.testing.assert_array_equal(result.system.collider.history, initial)
     assert bool(jnp.isfinite(result.energy))
 
 

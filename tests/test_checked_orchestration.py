@@ -25,7 +25,9 @@ def _overflow_second_step(state, system):
 
 
 def _setup(callback=None):
-    state = jdem.State.create(pos=jnp.array([[0.5, 0.5]]), rad=jnp.array([0.1]))
+    state = jdem.State.create(
+        pos=jnp.array([[0.5, 0.5]]), rad=jnp.array([0.1]), vel=jnp.array([[0.2, -0.1]])
+    )
     kwargs = {} if callback is None else {"user_post_step_actions": callback}
     system = jdem.System.create(
         state=state,
@@ -53,10 +55,75 @@ def test_checked_step_rolls_back_and_does_not_lose_failure(callback, status):
     assert int(result.steps) == 1
     assert int(result.system.step_count) == 1
     np.testing.assert_array_equal(result.state.pos, expected_state.pos)
+    assert np.any(np.asarray(result.state.pos) != np.asarray(state.pos))
     np.testing.assert_array_equal(result.system.key, expected_system.key)
     assert not bool(result.system.search_overflow)
     with pytest.raises(RuntimeError, match="Checked simulation stopped"):
         result.check()
+
+
+def _mixed_second_step_failure(state, system):
+    system = system.force_manager.add_force(
+        state, system, jnp.full_like(state.force, 0.1 * system.step_count)
+    )
+    fail = system.step_count == 2
+    state = replace(
+        state, vel=jnp.where(fail & (state.mass[0] == 2), jnp.nan, state.vel)
+    )
+    return state, replace(system, search_overflow=fail & (state.mass[0] == 3))
+
+
+def test_checked_batch_restores_history_randomness_and_queued_loads_per_replica():
+    import jax
+    from tests.test_sparse_neighbors import Remember
+    from tests.test_checkpoints import _assert_leaves_equal
+
+    pairs = []
+    for mass in [1.0, 2.0, 3.0]:
+        state = jdem.State.create(
+            pos=jnp.array([[0.2, 0.2], [0.5, 0.25]]),
+            vel=jnp.array([[0.1, -0.2], [-0.1, 0.2]]),
+            mass=jnp.full(2, mass),
+            rad=jnp.full(2, 0.2),
+        )
+        table = jdem.MaterialTable.from_materials(
+            [jdem.Material.create("elastic", young=1.0, poisson=0.25, density=1.0)]
+        )
+        system = jdem.System.create(
+            state=state,
+            dt=0.01,
+            seed=int(mass),
+            mat_table=table,
+            force_model=Remember(),
+            collider_type="NeighborList",
+            collider_kw={"cutoff": 0.4, "skin": 0.1, "max_neighbors": 1},
+            linear_integrator_type="langevin",
+            linear_integrator_kw={"gamma": 0.3, "temperature": 0.5, "k_B": 1.0},
+            user_post_step_actions=_mixed_second_step_failure,
+        )
+        state, system = jdem.System.initialize(state, system)
+        system = system.force_manager.add_force(
+            state, system, jnp.full_like(state.force, 0.2)
+        )
+        pairs.append((state, system))
+    state = jdem.State.stack([s for s, _ in pairs])
+    system = jdem.System.stack([y for _, y in pairs])
+    result = jdem.System.step_checked(state, system, n=3)
+    np.testing.assert_array_equal(result.steps, [3, 1, 1])
+    np.testing.assert_array_equal(
+        result.status,
+        [0, jdem.SimulationStatus.NONFINITE, jdem.SimulationStatus.SEARCH_OVERFLOW],
+    )
+    for index, (s, y) in enumerate(pairs):
+        expected = jdem.System.step(s, y, n=3 if index == 0 else 1)
+        actual = jax.tree.map(lambda x: x[index], (result.state, result.system))
+        _assert_leaves_equal(
+            expected, actual, "last valid replica", rtol=2e-6, atol=1e-7
+        )
+        assert not np.array_equal(np.asarray(actual[1].key), np.asarray(y.key))
+        assert np.any(
+            np.asarray(actual[1].collider.history) != np.asarray(y.collider.history)
+        )
 
 
 @pytest.mark.parametrize("batch_size", [1, 2])
