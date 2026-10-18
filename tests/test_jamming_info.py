@@ -236,6 +236,51 @@ def test_pressure_bracket_exhaustion_is_a_reported_failure(patched_minimize):
     assert info.minimization.converged
 
 
+def test_energy_band_bracket_exhaustion_is_a_reported_failure(monkeypatch):
+    jamming.bisection_jam.clear_cache()
+
+    def discontinuous_minimize(state, system, **_kwargs):
+        phi = jamming.compute_packing_fraction(state, system)
+        energy = jnp.where(phi < 0.7, 0.0, 3.0)
+        info = MinimizeInfo(
+            jnp.asarray(True),
+            jnp.asarray(True),
+            jnp.asarray(0.0),
+            jnp.asarray(0.0),
+            jnp.asarray(0),
+        )
+        return MinimizationResult(state, system, 1, energy, info.reason, info)
+
+    monkeypatch.setattr(jd.System, "minimize", staticmethod(discontinuous_minimize))
+    state, system = lattice()
+    try:
+        result, info = jamming.bisection_jam(
+            state,
+            system,
+            pe_tol=1.0,
+            pe_band_factor=2.0,
+            packing_fraction_increment=0.03,
+            packing_fraction_tolerance=0.0,
+            n_jamming_steps=100,
+            return_info=True,
+            verbose=False,
+        )
+    finally:
+        jamming.bisection_jam.clear_cache()
+
+    assert not result.converged and int(info.status) == 4
+    assert result.reason == jamming.JamReason.BRACKET_EXHAUSTED
+    assert int(info.steps) < 100
+    assert np.isnan(result.packing_fraction) and np.isnan(result.potential_energy)
+    low_phi = jamming.compute_packing_fraction(
+        result.unjammed_state, result.unjammed_system
+    )
+    high_phi = jamming.compute_packing_fraction(
+        result.jammed_state, result.jammed_system
+    )
+    np.testing.assert_allclose(low_phi, high_phi, rtol=1e-14)
+
+
 def test_nonfinite_pressure_cannot_be_accepted(monkeypatch, patched_minimize):
     patched_minimize([1.5], [4])
     monkeypatch.setattr(

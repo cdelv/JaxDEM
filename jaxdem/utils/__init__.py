@@ -49,6 +49,7 @@ from .jamming import (
     bisection_jam,
     pe_band_jam,
     pressure_bisection_jam,
+    rollback_pe_band_jam,
 )
 from .linalg import cross, cross_3X3D_1X2D, dot, norm, norm2, unit, unit_and_norm
 from .meshes import (
@@ -178,6 +179,7 @@ __all__ = [
     "random_state",
     "randomize_orientations",
     "remove_rattlers",
+    "rollback_pe_band_jam",
     "run_packing_fraction_protocol",
     "save",
     "scale_to_packing_fraction",

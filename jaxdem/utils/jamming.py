@@ -138,9 +138,8 @@ class JammingInfo(NamedTuple):
         * 2: minimization failed, or the trial energy or pressure was
           nonfinite or negative.
         * 3: reached the maximum number of jamming steps.
-        * 4: pressure refinement stopped outside the target band because
-          the bracket in box length was too narrow or the next length was
-          numerically unchanged.
+        * 4: refinement stopped outside the target band because the next
+          trial coordinate was numerically unchanged.
     steps : jax.Array
         Number of attempted minimizations, including the initial trial and
         any failed attempt.
@@ -200,6 +199,7 @@ def _bisect_jamming(
     scale: Callable[..., tuple[State, System]],
     *,
     pe_tol: float,
+    pe_band_factor: float,
     n_jamming_steps: int,
     packing_fraction_tolerance: float,
     packing_fraction_increment: float,
@@ -227,6 +227,8 @@ def _bisect_jamming(
         system rescaled to the requested packing fraction.
     pe_tol : float
         Energy threshold separating the lower and upper bounds.
+    pe_band_factor : float
+        Maximum accepted upper-bound energy as a multiple of ``pe_tol``.
     n_jamming_steps : int
         Maximum number of calls to ``relax``.
     packing_fraction_tolerance : float
@@ -310,11 +312,20 @@ def _bisect_jamming(
         high_pe = jnp.where(above, pe, high_pe)
         high_info = jax.lax.cond(above, lambda: info, lambda: high_info)
         bracketed = (lo > 0) & (hi > 0)
-        done = valid & bracketed & ((hi / lo - 1.0) <= packing_fraction_tolerance)
-        status = jnp.where(
-            ~valid, 2, jnp.where(initial_high, 1, jnp.where(done, 0, -1))
-        )
+        phi_converged = (hi / lo - 1.0) <= packing_fraction_tolerance
+        energy_converged = high_pe <= pe_band_factor * pe_tol
+        done = valid & bracketed & phi_converged & energy_converged
         next_phi = jnp.where(hi > 0, 0.5 * (lo + hi), lo + packing_fraction_increment)
+        exhausted = bracketed & ((next_phi == lo) | (next_phi == hi))
+        status = jnp.where(
+            ~valid,
+            2,
+            jnp.where(
+                initial_high,
+                1,
+                jnp.where(done, 0, jnp.where(exhausted, 4, -1)),
+            ),
+        )
         trial = jax.lax.cond(
             status == -1,
             lambda: scale(low[0], low[1], next_phi),
@@ -409,6 +420,7 @@ def bisection_jam(
     packing_fraction_increment: float = 1e-3,
     verbose: bool = True,
     *,
+    pe_band_factor: float = 2.0,
     minimizer_kwargs: Mapping[str, Any] | None = None,
     return_info: bool = False,
 ) -> JamResult | tuple[JamResult, JammingInfo]:
@@ -419,14 +431,16 @@ def bisection_jam(
     their tolerances and its energy is finite and nonnegative. Write
     ``e = E / N``, where ``N`` is the number of constituent spheres. Trials
     with ``e <= pe_tol`` set the lower bound; trials with ``e > pe_tol`` set
-    the upper bound.
+    the upper bound. The accepted upper bound must additionally satisfy
+    ``e <= pe_band_factor * pe_tol``.
 
     Until an upper bound is found, increase packing fraction by
     ``packing_fraction_increment``. Then choose each trial packing fraction
     as the midpoint of the two bounds. Rescale the stored state at the lower
     bound to create each trial, preserving body sizes and box aspect ratio.
     Accept the stored state at the upper bound when
-    ``phi_hi / phi_lo - 1 <= packing_fraction_tolerance``.
+    ``phi_hi / phi_lo - 1 <= packing_fraction_tolerance`` and its energy is
+    at most ``pe_band_factor * pe_tol``.
 
     Parameters
     ----------
@@ -449,6 +463,9 @@ def bisection_jam(
         Additive step in packing fraction used before finding an upper bound.
     verbose : bool, optional
         Print packing fraction, energy, and minimizer steps for each trial.
+    pe_band_factor : float, optional
+        Multiplier greater than one defining the maximum accepted upper-bound
+        energy. Defaults to 2.
     minimizer_kwargs : mapping, optional
         Arguments forwarded to :meth:`System.minimize` for every trial.
         Recognized keys are ``max_steps``, ``force_tol``, ``torque_tol``, and
@@ -476,19 +493,25 @@ def bisection_jam(
     Raises
     ------
     ValueError
-        If ``system.target_fn`` is set.
+        If ``system.target_fn`` is set or ``pe_band_factor`` is not finite
+        and greater than one.
 
     Notes
     -----
-    Failed minimization, an initial energy above the threshold, or exhaustion
-    of the jamming step budget ends the search with ``result.converged=False``.
-    The search supports ``jax.jit`` and ``jax.vmap``.
+    Failed minimization, an initial energy above the threshold, exhaustion of
+    the packing-fraction bracket before the energy band is reached, or
+    exhaustion of the jamming step budget ends the search with
+    ``result.converged=False``. The search supports ``jax.jit`` and
+    ``jax.vmap``.
     """
+    if not math.isfinite(pe_band_factor) or pe_band_factor <= 1.0:
+        raise ValueError("pe_band_factor must be finite and greater than one")
     options = _minimizer_kwargs(minimizer_kwargs)
     return _bisection_jam(
         state,
         system,
         pe_tol,
+        pe_band_factor,
         n_jamming_steps,
         packing_fraction_tolerance,
         packing_fraction_increment,
@@ -517,6 +540,7 @@ def _bisection_jam(
     state: State,
     system: System,
     pe_tol: float,
+    pe_band_factor: float,
     n_jamming_steps: int,
     packing_fraction_tolerance: float,
     packing_fraction_increment: float,
@@ -558,6 +582,7 @@ def _bisection_jam(
         relax,
         scale,
         pe_tol=pe_tol,
+        pe_band_factor=pe_band_factor,
         n_jamming_steps=n_jamming_steps,
         packing_fraction_tolerance=packing_fraction_tolerance,
         packing_fraction_increment=packing_fraction_increment,
@@ -1088,3 +1113,320 @@ def _pe_band_jam(
 
 
 pe_band_jam.clear_cache = _pe_band_jam.clear_cache  # type: ignore[attr-defined]
+
+
+def rollback_pe_band_jam(
+    state: State,
+    system: System,
+    pe_tol: float = 1e-16,
+    pe_band_factor: float = 2.0,
+    packing_fraction_increment: float = 1e-3,
+    increment_growth_factor: float = 1.0,
+    n_jamming_steps: int = 10_000,
+    verbose: bool = True,
+    *,
+    minimizer_kwargs: Mapping[str, Any] | None = None,
+    return_info: bool = False,
+) -> JamResult | tuple[JamResult, JammingInfo]:
+    """Compress from the last sub-threshold state with rollback on overshoot.
+
+    The target is ``pe_tol < E / N <= pe_band_factor * pe_tol``. Every trial
+    starts from the most recently accepted state with ``E / N <= pe_tol``.
+    A sub-threshold trial is committed as the new lower state, preserving its
+    updated contact history. A trial above the band is discarded, the packing
+    fraction increment is halved, and the next trial is regenerated from the
+    unchanged lower state. A trial inside the band is accepted immediately.
+
+    After a sub-threshold trial, multiply the current increment by
+    ``increment_growth_factor`` up to the original
+    ``packing_fraction_increment``. Regrowth is disabled by default; set
+    ``increment_growth_factor`` greater than 1 to enable it.
+
+    Parameters
+    ----------
+    state : State
+        Initial particle configuration. Its minimized energy must be at or
+        below ``pe_tol`` to establish the first lower state.
+    system : System
+        Domain, interactions, collider, and configured minimizer. The search
+        requires a repulsive physical energy and ``system.target_fn=None``.
+    pe_tol : float, optional
+        Lower edge of the accepted energy-per-sphere band.
+    pe_band_factor : float, optional
+        Multiplier greater than one defining the upper edge of the band.
+    packing_fraction_increment : float, optional
+        Initial and maximum additive compression step in packing fraction.
+    increment_growth_factor : float, optional
+        Factor at least one applied to the step after each committed
+        sub-threshold trial, capped by ``packing_fraction_increment``.
+        Defaults to 1, which disables regrowth.
+    n_jamming_steps : int, optional
+        Maximum number of trial minimizations, including the initial trial.
+    verbose : bool, optional
+        Print packing fraction, step size, energy, and minimizer steps for
+        each trial.
+    minimizer_kwargs : mapping, optional
+        Arguments forwarded to :meth:`System.minimize` for every trial.
+        Recognized keys are ``max_steps``, ``force_tol``, ``torque_tol``, and
+        ``advance_history``. Omitted keys use ``max_steps=100_000_000``,
+        ``force_tol=1e-14``, ``torque_tol=1e-14``, and
+        ``advance_history=True``.
+    return_info : bool, optional
+        Return ``(result, info)`` when true; otherwise return ``result``.
+
+    Returns
+    -------
+    result : JamResult
+        The final committed sub-threshold state and accepted in-band state,
+        each with its system. On failure, the jammed fields contain the last
+        evaluated trial, while packing fraction and energy are NaN.
+    info : JammingInfo, optional
+        Returned when ``return_info=True``.
+
+    Raises
+    ------
+    ValueError
+        If an option is outside its documented range.
+
+    Notes
+    -----
+    This is a one-sided continuation rather than a density bisection. It never
+    continues from an above-band state. Failed minimization, an initially
+    overcompressed state, numerical step exhaustion, or exhaustion of the
+    outer step budget returns ``result.converged=False``. The search supports
+    ``jax.jit`` and ``jax.vmap``.
+    """
+    if not math.isfinite(pe_band_factor) or pe_band_factor <= 1.0:
+        raise ValueError("pe_band_factor must be finite and greater than one")
+    if (
+        not math.isfinite(packing_fraction_increment)
+        or packing_fraction_increment <= 0.0
+    ):
+        raise ValueError("packing_fraction_increment must be finite and positive")
+    if not math.isfinite(increment_growth_factor) or increment_growth_factor < 1.0:
+        raise ValueError("increment_growth_factor must be finite and at least one")
+    options = _minimizer_kwargs(minimizer_kwargs)
+    return _rollback_pe_band_jam(
+        state,
+        system,
+        pe_tol,
+        pe_band_factor,
+        packing_fraction_increment,
+        increment_growth_factor,
+        n_jamming_steps,
+        verbose,
+        options["max_steps"],
+        options["force_tol"],
+        options["torque_tol"],
+        options["advance_history"],
+        return_info,
+    )
+
+
+@partial(
+    jax.jit,
+    static_argnames=[
+        "n_jamming_steps",
+        "verbose",
+        "return_info",
+        "max_steps",
+        "force_tol",
+        "torque_tol",
+        "advance_history",
+    ],
+)
+def _rollback_pe_band_jam(
+    state: State,
+    system: System,
+    pe_tol: float,
+    pe_band_factor: float,
+    packing_fraction_increment: float,
+    increment_growth_factor: float,
+    n_jamming_steps: int,
+    verbose: bool,
+    max_steps: int,
+    force_tol: float,
+    torque_tol: float | None,
+    advance_history: bool,
+    return_info: bool,
+) -> JamResult | tuple[JamResult, JammingInfo]:
+    if system.target_fn is not None:
+        raise ValueError(
+            "rollback_pe_band_jam requires a repulsive physical energy objective"
+        )
+    pe_hi = pe_band_factor * pe_tol
+    initial_packing_fraction = compute_packing_fraction(state, system)
+    initial_increment = jnp.asarray(packing_fraction_increment, float)
+
+    group_id = jax.pure_callback(
+        _host_body_grouping,
+        jax.ShapeDtypeStruct((state.N,), jnp.int32),  # type: ignore[no-untyped-call]
+        state.clump_id,
+        state.bond_id,
+        vmap_method="sequential",
+    )
+    empty_info = MinimizeInfo(
+        jnp.asarray(False),
+        jnp.asarray(False),
+        jnp.asarray(jnp.inf),
+        jnp.asarray(jnp.inf),
+        jnp.asarray(MAX_STEPS),
+    )
+    init_carry = (
+        0,
+        jnp.asarray(-1),  # running
+        state,
+        system,  # current trial
+        state,
+        system,  # last committed sub-threshold state
+        initial_packing_fraction,  # current trial packing fraction
+        initial_packing_fraction,  # lower-state packing fraction
+        initial_increment,
+        jnp.asarray(jnp.inf),  # last evaluated PE/N
+        empty_info,
+        jnp.asarray(0, dtype=int),
+    )
+
+    def condition(carry: tuple[Any, ...]) -> jax.Array:
+        iteration, status, *_ = carry
+        return (iteration < n_jamming_steps) & (status == -1)
+
+    def step(carry: tuple[Any, ...]) -> tuple[Any, ...]:
+        (
+            iteration,
+            _,
+            trial_state,
+            trial_system,
+            low_state,
+            low_system,
+            trial_phi,
+            low_phi,
+            increment,
+            _,
+            _,
+            max_minimization_steps,
+        ) = carry
+
+        relaxation = trial_system.minimize(
+            trial_state,
+            trial_system,
+            max_steps=max_steps,
+            force_tol=force_tol,
+            torque_tol=torque_tol,
+            advance_history=advance_history,
+        )
+        evaluated_state, evaluated_system, n_steps, pe = relaxation
+        min_info = relaxation.info
+        max_minimization_steps = jnp.maximum(max_minimization_steps, n_steps)
+
+        valid = min_info.converged & jnp.isfinite(pe) & (pe >= 0.0)
+        below = valid & (pe <= pe_tol)
+        accepted = valid & (pe > pe_tol) & (pe <= pe_hi)
+        initial_overcompressed = valid & (iteration == 0) & ~below
+        status = jnp.where(
+            ~valid,
+            2,
+            jnp.where(
+                initial_overcompressed,
+                1,
+                jnp.where(accepted, 0, -1),
+            ),
+        )
+
+        new_low_state, new_low_system = jax.lax.cond(
+            below,
+            lambda: (evaluated_state, evaluated_system),
+            lambda: (low_state, low_system),
+        )
+        new_low_phi = jnp.where(below, trial_phi, low_phi)
+        grown_increment = jnp.minimum(
+            initial_increment, increment * increment_growth_factor
+        )
+        new_increment = jnp.where(
+            pe > pe_hi,
+            0.5 * increment,
+            jnp.where(below, grown_increment, increment),
+        )
+        next_phi = new_low_phi + new_increment
+        exhausted = valid & (status == -1) & (next_phi == new_low_phi)
+        status = jnp.where(exhausted, 4, status)
+        done = (status != -1) | (iteration + 1 == n_jamming_steps)
+
+        next_state, next_system = jax.lax.cond(
+            done,
+            lambda: (evaluated_state, evaluated_system),
+            lambda: _scale_to_packing_fraction_grouped(
+                new_low_state, new_low_system, next_phi, group_id
+            ),
+        )
+        carry_phi = jnp.where(done, trial_phi, next_phi)
+
+        if verbose:
+            jax.debug.print(
+                "Step {i}: phi={phi}, increment={inc}, PE/N={pe}, steps={n}",
+                i=iteration + 1,
+                phi=trial_phi,
+                inc=increment,
+                pe=pe,
+                n=n_steps,
+            )
+
+        return (
+            iteration + 1,
+            status,
+            next_state,
+            next_system,
+            new_low_state,
+            new_low_system,
+            carry_phi,
+            new_low_phi,
+            new_increment,
+            pe,
+            min_info,
+            max_minimization_steps,
+        )
+
+    final_carry = jax.lax.while_loop(condition, step, init_carry)
+    (
+        iterations,
+        status,
+        final_state,
+        final_system,
+        low_state,
+        low_system,
+        _,
+        _,
+        _,
+        final_pe,
+        min_info,
+        max_minimization_steps,
+    ) = final_carry
+    status = jnp.where(status == -1, 3, status)
+    success = status == 0
+    info = JammingInfo(
+        success,
+        status,
+        jnp.asarray(iterations),
+        min_info,
+        max_minimization_steps,
+    )
+    result = JamResult(
+        unjammed_state=low_state,
+        unjammed_system=low_system,
+        jammed_state=final_state,
+        jammed_system=final_system,
+        packing_fraction=jnp.where(
+            success, compute_packing_fraction(final_state, final_system), jnp.nan
+        ),
+        potential_energy=jnp.where(success, final_pe, jnp.nan),
+        reason=_jam_reason(
+            info,
+            JamReason.TARGET_REACHED,
+            measurement_finite=jnp.isfinite(final_pe),
+        ),
+        info=info,
+    )
+    return (result, info) if return_info else result
+
+
+rollback_pe_band_jam.clear_cache = _rollback_pe_band_jam.clear_cache  # type: ignore[attr-defined]

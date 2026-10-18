@@ -13,6 +13,7 @@ from jaxdem.utils.jamming import (
     bisection_jam,
     pe_band_jam,
     pressure_bisection_jam,
+    rollback_pe_band_jam,
 )
 
 
@@ -47,6 +48,7 @@ def test_minimizer_kwargs_are_forwarded(monkeypatch):
     monkeypatch.setattr(jdem.System, "minimize", staticmethod(spy))
     bisection_jam.clear_cache()
     pe_band_jam.clear_cache()
+    rollback_pe_band_jam.clear_cache()
     try:
         options = {
             "max_steps": 2,
@@ -54,7 +56,12 @@ def test_minimizer_kwargs_are_forwarded(monkeypatch):
             "torque_tol": 1.0e-5,
             "advance_history": True,
         }
-        for driver in (bisection_jam, pe_band_jam, pressure_bisection_jam):
+        for driver in (
+            bisection_jam,
+            pe_band_jam,
+            pressure_bisection_jam,
+            rollback_pe_band_jam,
+        ):
             seen.clear()
             driver(
                 state,
@@ -76,9 +83,13 @@ def test_minimizer_kwargs_are_forwarded(monkeypatch):
     finally:
         bisection_jam.clear_cache()
         pe_band_jam.clear_cache()
+        rollback_pe_band_jam.clear_cache()
 
 
-@pytest.mark.parametrize("driver", [bisection_jam, pe_band_jam, pressure_bisection_jam])
+@pytest.mark.parametrize(
+    "driver",
+    [bisection_jam, pe_band_jam, pressure_bisection_jam, rollback_pe_band_jam],
+)
 def test_jamming_reports_nonfinite_minimization_without_retries(driver):
     state, system = _nonfinite_system()
     result = driver(
@@ -111,6 +122,82 @@ def test_jamming_outer_step_limit_has_explicit_reason():
         verbose=False,
     )
     assert result.reason == JamReason.MAX_STEPS
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"pe_band_factor": 1.0},
+        {"packing_fraction_increment": 0.0},
+        {"increment_growth_factor": 0.5},
+    ],
+)
+def test_rollback_rejects_invalid_search_options(kwargs):
+    state, system = _nonfinite_system()
+    with pytest.raises(ValueError):
+        rollback_pe_band_jam(state, system, verbose=False, **kwargs)
+
+
+@pytest.mark.parametrize(
+    ("growth_options", "expected_steps"),
+    [({}, 5), ({"increment_growth_factor": 2.0}, 6)],
+)
+def test_rollback_halves_rejected_steps_with_optional_regrowth(
+    monkeypatch, growth_options, expected_steps
+):
+    state = jdem.State.create(
+        pos=jnp.asarray([[0.0, 0.0], [2.0, 0.0]]),
+        rad=jnp.asarray([0.2, 0.2]),
+    )
+    system = jdem.System.create(state=state, collider_type="naive")
+    phi_initial = jdem.utils.compute_packing_fraction(state, system)
+    original = type(system).minimize
+
+    def staged_minimize(state, system, **kwargs):
+        result = original(state, system, **kwargs)
+        delta_phi = jdem.utils.compute_packing_fraction(state, system) - phi_initial
+        energy = jnp.where(
+            delta_phi <= 0.100001,
+            0.5,
+            jnp.where(delta_phi <= 0.170001, 1.5, 3.0),
+        )
+        return replace(
+            result,
+            energy=energy,
+            reason=jnp.asarray(TerminationReason.FORCE_TORQUE_TOLERANCE),
+            info=result.info._replace(
+                converged=jnp.asarray(True),
+                finite=jnp.asarray(True),
+                status=jnp.asarray(0),
+            ),
+        )
+
+    rollback_pe_band_jam.clear_cache()
+    monkeypatch.setattr(type(system), "minimize", staticmethod(staged_minimize))
+    try:
+        result = rollback_pe_band_jam(
+            state,
+            system,
+            pe_tol=1.0,
+            pe_band_factor=2.0,
+            packing_fraction_increment=0.2,
+            n_jamming_steps=10,
+            verbose=False,
+            minimizer_kwargs={"max_steps": 1},
+            **growth_options,
+        )
+    finally:
+        rollback_pe_band_jam.clear_cache()
+
+    assert result.converged
+    assert result.steps == expected_steps
+    assert result.potential_energy == pytest.approx(1.5)
+    assert jdem.utils.compute_packing_fraction(
+        result.unjammed_state, result.unjammed_system
+    ) == pytest.approx(float(phi_initial) + 0.1)
+    assert jdem.utils.compute_packing_fraction(
+        result.jammed_state, result.jammed_system
+    ) == pytest.approx(float(phi_initial) + 0.15)
 
 
 def test_pressure_nan_is_not_accepted_as_target(monkeypatch):
