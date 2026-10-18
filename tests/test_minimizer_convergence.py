@@ -202,7 +202,7 @@ def test_bisection_returns_the_validated_high_state():
     result, info = bisection_jam(
         st,
         sy,
-        n_minimization_steps=2,
+        minimizer_kwargs={"max_steps": 2},
         n_jamming_steps=60,
         pe_tol=1e-8,
         packing_fraction_increment=0.03,
@@ -231,7 +231,7 @@ def test_bisection_failure_cannot_look_jammed(outer_limit):
     result, info = bisection_jam(
         st,
         sy,
-        n_minimization_steps=0,
+        minimizer_kwargs={"max_steps": 0},
         n_jamming_steps=1,
         verbose=False,
         return_info=True,
@@ -245,11 +245,11 @@ def test_bisection_failure_cannot_look_jammed(outer_limit):
 def test_other_jamming_drivers_reject_unresolved_relaxation():
     st, sy = pair(overlap=0.1)
     result = pe_band_jam(
-        st, sy, n_minimization_steps=0, n_jamming_steps=1, verbose=False
+        st, sy, minimizer_kwargs={"max_steps": 0}, n_jamming_steps=1, verbose=False
     )
     assert not result.converged
     result = pressure_bisection_jam(
-        st, sy, n_minimization_steps=0, n_jamming_steps=1, verbose=False
+        st, sy, minimizer_kwargs={"max_steps": 0}, n_jamming_steps=1, verbose=False
     )
     assert not result.converged
 
@@ -264,7 +264,7 @@ def test_other_jamming_drivers_return_balanced_in_band_states(driver):
             pe_tol=1e-6,
             pe_band_factor=2.0,
             packing_fraction_increment=0.03,
-            n_minimization_steps=2,
+            minimizer_kwargs={"max_steps": 2},
             n_jamming_steps=60,
             verbose=False,
             return_info=True,
@@ -278,7 +278,7 @@ def test_other_jamming_drivers_return_balanced_in_band_states(driver):
             pressure_band_factor=1.2,
             growth_rate=1.02,
             fine_growth_rate=1.002,
-            n_minimization_steps=2,
+            minimizer_kwargs={"max_steps": 2},
             n_jamming_steps=60,
             verbose=False,
             return_info=True,
@@ -309,7 +309,7 @@ def test_other_jamming_drivers_return_balanced_in_band_states(driver):
 def test_unbalanced_small_energy_cannot_establish_lower_bound(dim, driver):
     st, sy = pair(dim)
     kw = {
-        "n_minimization_steps": 3,
+        "minimizer_kwargs": {"max_steps": 3},
         "n_jamming_steps": 4,
         "pe_tol": 1e-14,
         "verbose": False,

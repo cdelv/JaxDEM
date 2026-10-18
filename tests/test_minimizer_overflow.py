@@ -63,7 +63,7 @@ def test_jamming_propagates_overflow_failure():
     result, info = bisection_jam(
         st,
         sy,
-        n_minimization_steps=10,
+        minimizer_kwargs={"max_steps": 10},
         n_jamming_steps=2,
         verbose=False,
         return_info=True,

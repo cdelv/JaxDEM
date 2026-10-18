@@ -274,7 +274,12 @@ force/torque residuals, finiteness, and convergence. `.reason` distinguishes
 convergence from step exhaustion, nonfinite values and search overflow.
 
 Jamming classifies energy or pressure only after mechanical convergence. Its
-`pe_tol` specifies an energy classification threshold. `JamResult` supports
+`pe_tol` and pressure thresholds classify an equilibrated trial. Trial
+minimization is configured separately through `minimizer_kwargs`, which is
+forwarded to `System.minimize`. Recognized keys are `max_steps` (default
+`100_000_000`), `force_tol` and `torque_tol` (default `1e-14`), and
+`advance_history` (default `True`, so accepted minimizer steps advance pair
+history). `JamResult` supports
 six-value unpacking and exposes `.reason`, `.minimizer_reason`, and `.info`.
 `.steps` counts attempted trial minimizations, including the initial and failed
 trials.

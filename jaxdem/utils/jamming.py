@@ -10,7 +10,7 @@ constituent sphere, and optional convergence diagnostics.
 from __future__ import annotations
 
 import math
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from enum import IntEnum
 from functools import partial
@@ -377,27 +377,39 @@ def _bisect_jamming(
     )
 
 
-@partial(
-    jax.jit,
-    static_argnames=[
-        "n_minimization_steps",
-        "n_jamming_steps",
-        "verbose",
-        "return_info",
-    ],
-)
+_MINIMIZER_KEYS = ("max_steps", "force_tol", "torque_tol", "advance_history")
+
+
+def _minimizer_kwargs(minimizer_kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Merge user arguments for ``System.minimize`` with the jamming defaults."""
+    provided = {} if minimizer_kwargs is None else dict(minimizer_kwargs)
+    unknown = set(provided).difference(_MINIMIZER_KEYS)
+    if unknown:
+        names = ", ".join(sorted(unknown))
+        allowed = ", ".join(_MINIMIZER_KEYS)
+        raise TypeError(
+            f"unknown minimizer_kwargs {names}; expected a subset of {allowed}"
+        )
+    resolved = {
+        "max_steps": 100_000_000,
+        "force_tol": 1e-14,
+        "torque_tol": 1e-14,
+        "advance_history": True,
+    }
+    resolved.update(provided)
+    return resolved
+
+
 def bisection_jam(
     state: State,
     system: System,
-    n_minimization_steps: int = 1000000,
     pe_tol: float = 1e-16,
     n_jamming_steps: int = 10000,
     packing_fraction_tolerance: float = 1e-10,
     packing_fraction_increment: float = 1e-3,
     verbose: bool = True,
     *,
-    force_tol: float = 1e-12,
-    torque_tol: float | None = None,
+    minimizer_kwargs: Mapping[str, Any] | None = None,
     return_info: bool = False,
 ) -> JamResult | tuple[JamResult, JammingInfo]:
     """Locate an energy threshold by bisecting packing fraction.
@@ -424,11 +436,10 @@ def bisection_jam(
     system : System
         Domain, interactions, collider, and configured minimizer. The search
         requires a repulsive physical energy and ``system.target_fn=None``.
-    n_minimization_steps : int, optional
-        Maximum steps per minimization.
     pe_tol : float, optional
         Threshold for energy per constituent sphere, applied after
-        mechanical equilibration.
+        mechanical equilibration. This classifies an equilibrated trial; it
+        is not a minimizer tolerance.
     n_jamming_steps : int, optional
         Maximum number of trial minimizations, including the initial trial.
     packing_fraction_tolerance : float, optional
@@ -438,10 +449,15 @@ def bisection_jam(
         Additive step in packing fraction used before finding an upper bound.
     verbose : bool, optional
         Print packing fraction, energy, and minimizer steps for each trial.
-    force_tol, torque_tol : float, optional
-        Absolute tolerances on maximum net force and torque norms over free
-        bodies. Reactions on fixed bodies are excluded. ``torque_tol=None``
-        uses the numerical value of ``force_tol``.
+    minimizer_kwargs : mapping, optional
+        Arguments forwarded to :meth:`System.minimize` for every trial.
+        Recognized keys are ``max_steps``, ``force_tol``, ``torque_tol``, and
+        ``advance_history``. Omitted keys use ``max_steps=100_000_000``,
+        ``force_tol=1e-14``, ``torque_tol=1e-14``, and
+        ``advance_history=True``. ``torque_tol=None`` uses the numerical
+        value of ``force_tol``. Every value must be a concrete Python object.
+        Pair history advances on accepted steps unless ``advance_history``
+        is false.
     return_info : bool, optional
         Return ``(result, info)`` when true; otherwise return ``result``.
 
@@ -468,6 +484,49 @@ def bisection_jam(
     of the jamming step budget ends the search with ``result.converged=False``.
     The search supports ``jax.jit`` and ``jax.vmap``.
     """
+    options = _minimizer_kwargs(minimizer_kwargs)
+    return _bisection_jam(
+        state,
+        system,
+        pe_tol,
+        n_jamming_steps,
+        packing_fraction_tolerance,
+        packing_fraction_increment,
+        verbose,
+        options["max_steps"],
+        options["force_tol"],
+        options["torque_tol"],
+        options["advance_history"],
+        return_info,
+    )
+
+
+@partial(
+    jax.jit,
+    static_argnames=[
+        "n_jamming_steps",
+        "verbose",
+        "return_info",
+        "max_steps",
+        "force_tol",
+        "torque_tol",
+        "advance_history",
+    ],
+)
+def _bisection_jam(
+    state: State,
+    system: System,
+    pe_tol: float,
+    n_jamming_steps: int,
+    packing_fraction_tolerance: float,
+    packing_fraction_increment: float,
+    verbose: bool,
+    max_steps: int,
+    force_tol: float,
+    torque_tol: float | None,
+    advance_history: bool,
+    return_info: bool,
+) -> JamResult | tuple[JamResult, JammingInfo]:
     if system.target_fn is not None:
         raise ValueError("bisection_jam requires a repulsive physical energy objective")
     group_id = jax.pure_callback(
@@ -482,9 +541,10 @@ def bisection_jam(
         result = sy.minimize(
             st,
             sy,
-            max_steps=n_minimization_steps,
+            max_steps=max_steps,
             force_tol=force_tol,
             torque_tol=torque_tol,
+            advance_history=advance_history,
         )
         st, sy, n, pe = result
         return st, sy, n, pe, result.info
@@ -516,11 +576,13 @@ def bisection_jam(
     return (result, info) if return_info else result
 
 
+bisection_jam.clear_cache = _bisection_jam.clear_cache  # type: ignore[attr-defined]
+
+
 def pressure_bisection_jam(
     state: State,
     system: System,
     *,
-    n_minimization_steps: int = 1_000_000,
     pressure_threshold: float = 1e-7,
     pressure_band_factor: float = 1.01,
     growth_rate: float = 1.001,
@@ -528,8 +590,7 @@ def pressure_bisection_jam(
     length_ratio_tolerance: float = 1e-14,
     n_jamming_steps: int = 10_000,
     verbose: bool = True,
-    force_tol: float = 1e-12,
-    torque_tol: float | None = None,
+    minimizer_kwargs: Mapping[str, Any] | None = None,
     return_info: bool = False,
 ) -> JamResult | tuple[JamResult, JammingInfo]:
     """Find an equilibrated packing within a prescribed contact pressure band.
@@ -562,8 +623,6 @@ def pressure_bisection_jam(
     system : System
         Domain, interactions, collider, and configured minimizer. The search
         requires a repulsive physical energy and ``system.target_fn=None``.
-    n_minimization_steps : int, optional
-        Maximum steps per minimization.
     pressure_threshold : float, optional
         Positive lower edge of the pressure band, in the system's pressure
         units.
@@ -583,10 +642,14 @@ def pressure_bisection_jam(
     verbose : bool, optional
         Print box length, packing fraction, pressure, energy, and minimizer
         steps for each trial with a valid pressure measurement.
-    force_tol, torque_tol : float, optional
-        Absolute tolerances on maximum net force and torque norms over free
-        bodies. Reactions on fixed bodies are excluded. ``torque_tol=None``
-        uses the numerical value of ``force_tol``.
+    minimizer_kwargs : mapping, optional
+        Arguments forwarded to :meth:`System.minimize` for every trial.
+        Recognized keys are ``max_steps``, ``force_tol``, ``torque_tol``, and
+        ``advance_history``. Omitted keys use ``max_steps=100_000_000``,
+        ``force_tol=1e-14``, ``torque_tol=1e-14``, and
+        ``advance_history=True``. ``torque_tol=None`` uses the numerical
+        value of ``force_tol``. Pair history advances on accepted steps
+        unless ``advance_history`` is false.
     return_info : bool, optional
         Return ``(result, info)`` when true; otherwise return ``result``.
 
@@ -622,6 +685,7 @@ def pressure_bisection_jam(
 
     if system.target_fn is not None:
         raise ValueError("pressure_bisection_jam requires a physical energy objective")
+    options = _minimizer_kwargs(minimizer_kwargs)
     p_lo = float(pressure_threshold)
     p_hi = float(pressure_band_factor) * p_lo
     dim = int(state.dim)
@@ -647,13 +711,7 @@ def pressure_bisection_jam(
     )
 
     while iteration < n_jamming_steps:
-        relaxation = system.minimize(
-            state,
-            system,
-            max_steps=n_minimization_steps,
-            force_tol=force_tol,
-            torque_tol=torque_tol,
-        )
+        relaxation = system.minimize(state, system, **options)
         state, system, n_steps, pe = relaxation
         min_info = relaxation.info
         iteration += 1
@@ -739,27 +797,16 @@ def pressure_bisection_jam(
     return (result, info) if return_info else result
 
 
-@partial(
-    jax.jit,
-    static_argnames=[
-        "n_minimization_steps",
-        "n_jamming_steps",
-        "verbose",
-        "return_info",
-    ],
-)
 def pe_band_jam(
     state: State,
     system: System,
-    n_minimization_steps: int = 1_000_000,
     pe_tol: float = 1e-16,
     pe_band_factor: float = 2.0,
     packing_fraction_increment: float = 1e-3,
     n_jamming_steps: int = 10_000,
     verbose: bool = True,
     *,
-    force_tol: float = 1e-12,
-    torque_tol: float | None = None,
+    minimizer_kwargs: Mapping[str, Any] | None = None,
     return_info: bool = False,
 ) -> JamResult | tuple[JamResult, JammingInfo]:
     """Find an equilibrated packing within a prescribed energy band.
@@ -783,11 +830,10 @@ def pe_band_jam(
     system : System
         Domain, interactions, collider, and configured minimizer. The search
         requires a repulsive physical energy and ``system.target_fn=None``.
-    n_minimization_steps : int, optional
-        Maximum steps per minimization.
     pe_tol : float, optional
         Lower edge of the band for energy per constituent sphere, applied after
-        mechanical equilibration.
+        mechanical equilibration. This classifies an equilibrated trial; it
+        is not a minimizer tolerance.
     pe_band_factor : float, optional
         Multiplier greater than one defining the upper edge of the band.
     packing_fraction_increment : float, optional
@@ -797,10 +843,15 @@ def pe_band_jam(
     verbose : bool, optional
         Print packing fraction, step size, energy, and minimizer steps for
         each trial.
-    force_tol, torque_tol : float, optional
-        Absolute tolerances on maximum net force and torque norms over free
-        bodies. Reactions on fixed bodies are excluded. ``torque_tol=None``
-        uses the numerical value of ``force_tol``.
+    minimizer_kwargs : mapping, optional
+        Arguments forwarded to :meth:`System.minimize` for every trial.
+        Recognized keys are ``max_steps``, ``force_tol``, ``torque_tol``, and
+        ``advance_history``. Omitted keys use ``max_steps=100_000_000``,
+        ``force_tol=1e-14``, ``torque_tol=1e-14``, and
+        ``advance_history=True``. ``torque_tol=None`` uses the numerical
+        value of ``force_tol``. Every value must be a concrete Python object.
+        Pair history advances on accepted steps unless ``advance_history``
+        is false.
     return_info : bool, optional
         Return ``(result, info)`` when true; otherwise return ``result``.
 
@@ -828,6 +879,49 @@ def pe_band_jam(
     jamming step budget ends the search with ``result.converged=False``.
     The search supports ``jax.jit`` and ``jax.vmap``.
     """
+    options = _minimizer_kwargs(minimizer_kwargs)
+    return _pe_band_jam(
+        state,
+        system,
+        pe_tol,
+        pe_band_factor,
+        packing_fraction_increment,
+        n_jamming_steps,
+        verbose,
+        options["max_steps"],
+        options["force_tol"],
+        options["torque_tol"],
+        options["advance_history"],
+        return_info,
+    )
+
+
+@partial(
+    jax.jit,
+    static_argnames=[
+        "n_jamming_steps",
+        "verbose",
+        "return_info",
+        "max_steps",
+        "force_tol",
+        "torque_tol",
+        "advance_history",
+    ],
+)
+def _pe_band_jam(
+    state: State,
+    system: System,
+    pe_tol: float,
+    pe_band_factor: float,
+    packing_fraction_increment: float,
+    n_jamming_steps: int,
+    verbose: bool,
+    max_steps: int,
+    force_tol: float,
+    torque_tol: float | None,
+    advance_history: bool,
+    return_info: bool,
+) -> JamResult | tuple[JamResult, JammingInfo]:
     if system.target_fn is not None:
         raise ValueError("pe_band_jam requires a repulsive physical energy objective")
     pe_lo = pe_tol
@@ -889,9 +983,10 @@ def pe_band_jam(
         relaxation = system.minimize(
             state,
             system,
-            max_steps=n_minimization_steps,
+            max_steps=max_steps,
             force_tol=force_tol,
             torque_tol=torque_tol,
+            advance_history=advance_history,
         )
         state, system, n_steps, pe = relaxation
         info = relaxation.info
@@ -990,3 +1085,6 @@ def pe_band_jam(
         info=info,
     )
     return (result, info) if return_info else result
+
+
+pe_band_jam.clear_cache = _pe_band_jam.clear_cache  # type: ignore[attr-defined]

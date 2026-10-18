@@ -24,13 +24,67 @@ def _nonfinite_system():
     return state, jdem.System.create(state=state, collider_type="naive")
 
 
+def test_unknown_minimizer_kwargs_are_rejected():
+    state, system = _nonfinite_system()
+    with pytest.raises(TypeError, match="n_minimization_steps"):
+        bisection_jam(
+            state,
+            system,
+            verbose=False,
+            minimizer_kwargs={"n_minimization_steps": 3},
+        )
+
+
+def test_minimizer_kwargs_are_forwarded(monkeypatch):
+    state, system = _nonfinite_system()
+    seen = []
+    original = jdem.System.minimize
+
+    def spy(state, system, **kwargs):
+        seen.append(kwargs)
+        return original(state, system, **kwargs)
+
+    monkeypatch.setattr(jdem.System, "minimize", staticmethod(spy))
+    bisection_jam.clear_cache()
+    pe_band_jam.clear_cache()
+    try:
+        options = {
+            "max_steps": 2,
+            "force_tol": 1.0e-4,
+            "torque_tol": 1.0e-5,
+            "advance_history": True,
+        }
+        for driver in (bisection_jam, pe_band_jam, pressure_bisection_jam):
+            seen.clear()
+            driver(
+                state,
+                system,
+                n_jamming_steps=1,
+                verbose=False,
+                minimizer_kwargs=options,
+            )
+            assert seen[0] == options
+
+        seen.clear()
+        bisection_jam(state, system, n_jamming_steps=1, verbose=False)
+        assert seen[0] == {
+            "max_steps": 100_000_000,
+            "force_tol": 1e-14,
+            "torque_tol": 1e-14,
+            "advance_history": True,
+        }
+    finally:
+        bisection_jam.clear_cache()
+        pe_band_jam.clear_cache()
+
+
 @pytest.mark.parametrize("driver", [bisection_jam, pe_band_jam, pressure_bisection_jam])
 def test_jamming_reports_nonfinite_minimization_without_retries(driver):
     state, system = _nonfinite_system()
     result = driver(
         state,
         system,
-        n_minimization_steps=2,
+        minimizer_kwargs={"max_steps": 2},
         n_jamming_steps=3,
         verbose=False,
     )
@@ -52,7 +106,7 @@ def test_jamming_outer_step_limit_has_explicit_reason():
     result = pe_band_jam(
         state,
         system,
-        n_minimization_steps=1,
+        minimizer_kwargs={"max_steps": 1},
         n_jamming_steps=0,
         verbose=False,
     )
@@ -70,7 +124,11 @@ def test_pressure_nan_is_not_accepted_as_target(monkeypatch):
 
     monkeypatch.setattr("jaxdem.utils.jamming.compute_contact_pressure", nan_pressure)
     result = pressure_bisection_jam(
-        state, system, n_minimization_steps=1, n_jamming_steps=2, verbose=False
+        state,
+        system,
+        n_jamming_steps=2,
+        verbose=False,
+        minimizer_kwargs={"max_steps": 1},
     )
     assert result.reason == JamReason.NONFINITE
 
@@ -108,7 +166,11 @@ def test_accepted_pressure_trial_is_returned_without_extra_relaxation(monkeypatc
         "jaxdem.utils.jamming.compute_contact_pressure", target_pressure
     )
     result = pressure_bisection_jam(
-        state, system, n_minimization_steps=1, n_jamming_steps=2, verbose=False
+        state,
+        system,
+        n_jamming_steps=2,
+        verbose=False,
+        minimizer_kwargs={"max_steps": 1},
     )
     assert calls == 1
     assert result.reason == JamReason.TARGET_REACHED
@@ -143,7 +205,11 @@ def test_initial_minimizer_failure_preserves_input_and_exposes_failed_trial(
 
     monkeypatch.setattr(type(system), "minimize", staticmethod(failed_minimize))
     result = pressure_bisection_jam(
-        state, system, n_minimization_steps=1, n_jamming_steps=2, verbose=False
+        state,
+        system,
+        n_jamming_steps=2,
+        verbose=False,
+        minimizer_kwargs={"max_steps": 1},
     )
     assert result.unjammed_state is state
     assert result.unjammed_system is system

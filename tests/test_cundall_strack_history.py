@@ -813,13 +813,15 @@ def test_native_bisection_jams_cundall_strack(parameterization) -> None:
     result = jd.utils.jamming.bisection_jam(
         state,
         system,
-        n_minimization_steps=100,
         n_jamming_steps=40,
         pe_tol=1.0e-8,
         packing_fraction_increment=0.03,
         packing_fraction_tolerance=1.0e-6,
-        force_tol=1.0e-8,
-        torque_tol=1.0e-8,
+        minimizer_kwargs={
+            "max_steps": 100,
+            "force_tol": 1.0e-8,
+            "torque_tol": 1.0e-8,
+        },
         verbose=False,
     )
 

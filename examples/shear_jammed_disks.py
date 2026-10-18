@@ -37,7 +37,10 @@ system = jdem.System.create(
 )
 
 jam = jdem.utils.jamming.bisection_jam(
-    state, system, n_minimization_steps=100_000_000, verbose=False,
+    state,
+    system,
+    verbose=False,
+    minimizer_kwargs={"max_steps": 100_000_000},
 )
 if not jam.converged:
     raise RuntimeError("Jamming did not converge.")
