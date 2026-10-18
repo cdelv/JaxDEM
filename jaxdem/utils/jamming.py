@@ -201,6 +201,7 @@ def _bisect_jamming(
     scale: Callable[..., tuple[State, System]],
     *,
     pe_tol: float,
+    pe_band_factor: float,
     n_jamming_steps: int,
     packing_fraction_tolerance: float,
     packing_fraction_increment: float,
@@ -231,6 +232,8 @@ def _bisect_jamming(
         system rescaled to the requested packing fraction.
     pe_tol : float
         Energy threshold separating the lower and upper bounds.
+    pe_band_factor : float
+        Maximum accepted upper-bound energy as a multiple of ``pe_tol``.
     n_jamming_steps : int
         Maximum number of calls to ``relax``.
     packing_fraction_tolerance : float
@@ -314,7 +317,9 @@ def _bisect_jamming(
         high_pe = jnp.where(above, pe, high_pe)
         high_info = jax.lax.cond(above, lambda: info, lambda: high_info)
         bracketed = (lo > 0) & (hi > 0)
-        done = valid & bracketed & ((hi / lo - 1.0) <= packing_fraction_tolerance)
+        phi_converged = (hi / lo - 1.0) <= packing_fraction_tolerance
+        energy_converged = high_pe <= pe_band_factor * pe_tol
+        done = valid & bracketed & phi_converged & energy_converged
         status = jnp.where(
             ~valid, 2, jnp.where(initial_high, 1, jnp.where(done, 0, -1))
         )
@@ -386,6 +391,7 @@ def _bisect_jamming(
     static_argnames=[
         "n_minimization_steps",
         "n_jamming_steps",
+        "pe_band_factor",
         "verbose",
         "return_info",
     ],
@@ -400,6 +406,7 @@ def bisection_jam(
     packing_fraction_increment: float = 1e-3,
     verbose: bool = True,
     *,
+    pe_band_factor: float = 2.0,
     force_tol: float = 1e-12,
     torque_tol: float | None = None,
     return_info: bool = False,
@@ -411,14 +418,16 @@ def bisection_jam(
     their tolerances and its energy is finite and nonnegative. Write
     ``e = E / N``, where ``N`` is the number of constituent spheres. Trials
     with ``e <= pe_tol`` set the lower bound; trials with ``e > pe_tol`` set
-    the upper bound.
+    the upper bound. The accepted upper bound must additionally satisfy
+    ``e <= pe_band_factor * pe_tol``.
 
     Until an upper bound is found, increase packing fraction by
     ``packing_fraction_increment``. Then choose each trial packing fraction
     as the midpoint of the two bounds. Rescale the stored state at the lower
     bound to create each trial, preserving body sizes and box aspect ratio.
     Accept the stored state at the upper bound when
-    ``phi_hi / phi_lo - 1 <= packing_fraction_tolerance``.
+    ``phi_hi / phi_lo - 1 <= packing_fraction_tolerance`` and its energy is
+    at most ``pe_band_factor * pe_tol``.
 
     Parameters
     ----------
@@ -442,6 +451,9 @@ def bisection_jam(
         Additive step in packing fraction used before finding an upper bound.
     verbose : bool, optional
         Print packing fraction, energy, and minimizer steps for each trial.
+    pe_band_factor : float, optional
+        Multiplier greater than one defining the maximum accepted upper-bound
+        energy. Defaults to 2.
     force_tol, torque_tol : float, optional
         Absolute tolerances on maximum net force and torque norms over free
         bodies. Reactions on fixed bodies are excluded. ``torque_tol=None``
@@ -464,7 +476,8 @@ def bisection_jam(
     Raises
     ------
     ValueError
-        If ``system.target_fn`` is set.
+        If ``system.target_fn`` is set or ``pe_band_factor`` is not finite
+        and greater than one.
 
     Notes
     -----
@@ -474,6 +487,8 @@ def bisection_jam(
     """
     if system.target_fn is not None:
         raise ValueError("bisection_jam requires a repulsive physical energy objective")
+    if not math.isfinite(pe_band_factor) or pe_band_factor <= 1.0:
+        raise ValueError("pe_band_factor must be finite and greater than one")
     group_id = jax.pure_callback(
         _host_body_grouping,
         jax.ShapeDtypeStruct((state.N,), jnp.int32),  # type: ignore[no-untyped-call]
@@ -503,6 +518,7 @@ def bisection_jam(
         relax,
         scale,
         pe_tol=pe_tol,
+        pe_band_factor=pe_band_factor,
         n_jamming_steps=n_jamming_steps,
         packing_fraction_tolerance=packing_fraction_tolerance,
         packing_fraction_increment=packing_fraction_increment,

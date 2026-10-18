@@ -171,7 +171,7 @@ def test_bisection_returns_the_validated_high_state():
     )
     assert result.converged and info.converged and info.minimization.converged
     assert 0 <= int(info.max_minimization_steps) <= 2
-    assert result.potential_energy > 1e-8
+    assert 1e-8 < result.potential_energy <= 2e-8
     actual = jd.utils.compute_packing_fraction(
         result.jammed_state, result.jammed_system
     )
@@ -182,6 +182,13 @@ def test_bisection_returns_the_validated_high_state():
     assert len(result) == 6
     low = minimize(result.unjammed_state, result.unjammed_system, max_steps=0)
     assert low.info.converged and 0.0 <= low[3] <= 1e-8
+
+
+@pytest.mark.parametrize("pe_band_factor", [1.0, 0.5, np.inf])
+def test_bisection_rejects_invalid_pe_band_factor(pe_band_factor):
+    st, sy = lattice()
+    with pytest.raises(ValueError, match="pe_band_factor"):
+        bisection_jam(st, sy, pe_band_factor=pe_band_factor, verbose=False)
 
 
 @pytest.mark.parametrize("outer_limit", [False, True])
