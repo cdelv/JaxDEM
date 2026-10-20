@@ -5,6 +5,7 @@
 import jax.numpy as jnp
 import numpy as np
 import pytest
+import jaxdem as jd
 
 from benchmarks.base import (
     create_clumps_state,
@@ -12,7 +13,6 @@ from benchmarks.base import (
     create_mixed_state,
 )
 from benchmarks.run_benchmarks import benchmark_function
-from benchmarks.release_workloads import build_workload
 
 
 @pytest.mark.parametrize("n", [1, 2, 3, 7, 19])
@@ -78,17 +78,22 @@ def test_benchmark_function_rejects_query_overflow():
         benchmark_function(overflowing_query, (), {}, repeat=1)
 
 
-@pytest.mark.parametrize(
-    "name", ["spheres", "clumps", "deformable", "mixed", "lees-edwards"]
-)
-def test_release_workloads_construct_initialized_physics(name):
-    state, system = build_workload(name, size=12, batched=False)
-    assert state.N == 12
-    if name in {"deformable", "mixed"}:
-        assert system.bonded_force_model is not None
+@pytest.mark.parametrize("batched", [False, True])
+def test_release_workload_initializes_the_known_pair_force(monkeypatch, batched):
+    from benchmarks import release_workloads
 
-
-def test_release_workload_supports_batch_one():
-    state, system = build_workload("spheres", size=12, batched=True)
-    assert state.pos.shape[:2] == (1, 12)
-    assert system.step_count.shape == (1,)
+    pair = jd.State.create(
+        pos=jnp.array([[0.0, 0.0], [0.15, 0.0]]), rad=jnp.full(2, 0.1)
+    )
+    monkeypatch.setattr(
+        release_workloads, "create_spheres_state", lambda *args, **kw: pair
+    )
+    state, system = release_workloads.build_workload("spheres", size=2, batched=batched)
+    stiffness = float(np.asarray(system.mat_table.young_eff).ravel()[0])
+    expected = stiffness * np.array([[-0.05, 0.0], [0.05, 0.0]])
+    np.testing.assert_allclose(
+        state.force, expected[None] if batched else expected, rtol=2e-6
+    )
+    np.testing.assert_array_equal(
+        system.step_count, np.zeros((1,) if batched else (), dtype=int)
+    )

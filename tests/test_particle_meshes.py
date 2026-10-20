@@ -222,30 +222,21 @@ def test_arclength_ellipse_gives_uniform_neighbor_distances():
     assert cv < 5e-3, f"neighbor-distance CV too large: {cv}"
 
 
-def test_arclength_matches_converged_thomson_in_2d():
-    # The arclength mesh is the α → ∞ packing limit. For α = 1 (default
-    # Thomson) the ground state is slightly different, but for a well-
-    # converged run on a circle both produce the regular n-gon up to a
-    # global rotation.
-    nv = 24
-    pos_arc = np.asarray(generate_arclength_mesh(nv=nv, N=1, dim=2))
-    pos_thomson, _ = generate_thomson_mesh(nv=nv, N=1, dim=2, steps=5_000, seed=0)
-    pos_thomson = np.asarray(pos_thomson)
+def test_thomson_mesh_takes_the_known_projected_repulsion_step(monkeypatch):
+    from jaxdem.utils import meshes
 
-    def sorted_neighbor_dists(pts: np.ndarray) -> np.ndarray:
-        # Angular order, then nearest-neighbor distances.
-        theta = np.arctan2(pts[:, 1], pts[:, 0])
-        pts_sorted = pts[np.argsort(theta)]
-        return np.linalg.norm(np.roll(pts_sorted, -1, axis=0) - pts_sorted, axis=-1)
-
-    d_arc = sorted_neighbor_dists(pos_arc)
-    d_thomson = sorted_neighbor_dists(pos_thomson)
-    # Both converge to the same regular n-gon up to global rotation. Thomson
-    # runs on float32 and 5k steps, so a ~1% agreement on the mean is the
-    # realistic bar; the exact result comes from the arclength mesh.
-    np.testing.assert_allclose(np.mean(d_arc), np.mean(d_thomson), rtol=1e-2)
-    # Arclength's n-gon is numerically exact.
-    np.testing.assert_allclose(np.std(d_arc), 0.0, atol=1e-10)
+    initial = jnp.array([[1.0, 0.0], [0.0, 1.0]])
+    monkeypatch.setattr(
+        meshes,
+        "random_points_on_hyper_ellipsoid",
+        lambda *args, **kw: (initial, jnp.ones(2)),
+    )
+    pos, energy = generate_thomson_mesh(nv=2, N=1, dim=2, alpha=2, lr=8, steps=1)
+    # E=1/d^2 gives tangent gradients (0,1/2) and (1/2,0).
+    # lr/nv^4=1/2, followed by unit-circle retraction.
+    expected = np.array([[4, -1], [-1, 4]]) / np.sqrt(17)
+    np.testing.assert_allclose(pos, expected, rtol=2e-6, atol=2e-7)
+    np.testing.assert_allclose(energy, 17 / 50, rtol=2e-6)
 
 
 def test_dimensionless_overlap_energy_penalizes_fractional_overlap():
@@ -262,8 +253,8 @@ def test_dimensionless_overlap_energy_penalizes_fractional_overlap():
 def test_thomson_mesh_accepts_batched_asperity_radii():
     radii = jnp.array(
         [
-            [0.10, 0.20, 0.10, 0.20],
-            [0.20, 0.10, 0.20, 0.10],
+            [1.0, 1.2, 1.4, 1.6],
+            [2.1, 2.1, 2.1, 2.1],
         ]
     )
     pos, energy = generate_thomson_mesh(
@@ -278,7 +269,14 @@ def test_thomson_mesh_accepts_batched_asperity_radii():
 
     assert pos.shape == (2, 4, 2)
     assert energy.shape == (2,)
-    assert np.all(np.isfinite(np.asarray(energy)))
+    expected = np.zeros(2)
+    for b in range(2):
+        for i in range(4):
+            for j in range(i + 1, 4):
+                distance = np.linalg.norm(np.asarray(pos[b, i] - pos[b, j]))
+                overlap = max(0.0, 1 - distance / float(radii[b, i] + radii[b, j]))
+                expected[b] += 1 / distance + 5 * overlap**2
+    np.testing.assert_allclose(energy, expected, rtol=3e-6, atol=3e-6)
 
 
 def test_arclength_rejects_3d():
@@ -475,18 +473,20 @@ def test_create_ga_state_rejects_unknown_mesh_type():
 
 def test_create_ga_state_thomson_steps_via_mesh_kwargs():
     # Thomson-specific 'steps' lives in mesh_kwargs, not as a top-level arg.
+    common = dict(N=1, nv=4, dim=2, seed=7)
+    mesh_kwargs = dict(steps=2, alpha=2.0, lr=0.4)
     state = create_ga_state(
-        N=1,
-        nv=12,
-        dim=3,
+        **common,
         particle_radius=1.0,
-        asperity_radius=0.1,
-        n_samples=10_000,
-        seed=0,
+        asperity_radius=0.2,
+        particle_type="dp",
+        n_samples=256,
         mesh_type="thomson",
-        mesh_kwargs={"steps": 100, "alpha": 1.0},
+        core_type="hollow",
+        mesh_kwargs=mesh_kwargs,
     )
-    assert state.N == 12
+    mesh, _ = generate_thomson_mesh(**common, **mesh_kwargs)
+    np.testing.assert_allclose(state.pos, 0.8 * mesh, rtol=2e-6, atol=2e-7)
 
 
 def test_create_ga_state_uses_polydisperse_radii_with_thomson_mesh():

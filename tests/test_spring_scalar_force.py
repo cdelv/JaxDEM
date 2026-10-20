@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import pytest
 
 import jaxdem as jd
-from jaxdem.utils.linalg import unit_and_norm
 
 _RTOL = 1e-12 if jax.config.jax_enable_x64 else 2e-6
 _ATOL = 1e-12 if jax.config.jax_enable_x64 else 2e-7
@@ -30,17 +30,10 @@ def _spring_case(displacement):
         force, _, _ = jd.forces.SpringForce.force(0, 1, pos, state, system, history)
         return force
 
-    def original_force(pos):
-        rij = system.domain._displacement(pos[0], pos[1], system)
-        normal, distance = unit_and_norm(rij)
-        stiffness = system.mat_table.young_eff[state.mat_id[0], state.mat_id[1]]
-        overlap = jnp.maximum(0.0, state.rad[0] + state.rad[1] - distance)
-        return (stiffness * overlap)[..., None] * normal
-
     def pair_energy(pos):
         return jd.forces.SpringForce.energy(0, 1, pos, state, system, history)
 
-    return state.pos, scalar_force, original_force, pair_energy
+    return state.pos, scalar_force, pair_energy, float(system.mat_table.young_eff[0, 0])
 
 
 @pytest.mark.parametrize(
@@ -66,14 +59,25 @@ def _spring_case(displacement):
         "separated-3d",
     ],
 )
-def test_scalar_spring_matches_unit_and_norm_force_and_gradient(displacement):
-    pos, scalar_force, original_force, pair_energy = _spring_case(displacement)
+def test_scalar_spring_matches_radial_force_and_closed_form_jacobian(displacement):
+    pos, scalar_force, pair_energy, stiffness = _spring_case(displacement)
 
     actual_force = scalar_force(pos)
-    expected_force = original_force(pos)
+    rij = np.asarray(pos[0] - pos[1], dtype=float)
+    radius = np.linalg.norm(rij)
+    expected_force = np.zeros_like(rij)
+    jacobian = np.zeros((len(rij), len(rij)))
+    if 0 < radius < 1:
+        expected_force = stiffness * (1 - radius) * rij / radius
+        jacobian = stiffness * (
+            (1 / radius - 1) * np.eye(len(rij)) - np.outer(rij, rij) / radius**3
+        )
+    elif radius == 1:
+        # At contact, max(0, overlap) selects the midpoint subgradient.
+        jacobian = -0.5 * stiffness * np.outer(rij, rij)
     energy_force = -jax.grad(pair_energy)(pos)[0]
     actual_gradient = jax.jacrev(scalar_force)(pos)
-    expected_gradient = jax.jacrev(original_force)(pos)
+    expected_gradient = np.stack((jacobian, -jacobian), axis=1)
 
     assert jnp.all(jnp.isfinite(actual_force))
     assert jnp.all(jnp.isfinite(actual_gradient))
