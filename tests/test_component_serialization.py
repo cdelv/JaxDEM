@@ -23,7 +23,7 @@ ARCHITECTURES = [
     "LSTMActorCritic",
     "MinGRUActorCritic",
 ]
-ACTION_SPACES = ["Free", "Box", "MaxNorm", "discrete"]
+ACTION_SPACES = ["Free", "Box", "MaxNorm", "Blockwise", "discrete"]
 
 
 def test_model_serialization_matrix_covers_builtin_models_and_action_spaces():

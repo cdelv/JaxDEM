@@ -102,5 +102,13 @@ class Transformed(distrax.Transformed):  # type: ignore[misc]
 from .box_space import BoxSpace
 from .free_space import FreeSpace
 from .max_norm_space import MaxNormSpace
+from .blockwise_space import BlockwiseSpace
 
-__all__ = ["ActionSpace", "BoxSpace", "FreeSpace", "MaxNormSpace", "Transformed"]
+__all__ = [
+    "ActionSpace",
+    "BlockwiseSpace",
+    "BoxSpace",
+    "FreeSpace",
+    "MaxNormSpace",
+    "Transformed",
+]

@@ -19,7 +19,7 @@ from tests.test_ppo_alignment import _loss_args
 from tests.test_rl_action_contracts import ActionLookupEnv
 
 MODELS = ["ActorCritic", "SharedActorCritic", "LSTMActorCritic", "MinGRUActorCritic"]
-SPACES = ["Free", "Box", "MaxNorm", "discrete"]
+SPACES = ["Free", "Box", "MaxNorm", "Blockwise", "discrete"]
 
 
 def make_model(name, space, obs_dim=2, action_dim=2):
@@ -36,6 +36,14 @@ def make_model(name, space, obs_dim=2, action_dim=2):
         kwargs["discrete"] = True
     elif space == "Box":
         kwargs["action_space"] = ActionSpace.create("Box", x_min=-2.0, x_max=3.0)
+    elif space == "Blockwise":
+        kwargs["action_space"] = ActionSpace.create(
+            "Blockwise",
+            blocks=(
+                (1, ActionSpace.create("MaxNorm", max_norm=1.7)),
+                (action_dim - 1, ActionSpace.create("Box", x_min=-2.0, x_max=3.0)),
+            ),
+        )
     else:
         kwargs["action_space"] = ActionSpace.create(space)
     return Model.create(

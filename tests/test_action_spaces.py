@@ -12,7 +12,7 @@ from scipy.special import gammaln
 
 from jaxdem.rl.action_spaces.box_space import BoxSpace
 from jaxdem.rl.action_spaces.max_norm_space import MaxNormSpace
-from jaxdem.rl.action_spaces import Transformed
+from jaxdem.rl.action_spaces import BlockwiseSpace, Transformed
 
 
 @pytest.mark.parametrize("kind", ["box", "maxnorm"])
@@ -264,7 +264,8 @@ def test_radial_entropy_and_gradients_against_chi_integral(dimension, std):
     )
 
 
-def test_high_dimensional_policy_entropy_bonus_and_gradient():
+@pytest.mark.parametrize("block_size", [8, 16])
+def test_high_dimensional_policy_entropy_bonus_and_gradient(block_size):
     from flax import nnx
 
     from jaxdem.rl.models import Model
@@ -273,6 +274,8 @@ def test_high_dimensional_policy_entropy_bonus_and_gradient():
 
     dimension, coefficient = 16, 0.3
     space = MaxNormSpace(max_norm=1.7)
+    if block_size < dimension:
+        space = BlockwiseSpace(((block_size, space),) * (dimension // block_size))
     model = Model.create(
         "SharedActorCritic",
         observation_space_size=1,
@@ -318,8 +321,9 @@ def test_high_dimensional_policy_entropy_bonus_and_gradient():
 
     (loss, aux), gradient = loss_and_grad(model, td)
     expected, scale_gradient = isotropic_radial_entropy_reference(
-        dimension, 1.0, (1 - space.eps) * space.max_norm
+        block_size, 1.0, (1 - 1e-6) * 1.7
     )
+    expected *= dimension // block_size
     np.testing.assert_allclose(aux["entropy"], expected, rtol=3e-6, atol=1e-5)
     np.testing.assert_allclose(loss, -coefficient * expected, rtol=3e-6, atol=1e-5)
     np.testing.assert_allclose(
