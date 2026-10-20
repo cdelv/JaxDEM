@@ -60,6 +60,7 @@ def frictional_wall_force(
     c_n = (2.0 * (1.0 - restitution) * jnp.sqrt(k * state.mass))[..., None]
     c_n = jnp.minimum(c_n, (0.5 * state.mass / system.dt)[..., None])
     force_damping = -c_n * v_n_scalar * n * in_contact
+    force_n = jnp.maximum(dot(force_n + force_damping, n), 0.0)[..., None] * n
 
     # Velocity at contact point
     radius_vec = -state.rad[..., None] * n
@@ -72,7 +73,7 @@ def frictional_wall_force(
     t_dir = unit(v_t)
     force_t = -f_t_mag * t_dir
 
-    total_force = force_n + force_damping + force_t
+    total_force = force_n + force_t
     total_torque = cross(radius_vec, force_t)
     return total_force, total_torque
 
@@ -343,8 +344,8 @@ class SingleRoller(Environment):
 
         Contents per agent:
 
-        - Unit displacement to objective projected to x-y (shape ``(2,)``).
-        - Clamped displacement to objective projected to x-y (shape ``(2,)``).
+        - Unit displacement from objective to agent projected to x-y (shape ``(2,)``).
+        - Clamped agent-minus-objective displacement projected to x-y (shape ``(2,)``).
         - Velocity projected to x-y (shape ``(2,)``).
         - Angular velocity (shape ``(3,)``).
 

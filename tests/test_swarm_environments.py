@@ -10,6 +10,8 @@ import pytest
 from jaxdem.rl.environments import SwarmNavigator, SwarmRoller
 from jaxdem.rl.environments._swarm import filter_objectives, shared_potential
 from jaxdem.utils import advance_action
+from jaxdem.state import State
+from jaxdem.system import System
 
 
 def _sensor_env():
@@ -149,6 +151,25 @@ def test_objective_filter_preserves_own_far_and_disabled_goals():
     np.testing.assert_array_equal(
         filter_objectives(objectives, objectives, ids, env), objectives
     )
+
+
+def test_roller_floor_contact_is_unilateral_and_coulomb_limited():
+    from jaxdem.rl.environments.single_roller import frictional_wall_force
+
+    state = State.create(
+        pos=jnp.array([[0.0, 0.0, 0.9999], [3.0, 0.0, 0.99], [6.0, 0.0, 1.1]]),
+        vel=jnp.array([[1.0, 0.0, 1.0], [1.0, 0.0, -1.0], [1.0, 0.0, -1.0]]),
+        rad=jnp.ones(3),
+        mass=jnp.ones(3),
+    )
+    system = System.create(state=state, dt=0.002, collider_type="")
+    force, torque = frictional_wall_force(state.pos, state, system)
+    # Damping is capped at m/(2*dt)=250. The approaching sphere has
+    # N=k*delta-c*v_n=2250; Coulomb friction is .4*N=900.
+    np.testing.assert_allclose(
+        force, [[0, 0, 0], [-900, 0, 2250], [0, 0, 0]], rtol=2e-5
+    )
+    np.testing.assert_allclose(torque, [[0, 0, 0], [0, 900, 0], [0, 0, 0]], rtol=2e-5)
 
 
 def test_roller_action_smoothing_follows_the_known_step_response():
