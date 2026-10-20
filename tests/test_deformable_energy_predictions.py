@@ -99,6 +99,56 @@ def test_deformable_energy_and_forces_match_known_geometry(dim, term):
 
 
 @pytest.mark.parametrize("dim", [2, 3])
+def test_content_energy_and_forces_are_independent_of_each_body_origin(dim):
+    with jax.enable_x64(False):
+        if dim == 2:
+            vertices = np.array([[0, 0], [2, 0], [2, 1], [0, 1]], dtype=float)
+            elements = np.array([[0, 1], [1, 2], [2, 3], [3, 0]])
+            content = 2.0
+            derivative = np.array([[-0.5, -1], [0.5, -1], [0.5, 1], [-0.5, 1]])
+        else:
+            vertices = np.array(
+                [[0, 0, 0], [2, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=float
+            )
+            elements = np.array([[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]])
+            content = 1 / 3
+            derivative = np.array([[-1, -2, -2], [1, 0, 0], [0, 2, 0], [0, 0, 2]]) / 6
+        coefficients = np.array([3.0, 7.0])
+        connectivity = np.concatenate([elements, elements + 4])
+        for distance in [0.0, 1e5]:
+            offsets = np.repeat(np.array([distance, -distance]), 4)[:, None]
+            model = jd.BondedForceModel.create(
+                "deformableparticlemodel",
+                vertices=np.tile(vertices, (2, 1)) + offsets,
+                elements=connectivity,
+                elements_id=np.repeat([0, 1], 4),
+                ec=coefficients,
+            )
+            np.testing.assert_allclose(model.initial_body_contents, content, rtol=2e-6)
+            for scale in [1.0, 1.25]:
+                state = jd.State.create(
+                    pos=jnp.asarray(np.tile(scale * vertices, (2, 1)) + offsets)
+                )
+                system = jd.System.create(
+                    state=state, collider_type="", bonded_force_model=model
+                )
+                energy = model.compute_potential_energy(state.pos, state, system)
+                force, _ = model.compute_forces(state.pos, state, system)
+                strain = scale**dim - 1
+                expected_energy = 0.5 * coefficients.sum() * content * strain**2
+                expected_force = np.concatenate(
+                    [
+                        -coefficient * strain * scale ** (dim - 1) * derivative
+                        for coefficient in coefficients
+                    ]
+                )
+                np.testing.assert_allclose(
+                    energy, expected_energy, rtol=4e-6, atol=1e-6
+                )
+                np.testing.assert_allclose(force, expected_force, rtol=4e-6, atol=1e-6)
+
+
+@pytest.mark.parametrize("dim", [2, 3])
 def test_bending_wraps_signed_angles_and_has_the_correct_restoring_moment(dim):
     def points(theta):
         if dim == 2:

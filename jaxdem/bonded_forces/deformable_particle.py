@@ -48,7 +48,7 @@ class DeformableParticleModel(BondedForceModel):
         E_{K,measure} &= \sum_{m} \frac{em_m}{2{\mathcal{M}_{m,0}}} \left(\mathcal{M}_m - \mathcal{M}_{m,0}\right)^2 \\
         E_{K,surface} &= \sum_{m} \gamma_m \mathcal{M}_m \\
         E_{K,content} &= \frac{e_c}{2{\mathcal{C}_{K,0}}} \left(\mathcal{C}_K - \mathcal{C}_{K,0}\right)^2 \\
-        E_{K,bending} &= \frac{1}{2} \sum_{a} eb_a wb_{a} \left(\theta_a -\theta_{a,0}\right)^2 \\
+        E_{K,bending} &= \frac{1}{2} \sum_{a} eb_a wb_{a} \operatorname{wrap}\!\left(\theta_a -\theta_{a,0}\right)^2 \\
         E_{K,edge} &= \frac{1}{2} \sum_{e} el_e \left(L_e - L_{e,0}\right)^2
 
     **Definitions per Dimension:**
@@ -73,9 +73,9 @@ class DeformableParticleModel(BondedForceModel):
 
     - K: Number of deformable bodies. Vertices and connectivity (elements,
       edges, etc.) define each body.
-    - M: Number of boundary elements (:math:`K \sum_K m_K`)
-    - E: Number of unique edges (:math:`K \sum_K e_K`)
-    - A: Number of element adjacencies (:math:`K \sum_K a_K`)
+    - M: Number of boundary elements (:math:`\sum_K m_K`)
+    - E: Number of unique edges (:math:`\sum_K e_K`)
+    - A: Number of element adjacencies (:math:`\sum_K a_K`)
 
     The model concatenates the mesh properties of all bodies along axis=0.
     Only the content term needs the body ID of each element: it sums the
@@ -314,6 +314,11 @@ class DeformableParticleModel(BondedForceModel):
                     "number of content elasticity coefficients (ec). "
                     f"ec.shape={ec.shape}."
                 )
+                partial_body_contents = jax.vmap(compute_fn)(
+                    _centered_elements(
+                        vertices, elements_arr, elements_id_arr, ec.shape[-1]
+                    )
+                )[2]
                 initial_body_contents = jax.ops.segment_sum(
                     partial_body_contents, elements_id_arr, num_segments=ec.shape[-1]
                 )
@@ -807,9 +812,17 @@ class DeformableParticleModel(BondedForceModel):
 
         if dp_model.elements is not None:
             current_element_indices = dp_model.elements
+            element_vertices = vertices[current_element_indices]
+            if dp_model.ec is not None and dp_model.elements_id is not None:
+                element_vertices = _centered_elements(
+                    vertices,
+                    current_element_indices,
+                    dp_model.elements_id,
+                    dp_model.ec.shape[-1],
+                )
             element_normal, element_measure, partial_content = jax.vmap(
                 compute_element_properties
-            )(vertices[current_element_indices])
+            )(element_vertices)
 
         # Content
         if (
@@ -1107,6 +1120,18 @@ def _require_positive_reference(name: str, arr: ArrayLike | None) -> None:
             "(CW) vertex winding; reorder element vertices counter-clockwise "
             "(CCW) so normals point outward."
         )
+
+
+def _centered_elements(
+    vertices: jax.Array, elements: jax.Array, elements_id: jax.Array, n_bodies: int
+) -> jax.Array:
+    """Use one nearby origin per body to avoid cancelling absolute-coordinate products."""
+    origins = (
+        elements[:1, 0]
+        if n_bodies == 1
+        else jax.ops.segment_min(elements[:, 0], elements_id, num_segments=n_bodies)
+    )
+    return vertices[elements] - vertices[origins[elements_id], None, :]
 
 
 @partial(jax.named_call, name="DeformableParticleModel.compute_element_properties_3D")
