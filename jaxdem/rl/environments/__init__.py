@@ -115,8 +115,7 @@ class Environment(Factory, ABC):
             The current environment.
 
         done : jax.Array
-            A boolean flag that is True when the environment has reached a
-            terminal state.
+            A boolean flag that is True at either termination or truncation.
 
         key : jax.random.PRNGKey
             JAX random number generator key used for the reset.
@@ -135,7 +134,11 @@ class Environment(Factory, ABC):
     @staticmethod
     @jax.jit(inline=True)
     def step(env: Environment, action: jax.Array) -> Environment:
-        """Advance the simulation by one step using **per-agent** actions.
+        """Advance one physics step using **per-agent** actions.
+
+        Advance only the dynamics; preserve historical reward baselines.
+        Use ``utils.advance_action`` to snapshot those baselines once before
+        repeating physics steps. Observations and rewards read the live state.
 
         Parameters
         ----------
@@ -156,18 +159,52 @@ class Environment(Factory, ABC):
     @staticmethod
     @jax.jit
     def checkpoint(env: Environment, action: jax.Array) -> Environment:
-        """Snapshot reward history before an action; stateless rewards need no work.
+        """Snapshot historical reward quantities before an action interval.
 
-        Overrides capture the required baseline without advancing physics.
-        ``utils.advance_action`` calls this once before its physics loop;
-        observations and rewards read the live endpoint before the next snapshot.
+        The default implementation is a no-op. Environments whose rewards compare
+        states across time override this hook to store only the required baseline
+        quantities from the current physical state. Derived current quantities
+        need not be stored: observation and reward accessors can compute them
+        from the live state without modifying the baseline.
+
+        Parameters
+        ----------
+        env : Environment
+            The environment at the start of the next action interval.
+
+        action : jax.Array
+            The per-agent action about to be applied. Overrides may use it
+            when capturing action-dependent history. Wrappers must pass the
+            same transformed action to this hook and to physics steps.
+
+        Returns
+        -------
+        Environment
+            The environment with its historical reward baseline captured.
+
+        Notes
+        -----
+        ``utils.advance_action`` calls this hook exactly once before its physics
+        loop, including when ``skip_frames=0``. Physics steps must preserve the
+        baseline until reward and any truncation bootstrap have been consumed.
+        There is no end-of-action checkpoint. Reset must initialize the baseline
+        from the reset state without requiring a policy action.
+
+        The hook does not advance physics or reset episodes. Boundary predicates,
+        observations, and rewards must remain valid for the live physical state.
+        For a difference reward, checkpointing a frozen environment captures its
+        unchanged endpoint and gives zero change on the next evaluation interval.
+        This is a reward-history snapshot, not a disk checkpoint operation.
         """
         return env
 
     @staticmethod
     @jax.jit
     def observation(env: Environment) -> jax.Array:
-        """Return the per-agent observation vector.
+        """Return per-agent observations derived from the live environment.
+
+        This accessor must not require an endpoint checkpoint or change the
+        historical reward baseline.
 
         Parameters
         ----------
@@ -185,7 +222,12 @@ class Environment(Factory, ABC):
     @staticmethod
     @jax.jit
     def reward(env: Environment) -> jax.Array:
-        """Return the per-agent immediate rewards.
+        """Return per-agent rewards for the live state and saved action baseline.
+
+        Historical terms compare the live endpoint with quantities saved by
+        ``checkpoint`` before the action. Read this accessor before reset or
+        the next checkpoint overwrites that baseline. Accessors must not
+        mutate history; repeated reads of the same state return the same reward.
 
         Parameters
         ----------
@@ -215,6 +257,14 @@ class Environment(Factory, ABC):
         jax.Array
             A bool that is True when the episode has ended.
 
+        Notes
+        -----
+        Environment subclasses should override ``terminated`` and/or
+        ``truncated``. The trainer reads those causes separately; overriding
+        only ``done`` does not signal a boundary to its physics loop.
+        Leave the final state available in ``step`` so the trainer can read
+        its reward and bootstrap observation before resetting the episode.
+
         """
         base_cls = getattr(env.__class__, "_base_env_cls", env.__class__)
         return base_cls.terminated(env) | base_cls.truncated(env)
@@ -234,7 +284,8 @@ class Environment(Factory, ABC):
         """Return a time-limit or external episode boundary.
 
         Truncated transitions reset the episode and recurrent carry but retain
-        value bootstrapping. The default is ``False``.
+        value bootstrapping from the final pre-reset observation, unless the
+        same transition is also terminal. The default is ``False``.
         """
         return jnp.asarray(False, dtype=bool)
 
@@ -298,25 +349,25 @@ class Environment(Factory, ABC):
 Environment.register("")(Environment)
 
 
+from .granulabot import Granulabot
 from .multi_navigator import MultiNavigator
 from .multi_roller import MultiRoller
 from .single_navigator import SingleNavigator
 from .single_roller import SingleRoller
 from .swarm_navigator import SwarmNavigator
 from .swarm_roller import SwarmRoller
-from .swarm_roller_3d import SwarmRoller3D
 from .three_gears import ThreeGears
 from .two_gears import TwoGears
 
 __all__ = [
     "Environment",
+    "Granulabot",
     "MultiNavigator",
     "MultiRoller",
     "SingleNavigator",
     "SingleRoller",
     "SwarmNavigator",
     "SwarmRoller",
-    "SwarmRoller3D",
     "ThreeGears",
     "TwoGears",
 ]
