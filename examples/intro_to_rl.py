@@ -63,6 +63,8 @@ env = rl.Environment.create(
 # ~~~~~
 # Next, we build a shared-parameters actor–critic MLP. We can use a bijector to constrain the action space.
 # Registry keys are case- and underscore-insensitive, so ``"max_norm"`` and ``"MaxNorm"`` are equivalent.
+# MaxNorm preserves direction and maps a standard Gaussian to a uniform ball.
+# Its entropy correction is analytic for the learned Gaussian policy as well.
 
 model = rl.Model.create(
     "SharedActorCritic",
@@ -95,7 +97,7 @@ tr = rl.Trainer.create(
     num_steps_epoch=num_steps_epoch,
     num_envs=num_envs,
     num_epochs=1080 * 2,  # controls the annealed learning rate
-    stop_at_epoch=reset_every * 30, # true epoch count
+    stop_at_epoch=reset_every * 30,  # true epoch count
     skip_frames=skip_frames,
     num_minibatches=4,
     learning_rate=1e-3,

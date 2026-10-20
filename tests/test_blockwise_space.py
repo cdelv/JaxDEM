@@ -8,6 +8,7 @@ import jax.numpy as jnp
 import numpy as np
 import pytest
 from scipy.integrate import quad
+from scipy.special import gammainc
 
 from jaxdem.rl.action_spaces import (
     ActionSpace,
@@ -37,7 +38,9 @@ def test_blockwise_transform_inverse_and_block_diagonal_jacobian(nested):
 
     def radial(v, limit):
         r = np.linalg.norm(v)
-        return limit * (1 - 1e-6) * np.tanh(r) * v / r
+        return (
+            limit * (1 - 1e-6) * gammainc(v.size / 2, r * r / 2) ** (1 / v.size) * v / r
+        )
 
     expected = np.concatenate(
         [

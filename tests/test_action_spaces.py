@@ -8,7 +8,7 @@ import pytest
 import numpy as np
 import distrax
 from scipy.integrate import quad
-from scipy.special import gammaln
+from scipy.special import erf, gammaincinv, gammaln
 
 from jaxdem.rl.action_spaces.box_space import BoxSpace
 from jaxdem.rl.action_spaces.max_norm_space import MaxNormSpace
@@ -17,35 +17,48 @@ from jaxdem.rl.action_spaces import BlockwiseSpace, Transformed
 
 @pytest.mark.parametrize("kind", ["box", "maxnorm"])
 @pytest.mark.parametrize("mean,std", [(0.3, 0.4), (-0.7, 0.5), (1.1, 0.3)])
-def test_transformed_entropy_and_derivatives_against_normal_integrals(kind, mean, std):
+def test_transformed_entropy_density_and_derivatives(kind, mean, std):
     eps = 1e-5
     if kind == "box":
         bijector = distrax.Block(BoxSpace(-2.0, 3.0, width=1.2, eps=eps), ndims=1)
-        scale, width, center = 2.5 * (1 - eps), 1.2, 0.5
+        scale, width = 2.5 * (1 - eps), 1.2
+
+        def expectation(function):
+            return quad(
+                lambda z: function(z) * np.exp(-z * z / 2) / np.sqrt(2 * np.pi),
+                -10,
+                10,
+                epsabs=1e-11,
+            )[0]
+
+        def log_det(x):
+            z = x / width
+            return np.log(scale / width) + 2 * (
+                np.log(2) - abs(z) - np.logaddexp(0, -2 * abs(z))
+            )
+
+        entropy = 0.5 * np.log(2 * np.pi * np.e) + np.log(std)
+        entropy += expectation(lambda z: log_det(mean + std * z))
+        expected_gradient = [
+            expectation(lambda z: -2 * np.tanh((mean + std * z) / width) / width),
+            1
+            + expectation(
+                lambda z: -2 * np.tanh((mean + std * z) / width) * std * z / width
+            ),
+        ]
+        expected_action = 0.5 + scale * np.tanh(0.4 / width)
     else:
         bijector = MaxNormSpace(max_norm=1.7, eps=eps)
-        scale, width, center = 1.7 * (1 - eps), 1.0, 0.0
+        scale = 1.7 * (1 - eps)
 
-    def expectation(function):
-        return quad(
-            lambda z: function(z) * np.exp(-z * z / 2) / np.sqrt(2 * np.pi),
-            -10.0,
-            10.0,
-            epsabs=1e-11,
-        )[0]
+        def log_det(x):
+            return np.log(scale * np.sqrt(2 / np.pi)) - x * x / 2
 
-    def log_sech_squared(x):
-        return 2 * (np.log(2) - abs(x) - np.log1p(np.exp(-2 * abs(x))))
-
-    entropy = 0.5 * np.log(2 * np.pi * np.e) + np.log(std * scale / width)
-    entropy += expectation(lambda z: log_sech_squared((mean + std * z) / width))
-    expected_gradient = [
-        expectation(lambda z: -2 * np.tanh((mean + std * z) / width) / width),
-        1
-        + expectation(
-            lambda z: -2 * np.tanh((mean + std * z) / width) * std * z / width
-        ),
-    ]
+        entropy = np.log(2 * scale) - 0.5 * (
+            mean * mean + std * std - 1 - 2 * np.log(std)
+        )
+        expected_gradient = [-mean, 1 - std * std]
+        expected_action = scale * erf(0.4 / np.sqrt(2))
 
     def transformed_entropy(parameters):
         normal = distrax.MultivariateNormalDiag(parameters[:1], jnp.exp(parameters[1:]))
@@ -54,54 +67,23 @@ def test_transformed_entropy_and_derivatives_against_normal_integrals(kind, mean
     value, gradient = jax.value_and_grad(transformed_entropy)(
         jnp.array([mean, np.log(std)])
     )
-    # Finite quadrature has an approximation budget; the independent integral is tighter.
-    np.testing.assert_allclose(value, entropy, rtol=0, atol=1e-3)
-    np.testing.assert_allclose(gradient, expected_gradient, rtol=0, atol=5e-3)
-    latent = np.array([0.4])
-    expected_action = center + scale * np.tanh(latent / width)
-    np.testing.assert_allclose(bijector.forward(latent), expected_action, rtol=2e-6)
-    normal = distrax.MultivariateNormalDiag(jnp.array([mean]), jnp.array([std]))
-    actual_log_density = Transformed(normal, bijector).log_prob(
-        jnp.asarray(expected_action)
-    )
-    expected_log_density = -0.5 * ((0.4 - mean) / std) ** 2 - np.log(
-        std * np.sqrt(2 * np.pi)
-    )
-    expected_log_density -= np.log(scale / width) + log_sech_squared(0.4 / width)
     np.testing.assert_allclose(
-        actual_log_density, expected_log_density, rtol=2e-6, atol=1e-6
+        value, entropy, rtol=0, atol=1e-3 if kind == "box" else 2e-6
     )
-
-
-def test_radial_entropy_with_anisotropic_two_dimensional_normal():
-    parameters = np.array([0.4, -0.2, np.log(0.25), np.log(0.4)])
-    nodes, weights = np.polynomial.hermite_e.hermegauss(40)
-    z = np.stack(np.meshgrid(nodes, nodes, indexing="ij"), axis=-1)
-    probability = np.outer(weights, weights) / (2 * np.pi)
-    scale = 1.7 * (1 - 1e-5)
-
-    def reference(p):
-        x = p[:2] + np.exp(p[2:]) * z
-        r = np.linalg.norm(x, axis=-1)
-        # Tangential eigenvalue s*tanh(r)/r; radial eigenvalue s*sech(r)^2.
-        log_det = 2 * np.log(scale) + np.log(np.tanh(r) / r)
-        log_det += 2 * (np.log(2) - r - np.log1p(np.exp(-2 * r)))
-        return np.log(2 * np.pi * np.e) + p[2:].sum() + np.sum(probability * log_det)
-
-    def actual(p):
-        normal = distrax.MultivariateNormalDiag(p[:2], jnp.exp(p[2:]))
-        return Transformed(normal, MaxNormSpace(max_norm=1.7, eps=1e-5)).entropy()
-
-    h = 1e-5
-    expected_gradient = np.array(
-        [
-            (reference(parameters + h * e) - reference(parameters - h * e)) / (2 * h)
-            for e in np.eye(4)
-        ]
+    np.testing.assert_allclose(
+        gradient, expected_gradient, rtol=0, atol=5e-3 if kind == "box" else 2e-6
     )
-    value, gradient = jax.value_and_grad(actual)(jnp.asarray(parameters))
-    np.testing.assert_allclose(value, reference(parameters), atol=1e-3, rtol=0)
-    np.testing.assert_allclose(gradient, expected_gradient, atol=5e-3, rtol=0)
+    np.testing.assert_allclose(
+        bijector.forward(jnp.array([0.4])), [expected_action], rtol=2e-6
+    )
+    normal = distrax.MultivariateNormalDiag(jnp.array([mean]), jnp.array([std]))
+    actual = Transformed(normal, bijector).log_prob(jnp.array([expected_action]))
+    expected = (
+        -0.5 * ((0.4 - mean) / std) ** 2
+        - np.log(std * np.sqrt(2 * np.pi))
+        - log_det(0.4)
+    )
+    np.testing.assert_allclose(actual, expected, rtol=3e-6, atol=2e-6)
 
 
 @pytest.mark.parametrize("width", [0.0, -1.0, float("inf"), float("nan")])
@@ -189,62 +171,49 @@ def test_max_norm_large_margin_keeps_exact_inverse_and_jacobian(eps: float) -> N
     assert jnp.allclose(numeric_log_det, log_det, rtol=2e-5, atol=2e-6)
 
 
-def test_max_norm_origin_has_exact_linear_limit() -> None:
+@pytest.mark.parametrize("dimension", [1, 3, 16])
+def test_max_norm_origin_has_exact_linear_limit(dimension) -> None:
     space = MaxNormSpace(max_norm=2.0, eps=0.1)
-    origin = jnp.zeros(3)
-    scale = (1.0 - space.eps) * space.max_norm
+    origin = jnp.zeros(dimension)
+    scale = (
+        (1 - space.eps)
+        * space.max_norm
+        / np.sqrt(2)
+        * np.exp(-gammaln(dimension / 2 + 1) / dimension)
+    )
 
     np_jacobian = jax.jacfwd(space.forward)(origin)
     reverse_jacobian = jax.jacrev(space.forward)(origin)
     np_hessian = jax.jacfwd(jax.jacfwd(space.forward))(origin)
-    assert jnp.allclose(np_jacobian, scale * jnp.eye(3))
-    assert jnp.allclose(reverse_jacobian, scale * jnp.eye(3))
+    assert jnp.allclose(np_jacobian, scale * jnp.eye(dimension))
+    assert jnp.allclose(reverse_jacobian, scale * jnp.eye(dimension))
     assert jnp.allclose(np_hessian, 0.0)
-    assert jnp.allclose(space.forward_log_det_jacobian(origin), 3 * jnp.log(scale))
-    assert jnp.allclose(jax.grad(space.forward_log_det_jacobian)(origin), jnp.zeros(3))
+    assert jnp.allclose(
+        space.forward_log_det_jacobian(origin), dimension * jnp.log(scale)
+    )
+    assert jnp.allclose(
+        jax.grad(space.forward_log_det_jacobian)(origin), jnp.zeros(dimension)
+    )
     assert jnp.allclose(
         jax.hessian(space.forward_log_det_jacobian)(origin),
-        -2.0 * (3 + 2) / 3 * jnp.eye(3),
+        -jnp.eye(dimension),
     )
-    assert jnp.allclose(jax.jacrev(space.inverse)(origin), jnp.eye(3) / scale)
+    assert jnp.allclose(jax.jacrev(space.inverse)(origin), jnp.eye(dimension) / scale)
 
 
 def isotropic_radial_entropy_reference(dimension, std, scale):
-    """Integrate over the chi-distributed radius, independently of Laplace quadrature."""
-
-    def expectation(function):
-        def integrand(u):
-            density = np.exp(
-                (dimension - 1) * np.log(u)
-                - u * u / 2
-                - (dimension / 2 - 1) * np.log(2)
-                - gammaln(dimension / 2)
-            )
-            return density * function(std * u)
-
-        return quad(integrand, 0.0, np.sqrt(dimension) + 12.0, epsabs=1e-10)[0]
-
-    def log_det(r):
-        return (dimension - 1) * np.log(np.tanh(r) / r) + 2 * (
-            np.log(2) - r - np.logaddexp(0, -2 * r)
-        )
-
-    def radial_derivative(r):
-        log_tanh_derivative = 4 * np.exp(-2 * r) / -np.expm1(-4 * r)
-        return (dimension - 1) * (log_tanh_derivative - 1 / r) - 2 * np.tanh(r)
-
-    expected = dimension * (
-        0.5 * np.log(2 * np.pi * np.e) + np.log(std * scale)
-    ) + expectation(log_det)
-    expected_scale_gradient = (
-        1 + expectation(lambda r: r * radial_derivative(r)) / dimension
+    """Ball entropy equals log(volume) minus KL to a standard Gaussian."""
+    log_volume = (
+        dimension * np.log(scale)
+        + dimension / 2 * np.log(np.pi)
+        - gammaln(dimension / 2 + 1)
     )
-    return expected, expected_scale_gradient
+    return log_volume - dimension / 2 * (std * std - 1 - 2 * np.log(std)), 1 - std * std
 
 
-@pytest.mark.parametrize("dimension", [1, 6, 9, 16, 64])
+@pytest.mark.parametrize("dimension", [1, 2, 3, 9, 16, 64, 256])
 @pytest.mark.parametrize("std", [0.1, 1.0, 10.0])
-def test_radial_entropy_and_gradients_against_chi_integral(dimension, std):
+def test_radial_entropy_and_gradients_against_gaussian_kl(dimension, std):
     space = MaxNormSpace(max_norm=1.7)
     expected, expected_scale_gradient = isotropic_radial_entropy_reference(
         dimension, std, (1 - space.eps) * space.max_norm
@@ -272,7 +241,7 @@ def test_high_dimensional_policy_entropy_bonus_and_gradient(block_size):
     from jaxdem.rl.trainers import TrajectoryData
     from jaxdem.rl.trainers.ppo_trainer import PPOTrainer
 
-    dimension, coefficient = 16, 0.3
+    dimension, coefficient, std = 16, 0.3, 0.7
     space = MaxNormSpace(max_norm=1.7)
     if block_size < dimension:
         space = BlockwiseSpace(((block_size, space),) * (dimension // block_size))
@@ -284,8 +253,9 @@ def test_high_dimensional_policy_entropy_bonus_and_gradient(block_size):
         action_space=space,
         key=nnx.Rngs(42),
     )
+    model.actor_sigma.log_std[...] = jnp.full((1, dimension), np.log(std))
     zero = jnp.zeros((2, 3))
-    log_prob = jnp.full((2, 3), -dimension * np.log(2 * np.pi) / 2)
+    log_prob = jnp.full((2, 3), -dimension * np.log(std * np.sqrt(2 * np.pi)))
     latent = jnp.zeros((2, 3, dimension))
     td = TrajectoryData(
         obs=jnp.zeros((2, 3, 1)),
@@ -321,7 +291,7 @@ def test_high_dimensional_policy_entropy_bonus_and_gradient(block_size):
 
     (loss, aux), gradient = loss_and_grad(model, td)
     expected, scale_gradient = isotropic_radial_entropy_reference(
-        block_size, 1.0, (1 - 1e-6) * 1.7
+        block_size, std, (1 - 1e-6) * 1.7
     )
     expected *= dimension // block_size
     np.testing.assert_allclose(aux["entropy"], expected, rtol=3e-6, atol=1e-5)
@@ -335,40 +305,83 @@ def test_high_dimensional_policy_entropy_bonus_and_gradient(block_size):
     np.testing.assert_allclose(gradient.actor_mu.bias[...], 0.0, atol=1e-7)
 
 
-@pytest.mark.parametrize("dimension", [9, 32])
-def test_high_dimensional_anisotropic_radial_correction(dimension):
-    # Two fluctuating coordinates and fixed offsets reduce this Gaussian limit
-    # to an independent two-dimensional reference, including nonzero means.
-    parameters = np.array([0.4, -0.2, np.log(0.25), np.log(0.4)])
-    offsets = np.linspace(-0.4, 0.6, dimension - 2)
-    nodes, weights = np.polynomial.hermite_e.hermegauss(40)
-    z = np.stack(np.meshgrid(nodes, nodes, indexing="ij"), axis=-1)
-    probability = np.outer(weights, weights) / (2 * np.pi)
+@pytest.mark.parametrize("dimension", [2, 9, 32, 256])
+def test_anisotropic_noncentral_gaussian_entropy_and_gradients(dimension):
     space = MaxNormSpace(max_norm=1.7)
-
-    def reference(p):
-        x = p[:2] + np.exp(p[2:]) * z
-        r = np.sqrt(np.sum(x * x, axis=-1) + np.sum(offsets * offsets))
-        log_det = dimension * np.log((1 - space.eps) * space.max_norm)
-        log_det += (dimension - 1) * np.log(np.tanh(r) / r)
-        log_det += 2 * (np.log(2) - r - np.logaddexp(0, -2 * r))
-        return np.sum(probability * log_det)
-
-    def actual(p):
-        mean = jnp.concatenate([p[:2], jnp.asarray(offsets)])
-        std = jnp.concatenate([jnp.exp(p[2:]), jnp.zeros(dimension - 2)])
-        return space.log_det_expectation(mean, std)
-
-    h = 1e-5
-    expected_gradient = np.array(
-        [
-            (reference(parameters + h * e) - reference(parameters - h * e)) / (2 * h)
-            for e in np.eye(4)
-        ]
+    mean = np.linspace(-0.7, 1.1, dimension)
+    log_std = np.linspace(-2.0, 0.5, dimension)
+    log_volume = (
+        dimension * np.log(1.7 * (1 - space.eps))
+        + dimension / 2 * np.log(np.pi)
+        - gammaln(dimension / 2 + 1)
     )
-    value, gradient = jax.jit(jax.value_and_grad(actual))(jnp.asarray(parameters))
-    np.testing.assert_allclose(value, reference(parameters), rtol=3e-6, atol=1e-5)
-    np.testing.assert_allclose(gradient, expected_gradient, rtol=3e-6, atol=1e-5)
+    expected = log_volume - 0.5 * np.sum(
+        mean * mean + np.exp(2 * log_std) - 1 - 2 * log_std
+    )
+
+    def entropy(mu, log_sigma):
+        return Transformed(
+            distrax.MultivariateNormalDiag(mu, jnp.exp(log_sigma)), space
+        ).entropy()
+
+    value, gradient = jax.jit(jax.value_and_grad(entropy, argnums=(0, 1)))(
+        jnp.asarray(mean), jnp.asarray(log_std)
+    )
+    np.testing.assert_allclose(value, expected, rtol=3e-6, atol=2e-5)
+    np.testing.assert_allclose(gradient[0], -mean, rtol=3e-6, atol=1e-6)
+    np.testing.assert_allclose(
+        gradient[1], 1 - np.exp(2 * log_std), rtol=3e-6, atol=1e-6
+    )
+
+
+@pytest.mark.parametrize("dimension", [1, 2, 3, 9, 16, 64, 256, 1024])
+def test_power_ball_radial_quantiles_tiny_actions_and_inverse(dimension):
+    space = MaxNormSpace(max_norm=1.7)
+    radius = (1 - space.eps) * space.max_norm
+    probabilities = np.array([0.001, 0.0099, 0.01, 0.5, 0.95])
+    radii = np.concatenate(
+        [[0, 1e-10, 1e-6], np.sqrt(2 * gammaincinv(dimension / 2, probabilities))]
+    )
+    x = np.zeros((len(radii), dimension))
+    x[:, 0] = radii
+    x = jnp.asarray(x)
+    y, log_det = jax.jit(space.forward_and_log_det)(x)
+    restored, inverse_log_det = jax.jit(space.inverse_and_log_det)(y)
+    tolerance = 1e-10 if jax.config.jax_enable_x64 else 3e-5
+    np.testing.assert_allclose(restored, x, rtol=tolerance, atol=0)
+    np.testing.assert_allclose(inverse_log_det, -log_det, rtol=3e-5, atol=2e-5)
+    np.testing.assert_allclose(
+        y[3:, 0], radius * probabilities ** (1 / dimension), rtol=3e-6
+    )
+    linear = radius / np.sqrt(2) * np.exp(-gammaln(dimension / 2 + 1) / dimension)
+    np.testing.assert_allclose(y[:3, 0], linear * radii[:3], rtol=3e-6, atol=0)
+    assert np.all(np.linalg.norm(y, axis=-1) < space.max_norm)
+    forward_gradient = jax.grad(lambda v: space.forward(v).sum())(x)
+    assert np.isfinite(forward_gradient).all()
+    # The radial derivative follows from differentiating the two radius CDFs.
+    # Include the series/gamma switch, where a clamp would halve the derivative.
+    log_pdf = (
+        (dimension - 1) * np.log(radii[3:])
+        - radii[3:] ** 2 / 2
+        - (dimension / 2 - 1) * np.log(2)
+        - gammaln(dimension / 2)
+    )
+    radial_derivative = (
+        radius / dimension * probabilities ** (1 / dimension - 1) * np.exp(log_pdf)
+    )
+    np.testing.assert_allclose(
+        forward_gradient[3:, 0], radial_derivative, rtol=6e-4, atol=2e-7
+    )
+    assert np.isfinite(jax.grad(lambda v: space.inverse(v).sum())(y)).all()
+    normal = distrax.MultivariateNormalDiag(jnp.zeros(dimension), jnp.ones(dimension))
+    log_volume = (
+        dimension * np.log(radius)
+        + dimension / 2 * np.log(np.pi)
+        - gammaln(dimension / 2 + 1)
+    )
+    np.testing.assert_allclose(
+        Transformed(normal, space).log_prob(y), -log_volume, rtol=3e-6, atol=2e-5
+    )
 
 
 def test_radial_correction_broadcasts_batches_and_has_deterministic_limit():
@@ -391,7 +404,7 @@ def test_radial_correction_broadcasts_batches_and_has_deterministic_limit():
         np.testing.assert_allclose(gradient, expected_gradient, rtol=3e-6, atol=1e-5)
     np.testing.assert_allclose(
         jax.hessian(space.log_det_expectation)(jnp.zeros(16), jnp.zeros(16)),
-        -2 * (16 + 2) / 3 * jnp.eye(16),
+        -jnp.eye(16),
         rtol=3e-6,
     )
 

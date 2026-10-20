@@ -61,11 +61,10 @@ class Transformed(distrax.Transformed):  # type: ignore[misc]
     This is the differential-entropy identity for an invertible differentiable
     transform. For the diagonal-Gaussian policies used here, the bijector's
     :meth:`~ActionSpace.log_det_expectation` supplies the correction.
-    FreeSpace returns it analytically. BoxSpace uses componentwise
-    Gauss--Hermite quadrature; MaxNormSpace integrates a scalar Laplace
-    representation analytically reduced from the Gaussian expectation.
-    Both nonlinear corrections are numerical approximations whose accuracy
-    depends on the policy parameters and quadrature order.
+    FreeSpace and MaxNormSpace return it analytically. BoxSpace uses
+    componentwise Gauss--Hermite quadrature, whose accuracy depends on the
+    policy parameters and quadrature order. BlockwiseSpace sums its children's
+    corrections.
     """
 
     def sample_and_log_prob_with_latent(
