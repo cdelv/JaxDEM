@@ -298,8 +298,6 @@ class Factory(ABC):
                 raise ValueError(
                     f"{cls.__name__}: key '{k}' already registered for {existing_cls.__name__}"
                 )
-            cls._registry[k] = sub_cls
-
             # Stamp the registered name on the class.
             # Only check for an explicit override on the subclass itself. Base
             # classes may already be registered (e.g., under the empty string
@@ -312,6 +310,7 @@ class Factory(ABC):
                     f"{sub_cls.__name__} has __registry_name__={existing!r}, "
                     f"but is being registered as {k!r}."
                 )
+            cls._registry[k] = sub_cls
             sub_cls.__registry_name__ = k
 
             return sub_cls
@@ -385,6 +384,7 @@ class Factory(ABC):
 
         **kw : Any
             Keyword arguments passed to the constructor of the registered subclass.
+            Unknown names are warned about and dropped for fixed signatures.
 
         Returns
         -------
@@ -396,8 +396,8 @@ class Factory(ABC):
         KeyError
             If the factory's registry does not contain the provided `key`.
         TypeError
-            If the provided `**kw` arguments do not match the signature
-            of the registered subclass's constructor.
+            If required constructor arguments are missing or the selected
+            constructor rejects an argument.
 
         Example
         -------
