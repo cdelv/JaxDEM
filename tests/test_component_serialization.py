@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Every built-in component retains its full configuration in both storage formats."""
+"""Built-in configuration and continuation survive HDF5, async HDF5, and Orbax."""
 
 from dataclasses import replace
 import json
@@ -16,6 +16,7 @@ from jaxdem.integrators import LinearIntegrator, RotationIntegrator
 from jaxdem.material_matchmakers import MaterialMatchmaker
 from jaxdem.utils import h5
 from tests.test_checkpoints import _assert_leaves_equal
+from jaxdem.rl.environments import granulabot
 
 ARCHITECTURES = [
     "ActorCritic",
@@ -54,12 +55,20 @@ COMPONENTS = {
             "forcerouter",
             "spherefacetspring",
             "facetfacetspring",
+            "granulabotcontacts",
         ],
     ),
     "domain": (Domain, ["free", "periodic", "leesedwards", "reflect", "reflectsphere"]),
     "collider": (
         jd.Collider,
-        ["", "naive", "celllist", "multicelllist", "neighborlist"],
+        [
+            "",
+            "naive",
+            "celllist",
+            "multicelllist",
+            "neighborlist",
+            "granulabotneighbors",
+        ],
     ),
     "linear_integrator": (
         LinearIntegrator,
@@ -73,6 +82,7 @@ COMPONENTS = {
             "plasticdeformableparticlemodel",
             "plasticperimeterdeformableparticlemodel",
             "plasticbendingdeformableparticlemodel",
+            "granulabotmagnets",
         ],
     ),
     "material_matchmaker": (MaterialMatchmaker, ["harmonic", "linear"]),
@@ -81,6 +91,16 @@ CASES = [(family, name) for family, (_, names) in COMPONENTS.items() for name in
 
 
 def configured_system(family, name):
+    if name == "granulabotmagnets":
+        state = jd.State.create(
+            pos=jnp.array([[0.0, 0.0], [1.0, 0.0]]), rad=jnp.full(2, 0.1)
+        )
+        model = granulabot.MagnetPairs.Create(
+            pairs=[[0, 1]], weights=[0.25], particle_count=2
+        )
+        return jd.System.initialize(
+            state, jd.System.create(state=state, bonded_force_model=model)
+        )
     if family == "bonded_force_model":
         from tests.test_plastic_reference_state import _plastic_system
 
@@ -118,7 +138,7 @@ def configured_system(family, name):
     if family == "force_model":
         if name in {"wca", "wcashifted", "lennardjones"}:
             material = jd.Material.create("lj", epsilon=0.7, density=1.0)
-        if name == "cundallstrack":
+        if name in {"cundallstrack", "granulabotcontacts"}:
             material = jd.Material.create(
                 "elasticfrict", young=2.0, density=1.0, poisson=0.25, mu=0.6, e=0.8
             )
@@ -174,7 +194,12 @@ def configured_system(family, name):
             )
     elif family == "collider":
         options["collider_type"] = name
-        if name != "neighborlist":
+        if name == "granulabotneighbors":
+            law = jd.ForceModel.create("granulabotcontacts")
+            material = jd.Material.create(
+                "elasticfrict", density=1.0, young=2.0, poisson=0.25, mu=0.6, e=0.8
+            )
+        elif name != "neighborlist":
             options["collider_kw"] = {}
     elif family != "material_matchmaker":
         options[family + "_type"] = name

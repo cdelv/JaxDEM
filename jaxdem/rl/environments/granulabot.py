@@ -427,8 +427,11 @@ _evaluate_contacts = _contact_evaluator(False)
 @dataclass(slots=True)
 class _Neighbors(NeighborList):
     @staticmethod
-    @partial(jax.jit, static_argnames=('advance_history',), inline=True)
-    def compute_force(state, system, *, advance_history=True):
+    @partial(jax.jit, static_argnames=('advance_history', 'quasistatic'), inline=True)
+    def compute_force(state, system, *, advance_history=True, quasistatic=False):
+        if quasistatic:
+            return NeighborList.compute_force(
+                state, system, advance_history=advance_history, quasistatic=True)
         system = _maintain_neighbors(state, system)
         force, torque, history = (_advance_contacts if advance_history else _evaluate_contacts)(state, system)
         return replace(state, force=force, torque=torque), replace(
@@ -499,16 +502,16 @@ class _Contacts(CundallStrackForce):
         return replace(state, rad=jnp.where(state.clump_id % 3 == 0, state.rad, state._rad))
 
     @staticmethod
-    def force(i, j, pos, state, system, history, *, advance_history=True):
+    def force(i, j, pos, state, system, history, *, advance_history=True, quasistatic=False):
         f, t, h = CundallStrackForce.force(i, j, pos, _Contacts._state(state), system,
-                                         history, advance_history=advance_history)
+                                         history, advance_history=advance_history, quasistatic=quasistatic)
         active = (state.clump_id[i] % 3 == 0) | (state.clump_id[j] % 3 == 0)
         return jnp.where(active, f, 0.), jnp.where(active, t, 0.), jnp.where(active, h, 0.) if advance_history else history
 
     @staticmethod
-    def energy(i, j, pos, state, system):
+    def energy(i, j, pos, state, system, history):
         active = (state.clump_id[i] % 3 == 0) | (state.clump_id[j] % 3 == 0)
-        return jnp.where(active, CundallStrackForce.energy(i, j, pos, _Contacts._state(state), system), 0.)
+        return jnp.where(active, CundallStrackForce.energy(i, j, pos, _Contacts._state(state), system, history), 0.)
 
 
 def _floor(pos, state, system):
