@@ -340,7 +340,7 @@ def test_unbalanced_small_energy_cannot_establish_lower_bound(dim, driver):
 @pytest.mark.parametrize(
     "optimizer", [jd.minimizers.fire, jd.minimizers.damped_newtonian]
 )
-@pytest.mark.parametrize("max_steps", [0, 5])
+@pytest.mark.parametrize("max_steps", [0, 3])
 def test_physical_relaxation_evaluates_energy_once(monkeypatch, optimizer, max_steps):
     from jaxdem.minimizers import routines
 
@@ -375,8 +375,24 @@ def test_physical_relaxation_evaluates_energy_once(monkeypatch, optimizer, max_s
         assert int(result[2]) == max_steps
         assert len(evaluations) == 1
         assert len(force_evaluations) == max_steps + 1
-        expected = original_energy(result[0], result[1])[2] / st.N
-        np.testing.assert_allclose(result[3], expected, rtol=1e-12)
+        overlaps = (
+            [0.1, 0.09999, 0.099970001, 0.0999400049999]
+            if optimizer is jd.minimizers.fire
+            else [0.1, 0.09998004987531173, 0.09994025310787868, 0.09988071662295496]
+        )[: max_steps + 1]
+        np.testing.assert_allclose(
+            np.asarray(force_evaluations)[..., 0],
+            np.array(overlaps)[:, None] * [-1, 1],
+            rtol=3e-6,
+            atol=2e-7,
+        )
+        shift = (overlaps[-1] - 0.1) / 2
+        np.testing.assert_allclose(
+            result[0].pos_c, [[shift, 0], [0.9 - shift, 0]], rtol=3e-6, atol=2e-8
+        )
+        np.testing.assert_allclose(
+            result[3], overlaps[-1] ** 2 / 4, rtol=3e-6, atol=1e-9
+        )
     finally:
         routines.minimize.clear_cache()
 

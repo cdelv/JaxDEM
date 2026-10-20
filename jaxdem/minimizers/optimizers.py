@@ -206,14 +206,23 @@ def fire(
              N_{good} &\to 0 \\
              N_{bad} &\to N_{bad} + 1 \\
              dt &\to \max(dt \cdot f_{dec}, dt_{min}) \\
-             \alpha &\to \alpha_{init} \\
-             v_{old} &\to 0
+             \alpha &\to \alpha_{init}
 
-    3. Perform velocity mixing:
+    3. Kick, mix velocities, and update positions using the adapted step size
+       :math:`h`. Let :math:`s=1` for positive power and zero otherwise:
 
        .. math::
-           v_{half} &= v_{old} \cdot (1 - \alpha) + \hat{F}(t) \cdot |v_{old}| \cdot \alpha \\
-           v(t + dt) &= v_{half} + F(t) \cdot \frac{dt}{2}
+           w &= s v_{old} + F h / 2 \\
+           v_{new} &= s\left[(1-\alpha)w + \alpha\frac{\|w\|}{\|F\|}F\right] \\
+           \Delta x &= \frac{1}{2}\left[v_{old} h_{reverse} + v_{new} h\right]
+
+       Here :math:`h_{reverse}=0` downhill and :math:`-h` uphill, so an
+       uphill step backtracks and stores zero velocity. Mixing norms are
+       computed along each leaf's last axis (absolute values for scalars);
+       a zero force contributes zero to the directional mixing term. Power
+       is summed across all leaves. After more than ``N_bad_max`` consecutive
+       uphill steps, the step size returns to its base value and the uphill
+       counter resets.
 
     Parameters
     ----------
@@ -312,7 +321,9 @@ def fire(
         v_half = jax.tree.map(lambda vt, f: vt + f * new_dt / 2.0, v_temp, F)
 
         def normalize(x: jax.Array) -> jax.Array:
-            return optax.safe_norm(x, min_norm=0.0, axis=-1, keepdims=True)
+            return optax.safe_norm(
+                x, min_norm=0.0, axis=-1 if x.ndim else None, keepdims=True
+            )
 
         v_half_norm = jax.tree.map(normalize, v_half)
         F_norm = jax.tree.map(normalize, F)

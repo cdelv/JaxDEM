@@ -132,5 +132,9 @@ def test_fire_mixes_small_nonzero_forces_without_an_absolute_cutoff(scale):
     expected = np.array([[0.9 + 0.1 * np.sqrt(2), 0.9]])
     np.testing.assert_allclose(advanced.vel / scale, expected, rtol=2e-6)
     np.testing.assert_allclose(update / scale, expected / 2, rtol=2e-6)
+    scalar_update, _ = optimizer.update(
+        jnp.asarray(-scale), optimizer.init(jnp.asarray(0.0))
+    )
+    np.testing.assert_allclose(scalar_update / scale, 0.5, rtol=2e-6)
     zero, _ = optimizer.update(jnp.zeros((1, 2)), optimizer.init(jnp.zeros((1, 2))))
     np.testing.assert_array_equal(zero, 0)
