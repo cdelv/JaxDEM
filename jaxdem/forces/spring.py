@@ -300,15 +300,10 @@ def _sphere_facet_pair(
 class SphereFacetSpringForce(ForceModel):
     r"""Linear spring contact between spheres and facets.
 
-    .. warning::
-        The model detects facet contacts through the facet's *vertex spheres*,
-        in particular the facet's primary vertex. The collider's neighbor
-        cutoff must cover the facet circumradius (the largest
-        vertex-to-contact-point distance) plus the contact thickness
-        (``state.rad``). If the primary vertex lies outside the cutoff while
-        the contact point is in range, the model misses the contact or applies
-        it asymmetrically. Cell-list based colliders must use
-        ``cutoff >= max facet circumradius + thickness``.
+    Contacts are evaluated through vertex keys, using the primary key for
+    rigid facets. Search bounds automatically include the current facet extent
+    and contact thickness. ``state._rad`` supplies an optional conservative
+    lower bound on that search radius.
 
     The contact thickness comes from the facet vertices' ``state.rad``
     (set through ``State.add_facet(thickness=...)``). The force model itself
@@ -321,6 +316,11 @@ class SphereFacetSpringForce(ForceModel):
     def supports_analytical_energy_gradient(self) -> bool:
         """Zero-distance contact normals are force conventions, not energy gradients."""
         return False
+
+    @property
+    def required_material_properties(self) -> tuple[str, ...]:
+        """Require the effective Young modulus for the contact spring."""
+        return ("young_eff",)
 
     def search_radii(self, state: State, system: System) -> jax.Array:
         """Include current facet extent and contact thickness in search bounds."""
@@ -521,15 +521,10 @@ def _facet_facet_pair(
 class FacetFacetSpringForce(ForceModel):
     r"""Linear spring contact between facets.
 
-    .. warning::
-        The model detects facet contacts through the facets' *vertex spheres*,
-        in particular each facet's primary vertex. The collider's neighbor
-        cutoff must cover the facet circumradius (the largest
-        vertex-to-contact-point distance) plus the contact thickness
-        (``state.rad``). If a primary vertex lies outside the cutoff while
-        the contact point is in range, the model misses the contact or applies
-        it asymmetrically. Cell-list based colliders must use
-        ``cutoff >= max facet circumradius + thickness``.
+    Contacts are evaluated through vertex keys, using the primary key for
+    rigid facets. Search bounds automatically include the current facet extent
+    and contact thickness. ``state._rad`` supplies an optional conservative
+    lower bound on that search radius.
 
     The contact thickness comes from the facet vertices' ``state.rad``
     (set through ``State.add_facet(thickness=...)``). The force model itself
@@ -542,6 +537,11 @@ class FacetFacetSpringForce(ForceModel):
     def supports_analytical_energy_gradient(self) -> bool:
         """Zero-distance contact normals are force conventions, not energy gradients."""
         return False
+
+    @property
+    def required_material_properties(self) -> tuple[str, ...]:
+        """Require the effective Young modulus for the contact spring."""
+        return ("young_eff",)
 
     def search_radii(self, state: State, system: System) -> jax.Array:
         """Include current facet extent and contact thickness in search bounds."""

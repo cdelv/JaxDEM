@@ -42,6 +42,21 @@ def test_force_search_covers_law_cutoff(law, distance, collider):
     assert not bool(actual_system.collider.overflow)
 
 
+def test_facet_laws_require_elastic_materials_through_composition():
+    laws = (jd.forces.SphereFacetSpringForce(), jd.forces.FacetFacetSpringForce())
+    combined = jd.LawCombiner(laws=laws)
+    routed = jd.ForceRouter.from_dict(1, {(0, 0): combined})
+    state = jd.State.create(pos=jnp.zeros((1, 2)))
+    table = jd.MaterialTable.from_materials(
+        [jd.Material.create("lj", density=1.0, epsilon=1.0)]
+    )
+    for law in (*laws, combined, routed):
+        with pytest.raises(KeyError, match="young_eff"):
+            jd.System.create(
+                state=state, force_model=law, mat_table=table, collider_type=""
+            )
+
+
 def test_explicit_initialization_supplies_first_verlet_acceleration():
     state = jd.State.create(pos=jnp.array([[0.0, 0.0]]), vel=jnp.array([[0.2, 0.3]]))
     gravity = jnp.array([0.0, -2.0])
@@ -227,3 +242,4 @@ def test_shear_image_force_and_energy_are_physical(dim, collider):
     np.testing.assert_allclose(result.force, force, rtol=1e-5, atol=1e-5)
     np.testing.assert_allclose(energy, 0.5 * stiffness * 0.2**2, rtol=1e-5)
     assert not bool(updated.collider.overflow)
+
