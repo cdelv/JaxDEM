@@ -431,7 +431,9 @@ class ForceManager:
 
         Notes
         -----
-        - The energy of clump members is divided by the number of spheres in the clump.
+        - Gravity counts each clump's total mass once. Custom energy callbacks
+          return per-member contributions or a total scalar and are summed
+          as supplied, without clump normalization.
 
         Parameters
         ----------

@@ -265,7 +265,8 @@ class Factory(ABC):
         ------
         ValueError
             If the provided `key` (or the default class name) is already
-            registered in the factory's registry for a *different* class.
+            registered in the factory's registry for a *different* class, or
+            the subclass already declares a different registry name.
             Registering the same class under the same key again (for example
             when you re-run a notebook cell) works and is idempotent.
 

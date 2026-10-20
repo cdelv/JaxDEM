@@ -193,8 +193,8 @@ class ForceModel(Factory, ABC):
         Parameters
         ----------
         pair_shape : tuple[int, ...]
-            Leading shape of pair-wise quantities, typically
-            ``(N, max_neighbors)``.
+            Collider-specific pair axes, such as a flat contact pool or
+            a dense ``(N, N)`` pair array.
         dim : int
             Spatial dimension used by dimension-dependent history layouts.
 

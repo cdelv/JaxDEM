@@ -576,7 +576,7 @@ class DynamicCellList(Collider):
         Returns
         -------
         Tuple[State, System]
-            A tuple containing the updated state and unmodified system.
+            The updated state and system, including search bounds and overflow status.
         """
         collider = cast(DynamicCellList, system.collider)
         search_radius = jnp.max(

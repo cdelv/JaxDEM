@@ -108,34 +108,23 @@ class ReflectSphereDomain(Domain):
         position back into the box. It also reverses the velocity component
         normal to that boundary, scaled by the restitution coefficient :math:`e`.
 
+        For each coordinate, the sphere center is bounded by
+        :math:`l=a+R` and :math:`u=a+B-R`, where :math:`a` is the anchor,
+        :math:`B` the box size, and :math:`R` the sphere radius. The shared
+        Verlet collision solver computes the collision fraction
+        :math:`\alpha\in[0,1]` from the endpoint position, velocity, and
+        acceleration :math:`a_{acc}`. For a crossed wall with closing velocity:
+
         .. math::
-            l &= a + R \\
-            u &= a + B - R \\
-            v' &= \begin{cases} -e\,v & \text{if } r < l \text{ or } r > u \\ v & \text{otherwise} \end{cases} \\
-            r' &= \begin{cases} 2l - r & \text{if } r < l \\ r & \text{otherwise} \end{cases} \\
-            r'' &= \begin{cases} 2u - r' & \text{if } r' > u \\ r' & \text{otherwise} \end{cases} \\
-            r &= r''
+            v_{col} &= v + (\alpha-1)\Delta t\,a_{acc} \\
+            \Delta v &= -(1+e)v_{col} \\
+            v' &= v + \Delta v \\
+            r' &= r + \Delta v(1-\alpha)\Delta t
 
-        where:
-            - :math:`r` is the current particle position (:attr:`jaxdem.State.pos`)
-            - :math:`v` is the current particle velocity (:attr:`jaxdem.State.vel`)
-            - :math:`a` is the domain anchor (:attr:`Domain.anchor`)
-            - :math:`B` is the domain box size (:attr:`Domain.box_size`)
-            - :math:`R` is the particle radius (:attr:`jaxdem.State.rad`)
-            - :math:`l` is the lower boundary for the particle center
-            - :math:`u` is the upper boundary for the particle center
-            - :math:`e` is the restitution coefficient.
-
-        **Verlet Time-of-Collision Correction**
-
-        The shared Verlet-consistent solver
-        :func:`jaxdem.domains._toc.verlet_collision_fraction` (also used by
-        :class:`ReflectDomain`) computes the collision time fraction
-        :math:`\alpha \in [0, 1]` and the velocity at the moment of collision.
-        The method reconstructs the pre-collision velocity as
-        :math:`v_{col} = v + (\alpha - 1) \Delta t\, a`.
-
-        TO DO: Check correctness when adding different shape types and angular velocity
+        Fixed particles and coordinates without a closing wall receive no
+        impulse. Geometric position mirroring is the constant-speed elastic
+        special case of this remaining-time correction. The restitution
+        coefficient is :math:`e`.
 
         Parameters
         ----------

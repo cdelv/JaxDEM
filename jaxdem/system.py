@@ -148,7 +148,8 @@ class System:
     Notes:
     ------
     - The `System` object supports JIT compilation for efficient execution.
-    - The `System` dataclass is compatible with :func:`jax.jit`, so every field should remain JAX arrays for best performance.
+    - Dynamic numeric leaves are JAX arrays. Callbacks, optimizers, targets,
+      and component configuration can carry explicit static metadata.
 
     Example:
     --------

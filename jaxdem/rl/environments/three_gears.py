@@ -280,10 +280,10 @@ class ThreeGears(Environment):
         ====================================  ====================================
         Distance to floor                     ``1``
         Distance to left/right walls          ``2``
-        Unit target-to-agent vector                 ``2``
-        Clamped agent-minus-target delta        ``2``
-        Unit neighbor-to-agent vector           ``2``
-        Clamped agent-minus-neighbor delta  ``2``
+        Unit target-to-agent vector           ``2``
+        Clamped agent-minus-target delta      ``2``
+        Unit neighbor-to-agent vector         ``2``
+        Clamped agent-minus-neighbor delta    ``2``
         :math:`\sin(\Delta\theta)`            ``1``
         :math:`\cos(\Delta\theta)`            ``1``
         Velocity (x, y)                       ``2``

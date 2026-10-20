@@ -2,14 +2,8 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Utilities to generate step indices for trajectory logging.
 
-TODO: refactor into a ``SaveSchedule`` :class:`Factory`-based registry
-(matching the pattern used by ``Collider``, ``Integrator``,
-``ForceModel``, etc.) so users can register custom schedule types by
-name and invoke them via ``SaveSchedule.create("pseudolog", ...)``.
-Not urgent — the two current implementations are small and
-orthogonal, and :func:`numpy.diff` composes cleanly with
-:meth:`System.trajectory_rollout`. Revisit when a third schedule
-type (e.g. geometric spacing, user-supplied list) is needed.
+The returned integer indices compose with :func:`numpy.diff` to supply the
+step intervals accepted by :meth:`jaxdem.System.trajectory_rollout`.
 """
 
 from __future__ import annotations

@@ -375,6 +375,9 @@ def test_physical_relaxation_evaluates_energy_once(monkeypatch, optimizer, max_s
         assert int(result[2]) == max_steps
         assert len(evaluations) == 1
         assert len(force_evaluations) == max_steps + 1
+        # With overlap delta=.1+2*x_left and h=.01:
+        # FIRE uses v_next=v-h*delta, x_next=x+h*v_next/2.
+        # Damped Newtonian uses v_next=(399*v-4*delta)/401, x_next=x+v_next/100.
         overlaps = (
             [0.1, 0.09999, 0.099970001, 0.0999400049999]
             if optimizer is jd.minimizers.fire

@@ -2,8 +2,8 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Checkpoint round-trip tests.
 
-Each test creates a State and System, runs one step, saves a checkpoint, and
-loads it back. Each test then checks that every JAX leaf matches the original.
+Exact dynamic arrays, static configuration, continued dynamics, checkpoint
+selection, retention, and errors are checked with portable importable fixtures.
 """
 
 from __future__ import annotations
@@ -127,7 +127,7 @@ def _save_step_check(state: jdem.State, system: jdem.System, n: int = 1) -> None
 
 
 class TestForceModels:
-    """Checkpoint round-trips for every registered force model."""
+    """Representative force-model round trips; the component matrix covers all classes."""
 
     def test_law_combiner_spring_wca(self):
         """LawCombiner compositing spring + WCA."""

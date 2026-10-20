@@ -413,8 +413,8 @@ class MultiNavigator(Environment):
 
         Contents per agent
         ------------------
-        - Unit vector to objective (shape (dim,))  --> Direction
-        - Clamped delta to objective (shape (dim,)) --> Local precision
+        - Unit vector from objective to agent (shape (dim,))  --> Direction
+        - Clamped agent-minus-objective delta (shape (dim,)) --> Local precision
         - Velocity (shape (dim,))
         - Agent/wall LiDAR proximity (shape (n_lidar_rays,) in 2-D,
           (n_lidar_rays * n_lidar_elevation,) in 3-D)

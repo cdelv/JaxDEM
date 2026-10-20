@@ -314,10 +314,11 @@ class LeesEdwardsDomain(PeriodicDomain):
                 & r_{ij} = r_i - r_j \\\\
                 & r_{ij,\alpha} = r_{ij,\alpha}
                     - \operatorname{round}(r_{ij,\beta}/L_\beta)\gamma L_\beta \\\\
-                & r_{ij} = r_{ij} - L \left\lfloor 0.5 + r_{ij}/L \right\rfloor
+                & r_{ij} = r_{ij} - L\operatorname{round}(r_{ij}/L)
 
             where:
                 - :math:`L` is the domain box size (:attr:`Domain.box_size`)
+                - Rounding uses ties to even at half-box displacements.
 
         """
         le_domain = cast("LeesEdwardsDomain", system.domain)

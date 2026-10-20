@@ -279,9 +279,9 @@ class State:
     def body_mass_properties(self, *, validate: bool = False) -> dict[str, jax.Array]:
         """Return padded logical-body properties derived from representatives.
 
-        ``valid`` selects occupied records. Mass, volume, and inertia follow
-        the State convention: each rigid member already stores the total body
-        value, so representative values are used without summation. Pass
+        ``valid`` selects occupied records. Supply finalized, replicated
+        whole-body mass, volume, and inertia: this view uses representatives
+        without summing or computing clump union properties. Pass
         ``validate=True`` on the host to verify replicated clump fields first.
         """
         if validate:
@@ -1248,9 +1248,8 @@ class State:
         Raises
         ------
         ValueError
-            If the created new particle state or the merged state is invalid.
-        AssertionError
-            If batch size or dimension mismatch between existing state and new particles.
+            If the new or merged state is invalid, or batch size or dimension
+            differs between existing and new particles.
 
         Example
         -------
@@ -1325,10 +1324,8 @@ class State:
         Raises
         ------
         ValueError
-            If the input `states` sequence is empty.
-            If the stacked `State` is invalid.
-        AssertionError
-            If any input state is invalid, or if there is a mismatch in
+            If the sequence is empty, an input or stacked state is invalid,
+            or if there is a mismatch in
             spatial dimension (`dim`), batch size (`batch_size`), or
             number of particles (`N`) between the states in the sequence.
 
@@ -1615,13 +1612,14 @@ class State:
         state : State
             The existing state.
         vertices : ArrayLike
-            Vertices of the facets, shape (..., V, dim).
+            Vertices of one facet, shape (V, dim). Leading batch axes are unsupported.
         vel : ArrayLike or None, optional
             Initial linear velocity.
         force : ArrayLike or None, optional
             Initial force.
         q : Quaternion or ArrayLike or None, optional
-            Initial orientations.
+            Initial orientations for flexible vertices. Rigid construction
+            derives its orientation from the supplied vertices.
         ang_vel : ArrayLike or None, optional
             Initial angular velocities.
         torque : ArrayLike or None, optional
@@ -1639,8 +1637,8 @@ class State:
         rigid : bool, default True
             If True, the facet is rigid: all vertices share one clump ID, and the method
             computes the clump inertia and orientation. If False, the facet is flexible:
-            its vertices behave like individual spheres (sphere moment of inertia,
-            identity orientation, and unique clump IDs).
+            its vertices behave like individual spheres with sphere moments of
+            inertia, the supplied orientations, and unique clump IDs.
         safety_factor : float, default 1.0
             Factor that scales `_rad` to enlarge the broad-phase detection box.
         """
@@ -1953,15 +1951,16 @@ class State:
         state : State
             The existing state.
         vertices : ArrayLike
-            Vertices of the mesh, shape (..., V_mesh, dim).
+            Vertices of one mesh, shape (V_mesh, dim). Leading batch axes are unsupported.
         faces : ArrayLike
-            Faces of the mesh (indices into vertices), shape (..., F, dim).
+            Faces of the mesh (indices into vertices), shape (F, dim).
         vel : ArrayLike or None, optional
             Initial linear velocity.
         force : ArrayLike or None, optional
             Initial force.
         q : Quaternion or ArrayLike or None, optional
-            Initial orientations.
+            Initial orientations for flexible vertices. Rigid construction
+            derives its orientation from the supplied vertices.
         ang_vel : ArrayLike or None, optional
             Initial angular velocities.
         torque : ArrayLike or None, optional
@@ -1969,7 +1968,8 @@ class State:
         thickness : float, optional
             Physical thickness/radius of the facet vertex spheres.
         mass : ArrayLike or None, optional
-            Mass of the mesh.
+            Total mass of a rigid mesh, or per-particle mass for duplicated
+            face vertices when ``rigid=False``.
         mat_id : ArrayLike or None, optional
             Material IDs.
         species_id : ArrayLike or None, optional

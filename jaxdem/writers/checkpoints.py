@@ -266,10 +266,10 @@ class CheckpointWriter(BaseCheckpointManager):
     The writer serializes custom force functions passed via
     ``force_manager_kw`` by their fully-qualified module path (e.g.
     ``mypackage.forces.trap``). A different script **cannot** restore
-    functions defined in the top-level script (``__main__``). The writer
-    emits a warning at save time if any force function lives in
-    ``__main__``. To keep checkpoints portable, define force functions in
-    an importable module.
+    functions defined in the top-level script (``__main__``). Nonportable
+    callables are rejected at save time: force, energy, target, and callback
+    functions must round-trip by import-path identity. Define these functions
+    in an importable module.
 
     """
 
@@ -280,7 +280,8 @@ class CheckpointWriter(BaseCheckpointManager):
 
     save_every: int = 1
     """
-    How often to write. The writer saves on every ``save_every``-th call to :meth:`save`.
+    Checkpoint interval measured in the step supplied to :meth:`save`,
+    rather than in save calls.
     """
 
     clean: bool = False
@@ -567,7 +568,8 @@ class CheckpointModelWriter(BaseCheckpointManager):
 
     save_every: int = 1
     """
-    How often to write. The writer saves on every ``save_every``-th call to :meth:`save`.
+    Checkpoint interval measured in the step supplied to :meth:`save`,
+    rather than in save calls.
     """
 
     clean: bool = False

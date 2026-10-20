@@ -154,7 +154,7 @@ class FIREState(NamedTuple):
     N_good : jax.Array
         Number of consecutive steps with positive power ($P > 0$).
     N_bad : jax.Array
-        Number of consecutive steps with negative power ($P \le 0$).
+        Number of consecutive steps with nonpositive power ($P \le 0$).
     """
 
     vel: jax.Array

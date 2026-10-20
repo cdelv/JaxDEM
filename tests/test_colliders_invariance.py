@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Check that positions, velocities, and forces agree across all periodic colliders for spheres, clumps, and facets."""
+"""Check that positions, velocities, and forces agree across colliders and domains for spheres, clumps, and facets."""
 
 from __future__ import annotations
 

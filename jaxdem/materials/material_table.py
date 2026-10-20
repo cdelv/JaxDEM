@@ -108,7 +108,7 @@ class MaterialTable:
         Raises
         ------
         TypeError
-            If `mats` is not a sequence of `Material` instances.
+            If an entry is not a dataclass instance with scalar fields.
 
         """
         all_keys = {f.name for m in mats for f in fields(m)}

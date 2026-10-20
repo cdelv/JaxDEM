@@ -214,7 +214,7 @@ class SwarmNavigator(Environment):
     or masked bins and one for coincident centers after normalization.
     With two spatial dimensions and the default 12 bins, each observation
     has 26 entries. In 3-D, ``lidar_bins = n_lidar_rays * n_lidar_elevation``;
-    default settings give 99 entries. Methods describe one environment;
+    default settings give 291 entries. Methods describe one environment;
     use ``jax.vmap`` for independent environment batches.
 
     With ``dt = 0.002`` and ``skip_frames = 49``, one policy action spans

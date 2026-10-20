@@ -76,9 +76,8 @@ class NeighborList(Collider):
     The computational cost of simulations using neighbor lists has two parts:
 
     1. **Rebuild Cost**: Occurs when the maximum displacement exceeds the threshold.
-       You can configure any registerable collider (e.g., ``NaiveSimulator``,
-       ``DynamicCellList``, or ``DynamicMultiCellList``) to run the spatial queries
-       of this rebuild phase. The chosen underlying collider sets the complexity of
+       The supported rebuild backends are ``naive``, ``CellList``, and
+       ``MultiCellList``. The chosen underlying collider sets the complexity of
        the rebuild step (e.g., :math:`O(N^2)` for ``NaiveSimulator``, or
        :math:`O(N \log N)` for ``DynamicCellList``/``DynamicMultiCellList``).
     2. **Step Evaluation Cost**: Occurs at every timestep. We iterate over occupied
@@ -122,11 +121,13 @@ class NeighborList(Collider):
     - **safety_factor**: Multiplier on the estimated density that accounts for local fluctuations.
       Default is `1.2`.
     - **secondary_collider_type**: The identifier of the underlying collider that runs the spatial queries
-      during rebuilds (e.g. ``"CellList"``, ``"naive"``, or ``"MultiCellList"``). You can use any registered
-      ``Collider`` subclass for the rebuild phase to optimize the rebuild cost for your system.
+      during rebuilds: ``"CellList"``, ``"naive"``, or ``"MultiCellList"``.
     - **secondary_collider_kw**: Keyword args for the underlying collider constructor.
 
-    This collider suits dense assemblies, static packings, slow shear flows, gravity settling, or any low-velocity systems. It suits high-speed granular flows and high-temperature systems less, because rapid particle motion triggers frequent neighbor list rebuilds that cancel the caching advantage. Also, systems of rigid clumps with large overlaps need larger neighbor buffers to hold excluded constituent pairs. This increases the memory footprint and the step traversal cost.
+    This collider suits dense assemblies, static packings, slow shear flows,
+    and gravity settling. Fast motion triggers more rebuilds. Excluded
+    constituent pairs do not consume the shared pair pool, though overlapping
+    clumps can increase broad-phase traversal work.
 
     Temperature & Rebuild Frequency Discussion
     -------------------------------------------
@@ -546,7 +547,8 @@ class NeighborList(Collider):
 
         The cache rebuilds when particle motion plus any periodic geometry
         change since the last build exhausts the skin. Forces are then summed
-        over the cached pairs in one flat pass.
+        over cached pairs in a flat pass for small pools and bounded occupied-row
+        batches for large pools.
 
         Parameters
         ----------
