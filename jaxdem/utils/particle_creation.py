@@ -552,10 +552,13 @@ def _resolve_body_grouping(state: State, group_by: str) -> tuple[jax.Array, int]
     components has sub-``N`` unique values. If both do (mixed clumps + DPs)
     the caller must disambiguate.
     """
-    clump_ids_np = np.asarray(state.clump_id)
+    clump_labels, clump_ids_np = np.unique(
+        np.asarray(state.clump_id), return_inverse=True
+    )
+    clump_group_id = jnp.asarray(clump_ids_np, dtype=int)
     bond_ids_np = np.asarray(state.bond_id)
     n = int(state.N)
-    n_unique_clump = int(np.unique(clump_ids_np).size)
+    n_unique_clump = int(clump_labels.size)
 
     # Connected components of the bond graph (vectorized scipy).
     n_unique_bond, bond_group_id_np = _bond_graph_components(bond_ids_np)
@@ -571,12 +574,12 @@ def _resolve_body_grouping(state: State, group_by: str) -> tuple[jax.Array, int]
                 "Pass group_by='clump' or group_by='bond' to disambiguate."
             )
         if has_clumps:
-            return state.clump_id, n_unique_clump
+            return clump_group_id, n_unique_clump
         if has_dps:
             return bond_group_id, n_unique_bond
-        return state.clump_id, n_unique_clump  # all spheres: either ID works
+        return clump_group_id, n_unique_clump  # all spheres: either ID works
     if group_by == "clump":
-        return state.clump_id, n_unique_clump
+        return clump_group_id, n_unique_clump
     if group_by == "bond":
         return bond_group_id, n_unique_bond
     raise ValueError(

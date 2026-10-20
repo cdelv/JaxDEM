@@ -2,6 +2,8 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Focused contracts for low-level rigid/contact construction."""
 
+from dataclasses import replace
+
 import jax.numpy as jnp
 import pytest
 import numpy as np
@@ -56,6 +58,7 @@ def test_distribution_rotates_a_whole_body_and_uses_its_bounding_volume(dim, rig
             mass=jnp.full(3, 2.0),
             volume=jnp.full(3, 1.2),
         )
+        state = replace(state, clump_id=jnp.ones(3, dtype=int))
     else:
         state = jdem.State.create(
             pos=jnp.asarray(points),
