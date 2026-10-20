@@ -10,14 +10,40 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from distrax._src.bijectors.bijector import Array  # type: ignore[import-untyped]
+from numpy.typing import NDArray
 
 from ...utils.linalg import dot, norm2
 from . import ActionSpace
 
-# Gauss-Hermite nodes for tensor product quadrature over d-dimensional Normal.
-_GH_N, _GH_W = np.polynomial.hermite_e.hermegauss(5)
-_GH_NODES: jax.Array = jnp.asarray(_GH_N)
-_GH_WEIGHTS_1D: jax.Array = jnp.asarray(_GH_W / np.sqrt(2.0 * np.pi))
+
+def _entropy_quadrature() -> tuple[NDArray[np.float64], ...]:
+    """Precompute the scalar Laplace integral's nodes and spectral weights.
+
+    The sinh/cosh product formulas give sums over integer/half-integer
+    squares. Poisson summation evaluates their small-t limits without a
+    slowly converging series or subtracting nearly equal large numbers.
+    Eight terms suffice in either representation at the switch t=0.2.
+    """
+    u, weights = np.polynomial.legendre.leggauss(128)
+    u = (u + 1.0) / 2.0
+    t = (u / (1.0 - u)) ** 4
+    weights = 2.0 * weights / (u * (1.0 - u))  # dt/t = 4 du/[u(1-u)]
+    k = np.arange(1, 9)
+    integers = np.exp(-(np.pi**2) * t[:, None] * k**2).sum(axis=-1)
+    halves = np.exp(-(np.pi**2) * t[:, None] * (k - 0.5) ** 2).sum(axis=-1)
+    reflected = np.exp(-(k**2) / t[:, None]) / np.sqrt(np.pi * t[:, None])
+    difference = np.where(
+        t < 0.2, -0.5 + (reflected * (1 - (-1.0) ** k)).sum(axis=-1), integers - halves
+    )
+    total = np.where(
+        t < 0.2,
+        1.0 / np.sqrt(np.pi * t) - 0.5 + (reflected * (1 + (-1.0) ** k)).sum(axis=-1),
+        integers + halves,
+    )
+    return t, weights * difference, weights * total
+
+
+_ENTROPY_NODES, _ENTROPY_DIFFERENCE, _ENTROPY_TOTAL = _entropy_quadrature()
 
 
 @ActionSpace.register("MaxNorm")
@@ -178,29 +204,43 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
 
     @partial(jax.named_call, name="MaxNormSpace.log_det_expectation")
     def log_det_expectation(self, mean: jax.Array, std: jax.Array) -> jax.Array:
-        r""":math:`\mathbb{E}_X[\log|\det J_f(X)|]` via tensor-product
-        Gauss-Hermite quadrature in *d* dimensions, supported for ``d <= 6``.
+        r"""Expected log-Jacobian via a scalar Laplace integral.
+
+        For :math:`Q=\lVert X\rVert^2`, its Laplace transform is analytic:
+
+        .. math::
+            L(t)=\mathbb{E}[e^{-tQ}]
+            =\prod_i\frac{
+                \exp\!\left(-t\mu_i^2/(1+2t\sigma_i^2)\right)
+              }{\sqrt{1+2t\sigma_i^2}}.
+
+        The sinh/cosh infinite products (DLMF 4.36.1--2) and
+        :math:`\log(1+q/a)=\int_0^\infty(1-e^{-tq})e^{-at}\,dt/t` give
+
+        .. math::
+            \mathbb{E}[\log|\det J_f(X)|]
+            =d\log s+\int_0^\infty\frac{1-L(t)}{t}
+              [(d-1)A(t)-(d+1)B(t)]\,dt,
+
+        where :math:`A(t)=\sum_{k\ge1}e^{-\pi^2 k^2t}` and
+        :math:`B(t)=\sum_{k\ge1}e^{-\pi^2(k-1/2)^2t}`.
+        A fixed 128-point Gauss--Legendre rule after
+        :math:`t=(u/(1-u))^4` approximates this one-dimensional integral.
+        Cost grows linearly with action dimension; no samples or tensor
+        grids are needed. Values and autodiff gradients remain numerical
+        approximations, with accuracy depending on the policy parameters.
         """
         d = mean.shape[-1]
-        if d > 6:
-            raise ValueError(
-                "MaxNorm entropy quadrature supports action dimensions up to 6; "
-                "use BoxSpace for separable bounded actions or FreeSpace for "
-                "unbounded high-dimensional actions."
-            )
-
-        # Build d-dimensional tensor-product grid: nodes (n^d, d), weights (n^d,)
-        grids = jnp.meshgrid(*([_GH_NODES] * d), indexing="ij")
-        nodes_nd = jnp.stack([g.ravel() for g in grids], axis=-1)
-        w_grids = jnp.meshgrid(*([_GH_WEIGHTS_1D] * d), indexing="ij")
-        weights_nd = jnp.prod(jnp.stack([wg.ravel() for wg in w_grids], axis=0), axis=0)
-
-        # x = mean + std * z, shape (..., n^d, d)
-        x = mean[..., None, :] + std[..., None, :] * nodes_nd
-        safe_r, _, r2 = self._radius(x)  # (..., n^d)
-        d_val = jnp.asarray(d, mean.dtype)
-        ld = self._log_det_from_r(safe_r, d_val, r2)  # (..., n^d)
-        return dot(ld, weights_nd)
+        t = jnp.asarray(_ENTROPY_NODES, dtype=mean.dtype)
+        variance_term = 2.0 * std[..., :, None] ** 2 * t
+        log_laplace = -0.5 * jnp.log1p(variance_term)
+        log_laplace -= mean[..., :, None] ** 2 * t / (1.0 + variance_term)
+        log_laplace = jnp.sum(log_laplace, axis=-2)
+        weights = jnp.asarray(
+            d * _ENTROPY_DIFFERENCE - _ENTROPY_TOTAL, dtype=mean.dtype
+        )
+        log_s = jnp.log((1.0 - self.eps) * self.max_norm)
+        return d * log_s + dot(-jnp.expm1(log_laplace), weights)
 
 
 __all__ = ["MaxNormSpace"]

@@ -8,6 +8,7 @@ import pytest
 import numpy as np
 import distrax
 from scipy.integrate import quad
+from scipy.special import gammaln
 
 from jaxdem.rl.action_spaces.box_space import BoxSpace
 from jaxdem.rl.action_spaces.max_norm_space import MaxNormSpace
@@ -208,10 +209,187 @@ def test_max_norm_origin_has_exact_linear_limit() -> None:
     assert jnp.allclose(jax.jacrev(space.inverse)(origin), jnp.eye(3) / scale)
 
 
-def test_max_norm_entropy_rejects_high_dimension_before_tensor_allocation() -> None:
-    space = MaxNormSpace()
-    with pytest.raises(ValueError, match="dimensions up to 6"):
-        space.log_det_expectation(jnp.zeros(7), jnp.ones(7))
+def isotropic_radial_entropy_reference(dimension, std, scale):
+    """Integrate over the chi-distributed radius, independently of Laplace quadrature."""
+
+    def expectation(function):
+        def integrand(u):
+            density = np.exp(
+                (dimension - 1) * np.log(u)
+                - u * u / 2
+                - (dimension / 2 - 1) * np.log(2)
+                - gammaln(dimension / 2)
+            )
+            return density * function(std * u)
+
+        return quad(integrand, 0.0, np.sqrt(dimension) + 12.0, epsabs=1e-10)[0]
+
+    def log_det(r):
+        return (dimension - 1) * np.log(np.tanh(r) / r) + 2 * (
+            np.log(2) - r - np.logaddexp(0, -2 * r)
+        )
+
+    def radial_derivative(r):
+        log_tanh_derivative = 4 * np.exp(-2 * r) / -np.expm1(-4 * r)
+        return (dimension - 1) * (log_tanh_derivative - 1 / r) - 2 * np.tanh(r)
+
+    expected = dimension * (
+        0.5 * np.log(2 * np.pi * np.e) + np.log(std * scale)
+    ) + expectation(log_det)
+    expected_scale_gradient = (
+        1 + expectation(lambda r: r * radial_derivative(r)) / dimension
+    )
+    return expected, expected_scale_gradient
+
+
+@pytest.mark.parametrize("dimension", [1, 6, 9, 16, 64])
+@pytest.mark.parametrize("std", [0.1, 1.0, 10.0])
+def test_radial_entropy_and_gradients_against_chi_integral(dimension, std):
+    space = MaxNormSpace(max_norm=1.7)
+    expected, expected_scale_gradient = isotropic_radial_entropy_reference(
+        dimension, std, (1 - space.eps) * space.max_norm
+    )
+
+    def entropy(mean, log_std):
+        normal = distrax.MultivariateNormalDiag(mean, jnp.exp(log_std))
+        return Transformed(normal, space).entropy()
+
+    value, (mean_gradient, scale_gradient) = jax.jit(
+        jax.value_and_grad(entropy, argnums=(0, 1))
+    )(jnp.zeros(dimension), jnp.full(dimension, np.log(std)))
+    np.testing.assert_allclose(value, expected, rtol=3e-6, atol=1e-5)
+    np.testing.assert_allclose(mean_gradient, 0, atol=1e-7)
+    np.testing.assert_allclose(
+        scale_gradient, expected_scale_gradient, rtol=3e-6, atol=1e-5
+    )
+
+
+def test_high_dimensional_policy_entropy_bonus_and_gradient():
+    from flax import nnx
+
+    from jaxdem.rl.models import Model
+    from jaxdem.rl.trainers import TrajectoryData
+    from jaxdem.rl.trainers.ppo_trainer import PPOTrainer
+
+    dimension, coefficient = 16, 0.3
+    space = MaxNormSpace(max_norm=1.7)
+    model = Model.create(
+        "SharedActorCritic",
+        observation_space_size=1,
+        action_space_size=dimension,
+        architecture=[],
+        action_space=space,
+        key=nnx.Rngs(42),
+    )
+    zero = jnp.zeros((2, 3))
+    log_prob = jnp.full((2, 3), -dimension * np.log(2 * np.pi) / 2)
+    latent = jnp.zeros((2, 3, dimension))
+    td = TrajectoryData(
+        obs=jnp.zeros((2, 3, 1)),
+        action=latent,
+        value=zero,
+        log_prob=log_prob,
+        ratio=jnp.ones((2, 3)),
+        reward=zero,
+        done=jnp.ones((2, 3), bool),
+        terminated=jnp.ones((2, 3), bool),
+        truncated=jnp.zeros((2, 3), bool),
+        agent_mask=jnp.ones((2, 3), bool),
+        bootstrap_value=zero,
+        latent_action=latent,
+        latent_log_prob=log_prob,
+    )
+
+    @nnx.jit
+    def loss_and_grad(model, td):
+        return nnx.value_and_grad(PPOTrainer.loss_fn, has_aux=True)(
+            model,
+            td,
+            ppo_clip_eps=jnp.array(0.2),
+            ppo_value_coeff=jnp.array(0.0),
+            ppo_entropy_coeff=jnp.array(coefficient),
+            advantage_gamma=jnp.array(0.9),
+            advantage_lambda=jnp.array(0.8),
+            advantage_rho_clip=jnp.array(1.0),
+            advantage_c_clip=jnp.array(1.0),
+            last_value=jnp.zeros(3),
+            vtrace=jnp.array(False),
+        )
+
+    (loss, aux), gradient = loss_and_grad(model, td)
+    expected, scale_gradient = isotropic_radial_entropy_reference(
+        dimension, 1.0, (1 - space.eps) * space.max_norm
+    )
+    np.testing.assert_allclose(aux["entropy"], expected, rtol=3e-6, atol=1e-5)
+    np.testing.assert_allclose(loss, -coefficient * expected, rtol=3e-6, atol=1e-5)
+    np.testing.assert_allclose(
+        gradient.actor_sigma.log_std[...],
+        -coefficient * scale_gradient,
+        rtol=3e-6,
+        atol=1e-5,
+    )
+    np.testing.assert_allclose(gradient.actor_mu.bias[...], 0.0, atol=1e-7)
+
+
+@pytest.mark.parametrize("dimension", [9, 32])
+def test_high_dimensional_anisotropic_radial_correction(dimension):
+    # Two fluctuating coordinates and fixed offsets reduce this Gaussian limit
+    # to an independent two-dimensional reference, including nonzero means.
+    parameters = np.array([0.4, -0.2, np.log(0.25), np.log(0.4)])
+    offsets = np.linspace(-0.4, 0.6, dimension - 2)
+    nodes, weights = np.polynomial.hermite_e.hermegauss(40)
+    z = np.stack(np.meshgrid(nodes, nodes, indexing="ij"), axis=-1)
+    probability = np.outer(weights, weights) / (2 * np.pi)
+    space = MaxNormSpace(max_norm=1.7)
+
+    def reference(p):
+        x = p[:2] + np.exp(p[2:]) * z
+        r = np.sqrt(np.sum(x * x, axis=-1) + np.sum(offsets * offsets))
+        log_det = dimension * np.log((1 - space.eps) * space.max_norm)
+        log_det += (dimension - 1) * np.log(np.tanh(r) / r)
+        log_det += 2 * (np.log(2) - r - np.logaddexp(0, -2 * r))
+        return np.sum(probability * log_det)
+
+    def actual(p):
+        mean = jnp.concatenate([p[:2], jnp.asarray(offsets)])
+        std = jnp.concatenate([jnp.exp(p[2:]), jnp.zeros(dimension - 2)])
+        return space.log_det_expectation(mean, std)
+
+    h = 1e-5
+    expected_gradient = np.array(
+        [
+            (reference(parameters + h * e) - reference(parameters - h * e)) / (2 * h)
+            for e in np.eye(4)
+        ]
+    )
+    value, gradient = jax.jit(jax.value_and_grad(actual))(jnp.asarray(parameters))
+    np.testing.assert_allclose(value, reference(parameters), rtol=3e-6, atol=1e-5)
+    np.testing.assert_allclose(gradient, expected_gradient, rtol=3e-6, atol=1e-5)
+
+
+def test_radial_correction_broadcasts_batches_and_has_deterministic_limit():
+    space = MaxNormSpace(max_norm=1.7)
+    mean = jnp.zeros((2, 3, 16))
+    std = jnp.linspace(0.1, 0.5, 16)
+    batched = jax.jit(space.log_det_expectation)(mean, std)
+    scalar = space.log_det_expectation(mean[0, 0], std)
+    np.testing.assert_allclose(batched, np.full((2, 3), scalar), rtol=2e-6)
+
+    # A collapsed Gaussian has the Jacobian at its mean, even at the origin.
+    for point in [jnp.zeros(16), jnp.linspace(-0.5, 1.0, 16)]:
+        value, gradient = jax.value_and_grad(space.log_det_expectation)(
+            point, jnp.zeros(16)
+        )
+        expected, expected_gradient = jax.value_and_grad(
+            space.forward_log_det_jacobian
+        )(point)
+        np.testing.assert_allclose(value, expected, rtol=3e-6, atol=1e-5)
+        np.testing.assert_allclose(gradient, expected_gradient, rtol=3e-6, atol=1e-5)
+    np.testing.assert_allclose(
+        jax.hessian(space.log_det_expectation)(jnp.zeros(16), jnp.zeros(16)),
+        -2 * (16 + 2) / 3 * jnp.eye(16),
+        rtol=3e-6,
+    )
 
 
 @pytest.mark.parametrize("eps", [1e-6, 0.1])
