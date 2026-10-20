@@ -33,6 +33,7 @@ class VTKFacetsWriter(VTKBaseWriter):
     flat prism when the hull is not available. It also attaches per-vertex
     :class:`State` fields and quaternion components as ``PointData`` arrays.
     Each expanded point inherits the fields of its source vertex.
+    The expansion radius is ``state.rad``, matching the facet contact law.
     """
 
     @classmethod
@@ -108,7 +109,7 @@ class VTKFacetsWriter(VTKBaseWriter):
                 t = (thick_arr[idx[0]] + thick_arr[idx[1]]) / 2.0
 
                 if ConvexHull is not None and t > 0:
-                    R = t / 2.0
+                    R = t
                     pts = np.vstack([p0 + circle_pts * R, p1 + circle_pts * R])
                     hull = ConvexHull(pts, qhull_options="QJ")
                     ordered_pts = pts[hull.vertices]
@@ -132,9 +133,7 @@ class VTKFacetsWriter(VTKBaseWriter):
                     L = np.where(L > 0, L, 1.0)
                     nx, ny = -dy / L, dx / L
                     n = np.array([nx, ny])
-                    new_pos.extend(
-                        [p0 + n * t / 2, p1 + n * t / 2, p1 - n * t / 2, p0 - n * t / 2]
-                    )
+                    new_pos.extend([p0 + n * t, p1 + n * t, p1 - n * t, p0 - n * t])
                     new_thick.extend([t] * 4)
                     point_source_idx.extend(idx[[0, 1, 1, 0]])
                     quad = vtk.vtkQuad()
@@ -151,7 +150,7 @@ class VTKFacetsWriter(VTKBaseWriter):
                 t = (thick_arr[idx[0]] + thick_arr[idx[1]] + thick_arr[idx[2]]) / 3.0
 
                 if ConvexHull is not None and t > 0:
-                    R = t / 2.0
+                    R = t
                     pts = np.vstack(
                         [p0 + sphere_pts * R, p1 + sphere_pts * R, p2 + sphere_pts * R]
                     )
@@ -176,12 +175,12 @@ class VTKFacetsWriter(VTKBaseWriter):
                     n = n / np.where(length > 0, length, 1.0)
                     new_pos.extend(
                         [
-                            p0 + n * t / 2,
-                            p1 + n * t / 2,
-                            p2 + n * t / 2,
-                            p0 - n * t / 2,
-                            p1 - n * t / 2,
-                            p2 - n * t / 2,
+                            p0 + n * t,
+                            p1 + n * t,
+                            p2 + n * t,
+                            p0 - n * t,
+                            p1 - n * t,
+                            p2 - n * t,
                         ]
                     )
                     new_thick.extend([t] * 6)

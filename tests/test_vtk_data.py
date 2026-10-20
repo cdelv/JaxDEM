@@ -57,9 +57,7 @@ def test_facet_points_inherit_their_own_vertex_fields(
     distances = np.linalg.norm(points[:, None] - unwrapped[None], axis=-1)
     source = distances.argmin(axis=1)
     np.testing.assert_array_equal(np.unique(source), np.arange(dim))
-    np.testing.assert_allclose(
-        distances.min(axis=1), float(state.rad[0]) / (2 * scale), rtol=2e-5
-    )
+    np.testing.assert_allclose(distances.min(axis=1), 0.2, rtol=2e-5)
     for name, values in (("vel", velocity), ("force", -2 * velocity)):
         expected = np.pad(values, ((0, 0), (0, 3 - dim)))[source]
         np.testing.assert_array_equal(
