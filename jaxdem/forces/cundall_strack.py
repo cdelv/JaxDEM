@@ -223,7 +223,7 @@ def _contact_response_with_coefficients(
     torque = cross(r_ci, F)
 
     # Rolling friction: resistive torque opposing relative angular velocity
-    R_eff = (R_i * R_j) / (R_i + R_j)
+    R_eff = 0.5 * _harmonic_mean(R_i, R_j)
     omega_rel = state.ang_vel[i] - state.ang_vel[j]
     omega_hat = unit(omega_rel)
     torque = torque - (mu_r_ij * R_eff * Fn)[..., None] * omega_hat
@@ -288,9 +288,8 @@ def _pair_stiffnesses(
 
         ER_i = E_i * R_i
         ER_j = E_j * R_j
-        ER_product = ER_i * ER_j
-        kn = (2.0 * ER_product) / (ER_i + ER_j)
-        kt = ER_product / (ER_i * (1.0 + nu_j) + ER_j * (1.0 + nu_i))
+        kn = _harmonic_mean(ER_i, ER_j)
+        kt = _harmonic_mean(ER_i / (2.0 * (1.0 + nu_i)), ER_j / (2.0 * (1.0 + nu_j)))
     else:
         kn = _harmonic_mean(table.k_n[mi], table.k_n[mj])
         kt = _harmonic_mean(table.k_t[mi], table.k_t[mj])
@@ -314,7 +313,7 @@ def _pair_coefficients(
     if law.parameterization == "elastic":
         e_i, e_j = table.e[mi], table.e[mj]
         m_i, m_j = state.mass[i], state.mass[j]
-        m_eff = (m_i * m_j) / (m_i + m_j)
+        m_eff = 0.5 * _harmonic_mean(m_i, m_j)
         e_eff = jnp.minimum(e_i, e_j)
         e_safe = jnp.where(e_eff > 0.0, e_eff, 1.0)
         ln_e = jnp.log(e_safe)
@@ -323,8 +322,8 @@ def _pair_coefficients(
             -ln_e / jnp.sqrt(jnp.pi * jnp.pi + ln_e * ln_e),
             1.0,
         )
-        gamma_n = 2.0 * beta * jnp.sqrt(kn * m_eff)
-        gamma_t = 2.0 * beta * jnp.sqrt(kt * m_eff)
+        gamma_n = 2.0 * beta * jnp.sqrt(kn) * jnp.sqrt(m_eff)
+        gamma_t = 2.0 * beta * jnp.sqrt(kt) * jnp.sqrt(m_eff)
     else:
         gamma_n = _harmonic_mean(table.b_n[mi], table.b_n[mj])
         gamma_t = _harmonic_mean(table.b_t[mi], table.b_t[mj])
@@ -478,8 +477,9 @@ class CundallStrackForce(ForceModel):
         \boldsymbol{\tau}_{\text{roll}} =
             -\mu_r \, R_{\text{eff}} \, F_n \, \hat{\omega}_{\text{rel}}
 
-    where :math:`\mu_r = \min(\mu_{r,i}, \mu_{r,j})` is the effective
-    rolling friction coefficient, :math:`R_{\text{eff}} = R_i R_j / (R_i + R_j)`,
+    The configured ``rolling_friction_mixing`` callable determines
+    :math:`\mu_r`; its default is :math:`\min(\mu_{r,i}, \mu_{r,j})`.
+    The effective radius is :math:`R_{\text{eff}} = R_i R_j / (R_i + R_j)`,
     and :math:`\hat{\omega}_{\text{rel}}` is the unit relative angular velocity.
 
     References
