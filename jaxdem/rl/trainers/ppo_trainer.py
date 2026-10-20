@@ -912,12 +912,13 @@ class PPOTrainer(Trainer):
         value_loss = 0.5 * masked_mean(jnp.square(jnp.maximum(v_diff, v_clip_diff)))
 
         # 3) Policy loss (clipped).
-        ratio_bounded = jnp.where(
+        bounded_log_ratio = jnp.where(
             advantage >= 0,
-            jnp.minimum(ratio, 1.0 + ppo_clip_eps),
-            jnp.maximum(ratio, 1.0 - ppo_clip_eps),
+            jnp.minimum(log_ratio, jnp.log1p(ppo_clip_eps)),
+            jnp.maximum(log_ratio, jnp.log(jnp.maximum(1.0 - ppo_clip_eps, 0.0))),
         )
-        actor_loss = -masked_mean(advantage * ratio_bounded)
+        bounded_log_ratio = jnp.where(selected, bounded_log_ratio, 0.0)
+        actor_loss = -masked_mean(advantage * jnp.exp(bounded_log_ratio))
 
         # 4) Entropy (analytic or quadrature-based, depending on the distribution).
         entropy = masked_mean(pi.entropy())

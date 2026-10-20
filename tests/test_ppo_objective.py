@@ -4,6 +4,7 @@
 
 import distrax
 from flax import nnx
+import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
@@ -80,6 +81,26 @@ def test_clipped_policy_loss_and_gradients(advantage, ratio):
         gradient.log_scale[...], -0.75 * slope, rtol=2e-6, atol=1e-7
     )
     np.testing.assert_array_equal(td.ratio, [[99.0]])
+
+
+@pytest.mark.parametrize(
+    "advantage,selected,expected",
+    [(3.0, True, -3.6), (0.0, True, 0.0), (-2.0, False, 0.0)],
+)
+def test_clipped_policy_gradient_stays_zero_before_ratio_overflow(
+    advantage, selected, expected
+):
+    with jax.enable_x64(False):
+        td = transition(advantage, np.exp(100.0))
+        (loss, _), gradient = nnx.value_and_grad(PPOTrainer.loss_fn, has_aux=True)(
+            GaussianPolicy(),
+            td,
+            loss_mask=jnp.full((1, 1), selected),
+            **loss_arguments(),
+        )
+        np.testing.assert_allclose(loss, expected, rtol=2e-6)
+        np.testing.assert_array_equal(gradient.mean[...], 0.0)
+        np.testing.assert_array_equal(gradient.log_scale[...], 0.0)
 
 
 def test_entropy_bonus_value_sign_and_gradient():
