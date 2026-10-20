@@ -58,8 +58,9 @@ def _triangle_layout(n: int) -> tuple[int, list[int]]:
 class ThreeGears(Environment):
     r"""N dynamic gears that must assemble a triangular stack.
 
-    The dynamics, pairwise attraction, nearest-neighbor observation, and
-    per-gear reward match :class:`TwoGears`. Only the objective differs: the
+    The geometry, floor contact, and pairwise attraction come from
+    :class:`TwoGears`. Rewards measure distance progress minus the change in
+    kinetic energy over the whole action interval. The
     ``num_gears`` targets form a triangular stack. The rows shrink by one
     from bottom to top and the gears touch. ``num_gears=3`` gives the
     classic triangle ``[2,1]``, ``5 -> [3,2]``, and ``6 -> [3,2,1]``.
@@ -67,8 +68,7 @@ class ThreeGears(Environment):
 
     Note
     ----
-    As with :class:`TwoGears`, ``skip_frames = 50`` gives a 200 Hz response
-    rate, so ``num_steps_epoch = 100`` is a 0.5 s horizon. ``box_size`` must
+    An action interval lasts ``(skip_frames + 1) * system.dt``. ``box_size`` must
     fit the stack: width ``2*m*rr`` and height ``(2 + (m-1)*sqrt(3))*rr``
     (``m`` = bottom row size). It must also be ``>= 2*rr*(num_gears+1)``
     wide for a non-overlapping spawn.
@@ -83,7 +83,7 @@ class ThreeGears(Environment):
         cls,
         num_gears: int = 6,
         box_size: float = 30.0,
-        max_steps: int = 10000 * 10,  # 10000 steps = 1 second
+        max_steps: int = 10000 * 10,
         friction: float = 0.2,
         ke_weight: float = 0.1,
         attraction_mag: float = 2.0,
@@ -123,9 +123,7 @@ class ThreeGears(Environment):
             "attraction_mag": jnp.asarray(attraction_mag, dtype=float),
             "action": jnp.zeros((n, 1)),
             "objective": jnp.zeros((n, 2)),
-            "curr_dist": jnp.zeros((n,)),
             "prev_dist": jnp.zeros((n,)),
-            "curr_ke": jnp.zeros((n,)),
             "prev_ke": jnp.zeros((n,)),
         }
         return cls(state=state, system=system, env_params=env_params, num_gears=n)
@@ -150,7 +148,7 @@ class ThreeGears(Environment):
         for r, c in enumerate(rows):
             yy = y_floor + r * rr * sqrt3 - y_min
             for i in range(c):
-                xx = x_obj + (i - (c - 1) / 2.0) * 2.0 * rr
+                xx = x_obj + (i - (m - r - 1) / 2.0) * 2.0 * rr
                 pts.append([xx, yy])
         objective = jnp.array(pts)  # (n, 2)
         env.env_params["objective"] = objective
@@ -206,11 +204,18 @@ class ThreeGears(Environment):
         env.env_params["action"] = jnp.zeros((n, 1))
 
         curr_dist, curr_ke = _measure(env.state, env.system, env.env_params)
-        env.env_params["curr_dist"] = curr_dist
         env.env_params["prev_dist"] = curr_dist
-        env.env_params["curr_ke"] = curr_ke
         env.env_params["prev_ke"] = curr_ke
 
+        return env
+
+    @staticmethod
+    @jax.jit
+    def checkpoint(env: ThreeGears, action: jax.Array) -> Environment:
+        """Capture distance and kinetic energy once at the action's start."""
+        env.env_params["prev_dist"], env.env_params["prev_ke"] = _measure(
+            env.state, env.system, env.env_params
+        )
         return env
 
     @staticmethod
@@ -258,14 +263,7 @@ class ThreeGears(Environment):
             env.state, env.system, F_attraction, is_com=True
         )
 
-        env.env_params["prev_dist"] = env.env_params["curr_dist"]
-        env.env_params["prev_ke"] = env.env_params["curr_ke"]
-
         env.state, env.system = env.system.step(env.state, env.system)
-
-        env.env_params["curr_dist"], env.env_params["curr_ke"] = _measure(
-            env.state, env.system, env.env_params
-        )
         return env
 
     @staticmethod
@@ -274,15 +272,18 @@ class ThreeGears(Environment):
     def observation(env: ThreeGears) -> jax.Array:
         r"""Per-gear observation (16 features). The "other gear" slot holds the nearest neighbor.
 
+        Direction and displacement features use ``agent - target`` and
+        ``agent - neighbor``; vectors point toward the agent.
+
         ====================================  ====================================
         Feature                               Size
         ====================================  ====================================
         Distance to floor                     ``1``
         Distance to left/right walls          ``2``
-        Unit vector to target                 ``2``
-        Clamped displacement to target        ``2``
-        Unit vector to nearest gear           ``2``
-        Clamped displacement to nearest gear  ``2``
+        Unit target-to-agent vector                 ``2``
+        Clamped agent-minus-target delta        ``2``
+        Unit neighbor-to-agent vector           ``2``
+        Clamped agent-minus-neighbor delta  ``2``
         :math:`\sin(\Delta\theta)`            ``1``
         :math:`\cos(\Delta\theta)`            ``1``
         Velocity (x, y)                       ``2``
@@ -305,8 +306,8 @@ class ThreeGears(Environment):
         q_w = env.state.q.w[idx, 0]
         theta = 2 * jnp.arctan2(q_z, q_w)[:, None]
 
-        q_z_other = env.state.q.xyz[nearest, 2]
-        q_w_other = env.state.q.w[nearest, 0]
+        q_z_other = q_z[nearest]
+        q_w_other = q_w[nearest]
         theta_other = 2 * jnp.arctan2(q_z_other, q_w_other)[:, None]
         delta_theta = theta_other - theta
 
@@ -343,14 +344,18 @@ class ThreeGears(Environment):
     @jax.jit
     @partial(jax.named_call, name="ThreeGears.reward")
     def reward(env: ThreeGears) -> jax.Array:
-        r"""Per-gear shaping reward.
+        r"""Distance progress minus the kinetic-energy change over an action.
+
+        The previous values come from the action-start checkpoint; current
+        values are measured from the live endpoint, including skipped frames.
 
         .. math::
 
             R_i = (d_{i,t-1} - d_{i,t}) - w_{\text{ke}} (K_{i,t} - K_{i,t-1})
         """
-        shaping = env.env_params["prev_dist"] - env.env_params["curr_dist"]
-        ke_diff = env.env_params["curr_ke"] - env.env_params["prev_ke"]
+        distance, kinetic_energy = _measure(env.state, env.system, env.env_params)
+        shaping = env.env_params["prev_dist"] - distance
+        ke_diff = kinetic_energy - env.env_params["prev_ke"]
         return shaping - env.env_params["ke_weight"] * ke_diff
 
     @staticmethod

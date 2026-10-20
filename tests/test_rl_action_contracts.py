@@ -10,13 +10,14 @@ import pytest
 from flax import nnx
 
 from jaxdem.rl.action_spaces import BoxSpace, MaxNormSpace, Transformed
-from jaxdem.rl.environments import Environment
+from jaxdem.rl.environments import Environment, ThreeGears
 from jaxdem.rl.env_wrappers import vectorise_env
 from jaxdem.state import State
 from jaxdem.system import System
 from jaxdem.rl.models import SharedActorCritic, MinGRUActorCritic, Model
 from jaxdem.rl.trainers import Trainer
 from jaxdem.rl.trainers.ppo_trainer import PPOTrainer
+from jaxdem.utils import advance_action
 from tests.test_ppo_alignment import _loss_args
 
 
@@ -223,6 +224,68 @@ def test_tiny_ppo_epoch_accepts_both_action_types_with_padding(discrete, model_t
             before, jax.tree.leaves(nnx.state(tr.model, nnx.Param)), strict=True
         )
     )
+
+
+def test_gear_observation_and_reward_use_whole_bodies_and_action_intervals():
+    centers = jnp.array([[5.0, 5.0], [9.0, 5.0]])
+    angles = jnp.repeat(jnp.array([0.0, jnp.pi / 2]), 2)
+    quaternion = jnp.stack(
+        (jnp.cos(angles / 2), jnp.zeros(4), jnp.zeros(4), jnp.sin(angles / 2)), axis=-1
+    )
+    state = State.create(
+        pos=jnp.repeat(centers, 2, axis=0),
+        pos_p=jnp.tile(jnp.array([[0.1, 0.0], [-0.1, 0.0]]), (2, 1)),
+        clump_id=jnp.repeat(jnp.arange(2), 2),
+        rad=jnp.full(4, 0.1),
+        mass=jnp.ones(4),
+        inertia=jnp.ones((4, 1)),
+        vel=jnp.tile(jnp.array([[1.0, 0.0]]), (4, 1)),
+        q=quaternion,
+    )
+    system = System.create(
+        state=state, dt=0.1, collider_type=None, rotation_integrator_type=None
+    )
+    env = ThreeGears.Create(num_gears=2)
+    env = replace(
+        env,
+        state=state,
+        system=system,
+        env_params={
+            **env.env_params,
+            "objective": centers + jnp.array([2.0, 0.0]),
+            "friction": jnp.asarray(0.0),
+            "attraction_mag": jnp.asarray(0.0),
+        },
+    )
+    np.testing.assert_allclose(
+        env.observation(env)[:, 11:13], [[1, 0], [-1, 0]], atol=1e-6
+    )
+    action = jnp.zeros((2, 1))
+    endpoint, _, _ = advance_action(env, action, skip_frames=2)
+    np.testing.assert_allclose(endpoint.reward(endpoint), 0.3, atol=2e-6)
+    np.testing.assert_allclose(endpoint.env_params["prev_dist"], 2.0)
+    np.testing.assert_allclose(
+        endpoint.state.pos_c, state.pos_c + jnp.array([0.3, 0.0]), atol=2e-6
+    )
+    endpoint = replace(
+        endpoint,
+        state=replace(endpoint.state, vel=state.vel * jnp.array([3, 3, 2, 2])[:, None]),
+    )
+    np.testing.assert_allclose(endpoint.reward(endpoint), [-0.1, 0.15], atol=2e-6)
+    np.testing.assert_allclose(endpoint.env_params["prev_ke"], 0.5)
+    frozen, _, _ = advance_action(endpoint, action, terminated=jnp.asarray(True))
+    np.testing.assert_allclose(frozen.reward(frozen), 0.0, atol=2e-6)
+
+
+def test_partial_triangular_stack_targets_do_not_overlap():
+    from jaxdem.rl.environments.two_gears import rr
+
+    env = ThreeGears.Create(num_gears=4)
+    env = env.reset(env, jax.random.key(9))
+    targets = np.asarray(env.env_params["objective"])
+    distances = np.linalg.norm(targets[:, None] - targets[None, :], axis=-1)
+    distances[np.diag_indices(4)] = np.inf
+    assert distances.min() >= 2 * float(rr) - 2e-6
 
 
 class SaturatedPolicy(Model):
