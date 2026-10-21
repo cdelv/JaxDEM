@@ -55,9 +55,9 @@ class BoxSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     eps : float
         Small offset to avoid arctanh divergence close to the bounds (default 1e-6).
     event_ndims_in : int
-        Dimensionality of a *single event* seen by the bijector (default 0 for a scalar transform).
+        Must be zero for this scalar transform.
     event_ndims_out : Optional[int]
-        Standard Distrax/TFP bijector flag.
+        Must be None or zero. Use ``distrax.Block`` for vector events.
     is_constant_jacobian : bool
         Standard Distrax/TFP bijector flag.
     is_constant_log_det : bool
@@ -84,6 +84,8 @@ class BoxSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         is_constant_jacobian: bool = False,
         is_constant_log_det: bool | None = None,
     ):
+        if event_ndims_in != 0 or event_ndims_out not in (None, 0):
+            raise ValueError("BoxSpace is scalar; use distrax.Block for vector events.")
         super().__init__(
             event_ndims_in=event_ndims_in,
             event_ndims_out=event_ndims_out,

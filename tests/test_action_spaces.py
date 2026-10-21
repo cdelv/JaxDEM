@@ -421,3 +421,26 @@ def test_box_margin_does_not_prematurely_clip_inverse(eps):
     restored, ild = space.inverse_and_log_det(y)
     assert jnp.allclose(restored, x, rtol=1e-8, atol=1e-8)
     assert jnp.allclose(ild, -ld, rtol=1e-8, atol=1e-8)
+
+
+@pytest.mark.parametrize(
+    "space,input_rank,output_rank",
+    [
+        ("free", 1, None),
+        ("free", 0, 1),
+        ("box", 1, None),
+        ("box", 0, 1),
+        ("maxnorm", 0, None),
+        ("maxnorm", 1, 0),
+    ],
+)
+def test_action_spaces_reject_incompatible_event_ranks(space, input_rank, output_rank):
+    from jaxdem.rl.action_spaces import FreeSpace
+
+    constructors = {
+        "free": FreeSpace,
+        "box": lambda **kw: BoxSpace(-1, 1, **kw),
+        "maxnorm": MaxNormSpace,
+    }
+    with pytest.raises(ValueError, match="scalar|one vector"):
+        constructors[space](event_ndims_in=input_rank, event_ndims_out=output_rank)

@@ -147,8 +147,6 @@ def test_blockwise_rejects_missing_or_unsupported_children():
         BlockwiseSpace(())
     with pytest.raises(TypeError, match="ActionSpace bijector"):
         BlockwiseSpace(((1, distrax.Tanh()),))
-    with pytest.raises(ValueError, match="scalar or vector"):
-        BlockwiseSpace(((2, FreeSpace(event_ndims_in=2)),))
 
 
 @pytest.mark.parametrize(

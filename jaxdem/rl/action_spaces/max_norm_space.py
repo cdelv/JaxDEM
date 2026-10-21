@@ -67,9 +67,9 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     eps : float
         Output-radius margin in (0, 1), default 1e-6.
     event_ndims_in : int
-        Event rank, default 1 for one vector.
+        Must be one for a single vector.
     event_ndims_out : int or None
-        Standard Distrax output event-rank flag.
+        Must be None or one. Use ``distrax.Block`` for higher-rank events.
     is_constant_jacobian : bool
         Standard Distrax flag, default False.
     is_constant_log_det : bool or None
@@ -94,6 +94,10 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         is_constant_jacobian: bool = False,
         is_constant_log_det: bool | None = None,
     ):
+        if event_ndims_in != 1 or event_ndims_out not in (None, 1):
+            raise ValueError(
+                "MaxNormSpace transforms one vector; use distrax.Block for higher-rank events."
+            )
         super().__init__(
             event_ndims_in=event_ndims_in,
             event_ndims_out=event_ndims_out,
