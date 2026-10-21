@@ -267,6 +267,8 @@ class SwarmNavigator(Environment):
         hide_occupied_objectives: bool = True,
         dim: int = 2,
         n_lidar_elevation: int = 12,
+        *,
+        occupancy_radius_scale: float = 1.2,
     ) -> SwarmNavigator:
         r"""Create a swarm navigator environment.
 
@@ -303,9 +305,9 @@ class SwarmNavigator(Environment):
             matches the settling scale, 1.5.
         hide_occupied_objectives : bool
             Enabled by default. Hide readings strictly below half the LiDAR
-            range when a detected peer appears within one observing-agent
-            radius of the objective. Preserve goals within the observer's radius.
-            A hidden reading becomes zero; farther goals behind it are not
+            range when a detected peer appears within ``occupancy_radius_scale``
+            observing-agent radii of the objective. Preserve goals within the
+            observer's radius. A hidden reading becomes zero; farther goals are not
             revealed. Applies only to observations, never reward or checkpoints.
             Set to False to recover the unfiltered observation.
         dim : int
@@ -314,6 +316,9 @@ class SwarmNavigator(Environment):
             padding shell.
         n_lidar_elevation : int
             Positive number of elevation bins in 3-D; unused in 2-D.
+        occupancy_radius_scale : float
+            Positive peer-to-objective masking tolerance in observing-agent
+            radii, default 1.2. Set to 1.0 for the original cutoff.
 
         Returns
         -------
@@ -324,7 +329,8 @@ class SwarmNavigator(Environment):
         ------
         ValueError
             If an attraction coefficient is nonfinite or negative, or
-            ``attraction_decay`` or ``sharing_range`` is nonfinite or nonpositive.
+            ``attraction_decay``, ``sharing_range``, or ``occupancy_radius_scale``
+            is nonfinite or nonpositive.
 
         Notes
         -----
@@ -345,6 +351,7 @@ class SwarmNavigator(Environment):
         for name, value in (
             ("attraction_decay", attraction_decay),
             ("sharing_range", sharing_range),
+            ("occupancy_radius_scale", occupancy_radius_scale),
         ):
             if not isfinite(value) or value <= 0:
                 raise ValueError(f"{name} must be finite and positive")
@@ -370,6 +377,7 @@ class SwarmNavigator(Environment):
             "attraction_quadratic": jnp.asarray(attraction_quadratic, dtype=float),
             "attraction_decay": jnp.asarray(attraction_decay, dtype=float),
             "sharing_range": jnp.asarray(sharing_range, dtype=float),
+            "occupancy_radius_scale": jnp.asarray(occupancy_radius_scale, dtype=float),
             "hide_occupied_objectives": jnp.asarray(
                 hide_occupied_objectives, dtype=bool
             ),
@@ -666,10 +674,11 @@ class SwarmNavigator(Environment):
         .. math::
 
            a_i < d_{ik} < L/2,\qquad
-           \min_{q\in Q_i}\widehat\delta_{ikq}\le a_i,
+           \min_{q\in Q_i}\widehat\delta_{ikq}\le \sigma a_i,
 
         where :math:`a_i` is the observing radius, :math:`L` the LiDAR range,
         and :math:`Q_i` the valid detected peers, excluding walls and self.
+        ``occupancy_radius_scale`` sets :math:`\sigma` (default 1.2).
         Bin-center directions give the approximate separation
 
         .. math::

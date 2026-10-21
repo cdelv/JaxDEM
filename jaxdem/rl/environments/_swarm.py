@@ -107,13 +107,19 @@ def filter_objectives(
     *,
     n_elevation: int | None = None,
 ) -> jax.Array:
-    """Hide locally occupied goals below half range, preserving own goals."""
+    """Hide locally occupied goals below half range, preserving own goals.
+
+    ``occupancy_radius_scale`` widens the peer-to-goal tolerance only; it
+    defaults to one radius for environments without that parameter.
+    """
     distance, separation_sq, valid_peer = _peer_geometry(
         lidar_obj, lidar, peer_ids, env, n_elevation
     )
     radii = env.state.rad[:, None]
+    occupancy_radii = env.env_params.get("occupancy_radius_scale", 1.0) * radii
     occupied = jnp.any(
-        valid_peer[:, None, :] & (separation_sq <= radii[:, :, None] ** 2),
+        valid_peer[:, None, :]
+        & (separation_sq <= occupancy_radii[:, :, None] ** 2),
         axis=-1,
     )
     hide = (
