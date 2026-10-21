@@ -226,6 +226,54 @@ state_stepped, system = system.step(state_connected, system)
 print("Simulation step successful.")
 
 # %%
+# Selecting Contact Calculations
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Both facet laws enable all contact calculations by default. Their switches
+# are static JAX configuration: changing a switch compiles a new kernel with
+# the disabled calculations omitted. The same choices apply to force and
+# potential energy.
+#
+# For ``sphere_facet_spring``, ``face``, ``edge``, and ``vertex`` select the
+# feature containing the closest point. For example, a face-only wall ignores
+# contacts whose closest point lies on an edge or vertex; it does not substitute
+# a farther enabled feature. In 2D, ``edge`` controls the open line segment and
+# ``vertex`` controls its endpoints; ``face`` has no effect.
+sphere_face_only = jdem.ForceModel.create(
+    "sphere_facet_spring", edge=False, vertex=False
+)
+
+# For ``facet_facet_spring``, the switches select three geometry query groups:
+#
+# - ``vertex_triangle``: each vertex against the opposite triangle, including
+#   its edges and vertices.
+# - ``edge_edge``: each pair of edges, including their endpoints.
+# - ``edge_triangle``: edge piercings through the opposite triangle.
+#
+# The closest remaining candidate defines the contact. These query groups
+# overlap physical contact types: parallel face-face contacts, for example,
+# can be detected by edge-edge queries. In 2D only ``edge_edge`` is used.
+# The following law omits vertex-triangle and piercing queries, retaining
+# edge-edge distances. Use such a reduction only when those omitted queries
+# are unnecessary for the geometry: it can miss interior crossings or contacts
+# with a face away from its boundary.
+facet_edges_only = jdem.ForceModel.create(
+    "facet_facet_spring", vertex_triangle=False, edge_triangle=False
+)
+
+# Configure each species pair separately through the usual router.
+selective_router = jdem.ForceRouter.from_dict(
+    S=2,
+    mapping={
+        (0, 0): jdem.ForceModel.create("spring"),
+        (0, 1): sphere_face_only,
+        (1, 1): facet_edges_only,
+    },
+)
+# Pass ``force_model=selective_router`` to ``System.create`` to use these
+# choices. Disabling every applicable switch makes that law return zero
+# force, torque, and potential energy.
+
+# %%
 # VTK Visualization
 # ~~~~~~~~~~~~~~~~~~
 # When writing the simulation state, ``VTKWriter`` splits the output:
