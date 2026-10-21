@@ -108,7 +108,7 @@ def test_temperature_scaling_has_the_analytical_velocity_jacobian(utility, targe
             trial = replace(state, vel=velocity)
             if utility:
                 return jd.utils.scale_to_temperature(trial, target, False, False).vel
-            return system.linear_integrator.finalize_step(trial, system)[0].vel
+            return system.linear_integrator.step_after_force(trial, system)[0].vel
 
         for speed in (0.0, 1e-16, 1.0):
             velocity = jnp.array([[speed, 0.0], [-speed, 0.0], [0.7, 0.0]])
@@ -129,3 +129,33 @@ def test_temperature_scaling_has_the_analytical_velocity_jacobian(utility, targe
                     rtol=3e-5,
                     atol=2e-6,
                 )
+
+
+@pytest.mark.parametrize("dim", [2, 3])
+@pytest.mark.parametrize(
+    "fixed,free_bodies",
+    [
+        ([], 0),
+        ([True, True, True], 0),
+        ([False, False, True], 1),
+        ([False, False, False], 2),
+    ],
+)
+def test_degree_counts_follow_logical_bodies_and_available_drift(
+    dim, fixed, free_bodies
+):
+    from jaxdem.utils.thermal import count_dynamic_dofs
+
+    state = jd.State.create(
+        pos=jnp.zeros((len(fixed), dim)),
+        fixed=jnp.asarray(fixed, dtype=bool),
+        clump_id=jnp.asarray([0, 0, 1][: len(fixed)], dtype=int),
+    )
+    for rotate in [False, True]:
+        for drift in [False, True]:
+            translation = (free_bodies - int(drift and free_bodies > 0)) * dim
+            rotation = free_bodies * dim * (dim - 1) // 2 * rotate
+            np.testing.assert_array_equal(
+                count_dynamic_dofs(state, rotate, drift),
+                [translation + rotation, translation, rotation],
+            )

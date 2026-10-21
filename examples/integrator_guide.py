@@ -26,10 +26,11 @@ Let's see how to choose, configure, and swap them.
 # 1. :py:meth:`~jaxdem.integrators.LinearIntegrator.step_before_force`
 # 2. :py:meth:`~jaxdem.integrators.RotationIntegrator.step_before_force`
 # 3. *Force evaluation*
-# 4. :py:meth:`~jaxdem.integrators.LinearIntegrator.step_after_force`
-# 5. :py:meth:`~jaxdem.integrators.RotationIntegrator.step_after_force`
+# 4. :py:meth:`~jaxdem.integrators.RotationIntegrator.step_after_force`
+# 5. :py:meth:`~jaxdem.integrators.LinearIntegrator.step_after_force`
 #
-# This split lets you mix and match: you could pair a Velocity Verlet linear
+# Rotation finishes first so a linear thermostat can measure both terminal
+# velocities. This split lets you mix and match: you could pair a Velocity Verlet linear
 # integrator with a SPIRAL rotation integrator, or disable rotation
 # entirely while keeping translation active.
 
@@ -248,8 +249,8 @@ print(f"Force residual: {result.info.force_max}, torque residual: {result.info.t
 # 2. :py:meth:`~jaxdem.integrators.LinearIntegrator.step_before_force`
 # 3. :py:meth:`~jaxdem.integrators.RotationIntegrator.step_before_force`
 # 4. *Collider + force manager* — compute forces and torques
-# 5. :py:meth:`~jaxdem.integrators.LinearIntegrator.step_after_force`
-# 6. :py:meth:`~jaxdem.integrators.RotationIntegrator.step_after_force`
+# 5. :py:meth:`~jaxdem.integrators.RotationIntegrator.step_after_force`
+# 6. :py:meth:`~jaxdem.integrators.LinearIntegrator.step_after_force`
 #
 # The :py:meth:`~jaxdem.integrators.Integrator.step_before_force` / :py:meth:`~jaxdem.integrators.Integrator.step_after_force` split lets multi-stage
 # schemes (such as Velocity Verlet) position their updates around the force

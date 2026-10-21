@@ -199,7 +199,7 @@ def test_rescaling_removes_mass_weighted_body_drift() -> None:
     system = dataclasses.replace(
         _free_system(state), linear_integrator=integrator, step_count=jnp.asarray(1)
     )
-    state, _ = integrator.finalize_step(state, system)
+    state, _ = integrator.step_after_force(state, system)
 
     member_mass = jnp.array([1.0, 1.0, 6.0])
     drift = jnp.sum(state.vel * member_mass[:, None], axis=0) / member_mass.sum()
@@ -222,7 +222,7 @@ def test_rescaling_drift_is_correct_below_unit_total_mass() -> None:
     system = dataclasses.replace(
         _free_system(state), linear_integrator=integrator, step_count=jnp.asarray(1)
     )
-    state, _ = integrator.finalize_step(state, system)
+    state, _ = integrator.step_after_force(state, system)
     member_mass = jnp.array([0.1, 0.1, 0.6])
     drift = jnp.sum(state.vel * member_mass[:, None], axis=0) / member_mass.sum()
     np.testing.assert_allclose(drift, 0.0, atol=1e-6)

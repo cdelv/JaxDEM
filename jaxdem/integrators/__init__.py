@@ -75,6 +75,9 @@ class Integrator(Factory, ABC):
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         """Advance the simulation state after the force evaluation.
 
+        System runs the rotational hook before the linear hook, so linear
+        thermostats can use both terminal velocities.
+
         Parameters
         ----------
         state : State
@@ -87,17 +90,6 @@ class Integrator(Factory, ABC):
         Tuple[State, System]
             The updated state and system.
 
-        """
-        return state, system
-
-    @staticmethod
-    @jax.jit(inline=True)
-    @partial(jax.named_call, name="Integrator.finalize_step")
-    def finalize_step(state: State, system: System) -> tuple[State, System]:
-        """Apply work that must run after both linear and rotational kicks.
-
-        Thermostats use this hook so their temperature includes the terminal
-        translational and rotational velocities. The default is a no-op.
         """
         return state, system
 

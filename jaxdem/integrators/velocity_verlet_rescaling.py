@@ -39,8 +39,9 @@ class VelocityVerletRescaling(VelocityVerlet):
     dynamics are purely Newtonian (standard Velocity Verlet, inherited from
     :class:`VelocityVerlet`).
 
-    The integrator applies the rescaling in ``finalize_step``, after both the
-    translational and rotational final kicks. With nonzero kinetic energy,
+    The integrator applies the rescaling in ``step_after_force``, after both
+    terminal kicks. System runs the rotational hook before the linear hook.
+    With nonzero kinetic energy,
     terminal velocities on rescaling steps reach the target temperature.
     Multiplicative rescaling leaves a zero-kinetic-energy state at zero.
 
@@ -117,9 +118,10 @@ class VelocityVerletRescaling(VelocityVerlet):
 
     @staticmethod
     @jax.jit(inline=True)
-    @partial(jax.named_call, name="VelocityVerletRescaling.finalize_step")
-    def finalize_step(state: State, system: System) -> tuple[State, System]:
-        """Rescale after both translation and rotation have completed their kicks."""
+    @partial(jax.named_call, name="VelocityVerletRescaling.step_after_force")
+    def step_after_force(state: State, system: System) -> tuple[State, System]:
+        """Complete the translational kick, then rescale terminal velocities."""
+        state, system = VelocityVerlet.step_after_force(state, system)
         integrator = cast(VelocityVerletRescaling, system.linear_integrator)
         can_rot = integrator.can_rotate
 
@@ -151,7 +153,10 @@ class VelocityVerletRescaling(VelocityVerlet):
             state, can_rotate=True, subtract_drift=False
         )
         dim = state.vel.shape[-1]
-        n_dof = (n_dof_v - dim * integrator.subtract_drift) + n_dof_w * can_rot
+        n_dof = (
+            jnp.maximum(n_dof_v - dim * integrator.subtract_drift, 0)
+            + n_dof_w * can_rot
+        )
 
         T_current = 2.0 * ke_total / (integrator.k_B * jnp.maximum(n_dof, 1.0))
         scale = _temperature_scale(T_current, integrator.temperature)

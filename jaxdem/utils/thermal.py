@@ -218,7 +218,7 @@ def _count_dynamic_dofs_snapshot(
         state.clump_id, weights=state.fixed.astype(int), length=state.N
     )
     free_count = jnp.sum((counts > 0) & (fixed_counts == 0))
-    n_dof_v = (free_count - subtract_drift) * state.vel.shape[-1]
+    n_dof_v = (free_count - (subtract_drift & (free_count > 0))) * state.vel.shape[-1]
     n_dof_w = free_count * state.ang_vel.shape[-1] * can_rotate
     n_dof = n_dof_v + n_dof_w
     return n_dof, n_dof_v, n_dof_w

@@ -91,10 +91,8 @@ def _step_once(state: State, system: System) -> tuple[State, System]:
         search_overflow=system.search_overflow | system.collider.overflow,
     )
     state, system = system.force_manager.apply(state, system)
-    state, system = system.linear_integrator.step_after_force(state, system)
     state, system = system.rotation_integrator.step_after_force(state, system)
-    state, system = system.linear_integrator.finalize_step(state, system)
-    state, system = system.rotation_integrator.finalize_step(state, system)
+    state, system = system.linear_integrator.step_after_force(state, system)
     state, system = system.user_post_step_actions(state, system)
     return state, system
 
