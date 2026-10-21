@@ -73,7 +73,7 @@ seed = 0
 # sphere of radius ``core_radius = particle_radius - asperity_radius``
 # and keeps it in the final state. For ``'phantom'`` the core only feeds
 # the property computation, and the function removes it from the state.
-# By default, it adds no center sphere.
+# With the default ``core_type="hollow"``, it adds no center sphere.
 state = create_ga_state(
     N=N,
     nv=nv,

@@ -114,6 +114,7 @@ state, system, container = build_ga_system(
     phi=0.12,
     dim=3,
     particle_type="dp",
+    core_type="hollow",
     domain_type="periodic",
     n_property_samples=20_000,
     compression_step=1e-2,

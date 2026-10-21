@@ -51,8 +51,9 @@ from jaxdem.utils.packing_utils import (
 # Parameters
 # -----------------
 # 6 deformable particles in 3D, 12 surface asperities each. The default
-# adds no center node. Set ``core_type='solid'`` to add a central node
-# connected to every surface node via ``interior_edges='fan'``.
+# ``core_type='hollow'`` adds no center node; every member is still solid.
+# Set ``core_type='solid'`` to add a central node connected to every surface
+# node via ``interior_edges='fan'``.
 
 N = 6
 nv = 12
@@ -78,6 +79,7 @@ state = create_ga_state(
     particle_radius=particle_radius,
     asperity_radius=asperity_radius,
     particle_type="dp",
+    core_type="hollow",
     n_samples=50_000,
     seed=seed,
     mesh_kwargs={"steps": 1_000},

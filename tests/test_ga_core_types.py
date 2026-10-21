@@ -24,9 +24,9 @@ def _create(**kwargs):
 
 
 @pytest.mark.parametrize("particle_type", ["clump", "dp"])
-def test_default_core_uses_only_surface_members(particle_type):
+def test_default_hollow_core_uses_only_solid_surface_members(particle_type):
     default = _create(particle_type=particle_type)
-    explicit = _create(particle_type=particle_type, core_type=None)
+    explicit = _create(particle_type=particle_type, core_type="hollow")
 
     assert default.N == 4
     np.testing.assert_allclose(np.linalg.norm(default.pos, axis=-1), 0.9, rtol=2e-6)
@@ -58,9 +58,9 @@ def test_solid_core_adds_geometry_and_phantom_keeps_its_mass_properties():
     assert solid.volume[0] > surface.volume[0]
 
 
-def test_hollow_core_option_is_rejected():
+def test_unknown_core_option_is_rejected():
     with pytest.raises(ValueError, match="core_type"):
-        _create(core_type="hollow")
+        _create(core_type="invalid")
 
     with pytest.raises(ValueError, match="core_type"):
         particle_creation.build_ga_system(
@@ -69,18 +69,20 @@ def test_hollow_core_option_is_rejected():
             asperity_radius=0.1,
             phi=0.1,
             dim=2,
-            core_type="hollow",
+            core_type="invalid",
             n_property_samples=64,
             mesh_type="fibonacci",
             seed=0,
         )
 
 
-def test_system_builder_defaults_to_solid_surface_members_only():
+@pytest.mark.parametrize("explicit_core_type", [False, True])
+def test_system_builder_preserves_hollow_core_composition(explicit_core_type):
     # Four radius-0.1 disks have 4% of their unit bounding disk's area.
     # Start at the desired true packing fraction so this checks composition
     # through placement and system construction without a compression loop.
     target_phi = 0.01 * 4 * 0.1**2
+    kwargs = {"core_type": "hollow"} if explicit_core_type else {}
     state, system = particle_creation.build_ga_system(
         particle_radii=[1.0, 1.0],
         vertex_counts=[4, 4],
@@ -93,6 +95,7 @@ def test_system_builder_defaults_to_solid_surface_members_only():
         collider_type="naive",
         max_n_min_steps_per_outer=32,
         seed=0,
+        **kwargs,
     )
 
     assert state.N == 8

@@ -249,8 +249,9 @@ print("  inertia:", clump_state.inertia)
 #
 # The geometric-asperity builder ``create_ga_state`` distinguishes:
 #
-# - The default ``core_type=None`` generates only the solid asperities,
-#   without adding a center sphere.
+# - ``core_type="hollow"`` (default) generates only the solid asperities,
+#   without adding a center sphere. The name refers to the clump composition;
+#   each member sphere is still solid.
 # - ``core_type="solid"``: a central core contributes both material and
 #   contact geometry, in addition to the asperities.
 # - ``core_type="phantom"``: the core contributes mass, volume, and inertia,

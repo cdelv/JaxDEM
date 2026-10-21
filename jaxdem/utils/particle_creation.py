@@ -274,7 +274,7 @@ def create_ga_state(
     asperity_radius: float,
     *,
     particle_type: str = "clump",
-    core_type: Literal["solid", "phantom"] | None = None,
+    core_type: str = "hollow",
     aspect_ratio: float | Sequence[float] | None = None,
     particle_mass: float = 1.0,
     n_samples: int = 10_000_000,
@@ -303,9 +303,9 @@ def create_ga_state(
         nodes share a common ``bond_id`` and each carry an equal share of
         the body mass and union volume. "sphere"-like bodies are the
         ``nv = 1`` degenerate case of "clump".
-    core_type : {None, "solid", "phantom"}, optional
-        ``None`` (default) uses the union of the surface asperities without
-        adding a central sphere; any uncovered interior remains empty.
+    core_type : {"hollow", "solid", "phantom"}, optional
+        ``"hollow"`` (default) uses the union of the solid surface asperities
+        without adding a central sphere; any uncovered interior remains empty.
         ``"solid"`` includes a central core in both the mass properties and
         the returned contact geometry. ``"phantom"`` includes that core in
         volume, COM, and inertia, then removes it from the returned contact
@@ -369,9 +369,9 @@ def create_ga_state(
         raise ValueError(
             f"particle_type must be one of 'clump' or 'dp'; got {particle_type!r}"
         )
-    if core_type not in (None, "solid", "phantom"):
+    if core_type not in ("solid", "phantom", "hollow"):
         raise ValueError(
-            f"core_type must be None, 'solid', or 'phantom'; got {core_type!r}"
+            f"core_type must be one of 'solid', 'phantom', 'hollow'; got {core_type!r}"
         )
     if asperity_radius >= particle_radius:
         raise ValueError(
@@ -1496,7 +1496,7 @@ def build_ga_system(
     *,
     # Body composition
     particle_type: str = "clump",
-    core_type: Literal["solid", "phantom"] | None = None,
+    core_type: str = "hollow",
     aspect_ratio: Any = None,
     particle_mass: float | Sequence[float] = 1.0,
     n_property_samples: int = 10_000_000,
@@ -1578,8 +1578,8 @@ def build_ga_system(
         ``"clump"`` (default) or ``"dp"``. ``nv=1`` clumps are effectively
         spheres.
     core_type
-        ``None`` (default), ``"solid"``, or ``"phantom"``. Forwarded to
-        :func:`create_ga_state`: ``None`` adds no central sphere, while
+        ``"hollow"`` (default), ``"solid"``, or ``"phantom"``. Forwarded to
+        :func:`create_ga_state`: ``"hollow"`` adds no central sphere, while
         ``"phantom"`` retains solid-core mass properties and removes only
         the core's contact geometry.
     aspect_ratio
@@ -1648,10 +1648,6 @@ def build_ga_system(
     if particle_type not in ("clump", "dp"):
         raise ValueError(
             f"particle_type must be 'clump' or 'dp'; got {particle_type!r}"
-        )
-    if core_type not in (None, "solid", "phantom"):
-        raise ValueError(
-            f"core_type must be None, 'solid', or 'phantom'; got {core_type!r}"
         )
 
     radii_arr = np.asarray(particle_radii, dtype=float)
