@@ -91,9 +91,11 @@ def test_elastic_contact_coefficients_preserve_modulus_and_mass_units(x64):
 
 @pytest.mark.parametrize("scale", [1e-32, 1.0, 1e32])
 @pytest.mark.parametrize("displacement", [0.1, 3.0])
-def test_coulomb_force_and_return_mapping_respect_stiffness_units(scale, displacement):
-    # The extreme force scales require float64 norms, independently of input units.
-    with jax.enable_x64(True):
+@pytest.mark.parametrize("x64", [False, True])
+def test_coulomb_force_and_return_mapping_respect_stiffness_units(
+    scale, displacement, x64
+):
+    with jax.enable_x64(x64):
         state = jd.State.create(
             pos=jnp.array([[0.0, 0.0], [0.8, 0.0]]), rad=jnp.full(2, 0.5)
         )
@@ -119,8 +121,8 @@ def test_coulomb_force_and_return_mapping_respect_stiffness_units(scale, displac
             0, 1, state.pos, state, system, history
         )
         expected_tangent = min(10 * displacement, 20)
-        np.testing.assert_allclose(force / scale, [-20, -expected_tangent], rtol=1e-12)
-        np.testing.assert_allclose(advanced[:2], [0, min(displacement, 2)], rtol=1e-12)
+        np.testing.assert_allclose(force / scale, [-20, -expected_tangent], rtol=3e-6)
+        np.testing.assert_allclose(advanced[:2], [0, min(displacement, 2)], rtol=3e-6)
 
 
 @pytest.mark.parametrize("scale", [1e-18, 1.0])

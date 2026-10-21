@@ -7,18 +7,28 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 import numpy as np
+import pytest
 
-from jaxdem.utils.linalg import norm, unit_and_norm
+from jaxdem.utils.linalg import norm, unit, unit_and_norm
 
 
-def test_tiny_nonzero_vectors_keep_their_norm_and_direction() -> None:
-    vectors = jnp.asarray(
-        [
-            [3.0e-10, 4.0e-10, 0.0],
-            [-2.0e-11, 4.0e-11, -8.0e-11],
-        ]
+@pytest.mark.parametrize("scale", [1e-25, 1.0, 1e25])
+def test_tiny_nonzero_vectors_keep_their_norm_and_direction(scale) -> None:
+    with jax.enable_x64(False):
+        _check_scaled_vectors(scale)
+
+
+def _check_scaled_vectors(scale):
+    vectors = (
+        jnp.asarray(
+            [
+                [3.0, 4.0, 0.0],
+                [-2.0, 4.0, -8.0],
+            ]
+        )
+        * scale
     )
-    expected_norms = np.array([5e-10, np.sqrt(84) * 1e-11])
+    expected_norms = np.array([5.0, np.sqrt(84)]) * scale
     expected_units = np.array([[0.6, 0.8, 0], [-2, 4, -8] / np.sqrt(84)])
 
     units, lengths = unit_and_norm(vectors)
@@ -26,6 +36,12 @@ def test_tiny_nonzero_vectors_keep_their_norm_and_direction() -> None:
     np.testing.assert_allclose(norm(vectors), expected_norms, rtol=2e-6, atol=0.0)
     np.testing.assert_allclose(lengths, expected_norms, rtol=2e-6, atol=0.0)
     np.testing.assert_allclose(units, expected_units, rtol=2e-6, atol=0.0)
+    np.testing.assert_allclose(unit(vectors), expected_units, rtol=2e-6, atol=0.0)
+    np.testing.assert_allclose(jax.grad(norm)(vectors[0]), expected_units[0], atol=2e-6)
+    expected_jacobian = (np.eye(3) - np.outer(expected_units[0], expected_units[0])) / 5
+    np.testing.assert_allclose(
+        jax.jacrev(unit)(vectors[0]) * scale, expected_jacobian, atol=2e-6
+    )
     np.testing.assert_allclose(
         jnp.linalg.norm(units, axis=-1), jnp.ones(2), rtol=2e-6, atol=0.0
     )
