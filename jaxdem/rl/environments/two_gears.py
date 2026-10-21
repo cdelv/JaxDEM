@@ -28,7 +28,7 @@ from ...utils.linalg import (
 )
 from . import Environment
 
-# Independent copy of the 260-sphere, 60-tooth Granulabot rim.
+# Shared 260-sphere, 60-tooth rim used by the gear and Granulabot environments.
 # Circular body radius = 1; root-to-tip depth = 0.03.
 _GEAR = jnp.array([
     (0.9900000095, 2.743916381e-16, 0.03999999911),
