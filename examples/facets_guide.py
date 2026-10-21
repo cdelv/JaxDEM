@@ -227,7 +227,7 @@ print("Simulation step successful.")
 
 # %%
 # Selecting Contact Calculations
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Both facet laws enable all contact calculations by default. Their switches
 # are static JAX configuration: changing a switch compiles a new kernel with
 # the disabled calculations omitted. The same choices apply to force and
