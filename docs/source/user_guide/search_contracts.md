@@ -346,12 +346,40 @@ Callers may then use `compute_clump_properties` to assign geometry-derived body
 properties; choosing when to do so is their responsibility. Final rigid-body
 volume and principal inertia are replicated across members. Geometry-aware
 facet/mesh builders calculate these quantities directly.
-Contact facets cannot reuse a vertex already assigned to another contact facet;
-shared vertices in deformable bonded meshes remain supported.
+
+Contact facets may share physical nodes. Use
+`State.add_contact_facets(state, elements)` to attach contact segments (2D) or
+triangles (3D) to existing nodes, including a bonded deformable particle's mesh.
+This preserves node count, masses, radii, bonds, and rigid-body properties.
+Contact geometry follows the current node positions; the bonded model supplies
+elasticity. Each face uses the radius of its first vertex as contact thickness,
+so use consistent nodal radii for a surface with uniform thickness.
+
+The original `facet_id` / `facet_vertices` arrays store each node's first face.
+Additional incident faces use `facet_ids_extra` / `facet_vertices_extra`, with
+`-1` padding. States without shared nodes retain zero extra slots. Construction,
+merging, stacking, and facet VTK output support both representations.
+`add_connected_facet` can reuse existing facet nodes and add new nodes;
+`add_mesh(rigid=False)` retains its independent face-vertex construction.
+
+For flexible faces, closest-point barycentric weights distribute contact force
+back to the physical nodes. Adjacent faces sharing a node do not repel one
+another through facet-facet contact. Sphere-facet and facet-facet penalties are
+summed per face: near a shared edge or vertex, multiple incident faces can
+contribute, so contact stiffness can depend on tessellation. The model does not
+deduplicate these into a single contact against the surface union.
+
+Search bounds cover every incident face at its current extent. Neighbor lists
+use vertex motion to decide when deformation consumes the skin and rebuild
+when public constructors append contact topology. After manually rewiring
+connectivity while retaining face IDs, replace `system.collider` with
+`system.collider.invalidate()` before evaluating contacts (for a NeighborList
+collider).
 
 Checkpoints record component configuration, force-law parameters, and boundary
 callbacks. Empty history arrays are reconstructed on load; nonempty pair memory
-is preserved.
+is preserved. Shared-face connectivity and incidence capacity round-trip;
+older checkpoints initialize the additional incidence fields as empty.
 Callbacks and custom force/energy functions must be importable module-level
 functions. Saving rejects paths that cannot resolve back to the same callable.
 Strict restoration rejects missing physics. Load checkpoints only from trusted

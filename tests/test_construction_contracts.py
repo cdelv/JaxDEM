@@ -34,11 +34,13 @@ def test_add_clump_defaults_then_geometry_utility_updates_body_properties():
     np.testing.assert_allclose(updated.pos, state.pos, atol=2e-6)
 
 
-def test_contact_facets_reject_shared_vertices():
+def test_contact_facets_allow_shared_vertices():
     state = jdem.State.create(pos=jnp.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]))
     state = jdem.State.add_connected_facet(state, [0, 1], rigid=False)
-    with pytest.raises(ValueError, match="cannot share vertices"):
-        jdem.State.add_connected_facet(state, [1, 2], rigid=False)
+    state = jdem.State.add_connected_facet(state, [1, 2], rigid=False)
+    assert state.N == 3
+    assert int(state.facet_ids_extra[1, 0]) >= 0
+    np.testing.assert_array_equal(state.facet_vertices_extra[1, 0], [1, 2])
 
 
 @pytest.mark.parametrize("dim", [2, 3])

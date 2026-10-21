@@ -17,6 +17,44 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
+@jax.custom_jvp
+def _safe_ratio(numerator: jax.Array, denominator: jax.Array) -> jax.Array:
+    """Divide without squaring a dimensional tiny denominator in reverse AD."""
+    safe = jnp.where(denominator != 0.0, denominator, 1.0)
+    return numerator / safe
+
+
+@_safe_ratio.defjvp
+def _safe_ratio_jvp(
+    primals: tuple[jax.Array, jax.Array], tangents: tuple[jax.Array, jax.Array]
+) -> tuple[jax.Array, jax.Array]:
+    numerator, denominator = primals
+    numerator_dot, denominator_dot = tangents
+    value = jax.lax.optimization_barrier(  # type: ignore[no-untyped-call]
+        _safe_ratio(numerator, denominator)
+    )
+    safe = jnp.where(denominator != 0.0, denominator, 1.0)
+    denominator_dot = jnp.where(denominator != 0.0, denominator_dot, 0.0)
+    return value, (numerator_dot - value * denominator_dot) / safe
+
+
+def _consistent_triangle_bc(ab: jax.Array, ac: jax.Array, bc: jax.Array) -> jax.Array:
+    """Retain short-edge digits within the triangle's A-anchored image."""
+    anchored_bc = ac - ab
+    epsilon = jnp.finfo(ab.dtype).eps  # type: ignore[no-untyped-call]
+    tolerance = 8.0 * epsilon * jnp.maximum(jnp.abs(ab), jnp.abs(ac))
+    same_image = jnp.all(jnp.abs(bc - anchored_bc) <= tolerance, axis=-1)
+    return jnp.where(same_image[..., None], bc, anchored_bc)
+
+
+def _triangle_cross(ab: jax.Array, ac: jax.Array, bc: jax.Array) -> jax.Array:
+    """Compute the oriented area using a short boundary when possible."""
+    short_bc = jnp.max(jnp.abs(bc), axis=-1) < jnp.minimum(
+        jnp.max(jnp.abs(ab), axis=-1), jnp.max(jnp.abs(ac), axis=-1)
+    )
+    return jnp.where(short_bc[..., None], jnp.cross(ab, bc), jnp.cross(ab, ac))
+
+
 @partial(jax.jit, static_argnames=("face", "edge", "vertex"))
 def point_triangle_distance(
     p: jax.Array,
@@ -29,134 +67,50 @@ def point_triangle_distance(
     edge: bool = True,
     vertex: bool = True,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
-    """Compute the distance from point ``p`` to the triangle with vertices ``a``, ``b``, ``c``.
+    """Return point-triangle separation, closest point and barycentric weights.
 
-    Also return the closest point on the triangle and its barycentric
-    coordinates. Static feature switches omit contacts whose closest point
-    lies in a disabled Voronoi region; they do not select a farther feature.
-    Face and edge interiors exclude their boundaries, which belong to edges
-    and vertices respectively. Disabled contacts return infinite distance
+    Static feature switches omit contacts whose closest point lies in a
+    disabled Voronoi region; they do not select a farther feature. Face and
+    edge interiors exclude their boundaries. Collapsed triangles reduce to
+    their segments or vertices. Rejected queries return infinite distance
     and finite placeholder points and coordinates.
     """
-    if not (face and edge and vertex):
-        return _point_triangle_feature_distance(
-            p, a, b, c, system, face=face, edge=edge, vertex=vertex
+    return _point_triangle_feature_distance(
+        p, a, b, c, system, face=face, edge=edge, vertex=vertex
+    )
+
+
+def _triangle_face_coordinates(
+    ab: jax.Array, ac: jax.Array, bc: jax.Array, ap: jax.Array, *, project: bool
+) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
+    """Project onto the plane without subtracting nearly equal Gram products."""
+    if ab.shape[-1] == 3:
+        normal = _triangle_cross(ab, ac, bc)
+        scale = jax.lax.stop_gradient(jnp.max(jnp.abs(normal), axis=-1))
+        safe_scale = jnp.where(scale > 0.0, scale, 1.0)[..., None]
+        scaled_normal = normal / safe_scale
+        determinant = dot(scaled_normal, scaled_normal)
+        denominator = jnp.where(determinant != 0.0, determinant, 1.0)
+        v = dot(jnp.cross(ap, ac) / safe_scale, scaled_normal) / denominator
+        w = dot(jnp.cross(ab, ap) / safe_scale, scaled_normal) / denominator
+        # Resolve the long direction with a dot product. Independent cross
+        # ratios can otherwise disagree along that direction on thin faces.
+        ab2, ac2, ab_ac = dot(ab, ab), dot(ac, ac), dot(ab, ac)
+        v_long = _safe_ratio(dot(ap, ab) - w * ab_ac, ab2)
+        w_long = _safe_ratio(dot(ap, ac) - v * ab_ac, ac2)
+        long_ab = ab2 >= ac2
+        v, w = jnp.where(long_ab, v_long, v), jnp.where(long_ab, w, w_long)
+        projection = (
+            ap - scaled_normal * (dot(ap, scaled_normal) / denominator)[..., None]
+            if project
+            else ap
         )
-
-    ab = system.domain._displacement(b, a, system)
-    ac = system.domain._displacement(c, a, system)
-    ap = system.domain._displacement(p, a, system)
-
-    d1 = dot(ab, ap)
-    d2 = dot(ac, ap)
-
-    is_a = (d1 <= 0.0) * (d2 <= 0.0)
-
-    bp = ap - ab
-    d3 = dot(ab, bp)
-    d4 = dot(ac, bp)
-
-    is_b = (d3 >= 0.0) * (d4 <= d3)
-
-    vc = d1 * d4 - d3 * d2
-
-    v_ab = (vc <= 0.0) * (d1 >= 0.0) * (d3 <= 0.0) * (d1 - d3 > 0.0)
-    denom_ab = d1 - d3
-    v_ab_val = d1 / jnp.where(denom_ab != 0.0, denom_ab, 1.0)
-
-    cp = ap - ac
-    d5 = dot(ab, cp)
-    d6 = dot(ac, cp)
-
-    is_c = (d6 >= 0.0) * (d5 <= d6)
-
-    vb = d5 * d2 - d1 * d6
-
-    v_ac = (vb <= 0.0) * (d2 >= 0.0) * (d6 <= 0.0) * (d2 - d6 > 0.0)
-    denom_ac = d2 - d6
-    v_ac_val = d2 / jnp.where(denom_ac != 0.0, denom_ac, 1.0)
-
-    va = d3 * d6 - d5 * d4
-
-    v_bc = (
-        (va <= 0.0)
-        * ((d4 - d3) >= 0.0)
-        * ((d5 - d6) >= 0.0)
-        * ((d4 - d3) + (d5 - d6) > 0.0)
-    )
-    bc = ac - ab
-    denom_bc = (d4 - d3) + (d5 - d6)
-    v_bc_val = (d4 - d3) / jnp.where(denom_bc != 0.0, denom_bc, 1.0)
-
-    denom_tot = va + vb + vc
-    denom = 1.0 / jnp.where(denom_tot != 0.0, denom_tot, 1.0)
-    v_val = vb * denom
-    w_val = vc * denom
-
-    closest = jnp.where(
-        is_a[..., None],
-        a,
-        jnp.where(
-            is_b[..., None],
-            b,
-            jnp.where(
-                is_c[..., None],
-                c,
-                jnp.where(
-                    v_ab[..., None],
-                    a + v_ab_val[..., None] * ab,
-                    jnp.where(
-                        v_ac[..., None],
-                        a + v_ac_val[..., None] * ac,
-                        jnp.where(
-                            v_bc[..., None],
-                            b + v_bc_val[..., None] * bc,
-                            a + v_val[..., None] * ab + w_val[..., None] * ac,
-                        ),
-                    ),
-                ),
-            ),
-        ),
-    )
-
-    zeros = jnp.zeros_like(d1)
-    ones = jnp.ones_like(d1)
-
-    c_a = jnp.stack([ones, zeros, zeros], axis=-1)
-    c_b = jnp.stack([zeros, ones, zeros], axis=-1)
-    c_c = jnp.stack([zeros, zeros, ones], axis=-1)
-    c_ab = jnp.stack([ones - v_ab_val, v_ab_val, zeros], axis=-1)
-    c_ac = jnp.stack([ones - v_ac_val, zeros, v_ac_val], axis=-1)
-    c_bc = jnp.stack([zeros, ones - v_bc_val, v_bc_val], axis=-1)
-    c_in = jnp.stack([ones - v_val - w_val, v_val, w_val], axis=-1)
-
-    coords = jnp.where(
-        is_a[..., None],
-        c_a,
-        jnp.where(
-            is_b[..., None],
-            c_b,
-            jnp.where(
-                is_c[..., None],
-                c_c,
-                jnp.where(
-                    v_ab[..., None],
-                    c_ab,
-                    jnp.where(
-                        v_ac[..., None],
-                        c_ac,
-                        jnp.where(
-                            v_bc[..., None],
-                            c_bc,
-                            c_in,
-                        ),
-                    ),
-                ),
-            ),
-        ),
-    )
-
-    return norm(system.domain._displacement(p, closest, system)), closest, coords
+    else:
+        determinant = ab[..., 0] * ac[..., 1] - ab[..., 1] * ac[..., 0]
+        v = _safe_ratio(ap[..., 0] * ac[..., 1] - ap[..., 1] * ac[..., 0], determinant)
+        w = _safe_ratio(ab[..., 0] * ap[..., 1] - ab[..., 1] * ap[..., 0], determinant)
+        projection = ap
+    return 1.0 - v - w, v, w, determinant != 0.0, projection
 
 
 def _point_triangle_feature_distance(
@@ -170,7 +124,7 @@ def _point_triangle_feature_distance(
     edge: bool,
     vertex: bool,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
-    """Specialize closest-feature queries without constructing disabled points."""
+    """Specialize stable Voronoi-region queries to the enabled features."""
     dtype = jnp.result_type(p, a, b, c, 1.0)
     p, a, b, c = jnp.broadcast_arrays(
         *[jnp.asarray(x, dtype=dtype) for x in (p, a, b, c)]
@@ -184,88 +138,72 @@ def _point_triangle_feature_distance(
     ab = system.domain._displacement(b, a, system)
     ac = system.domain._displacement(c, a, system)
     ap = system.domain._displacement(p, a, system)
-    d1, d2 = dot(ab, ap), dot(ac, ap)
+    bc = system.domain._displacement(c, b, system)
+    bc = _consistent_triangle_bc(ab, ac, bc)
+    zeros = jnp.zeros(a.shape[:-1], dtype=dtype)
+    ones = jnp.ones_like(zeros)
+    closest, coords = a, placeholder
+    enabled = jnp.zeros(a.shape[:-1], dtype=bool)
 
-    if face and not edge and not vertex:
-        # Orthogonal projection suffices when no boundary regions are wanted.
-        if ab.shape[-1] == 3:
-            # Squared cross-product area avoids subtracting nearly equal
-            # Gram products for thin but nondegenerate triangles.
-            normal = jnp.cross(ab, ac)
-            determinant = dot(normal, normal)
-            denominator = jnp.where(determinant > 0.0, determinant, 1.0)
-            v = dot(jnp.cross(ap, ac), normal) / denominator
-            w = dot(jnp.cross(ab, ap), normal) / denominator
-        else:
-            determinant = ab[..., 0] * ac[..., 1] - ab[..., 1] * ac[..., 0]
-            denominator = jnp.where(determinant != 0.0, determinant, 1.0)
-            v = (ap[..., 0] * ac[..., 1] - ap[..., 1] * ac[..., 0]) / denominator
-            w = (ab[..., 0] * ap[..., 1] - ab[..., 1] * ap[..., 0]) / denominator
-            determinant = jnp.abs(determinant)
-        u = 1.0 - v - w
-        enabled = (determinant > 0.0) & (u > 0.0) & (v > 0.0) & (w > 0.0)
-        # Mask before interpolation, so rejected projections stay finite.
-        v, w = jnp.where(enabled, v, 0.0), jnp.where(enabled, w, 0.0)
-        closest = a + v[..., None] * ab + w[..., None] * ac
-        coords = jnp.stack([1.0 - v - w, v, w], axis=-1)
-    else:
+    if face or edge:
+        u, v, w, has_face, projection = _triangle_face_coordinates(
+            ab, ac, bc, ap, project=face
+        )
+        if face:
+            is_face = has_face & (u > 0.0) & (v > 0.0) & (w > 0.0)
+            vf, wf = jnp.where(is_face, v, 0.0), jnp.where(is_face, w, 0.0)
+            closest = a + jnp.where(is_face[..., None], projection, 0.0)
+            coords = jnp.stack([1.0 - vf - wf, vf, wf], axis=-1)
+            enabled = is_face
+
+    if edge or vertex:
         bp, cp = ap - ab, ap - ac
-        d3, d4 = dot(ab, bp), dot(ac, bp)
-        d5, d6 = dot(ab, cp), dot(ac, cp)
-        is_a = (d1 <= 0.0) & (d2 <= 0.0)
-        is_b = (d3 >= 0.0) & (d4 <= d3)
-        is_c = (d6 >= 0.0) & (d5 <= d6)
+        ab_ap, ac_ap = dot(ab, ap), dot(ac, ap)
+        ab_bp, bc_bp = dot(ab, bp), dot(bc, bp)
+        ac_cp, bc_cp = dot(ac, cp), dot(bc, cp)
+        is_a = (ab_ap <= 0.0) & (ac_ap <= 0.0)
+        is_b = (ab_bp >= 0.0) & (bc_bp <= 0.0)
+        is_c = (ac_cp >= 0.0) & (bc_cp >= 0.0)
         is_vertex = is_a | is_b | is_c
-        zeros, ones = jnp.zeros_like(d1), jnp.ones_like(d1)
 
-        closest, coords = a, placeholder
-        enabled = jnp.zeros_like(is_vertex)
-        if edge or face:
-            vc = d1 * d4 - d3 * d2
-            vb = d5 * d2 - d1 * d6
-            va = d3 * d6 - d5 * d4
-            denom_ab, denom_ac = d1 - d3, d2 - d6
-            denom_bc = (d4 - d3) + (d5 - d6)
-            v_ab = (vc <= 0.0) & (d1 >= 0.0) & (d3 <= 0.0) & (denom_ab > 0.0)
-            v_ac = (vb <= 0.0) & (d2 >= 0.0) & (d6 <= 0.0) & (denom_ac > 0.0)
-            v_bc = (va <= 0.0) & (d4 - d3 >= 0.0) & (d5 - d6 >= 0.0) & (denom_bc > 0.0)
-            is_edge = ~is_vertex & (v_ab | v_ac | v_bc)
-            if face:
-                denominator = va + vb + vc
-                inverse = 1.0 / jnp.where(denominator != 0.0, denominator, 1.0)
-                v, w = vb * inverse, vc * inverse
-                closest = a + v[..., None] * ab + w[..., None] * ac
-                coords = jnp.stack([ones - v - w, v, w], axis=-1)
-                enabled = ~is_vertex & ~is_edge & (denominator != 0.0)
-            if edge:
-                t_ab = d1 / jnp.where(denom_ab != 0.0, denom_ab, 1.0)
-                t_ac = d2 / jnp.where(denom_ac != 0.0, denom_ac, 1.0)
-                t_bc = (d4 - d3) / jnp.where(denom_bc != 0.0, denom_bc, 1.0)
-                closest = jnp.where(
-                    v_ab[..., None],
-                    a + t_ab[..., None] * ab,
+        if edge:
+            # Barycentric signs identify the outside of each supporting edge.
+            # A zero-area triangle has only boundary regions. Direct BC dot
+            # products avoid cancellation when the two A-edges nearly agree.
+            u = jnp.where(has_face, u, 0.0)
+            v = jnp.where(has_face, v, 0.0)
+            w = jnp.where(has_face, w, 0.0)
+            is_ab = ~is_vertex & (w <= 0.0) & (ab_ap > 0.0) & (ab_bp < 0.0)
+            is_ac = ~is_vertex & (v <= 0.0) & (ac_ap > 0.0) & (ac_cp < 0.0)
+            is_bc = ~is_vertex & (u <= 0.0) & (bc_bp > 0.0) & (bc_cp < 0.0)
+            denom_ab, denom_ac, denom_bc = dot(ab, ab), dot(ac, ac), dot(bc, bc)
+            tab = _safe_ratio(jnp.where(is_ab, ab_ap, 0.0), denom_ab)
+            tac = _safe_ratio(jnp.where(is_ac, ac_ap, 0.0), denom_ac)
+            tbc = _safe_ratio(jnp.where(is_bc, bc_bp, 0.0), denom_bc)
+            closest = jnp.where(
+                is_ab[..., None],
+                a + tab[..., None] * ab,
+                jnp.where(
+                    is_ac[..., None],
+                    a + tac[..., None] * ac,
+                    jnp.where(is_bc[..., None], b + tbc[..., None] * bc, closest),
+                ),
+            )
+            coords = jnp.where(
+                is_ab[..., None],
+                jnp.stack([ones - tab, tab, zeros], axis=-1),
+                jnp.where(
+                    is_ac[..., None],
+                    jnp.stack([ones - tac, zeros, tac], axis=-1),
                     jnp.where(
-                        v_ac[..., None],
-                        a + t_ac[..., None] * ac,
-                        jnp.where(
-                            v_bc[..., None], b + t_bc[..., None] * (ac - ab), closest
-                        ),
+                        is_bc[..., None],
+                        jnp.stack([zeros, ones - tbc, tbc], axis=-1),
+                        coords,
                     ),
-                )
-                coords = jnp.where(
-                    v_ab[..., None],
-                    jnp.stack([ones - t_ab, t_ab, zeros], axis=-1),
-                    jnp.where(
-                        v_ac[..., None],
-                        jnp.stack([ones - t_ac, zeros, t_ac], axis=-1),
-                        jnp.where(
-                            v_bc[..., None],
-                            jnp.stack([zeros, ones - t_bc, t_bc], axis=-1),
-                            coords,
-                        ),
-                    ),
-                )
-                enabled = enabled | is_edge
+                ),
+            )
+            enabled = enabled | is_ab | is_ac | is_bc
+
         if vertex:
             closest = jnp.where(
                 is_a[..., None],
@@ -285,10 +223,10 @@ def _point_triangle_feature_distance(
                     ),
                 ),
             )
-            enabled = enabled | is_vertex
-        closest = jnp.where(enabled[..., None], closest, a)
-        coords = jnp.where(enabled[..., None], coords, placeholder)
+            enabled = enabled | is_a | is_b | is_c
 
+    closest = jnp.where(enabled[..., None], closest, a)
+    coords = jnp.where(enabled[..., None], coords, placeholder)
     distance = norm(system.domain._displacement(p, closest, system))
     return jnp.where(enabled, distance, jnp.inf), closest, coords
 
@@ -312,25 +250,38 @@ def segment_segment_distance(
     b = dot(d1, d2)
     c = dot(d1, r)
 
-    denom = a * e - b * b
+    # Gram products cancel for nearly parallel edges, even when their closest
+    # points are well inside both segments. Cross products retain the small
+    # angle. Scaling avoids squaring a tiny or very large cross product.
+    if d1.shape[-1] == 3:
+        normal = jnp.cross(d1, d2)
+        scale = jax.lax.stop_gradient(jnp.max(jnp.abs(normal), axis=-1))
+        safe_scale = jnp.where(scale > 0.0, scale, 1.0)[..., None]
+        scaled_normal = normal / safe_scale
+        denom = dot(scaled_normal, scaled_normal)
+        numerator = dot(jnp.cross(d2, r) / safe_scale, scaled_normal)
+    else:
+        denom = d1[..., 0] * d2[..., 1] - d1[..., 1] * d2[..., 0]
+        scale = jax.lax.stop_gradient(jnp.abs(denom))
+        safe_scale = jnp.where(scale > 0.0, scale, 1.0)
+        denom = denom / safe_scale
+        numerator = (d2[..., 0] * r[..., 1] - d2[..., 1] * r[..., 0]) / safe_scale
     safe_denom = jnp.where(denom != 0.0, denom, 1.0)
-    s_val = (b * f - c * e) / safe_denom
+    s_val = numerator / safe_denom
 
     s = jnp.where(denom != 0.0, jnp.clip(s_val, 0.0, 1.0), 0.0)
 
-    safe_e = jnp.where(e != 0.0, e, 1.0)
-    t = (b * s + f) / safe_e
+    t = _safe_ratio(b * s + f, e)
 
-    safe_a = jnp.where(a != 0.0, a, 1.0)
     s = jnp.where(
         t < 0.0,
-        jnp.clip(-c / safe_a, 0.0, 1.0),
-        jnp.where(t > 1.0, jnp.clip((b - c) / safe_a, 0.0, 1.0), s),
+        jnp.clip(_safe_ratio(-c, a), 0.0, 1.0),
+        jnp.where(t > 1.0, jnp.clip(_safe_ratio(b - c, a), 0.0, 1.0), s),
     )
 
     t = jnp.clip(t, 0.0, 1.0)
     # A collapsed second segment is a point projected onto the first.
-    s = jnp.where(e == 0.0, jnp.clip(-c / safe_a, 0.0, 1.0), s)
+    s = jnp.where(e == 0.0, jnp.clip(_safe_ratio(-c, a), 0.0, 1.0), s)
 
     c1 = p1 + d1 * s[..., None]
     c2 = p2 + d2 * t[..., None]
@@ -352,11 +303,10 @@ def _segment_triangle_intersection(
     offset = system.domain._displacement(p, a, system)
     cross_direction = jnp.cross(direction, ac)
     determinant = dot(ab, cross_direction)
-    inverse = 1.0 / jnp.where(determinant != 0.0, determinant, 1.0)
-    u = dot(offset, cross_direction) * inverse
+    u = _safe_ratio(dot(offset, cross_direction), determinant)
     cross_offset = jnp.cross(offset, ab)
-    v = dot(direction, cross_offset) * inverse
-    t = dot(ac, cross_offset) * inverse
+    v = _safe_ratio(dot(direction, cross_offset), determinant)
+    t = _safe_ratio(dot(ac, cross_offset), determinant)
     hit = (
         (determinant != 0.0)
         & (t >= 0.0)
@@ -489,8 +439,15 @@ def facet_normal(
     """Return a facet's unit normal, or zero for collapsed geometry."""
     edge = system.domain._displacement(b, a, system)
     if c is None:
-        return unit(jnp.stack([-edge[..., 1], edge[..., 0]], axis=-1))
-    return unit(jnp.cross(edge, system.domain._displacement(c, a, system)))
+        normal = jnp.stack([-edge[..., 1], edge[..., 0]], axis=-1)
+    else:
+        ac = system.domain._displacement(c, a, system)
+        bc = _consistent_triangle_bc(
+            edge, ac, system.domain._displacement(c, b, system)
+        )
+        normal = _triangle_cross(edge, ac, bc)
+    scale = jax.lax.stop_gradient(jnp.max(jnp.abs(normal), axis=-1))
+    return unit(normal / jnp.where(scale > 0.0, scale, 1.0)[..., None])
 
 
 @partial(jax.jit, static_argnames=("edge", "vertex"))
@@ -525,7 +482,7 @@ def point_segment_distance(
         ap = system.domain._displacement(p, a, system)
         denominator, numerator = dot(ab, ab), dot(ap, ab)
         if edge:
-            t = numerator / jnp.where(denominator != 0.0, denominator, 1.0)
+            t = _safe_ratio(numerator, denominator)
             enabled = (denominator > 0.0) & (t > 0.0) & (t < 1.0)
             t = jnp.where(enabled, t, 0.0)
         else:
@@ -539,7 +496,7 @@ def point_segment_distance(
     ab = system.domain._displacement(b, a, system)
     ap = system.domain._displacement(p, a, system)
     denom = dot(ab, ab)
-    t = dot(ap, ab) / jnp.where(denom != 0.0, denom, 1.0)
+    t = _safe_ratio(dot(ap, ab), denom)
     t = jnp.clip(t, 0.0, 1.0)
     closest = a + t[..., None] * ab
     coords = jnp.stack([1.0 - t, t], axis=-1)
@@ -575,8 +532,9 @@ def get_facet_indices(
 def facet_search_radii(state: State, system: System) -> jax.Array:
     """Bound each contact primitive from its current search-key position.
 
-    Recompute flexible facet extents from their vertices; ``_rad`` remains a
-    conservative user-supplied lower bound on search extent, not thickness.
+    Recompute the union of all incident flexible facets from their vertices.
+    ``_rad`` remains a conservative user-supplied lower bound on search extent,
+    not thickness. Shared nodes can have facets only in the extra slots.
     """
     pos = state.pos
     indices = jnp.maximum(state.facet_vertices, 0)
@@ -584,4 +542,15 @@ def facet_search_radii(state: State, system: System) -> jax.Array:
     extent = jnp.max(norm(delta), axis=-1)
     thickness = jnp.max(state.rad[indices], axis=-1)
     bound = jnp.where(state.facet_id >= 0, extent + thickness, state.rad)
+    if state.facet_ids_extra.shape[-1]:
+        extra_indices = jnp.maximum(state.facet_vertices_extra, 0)
+        extra_delta = system.domain._displacement(
+            pos[extra_indices], pos[:, None, None, :], system
+        )
+        extra_extent = jnp.max(norm(extra_delta), axis=-1)
+        extra_thickness = jnp.max(state.rad[extra_indices], axis=-1)
+        extra_bound = jnp.where(
+            state.facet_ids_extra >= 0, extra_extent + extra_thickness, 0.0
+        )
+        bound = jnp.maximum(bound, jnp.max(extra_bound, axis=-1))
     return jnp.maximum(state._rad, bound)

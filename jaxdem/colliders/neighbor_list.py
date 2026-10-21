@@ -272,6 +272,9 @@ class NeighborList(Collider):
     skin_snapshot: jax.Array = field(default_factory=lambda: jnp.asarray(-1.0))
     """Neighbor-list skin used for the last build."""
 
+    facet_id_snapshot: jax.Array = field(default_factory=lambda: jnp.asarray(-2))
+    """Largest allocated facet ID at the last build, including shared facets."""
+
     invalidated: jax.Array = field(default_factory=lambda: jnp.asarray(True))
     """Explicit cache invalidation flag for topology or geometry edits."""
 
@@ -471,6 +474,7 @@ class NeighborList(Collider):
             metric_snapshot=jnp.zeros((state.dim + 3,), dtype=state.pos.dtype),
             physical_cutoff_snapshot=jnp.asarray(-1.0, dtype=state.pos.dtype),
             skin_snapshot=jnp.asarray(-1.0, dtype=state.pos.dtype),
+            facet_id_snapshot=jnp.asarray(-2, dtype=state.facet_id.dtype),
             invalidated=jnp.asarray(True),
         )
 

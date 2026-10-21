@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, cast
@@ -13,8 +14,8 @@ import jax.numpy as jnp
 
 from ..utils.linalg import cross, dot, norm, norm2, unit, unit_and_norm
 from . import ForceModel
+from ._facet_incidence import get_facet_incidence
 from .facet_contact import (
-    get_facet_indices,
     facet_normal,
     facet_search_radii,
     point_segment_distance,
@@ -207,9 +208,104 @@ def _inactive_facet_pair(
     return zero, zero, zero > 0, zero, vector, vector, zero, zero == 0
 
 
+_FacetPairData = tuple[
+    jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array,
+]
+_FacetPairKernel = Callable[
+    [
+        int | jax.Array,
+        int | jax.Array,
+        jax.Array,
+        "State",
+        "System",
+        int | jax.Array,
+        int | jax.Array,
+    ],
+    _FacetPairData,
+]
+
+
+def _sum_facet_forces(
+    pair_kernel: _FacetPairKernel,
+    i: int | jax.Array,
+    j: int | jax.Array,
+    pos: jax.Array,
+    state: State,
+    system: System,
+) -> tuple[jax.Array, jax.Array]:
+    """Sum incident face contacts onto the existing physical vertex keys."""
+    slots = 1 + state.facet_ids_extra.shape[-1]
+
+    def evaluate(
+        slot_i: int | jax.Array, slot_j: int | jax.Array
+    ) -> tuple[jax.Array, jax.Array]:
+        k, delta, contact, w, n, point, thickness, rigid = pair_kernel(
+            i, j, pos, state, system, slot_i, slot_j
+        )
+        force = (jnp.maximum(0.0, k * delta) * contact * w)[..., None] * n
+        arm = (
+            system.domain._displacement(point, state.pos[i], system)
+            - thickness[..., None] * n
+        )
+        torque = cross(arm, force)
+        rigid = jnp.broadcast_to(rigid, force.shape[:-1])
+        return force, torque * rigid[..., None]
+
+    # Keep the original compiled path for states without shared vertices.
+    if slots == 1:
+        return evaluate(0, 0)
+    if pair_kernel is _sphere_facet_pair:
+        # One member must be a sphere, whose only active incidence is slot zero.
+        slot_i = jnp.concatenate((jnp.arange(slots), jnp.zeros(slots - 1, dtype=int)))
+        slot_j = jnp.concatenate((jnp.zeros(slots, dtype=int), jnp.arange(1, slots)))
+    else:
+        slot = jnp.arange(slots * slots)
+        slot_i, slot_j = slot // slots, slot % slots
+    forces, torques = jax.vmap(evaluate)(slot_i, slot_j)
+    return jnp.sum(forces, axis=0), jnp.sum(torques, axis=0)
+
+
+def _sum_facet_energies(
+    pair_kernel: _FacetPairKernel,
+    i: int | jax.Array,
+    j: int | jax.Array,
+    pos: jax.Array,
+    state: State,
+    system: System,
+) -> jax.Array:
+    slots = 1 + state.facet_ids_extra.shape[-1]
+
+    def evaluate(slot_i: int | jax.Array, slot_j: int | jax.Array) -> jax.Array:
+        k, delta, _, w, *_ = pair_kernel(i, j, pos, state, system, slot_i, slot_j)
+        return 0.5 * k * delta * delta * w
+
+    if slots == 1:
+        return evaluate(0, 0)
+    if pair_kernel is _sphere_facet_pair:
+        slot_i = jnp.concatenate((jnp.arange(slots), jnp.zeros(slots - 1, dtype=int)))
+        slot_j = jnp.concatenate((jnp.zeros(slots, dtype=int), jnp.arange(1, slots)))
+    else:
+        slot = jnp.arange(slots * slots)
+        slot_i, slot_j = slot // slots, slot % slots
+    return jnp.sum(jax.vmap(evaluate)(slot_i, slot_j), axis=0)
+
+
 @jax.jit(inline=True)
 def _sphere_facet_pair(
-    i: jax.Array, j: jax.Array, pos: jax.Array, state: "State", system: "System"
+    i: jax.Array,
+    j: jax.Array,
+    pos: jax.Array,
+    state: "State",
+    system: "System",
+    incidence_i: int | jax.Array = 0,
+    incidence_j: int | jax.Array = 0,
 ) -> tuple[
     jax.Array,
     jax.Array,
@@ -235,8 +331,12 @@ def _sphere_facet_pair(
     if not (model.edge or model.vertex or (dim == 3 and model.face)):
         return _inactive_facet_pair(i, j, pos)
 
-    is_facet_i, idxs_i, is_primary_i = get_facet_indices(i, state)
-    is_facet_j, idxs_j, is_primary_j = get_facet_indices(j, state)
+    is_facet_i, idxs_i, is_primary_i, face_i, active_i = get_facet_incidence(
+        i, state, incidence_i
+    )
+    is_facet_j, idxs_j, is_primary_j, face_j, active_j = get_facet_incidence(
+        j, state, incidence_j
+    )
 
     idx0_i = jnp.where(is_facet_i, idxs_i[..., 0], i)
     idx0_j = jnp.where(is_facet_j, idxs_j[..., 0], j)
@@ -253,12 +353,17 @@ def _sphere_facet_pair(
     )
     is_rigid = is_rigid_i * is_rigid_j
 
-    compute_interaction = jnp.where(
-        is_rigid,
-        jnp.where(is_facet_i, is_primary_i, True)
-        * jnp.where(is_facet_j, is_primary_j, True),
-        True,
-    ) * (is_facet_i ^ is_facet_j)
+    compute_interaction = (
+        jnp.where(
+            is_rigid,
+            jnp.where(is_facet_i, is_primary_i, True)
+            * jnp.where(is_facet_j, is_primary_j, True),
+            True,
+        )
+        * (is_facet_i ^ is_facet_j)
+        * active_i
+        * active_j
+    )
 
     mi, mj = state.mat_id[idx0_i], state.mat_id[idx0_j]
     k = system.mat_table.young_eff[mi, mj]
@@ -338,8 +443,13 @@ class SphereFacetSpringForce(ForceModel):
     and contact thickness. ``state._rad`` supplies an optional conservative
     lower bound on that search radius.
 
-    The contact thickness comes from the facet vertices' ``state.rad``
-    (set through ``State.add_facet(thickness=...)``). The force model itself
+    Shared faces accumulate loads on the same physical vertex keys. Flexible
+    nodal loads use closest-point barycentric weights. Penalties add per face,
+    including multiple faces contacted near a shared edge or vertex.
+
+    Contact thickness is ``state.rad`` at each face's first vertex
+    (set through ``State.add_facet(thickness=...)`` or retained when attaching
+    faces to existing nodes). The force model itself
     has no thickness parameter. Zero-distance normals are force conventions,
     so physical relaxation requires a gradient-only optimizer. Value-based
     optimization requires a custom energy target differentiated through AD.
@@ -389,26 +499,8 @@ class SphereFacetSpringForce(ForceModel):
         advance_history: bool = True,
         quasistatic: bool = False,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
-        k, delta, is_contact, w, n, c_1, thick_i, is_rigid = _sphere_facet_pair(
-            i, j, pos, state, system
-        )
-
-        fn_mag = jnp.maximum(0.0, k * delta)
-        f_total = (fn_mag * is_contact * w)[..., None] * n
-
-        r_ci = (
-            system.domain._displacement(c_1, state.pos[i], system)
-            - thick_i[..., None] * n
-        )
-
-        t_total = cross(r_ci, f_total)
-
-        is_rigid_mask = is_rigid
-        while is_rigid_mask.ndim < t_total.ndim:
-            is_rigid_mask = is_rigid_mask[..., None]
-        t_total = t_total * is_rigid_mask
-
-        return f_total, t_total, history
+        force, torque = _sum_facet_forces(_sphere_facet_pair, i, j, pos, state, system)
+        return force, torque, history
 
     @staticmethod
     @jax.jit(inline=True)
@@ -420,15 +512,18 @@ class SphereFacetSpringForce(ForceModel):
         system: System,
         history: jax.Array,
     ) -> jax.Array:
-        k, delta, is_contact, w, n, c_1, thick_i, is_rigid = _sphere_facet_pair(
-            i, j, pos, state, system
-        )
-        return 0.5 * k * delta * delta * w
+        return _sum_facet_energies(_sphere_facet_pair, i, j, pos, state, system)
 
 
 @jax.jit(inline=True)
 def _facet_facet_pair(
-    i: jax.Array, j: jax.Array, pos: jax.Array, state: "State", system: "System"
+    i: jax.Array,
+    j: jax.Array,
+    pos: jax.Array,
+    state: "State",
+    system: "System",
+    incidence_i: int | jax.Array = 0,
+    incidence_j: int | jax.Array = 0,
 ) -> tuple[
     jax.Array,
     jax.Array,
@@ -458,8 +553,12 @@ def _facet_facet_pair(
     i_arr = jnp.asarray(i)
     j_arr = jnp.asarray(j)
 
-    is_facet_i, idxs_i, is_primary_i = get_facet_indices(i, state)
-    is_facet_j, idxs_j, is_primary_j = get_facet_indices(j, state)
+    is_facet_i, idxs_i, is_primary_i, face_i, active_i = get_facet_incidence(
+        i, state, incidence_i
+    )
+    is_facet_j, idxs_j, is_primary_j, face_j, active_j = get_facet_incidence(
+        j, state, incidence_j
+    )
 
     idx0_i = jnp.where(is_facet_i, idxs_i[..., 0], i)
     idx0_j = jnp.where(is_facet_j, idxs_j[..., 0], j)
@@ -484,7 +583,10 @@ def _facet_facet_pair(
         )
         & is_facet_i
         & is_facet_j
-        & (idx0_i != idx0_j)
+        & (face_i != face_j)
+        & ~jnp.any(idxs_i[..., :, None] == idxs_j[..., None, :], axis=(-2, -1))
+        & active_i
+        & active_j
     )
 
     mi, mj = state.mat_id[idx0_i], state.mat_id[idx0_j]
@@ -495,7 +597,7 @@ def _facet_facet_pair(
     t2_a = pos[idxs_j[..., 0]]
     t2_b = pos[idxs_j[..., 1]]
 
-    swap = idx0_i > idx0_j
+    swap = face_i > face_j
 
     tA_a = jnp.where(swap[..., None], t2_a, t1_a)
     tA_b = jnp.where(swap[..., None], t2_b, t1_b)
@@ -589,11 +691,18 @@ class FacetFacetSpringForce(ForceModel):
     and contact thickness. ``state._rad`` supplies an optional conservative
     lower bound on that search radius.
 
-    The contact thickness comes from the facet vertices' ``state.rad``
-    (set through ``State.add_facet(thickness=...)``). The force model itself
+    Shared faces accumulate loads on the same physical vertex keys. Flexible
+    nodal loads use closest-point barycentric weights. Penalties add per face,
+    including multiple faces contacted near a shared edge or vertex.
+
+    Contact thickness is ``state.rad`` at each face's first vertex
+    (set through ``State.add_facet(thickness=...)`` or retained when attaching
+    faces to existing nodes). The force model itself
     has no thickness parameter. Zero-distance normals are force conventions,
     so physical relaxation requires a gradient-only optimizer. Value-based
     optimization requires a custom energy target differentiated through AD.
+
+    Faces sharing any physical node are excluded from facet-facet contact.
 
     Static switches select geometry query groups: ``vertex_triangle`` measures
     all vertices against the opposite triangle, ``edge_edge`` measures all
@@ -642,26 +751,8 @@ class FacetFacetSpringForce(ForceModel):
         advance_history: bool = True,
         quasistatic: bool = False,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
-        k, delta, is_contact, w, n, c_ff_1, thick_i, is_rigid = _facet_facet_pair(
-            i, j, pos, state, system
-        )
-
-        fn_mag = jnp.maximum(0.0, k * delta)
-        f_total = (fn_mag * is_contact * w)[..., None] * n
-
-        r_ci = (
-            system.domain._displacement(c_ff_1, state.pos[i], system)
-            - thick_i[..., None] * n
-        )
-
-        t_total = cross(r_ci, f_total)
-
-        is_rigid_mask = is_rigid
-        while is_rigid_mask.ndim < t_total.ndim:
-            is_rigid_mask = is_rigid_mask[..., None]
-        t_total = t_total * is_rigid_mask
-
-        return f_total, t_total, history
+        force, torque = _sum_facet_forces(_facet_facet_pair, i, j, pos, state, system)
+        return force, torque, history
 
     @staticmethod
     @jax.jit(inline=True)
@@ -673,10 +764,7 @@ class FacetFacetSpringForce(ForceModel):
         system: System,
         history: jax.Array,
     ) -> jax.Array:
-        k, delta, is_contact, w, n, c_ff_1, thick_i, is_rigid = _facet_facet_pair(
-            i, j, pos, state, system
-        )
-        return 0.5 * k * delta * delta * w
+        return _sum_facet_energies(_facet_facet_pair, i, j, pos, state, system)
 
 
 __all__ = ["SpringForce", "SphereFacetSpringForce", "FacetFacetSpringForce"]

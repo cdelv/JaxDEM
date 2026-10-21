@@ -9,6 +9,13 @@ import jax
 SCHEMA_NAME = "jaxdem.serialization"
 CURRENT_SCHEMA_VERSION = 3
 SUPPORTED_SCHEMA_VERSIONS = frozenset({1, 2, CURRENT_SCHEMA_VERSION})
+# These fields extend the contact-facet layout without changing existing
+# physical data. Older payloads initialize them from their current defaults.
+FACET_INCIDENCE_LAYOUT_VERSION = 1
+LEGACY_FACET_FIELDS = {
+    "jaxdem.state:State": frozenset({"facet_ids_extra", "facet_vertices_extra"}),
+    "jaxdem.colliders.neighbor_list:NeighborList": frozenset({"facet_id_snapshot"}),
+}
 _PAYLOADS = {
     "orbax": frozenset({"state_system"}),
     "hdf5": frozenset({"state", "system", "object_tree"}),
@@ -117,6 +124,8 @@ __all__ = [
     "CURRENT_SCHEMA_VERSION",
     "SCHEMA_NAME",
     "SUPPORTED_SCHEMA_VERSIONS",
+    "FACET_INCIDENCE_LAYOUT_VERSION",
+    "LEGACY_FACET_FIELDS",
     "make_serialization_manifest",
     "serialization_schema_version",
 ]

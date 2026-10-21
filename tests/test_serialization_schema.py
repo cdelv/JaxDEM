@@ -263,11 +263,15 @@ def test_independently_authored_legacy_orbax_metadata_continues(tmp_path, versio
     payload = jax.tree.map(
         lambda x: None if isinstance(x, jax.Array) and x.size == 0 else x, system
     )
+    # Historical states predate the additional shared-facet incidence axes.
+    state_payload = ocp.tree.serialize_tree(state, keep_empty_nodes=True)
+    del state_payload["facet_ids_extra"]
+    del state_payload["facet_vertices_extra"]
     with ocp.CheckpointManager(tmp_path) as manager:
         manager.save(
             0,
             args=ocp.args.Composite(
-                state=ocp.args.StandardSave(state),
+                state=ocp.args.StandardSave(state_payload),
                 system=ocp.args.StandardSave(payload),
                 state_metadata=ocp.args.JsonSave({"shape": [2, 2]}),
                 system_metadata=ocp.args.JsonSave(metadata),

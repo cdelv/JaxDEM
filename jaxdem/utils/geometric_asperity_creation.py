@@ -92,11 +92,23 @@ def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> Sta
     facet_vertices = jnp.where(
         facet_vertices != -1, facet_vertices + uid_offset[:, None], -1
     )
+    facet_vertices_extra = tile0(template.facet_vertices_extra)
+    facet_vertices_extra = jnp.where(
+        facet_vertices_extra != -1,
+        facet_vertices_extra + uid_offset[:, None, None],
+        -1,
+    )
 
     # facet_id values must stay unique across copies.
-    n_facets_template = int(jnp.max(template.facet_id, initial=-1)) + 1
+    n_facets_template = int(template._next_facet_id())
     facet_id = tile0(template.facet_id)
     facet_id = jnp.where(facet_id != -1, facet_id + copy * n_facets_template, -1)
+    facet_ids_extra = tile0(template.facet_ids_extra)
+    facet_ids_extra = jnp.where(
+        facet_ids_extra != -1,
+        facet_ids_extra + copy[:, None] * n_facets_template,
+        -1,
+    )
 
     return State(
         pos_c=pos_c,
@@ -115,6 +127,8 @@ def duplicate_clump_template(template: State, com_positions: jnp.ndarray) -> Sta
         bond_id=bond_id,
         facet_id=facet_id,
         facet_vertices=facet_vertices,
+        facet_ids_extra=facet_ids_extra,
+        facet_vertices_extra=facet_vertices_extra,
         mat_id=tile0(template.mat_id),
         species_id=tile0(template.species_id),
         fixed=tile0(template.fixed),
@@ -917,7 +931,6 @@ def generate_ga_clump_state(
     for idx, (rad, nv) in tqdm(
         enumerate(unique_rad_nv), desc="Generating Clumps", total=unique_rad_nv.shape[0]
     ):
-
         # create a template state for each particle type
         nv = int(nv)
         if dim == 2:

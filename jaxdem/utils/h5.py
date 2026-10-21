@@ -32,6 +32,8 @@ import numpy as np
 from .quaternion import Quaternion
 from .serialization import decode_callable, encode_callable
 from .serialization_schema import (
+    FACET_INCIDENCE_LAYOUT_VERSION,
+    LEGACY_FACET_FIELDS,
     make_serialization_manifest,
     serialization_schema_version,
 )
@@ -204,6 +206,8 @@ def _write_any(g: h5py.Group, name: str, obj: Any) -> bool:
         sg = g.create_group(name)
         sg.attrs["__kind__"] = "dataclass"
         sg.attrs["__class__"] = _qualname(type(obj))
+        if _qualname(type(obj)) in LEGACY_FACET_FIELDS:
+            sg.attrs["__facet_incidence_layout__"] = FACET_INCIDENCE_LAYOUT_VERSION
         for f in dataclasses.fields(obj):
             _write_any(sg, f.name, getattr(obj, f.name))
         return True
@@ -463,6 +467,16 @@ def _validate_schema3_tree(node: h5py.Group | h5py.Dataset) -> None:
         field_renames = _FIELD_RENAMES.get((cls.__module__, cls.__name__), {})
         saved = {field_renames.get(name, name) for name in node.keys()}
         required = {field.name for field in dataclasses.fields(cls)}
+        legacy_fields = LEGACY_FACET_FIELDS.get(_qualname(cls), frozenset())
+        layout = node.attrs.get("__facet_incidence_layout__")
+        if layout is not None and (
+            isinstance(layout, (bool, np.bool_))
+            or not isinstance(layout, (int, np.integer))
+            or layout != FACET_INCIDENCE_LAYOUT_VERSION
+        ):
+            raise RuntimeError("Unsupported HDF5 facet incidence layout.")
+        if layout is None and required - saved == legacy_fields:
+            required -= legacy_fields
         if saved != required:
             missing = sorted(required - saved)
             unknown = sorted(saved - required)
@@ -562,7 +576,9 @@ def save(obj: Any, path: str, *, overwrite: bool = True) -> None:
         payload = (
             "state"
             if type(obj).__name__ == "State"
-            else "system" if type(obj).__name__ == "System" else "object_tree"
+            else "system"
+            if type(obj).__name__ == "System"
+            else "object_tree"
         )
         f.attrs["jaxdem_serialization_manifest"] = json.dumps(
             make_serialization_manifest("hdf5", payload)

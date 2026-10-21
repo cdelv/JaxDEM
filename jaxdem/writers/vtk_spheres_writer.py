@@ -56,8 +56,11 @@ def _write_sphere_points(
             isinstance(arr, np.ndarray)
             and arr.ndim >= 1
             and arr.shape[0] == mask.shape[0]
+            and arr.size > 0
         ):
             arr = arr[mask]
+            if arr.ndim > 2:
+                arr = arr.reshape((int(np.sum(mask)), int(np.prod(arr.shape[1:]))))
             if arr.dtype == np.bool_:
                 arr = arr.astype(np.int8)
 

@@ -668,7 +668,9 @@ def remove_rattlers(
     """Remove all spheres belonging to rattler clumps and rebuild a matching system.
 
     The function drops the rattler spheres from the state and re-indexes
-    its ``clump_id`` and ``bond_id`` arrays. The returned system is a
+    its ``clump_id``, ``bond_id``, and contact facet connectivity arrays.
+    Contact faces touching a removed node are dropped; surviving shared
+    incidences are preserved. The returned system is a
     :func:`dataclasses.replace` copy of the input, so it preserves every
     field (``domain``, ``mat_table``, integrators, user hooks, ``dt``,
     ``time``, and any future additions to :class:`System`) by default.
@@ -747,6 +749,30 @@ def remove_rattlers(
     new_state.bond_id = jnp.where(
         keep_bond, idx_remap[jnp.where(keep_bond, old_bond_id, 0)], -1
     )
+
+    # Facet connectivity also stores array indices. Drop faces touching a
+    # removed node and promote a surviving shared incidence into the first
+    # slot when its previous first face was removed.
+    facet_ids = jnp.concatenate(
+        (new_state.facet_id[:, None], new_state.facet_ids_extra), axis=-1
+    )
+    facet_vertices = jnp.concatenate(
+        (new_state.facet_vertices[:, None, :], new_state.facet_vertices_extra),
+        axis=-2,
+    )
+    mapped_vertices = jnp.where(
+        facet_vertices >= 0, idx_remap[jnp.maximum(facet_vertices, 0)], -1
+    )
+    valid_facet = (facet_ids >= 0) & jnp.all(mapped_vertices >= 0, axis=-1)
+    facet_ids = jnp.where(valid_facet, facet_ids, -1)
+    mapped_vertices = jnp.where(valid_facet[..., None], mapped_vertices, -1)
+    order = jnp.argsort(~valid_facet, axis=-1, stable=True)
+    facet_ids = jnp.take_along_axis(facet_ids, order, axis=-1)
+    mapped_vertices = jnp.take_along_axis(mapped_vertices, order[..., None], axis=-2)
+    new_state.facet_id = facet_ids[:, 0]
+    new_state.facet_vertices = mapped_vertices[:, 0, :]
+    new_state.facet_ids_extra = facet_ids[:, 1:]
+    new_state.facet_vertices_extra = mapped_vertices[:, 1:, :]
 
     # 2. Rebuild the collider (if stateful).
     new_collider = refresh_collider(

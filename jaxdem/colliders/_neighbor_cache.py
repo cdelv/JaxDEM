@@ -312,7 +312,9 @@ def check_and_rebuild(state: Any, system: Any) -> Any:
     geometry since the last build are both charged against the skin: a pair
     separation can change by at most twice the largest displacement, plus
     the domain's bound on image motion. Changes to the search axes, the
-    required reach, or the skin itself always rebuild.
+    required reach, or the skin itself always rebuild. Adding facets also
+    rebuilds, even when an existing larger primitive keeps the global reach
+    unchanged. Manual rewiring of existing IDs requires explicit invalidation.
     """
     col, pos = system.collider, state.pos
     dim = state.dim
@@ -323,6 +325,10 @@ def check_and_rebuild(state: Any, system: Any) -> Any:
         )
     search_radii = system.force_model.search_radii(state, system)
     cutoff = jnp.maximum(col.cutoff, 2 * jnp.max(search_radii, initial=0.0))
+    facet_id = jnp.maximum(
+        jnp.max(state.facet_id, initial=-1),
+        jnp.max(state.facet_ids_extra, initial=-1),
+    )
 
     displacement = 2.0 * jnp.sqrt(jnp.max(norm2(pos - col.old_pos), initial=0.0))
     rebuild = (
@@ -332,6 +338,7 @@ def check_and_rebuild(state: Any, system: Any) -> Any:
         | jnp.any(metric[dim + 1 :] != col.metric_snapshot[dim + 1 :])
         | (cutoff != col.physical_cutoff_snapshot)
         | (col.skin != col.skin_snapshot)
+        | (facet_id != col.facet_id_snapshot)
     )
     geometry_changed = jnp.any(metric != col.metric_snapshot)
 
@@ -369,6 +376,7 @@ def check_and_rebuild(state: Any, system: Any) -> Any:
             metric_snapshot=metric,
             physical_cutoff_snapshot=cutoff,
             skin_snapshot=col.skin,
+            facet_id_snapshot=facet_id,
             invalidated=jnp.asarray(False),
         )
 

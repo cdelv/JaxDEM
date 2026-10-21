@@ -226,7 +226,24 @@ class State:
         default_factory=lambda: jnp.zeros((0, 0), dtype=int)
     )
     """
-    Array of vertex indices for each facet. Shape is `(..., N, dim)`.
+    Vertex indices of each particle's first incident facet. Shape is `(..., N, dim)`.
+    """
+
+    facet_ids_extra: jax.Array = field(
+        default_factory=lambda: jnp.zeros((0, 0), dtype=int), kw_only=True
+    )
+    """
+    Additional incident facet IDs, padded with -1. Shape is `(..., N, K)`.
+    The first incidence remains in ``facet_id``; ordinary and legacy facet
+    states have ``K=0``.
+    """
+
+    facet_vertices_extra: jax.Array = field(
+        default_factory=lambda: jnp.zeros((0, 0, 0), dtype=int), kw_only=True
+    )
+    """
+    Vertex indices for additional incident facets. Shape is `(..., N, K, dim)`.
+    Unused incidences contain only -1.
     """
 
     _pos_p_rot: jax.Array = field(default_factory=lambda: jnp.zeros((0, 0)))
@@ -237,6 +254,21 @@ class State:
 
     def __post_init__(self) -> None:
         """Build the derived rotated-offset cache from the current inputs."""
+        # Older direct constructors and checkpoint payloads have no extra
+        # incidence fields. Match their empty axes to the particle layout.
+        try:
+            if self.facet_ids_extra.shape == (
+                0,
+                0,
+            ) and self.facet_vertices_extra.shape == (0, 0, 0):
+                self.facet_ids_extra = jnp.full(
+                    (*self.pos_c.shape[:-1], 0), -1, dtype=int
+                )
+                self.facet_vertices_extra = jnp.full(
+                    (*self.pos_c.shape[:-1], 0, self.pos_c.shape[-1]), -1, dtype=int
+                )
+        except (AttributeError, TypeError, IndexError):
+            pass
         self._try_refresh_rotation_cache()
 
     def __setattr__(self, name: str, value: Any) -> None:
@@ -406,6 +438,11 @@ class State:
         if self.pos_c.shape[:-1] != self.bond_id.shape[:-1]:
             return False
 
+        if self.facet_ids_extra.shape[:-1] != self.pos_c.shape[:-1]:
+            return False
+        if self.facet_vertices_extra.shape != (*self.facet_ids_extra.shape, self.dim):
+            return False
+
         return True
 
     def validate(
@@ -438,6 +475,7 @@ class State:
             "ang_vel",
             "torque",
             "facet_vertices",
+            "facet_vertices_extra",
         )
         if any(
             not bool(jnp.all(jnp.isfinite(getattr(self, n)))) for n in finite_fields
@@ -458,11 +496,14 @@ class State:
             "species_id",
             "facet_id",
             "facet_vertices",
+            "facet_ids_extra",
+            "facet_vertices_extra",
         ):
             if not jnp.issubdtype(getattr(self, name).dtype, jnp.integer):
                 raise ValueError(f"{name} must have an integer dtype.")
         if not jnp.issubdtype(self.fixed.dtype, jnp.bool_):
             raise ValueError("fixed must have a boolean dtype.")
+        self._validate_contact_topology()
         q_norm2 = self.q.w[..., 0] ** 2 + jnp.sum(self.q.xyz**2, axis=-1)
         if not bool(jnp.all(jnp.abs(q_norm2 - 1.0) <= quaternion_atol)):
             raise ValueError("State orientations must be unit quaternions.")
@@ -530,6 +571,91 @@ class State:
                 if not bool(jnp.all(values == expected)):
                     raise ValueError(f"Clump field '{name}' is not replicated.")
 
+    def _validate_contact_topology(self) -> None:
+        """Check complete facet incidences at a host-side topology boundary."""
+        import numpy as np
+
+        ids = np.concatenate(
+            (np.asarray(self.facet_id)[..., None], np.asarray(self.facet_ids_extra)),
+            axis=-1,
+        )
+        vertices = np.concatenate(
+            (
+                np.asarray(self.facet_vertices)[..., None, :],
+                np.asarray(self.facet_vertices_extra),
+            ),
+            axis=-2,
+        )
+        if np.any(ids < -1) or np.any(vertices < -1) or np.any(vertices >= self.N):
+            raise ValueError(
+                "Facet IDs must be -1 or nonnegative; vertices must be -1 "
+                "or lie in [0, N)."
+            )
+        if np.any(np.where(ids[..., None] == -1, vertices != -1, vertices < 0)):
+            raise ValueError("Facet IDs and vertex padding are inconsistent.")
+        if np.any((ids[..., 0] == -1) & np.any(ids[..., 1:] >= 0, axis=-1)):
+            raise ValueError("Additional facets require a first facet incidence.")
+        if self.N == 0:
+            return
+        flat_ids = ids.reshape((-1, self.N, ids.shape[-1]))
+        flat_vertices = vertices.reshape((-1, self.N, ids.shape[-1], self.dim))
+        for snapshot_ids, snapshot_vertices in zip(
+            flat_ids, flat_vertices, strict=True
+        ):
+            seen: dict[int, tuple[int, ...]] = {}
+            members: dict[int, set[int]] = {}
+            for node, slot in np.argwhere(snapshot_ids >= 0):
+                facet = int(snapshot_ids[node, slot])
+                face = tuple(int(v) for v in snapshot_vertices[node, slot])
+                if len(set(face)) != self.dim or int(node) not in face:
+                    raise ValueError(
+                        "Each facet incidence must contain its node "
+                        "and distinct vertices."
+                    )
+                if facet in seen and seen[facet] != face:
+                    raise ValueError("A facet ID has inconsistent vertex connectivity.")
+                if int(node) in members.setdefault(facet, set()):
+                    raise ValueError(
+                        "A node cannot store the same facet incidence twice."
+                    )
+                seen[facet] = face
+                members[facet].add(int(node))
+            if any(members[facet] != set(face) for facet, face in seen.items()):
+                raise ValueError("Every facet vertex must store its facet incidence.")
+            if len({tuple(sorted(face)) for face in seen.values()}) != len(seen):
+                raise ValueError("Duplicate contact facets are not supported.")
+
+    @staticmethod
+    def _pad_facet_incidences(state: State, extra_count: int) -> State:
+        """Give states a common incidence capacity before merge or stack."""
+        padding = extra_count - state.facet_ids_extra.shape[-1]
+        if padding == 0:
+            return state
+        return dataclasses.replace(
+            state,
+            facet_ids_extra=jnp.pad(
+                state.facet_ids_extra,
+                ((0, 0),) * (state.facet_ids_extra.ndim - 1) + ((0, padding),),
+                constant_values=-1,
+            ),
+            facet_vertices_extra=jnp.pad(
+                state.facet_vertices_extra,
+                ((0, 0),) * (state.facet_vertices_extra.ndim - 2)
+                + ((0, padding), (0, 0)),
+                constant_values=-1,
+            ),
+        )
+
+    def _next_facet_id(self) -> jax.Array:
+        """Return one beyond all IDs, including faces stored only in extra slots."""
+        return (
+            jnp.maximum(
+                jnp.max(self.facet_id, initial=-1),
+                jnp.max(self.facet_ids_extra, initial=-1),
+            )
+            + 1
+        )
+
     @staticmethod
     @partial(jax.named_call, name="State.create")
     def create(
@@ -554,6 +680,8 @@ class State:
         fixed: ArrayLike | None = None,
         facet_id: ArrayLike | None = None,
         facet_vertices: ArrayLike | None = None,
+        facet_ids_extra: ArrayLike | None = None,
+        facet_vertices_extra: ArrayLike | None = None,
         mat_table: MaterialTable | None = None,
     ) -> State:
         r"""Factory method to create a new :class:`State` instance.
@@ -635,6 +763,12 @@ class State:
             Vertex indices for the facet each particle belongs to.
             `-1` marks non-facet particles. If `None`, defaults to all `-1`.
             Expected shape: `(..., N, dim)`.
+        facet_ids_extra : jax.typing.ArrayLike or None, optional
+            Additional incident facet IDs, with -1 padding. Defaults to an empty
+            incidence axis. Expected shape: `(..., N, K)`.
+        facet_vertices_extra : jax.typing.ArrayLike or None, optional
+            Connectivity of additional incident facets, with -1 padding.
+            Expected shape: `(..., N, K, dim)`.
         mat_table : MaterialTable or None, optional
             Optional material table providing per-material densities. When you
             provide `mat_table`, the method ignores the `mass` argument and
@@ -763,6 +897,20 @@ class State:
                         _update_shape(tuple(a.shape[:-1]), "bond_id")
                 except (ValueError, TypeError):
                     pass
+
+            if facet_ids_extra is not None:
+                a = jnp.asarray(facet_ids_extra)
+                if a.ndim < 2:
+                    raise ValueError("`facet_ids_extra` must have shape (..., N, K).")
+                _update_shape(tuple(a.shape[:-1]), "facet_ids_extra")
+            if facet_vertices_extra is not None:
+                a = jnp.asarray(facet_vertices_extra)
+                if a.ndim < 3:
+                    raise ValueError(
+                        "`facet_vertices_extra` must have shape (..., N, K, dim)."
+                    )
+                _update_shape(tuple(a.shape[:-2]), "facet_vertices_extra")
+                _update_dim(int(a.shape[-1]), "facet_vertices_extra")
 
             if q is not None:
                 if isinstance(q, Quaternion):
@@ -968,6 +1116,25 @@ class State:
             if facet_vertices is None
             else jnp.asarray(facet_vertices, dtype=int)
         )
+        extra_count = (
+            jnp.asarray(facet_ids_extra).shape[-1]
+            if facet_ids_extra is not None
+            else (
+                jnp.asarray(facet_vertices_extra).shape[-2]
+                if facet_vertices_extra is not None
+                else 0
+            )
+        )
+        facet_ids_extra = (
+            jnp.full((*pos_c.shape[:-1], extra_count), -1, dtype=int)
+            if facet_ids_extra is None
+            else jnp.asarray(facet_ids_extra, dtype=int)
+        )
+        facet_vertices_extra = (
+            jnp.full((*pos_c.shape[:-1], extra_count, dim), -1, dtype=int)
+            if facet_vertices_extra is None
+            else jnp.asarray(facet_vertices_extra, dtype=int)
+        )
 
         if mat_table is not None:
             density = mat_table.density[mat_id]
@@ -1019,6 +1186,8 @@ class State:
             bond_id=jnp.asarray(bond_id),
             facet_id=facet_id,
             facet_vertices=facet_vertices,
+            facet_ids_extra=facet_ids_extra,
+            facet_vertices_extra=facet_vertices_extra,
             mat_id=mat_id,
             species_id=species_id,
             fixed=fixed,
@@ -1116,7 +1285,9 @@ class State:
         idx_offset = jnp.asarray(0, dtype=int)
         f_offset = jnp.asarray(0, dtype=int)
         shifted: list[State] = []
+        extra_count = max(s.facet_ids_extra.shape[-1] for s in non_empty)
         for s in non_empty:
+            s = State._pad_facet_incidences(s, extra_count)
             shifted.append(
                 dataclasses.replace(
                     s,
@@ -1126,11 +1297,19 @@ class State:
                     facet_vertices=jnp.where(
                         s.facet_vertices != -1, s.facet_vertices + idx_offset, -1
                     ),
+                    facet_ids_extra=jnp.where(
+                        s.facet_ids_extra != -1, s.facet_ids_extra + f_offset, -1
+                    ),
+                    facet_vertices_extra=jnp.where(
+                        s.facet_vertices_extra != -1,
+                        s.facet_vertices_extra + idx_offset,
+                        -1,
+                    ),
                 )
             )
             c_offset = c_offset + jnp.max(s.clump_id) + 1
             idx_offset = idx_offset + s.N
-            f_offset = f_offset + jnp.maximum(0, jnp.max(s.facet_id) + 1)
+            f_offset = f_offset + s._next_facet_id()
 
         # Single concatenation pass per leaf.
         def cat(*leaves: jax.Array) -> jax.Array:
@@ -1145,8 +1324,9 @@ class State:
                     )
                     for a in leaves
                 )
-            # Particles are at -2 for vector fields, -1 for scalars
-            axis = -2 if leaves[0].ndim == pos_ndim else -1
+            # Extra facet connectivity has two trailing axes; all other
+            # vector/adjacency fields have one, and scalar fields have none.
+            axis = -(leaves[0].ndim - pos_ndim + 2)
             return jnp.concatenate(leaves, axis=axis)
 
         current_state = jax.tree.map(cat, shifted[0], *shifted[1:])
@@ -1366,6 +1546,8 @@ class State:
                 raise ValueError("particle count mismatch")
 
         # ---------- concatenate every leaf -----------------------------
+        extra_count = max(s.facet_ids_extra.shape[-1] for s in states)
+        states = [State._pad_facet_incidences(s, extra_count) for s in states]
         stacked = jax.tree.map(lambda *xs: jnp.stack(xs), *states)
 
         if not stacked.is_valid:
@@ -1812,7 +1994,7 @@ class State:
             )
 
             N_old = state.N
-            f_offset = jnp.maximum(0, jnp.max(state.facet_id, initial=-1) + 1)
+            f_offset = state._next_facet_id()
 
             facet_indices = jnp.arange(num_facets, dtype=int)
             vertices_of_facets = facet_indices[:, None] * V + jnp.arange(V)
@@ -2155,7 +2337,7 @@ class State:
             )
 
             N_old = state.N
-            f_offset = jnp.maximum(0, jnp.max(state.facet_id, initial=-1) + 1)
+            f_offset = state._next_facet_id()
 
             face_indices = jnp.arange(num_meshes * F, dtype=int)
             vertices_of_faces = face_indices[:, None] * V + jnp.arange(V)
@@ -2298,6 +2480,111 @@ class State:
             return State.merge(state, state2)
 
     @staticmethod
+    def add_contact_facets(state: State, elements: ArrayLike) -> State:
+        """Attach contact segments or triangles to existing physical nodes.
+
+        ``elements`` has shape ``(F, dim)`` and contains state array indices.
+        Faces may share nodes; contact forces from every incident face add to
+        the same nodal dynamics. This method preserves particle properties,
+        including masses, radii, species, clumps and bonded-neighbor exclusions.
+        The existing nodal radii define the contact thickness.
+
+        Construct topology on a single snapshot outside JIT, then use
+        :meth:`stack` or ``jax.vmap`` for batched simulations. Each face must
+        connect independent nodes or vertices belonging to one rigid clump,
+        and its vertices must share a species. Elasticity requires a separate
+        bonded force model; attaching contact faces creates no bonds.
+        """
+        import numpy as np
+
+        if state.pos_c.ndim != 2:
+            raise ValueError("State.add_contact_facets requires an unbatched state.")
+        if not state.is_valid or state.dim not in (2, 3):
+            raise ValueError("Contact facets require a valid 2D or 3D state.")
+        faces = np.asarray(elements)
+        if faces.size == 0 and faces.shape == (0,):
+            faces = np.empty((0, state.dim), dtype=int)
+        if faces.ndim != 2 or faces.shape[1] != state.dim:
+            raise ValueError("`elements` must have shape (F, dim).")
+        if not np.issubdtype(faces.dtype, np.integer):
+            raise ValueError("Contact facet vertex indices must be integers.")
+        if np.any(faces < 0) or np.any(faces >= state.N):
+            raise ValueError("Contact facet vertex indices must lie in [0, N).")
+        if any(len(set(face)) != state.dim for face in faces):
+            raise ValueError("Contact facets require distinct vertex indices.")
+        state._validate_contact_topology()
+        if len(faces) == 0:
+            return state
+
+        first_ids = np.array(state.facet_id, copy=True)
+        first_vertices = np.array(state.facet_vertices, copy=True)
+        old_extra_ids = np.asarray(state.facet_ids_extra)
+        old_extra_vertices = np.asarray(state.facet_vertices_extra)
+        known_faces = {
+            tuple(sorted(int(v) for v in face))
+            for face in first_vertices[first_ids >= 0]
+        }
+        known_faces.update(
+            tuple(sorted(int(v) for v in face))
+            for face in old_extra_vertices[old_extra_ids >= 0]
+        )
+        clumps = np.asarray(state.clump_id)
+        species = np.asarray(state.species_id)
+        _, clump_sizes = np.unique(clumps, return_counts=True)
+        # Clump IDs need not be dense after selection or manual construction.
+        clump_size = dict(zip(np.unique(clumps), clump_sizes, strict=True))
+        for face in faces:
+            key = tuple(sorted(int(v) for v in face))
+            if key in known_faces:
+                raise ValueError("Duplicate contact facets are not supported.")
+            known_faces.add(key)
+            if np.any(species[face] != species[face[0]]):
+                raise ValueError(
+                    "All vertices of a contact facet must share the same species_id."
+                )
+            ids = clumps[face]
+            independent = all(clump_size[c] == 1 for c in ids)
+            if not independent and not np.all(ids == ids[0]):
+                raise ValueError(
+                    "A contact facet must connect independent nodes "
+                    "or vertices of one rigid clump."
+                )
+
+        extra_ids = [list(row[row >= 0]) for row in old_extra_ids]
+        extra_vertices = [
+            [np.array(face, copy=True) for face in row[mask >= 0]]
+            for row, mask in zip(old_extra_vertices, old_extra_ids, strict=True)
+        ]
+        next_id = int(state._next_facet_id())
+        for offset, face in enumerate(faces):
+            facet_id = next_id + offset
+            for node in face:
+                if first_ids[node] < 0:
+                    first_ids[node] = facet_id
+                    first_vertices[node] = face
+                else:
+                    extra_ids[node].append(facet_id)
+                    extra_vertices[node].append(face)
+        capacity = max((len(row) for row in extra_ids), default=0)
+        padded_ids = np.full((state.N, capacity), -1, dtype=first_ids.dtype)
+        padded_vertices = np.full(
+            (state.N, capacity, state.dim), -1, dtype=first_vertices.dtype
+        )
+        for node, (ids, vertices) in enumerate(
+            zip(extra_ids, extra_vertices, strict=True)
+        ):
+            padded_ids[node, : len(ids)] = ids
+            if vertices:
+                padded_vertices[node, : len(vertices)] = vertices
+        return dataclasses.replace(
+            state,
+            facet_id=jnp.asarray(first_ids),
+            facet_vertices=jnp.asarray(first_vertices),
+            facet_ids_extra=jnp.asarray(padded_ids),
+            facet_vertices_extra=jnp.asarray(padded_vertices),
+        )
+
+    @staticmethod
     def add_connected_facet(
         state: State,
         vertex_specs: list[int | ArrayLike],
@@ -2328,6 +2615,8 @@ class State:
         """
         import numpy as np
 
+        if state.pos_c.ndim != 2:
+            raise ValueError("State.add_connected_facet requires an unbatched state.")
         dim = state.dim
         V = len(vertex_specs)
         if V not in (2, 3):
@@ -2356,13 +2645,8 @@ class State:
                 new_positions.append(spec_arr)
                 spec_is_existing.append(False)
 
-        shared = [uid for uid in existing_uids if int(state.facet_id[uid]) >= 0]
-        if shared:
-            raise ValueError(
-                "Contact facets cannot share vertices because State stores only one "
-                f"facet incidence per particle; already-used vertex indices: {shared}. "
-                "Deformable-particle bonded meshes remain supported through the mesh APIs."
-            )
+        if len(set(existing_uids)) != len(existing_uids):
+            raise ValueError("Contact facets require distinct vertex indices.")
 
         # 1. Check species_id condition
         if species_id is None:
@@ -2505,15 +2789,13 @@ class State:
                 facet_uids.append(new_uids[new_idx])
                 new_idx += 1
 
-        # 3. Update facet_id and facet_vertices
-        f_offset = jnp.maximum(0, jnp.max(state2.facet_id, initial=-1) + 1)
-        updated_facet_id = state2.facet_id.at[jnp.array(facet_uids)].set(f_offset)
-        updated_facet_vertices = state2.facet_vertices.at[jnp.array(facet_uids), :].set(
-            jnp.array(facet_uids)
-        )
-
-        state2.facet_id = updated_facet_id
-        state2.facet_vertices = updated_facet_vertices
+        # Join new rigid members before validating the complete face topology.
+        if rigid and target_clump_id is not None and new_uids:
+            state2 = dataclasses.replace(
+                state2,
+                clump_id=state2.clump_id.at[jnp.array(new_uids)].set(target_clump_id),
+            )
+        state2 = State.add_contact_facets(state2, jnp.array([facet_uids]))
 
         # 4. Update search radius _rad
         facet_uid_arr = jnp.array(facet_uids)
@@ -2522,8 +2804,9 @@ class State:
         rad_val = (dist + state2.rad[facet_uid_arr]) * safety_factor
         state2._rad = state2._rad.at[facet_uid_arr].max(rad_val)
 
-        # 5. Handle rigid clump properties if rigid
-        if rigid:
+        # Existing-only attachments change contact topology, not the body's
+        # mass distribution, principal frame or inertia.
+        if rigid and new_uids:
             if target_clump_id is None:
                 pass
             else:
