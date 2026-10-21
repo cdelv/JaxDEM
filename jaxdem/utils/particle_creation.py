@@ -290,6 +290,11 @@ def create_ga_state(
     ``mesh_type``) and adds an optional central core sphere. The union of
     the asperities (and, if present, the core) defines the body volume from
     which the function derives the rigid-body / deformable-body properties.
+    Each member is a filled disk or ball; ``particle_mass`` is distributed
+    uniformly over the union, with overlaps counted once. Uncovered gaps or
+    cavities remain empty. A hollow assembly of solid asperities is supported,
+    but hollow individual asperities and thin-shell mass require a different
+    mass model.
 
     Parameters
     ----------
@@ -300,10 +305,23 @@ def create_ga_state(
         the body mass and union volume. "sphere"-like bodies are the
         ``nv = 1`` degenerate case of "clump".
     core_type : {"hollow", "solid", "phantom"}
-        "hollow" uses only the surface asperities. "solid" adds a central
-        core sphere that stays in the final state. "phantom" adds the
-        core only for the property calculation and strips it from the
-        returned state.
+        ``"hollow"`` uses the union of the solid surface asperities without
+        adding a central core; any uncovered interior remains a void.
+        ``"solid"`` includes a central core in both the mass properties and
+        the returned contact geometry. ``"phantom"`` includes that core in
+        volume, COM, and inertia, then removes it from the returned contact
+        geometry. A phantom core therefore carries solid-core mass properties;
+        it does not represent an empty interior. Recomputing properties from
+        the returned phantom state would integrate the asperities alone.
+    particle_mass : float
+        Prescribed total mass of each body's material union, including the
+        core when ``core_type`` is ``"solid"`` or ``"phantom"``.
+    n_samples : int
+        Numerical integration budget for 3D union properties. Disk unions
+        and analytical 3D cases do not depend on it. Other 3D cases choose
+        boundary or volume quadrature according to overlap density, including
+        simultaneous triple and higher-order overlaps. Check convergence of
+        volume, COM, and world-frame inertia at increasing budgets.
     mesh_type : {"thomson", "icosphere", "fibonacci", "torus", "helix", "arclength", "faceted"}
         How the function generates asperity positions on the unit shape.
 
@@ -1561,7 +1579,10 @@ def build_ga_system(
         ``"clump"`` (default) or ``"dp"``. ``nv=1`` clumps are effectively
         spheres.
     core_type
-        ``"hollow"`` (default), ``"solid"``, or ``"phantom"``.
+        ``"hollow"`` (default), ``"solid"``, or ``"phantom"``. Forwarded to
+        :func:`create_ga_state`: hollow means solid asperities without an
+        added core, while phantom retains solid-core mass properties and
+        removes only the core's contact geometry.
     aspect_ratio
         ``None`` (isotropic), scalar, ``(dim,)``, ``(M,)``, or ``(M, dim)``.
     asperity_dispersity_type, asperity_dispersity_kwargs
