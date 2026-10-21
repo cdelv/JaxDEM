@@ -504,6 +504,7 @@ def _construct_minimizer(constructor_path: str, kw: dict[str, Any]) -> Any:
         constructor,
         kw,
         type_name=getattr(constructor, "__name__", ""),
+        requires_value=getattr(opt_obj, "requires_value", None),
     )
 
 

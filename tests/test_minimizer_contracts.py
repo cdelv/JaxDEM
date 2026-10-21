@@ -3,6 +3,7 @@
 from dataclasses import replace
 from dataclasses import dataclass
 import json
+from types import SimpleNamespace
 
 import jax
 import jax.numpy as jnp
@@ -43,6 +44,47 @@ def _named_sgd_factory(rate):
         return optax.sgd(rate)
 
     return same_name
+
+
+def _instance_only_gradient_optimizer():
+    optimizer = optax.with_extra_args_support(optax.sgd(0.1))
+    return SimpleNamespace(
+        init=optimizer.init, update=optimizer.update, requires_value=False
+    )
+
+
+def _update_only_gradient_optimizer():
+    optimizer = optax.with_extra_args_support(optax.sgd(0.1))
+
+    def update(updates, state, params=None, **kwargs):
+        return optimizer.update(updates, state, params=params, **kwargs)
+
+    update.requires_value = False
+    return optax.GradientTransformationExtraArgs(optimizer.init, update)
+
+
+@pytest.mark.parametrize(
+    "factory", [_instance_only_gradient_optimizer, _update_only_gradient_optimizer]
+)
+def test_gradient_optimizer_capability_survives_system_and_h5(tmp_path, factory):
+    pytest.importorskip("h5py")
+    from jaxdem.utils import h5
+
+    state = jd.State.create(pos=jnp.array([[0.0, 0.0]]))
+    system = jd.System.create(state=state, collider_type="naive", minimizer=factory)
+    assert system.minimizer.requires_value is False
+
+    path = tmp_path / "optimizer.h5"
+    h5.save(system, str(path))
+    restored = h5.load(str(path))
+    assert restored.minimizer.requires_value is False
+
+    params = jnp.array([1.0, 2.0])
+    for optimizer in (system.minimizer, restored.minimizer):
+        updates, _ = optimizer.update(
+            params, optimizer.init(params), params=params, value=jnp.array(0.0)
+        )
+        np.testing.assert_allclose(updates, -0.1 * params)
 
 
 def test_custom_optimizer_static_identity_includes_factory_closure():

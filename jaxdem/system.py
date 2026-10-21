@@ -575,6 +575,7 @@ class System:
             minimizer,
             minimizer_kw,
             type_name=getattr(minimizer, "__name__", ""),
+            requires_value=getattr(opt_obj, "requires_value", None),
         )
 
         if collider is None:
