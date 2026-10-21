@@ -114,6 +114,8 @@ def test_batched_rollout_keeps_per_replica_dt_gravity_and_torque(dim, linear, ro
         system = jd.System.create(
             state=state,
             dt=float(dt),
+            # The unused minimizer stays shared static configuration while
+            # the physical timestep varies independently between replicas.
             minimizer_kw={"dt": 0.01},
             collider_type="",
             linear_integrator_type=linear,
