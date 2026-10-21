@@ -364,3 +364,78 @@ def test_reflect_domain_with_facets():
     # 2. The fixed facet vertices (indices 3, 4, 5) must NOT have moved (positions and velocities remain unchanged)
     np.testing.assert_allclose(state_new.pos_c[3:6], state.pos_c[3:6])
     np.testing.assert_allclose(state_new.vel[3:6], 0.0)
+
+
+@pytest.mark.parametrize("rigid", [False, True])
+@pytest.mark.parametrize(
+    "center,nearest,weights",
+    [
+        ([1.0, -0.12, 0.16], [1.0, 0, 0], [0.5, 0.5, 0]),
+        ([-0.12, -0.16, 0], [0, 0, 0], [1, 0, 0]),
+    ],
+)
+def test_facet_edge_and_vertex_contacts_have_the_predicted_force_and_moment(
+    rigid, center, nearest, weights
+):
+    vertices = np.array([[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [0.0, 2.0, 0.0]])
+    state = jdem.State.add_facet(
+        jdem.State.create(dim=3), vertices, thickness=0.1, rigid=rigid, species_id=1
+    )
+    state = jdem.State.merge(
+        state,
+        jdem.State.create(
+            pos=jnp.array([center]), rad=jnp.array([0.25]), species_id=jnp.array([0])
+        ),
+    )
+    law = jdem.ForceRouter.from_dict(
+        2, {(0, 1): jdem.ForceModel.create("sphere_facet_spring")}
+    )
+    table = jdem.MaterialTable.from_materials(
+        [jdem.Material.create("elastic", young=10.0, poisson=0.25, density=1.0)]
+    )
+    system = jdem.System.create(state=state, force_model=law, mat_table=table)
+    actual, system = jdem.System.evaluate_forces(state, system)
+    normal = (np.array(center) - nearest) / 0.2
+    force = 1.5 * normal
+    np.testing.assert_allclose(actual.force[-1], force, atol=2e-6)
+    if rigid:
+        np.testing.assert_allclose(actual.force[:3], np.tile(-force, (3, 1)), atol=2e-6)
+        torque = np.cross(np.array(nearest) - vertices.mean(axis=0), -force)
+        np.testing.assert_allclose(
+            actual.torque[:3], np.tile(torque, (3, 1)), atol=2e-6
+        )
+    else:
+        np.testing.assert_allclose(
+            actual.force[:3], -np.array(weights)[:, None] * force, atol=2e-6
+        )
+        np.testing.assert_array_equal(actual.torque[:3], 0.0)
+    np.testing.assert_allclose(
+        jdem.utils.compute_potential_energy(actual, system),
+        0.5 * 10 * 0.15**2,
+        atol=2e-6,
+    )
+
+
+def test_intersecting_facets_follow_the_reciprocal_normal_convention():
+    state = jdem.State.create(dim=2)
+    for vertices, thickness in [
+        ([[-1.0, 0.0], [1.0, 0.0]], 0.1),
+        ([[0.0, -1.0], [0.0, 1.0]], 0.2),
+    ]:
+        state = jdem.State.add_facet(state, jnp.asarray(vertices), thickness=thickness)
+    table = jdem.MaterialTable.from_materials(
+        [jdem.Material.create("elastic", young=10.0, poisson=0.25, density=1.0)]
+    )
+    system = jdem.System.create(
+        state=state, mat_table=table, force_model_type="facet_facet_spring"
+    )
+    actual, system = jdem.System.evaluate_forces(state, system)
+    # At zero distance the first segment's +y normal defines the force.
+    # This is an explicit reciprocal convention at a nondifferentiable energy.
+    np.testing.assert_allclose(
+        actual.force, [[0, 3], [0, 3], [0, -3], [0, -3]], atol=2e-6
+    )
+    np.testing.assert_allclose(actual.torque, 0, atol=2e-6)
+    np.testing.assert_allclose(
+        jdem.utils.compute_potential_energy(actual, system), 0.45, atol=2e-6
+    )

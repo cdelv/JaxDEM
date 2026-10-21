@@ -107,3 +107,80 @@ def test_configured_cutoff_survives_checkpoint(tmp_path, composition):
 def test_invalid_cutoff_rejected(cutoff):
     with pytest.raises(ValueError, match="cutoff_ratio"):
         jd.ForceModel.create("lennardjones", cutoff_ratio=cutoff)
+
+
+@pytest.mark.parametrize("overlap", [0.3, 0.0, -0.2])
+def test_unequal_material_hertz_force_energy_and_jacobian(overlap):
+    radii = np.array([0.4, 1.2])
+    young, poisson = np.array([100.0, 250.0]), np.array([0.2, 0.35])
+    direction = np.array([0.6, 0.8])
+    distance = radii.sum() - overlap
+    state = jd.State.create(
+        pos=jnp.asarray([[0, 0], distance * direction]),
+        rad=jnp.asarray(radii),
+        mat_id=jnp.arange(2),
+    )
+    table = jd.MaterialTable.from_materials(
+        [
+            jd.Material.create("elastic", young=e, poisson=nu, density=1.0)
+            for e, nu in zip(young, poisson, strict=True)
+        ]
+    )
+    system = jd.System.create(state=state, mat_table=table, force_model_type="hertz")
+    law, history = system.force_model, jnp.zeros(0)
+    modulus = 1 / np.sum((1 - poisson**2) / young)
+    radius = 1 / np.sum(1 / radii)
+    k = 4 / 3 * modulus * np.sqrt(radius)
+    delta = max(overlap, 0)
+    magnitude = k * delta**1.5
+    expected_force = -magnitude * direction
+    expected_jacobian = (
+        magnitude / distance * (np.eye(2) - np.outer(direction, direction))
+    )
+    expected_jacobian -= 1.5 * k * np.sqrt(delta) * np.outer(direction, direction)
+
+    def force(position):
+        return law.force(0, 1, state.pos.at[0].set(position), state, system, history)[0]
+
+    energy = lambda pos: law.energy(0, 1, pos, state, system, history)
+    np.testing.assert_allclose(force(state.pos[0]), expected_force, atol=2e-6)
+    np.testing.assert_allclose(energy(state.pos), 0.4 * k * delta**2.5, atol=2e-6)
+    np.testing.assert_allclose(
+        -jax.grad(energy)(state.pos)[0], expected_force, atol=2e-6
+    )
+    np.testing.assert_allclose(
+        jax.jacrev(force)(state.pos[0]), expected_jacobian, atol=2e-5
+    )
+
+
+@pytest.mark.parametrize("name", ["wca", "wcashifted"])
+@pytest.mark.parametrize("fraction", [0.9, 1.0, 1.1])
+def test_wca_values_and_energy_derivative_at_the_physical_cutoff(name, fraction):
+    cutoff = 2 ** (1 / 6) if name == "wca" else 1.0
+    distance, epsilon = cutoff * fraction, 0.7
+    state = jd.State.create(
+        pos=jnp.array([[0.0, 0.0], [distance, 0.0]]), rad=jnp.array([0.25, 0.75])
+    )
+    table = jd.MaterialTable.from_materials(
+        [jd.Material.create("lj", epsilon=epsilon, density=1)]
+    )
+    system = jd.System.create(state=state, mat_table=table, force_model_type=name)
+    law, history = system.force_model, jnp.zeros(0)
+    expected_energy = expected_magnitude = 0.0
+    if fraction < 1:
+        expected_energy = 4 * epsilon * (distance**-12 - distance**-6)
+        expected_magnitude = 24 * epsilon * (2 * distance**-13 - distance**-7)
+        if name == "wca":
+            expected_energy += epsilon
+        else:
+            expected_energy += (distance - 1) * 24 * epsilon
+            expected_magnitude -= 24 * epsilon
+    energy = lambda pos: law.energy(0, 1, pos, state, system, history)
+    expected_force = [-expected_magnitude, 0]
+    np.testing.assert_allclose(
+        law.force(0, 1, state.pos, state, system, history)[0], expected_force, atol=2e-5
+    )
+    np.testing.assert_allclose(energy(state.pos), expected_energy, atol=2e-6)
+    np.testing.assert_allclose(
+        -jax.grad(energy)(state.pos)[0], expected_force, atol=2e-5
+    )

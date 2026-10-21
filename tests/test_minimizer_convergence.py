@@ -461,3 +461,24 @@ def test_quasistatic_compression_forwards_mechanical_tolerances():
     checked = minimize(st, sy, max_steps=0, force_tol=1e-11, torque_tol=1e-11)
     assert checked.info.converged
     np.testing.assert_allclose(pe, checked[3])
+
+
+def test_fire_uphill_backtracking_and_counter_reset_follow_the_exact_sequence():
+    optimizer = jd.fire(dt=1.0, N_min=0, N_bad_max=1, f_inc=2.0, f_alpha=0.5)
+    state = optimizer.init(jnp.asarray(0.0))
+    # The reversed force makes power negative; a following zero-power step
+    # exceeds N_bad_max and restores the base dt instead of halving it again.
+    expected = [
+        (3, 3, 2, 0.05, 1, 0),
+        (-1, 0, 1, 0.1, 0, 1),
+        (0, 0, 1, 0.1, 0, 0),
+        (3, 3, 2, 0.05, 1, 0),
+    ]
+    for gradient, prediction in zip([-2.0, 1.0, 0.0, -2.0], expected, strict=True):
+        update, state = optimizer.update(jnp.asarray(gradient), state)
+        np.testing.assert_allclose(
+            [update, state.vel, state.dt, state.alpha, state.N_good, state.N_bad],
+            prediction,
+            rtol=2e-6,
+            atol=1e-7,
+        )

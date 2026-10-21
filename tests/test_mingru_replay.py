@@ -97,3 +97,44 @@ def test_replay_preserves_small_positive_initial_carry(initial_value):
     assert np.isfinite(replay[1]).all()
     if initial_value > 0:
         np.testing.assert_allclose(replay[1], rollout[1], rtol=5e-6, atol=1e-6)
+
+
+def test_configured_mingru_matches_an_exact_recurrence_and_reset():
+    model = MinGRUActorCritic(
+        1,
+        2,
+        nnx.Rngs(0),
+        hidden_features=1,
+        gru_features=1,
+        num_layers=1,
+        activation=lambda x: x,
+        discrete=True,
+    )
+    model.encoder.layers[0].kernel[...] = jnp.ones((1, 1), dtype=jnp.float32)
+    model.encoder.layers[0].bias[...] = jnp.zeros(1, dtype=jnp.float32)
+    model.mingru_kernel[...] = jnp.array([[[0.5, 0.0, 0.0]]], dtype=jnp.float32)
+    model.fused_head.kernel[...] = jnp.array([[1.0, -1.0, 2.0]], dtype=jnp.float32)
+    model.fused_head.bias[...] = jnp.zeros(3, dtype=jnp.float32)
+    observations = jnp.array([[[1.0]], [[2.0]], [[3.0]]])
+    done = jnp.array([[False], [True], [False]])
+    # Candidate=.5*x+.5, update gate=.5. Carries are .5, 1, then 1
+    # after resetting the second step. Highway outputs are .75, 1.5, 2.
+    output = np.array([0.75, 1.5, 2.0])
+    probability = 1 / (1 + np.exp(-2 * output))
+    expected = np.column_stack(
+        [np.log(probability), np.log1p(-probability), 2 * output]
+    )[:, None]
+    initial = jnp.zeros((1, 1, 1))
+    np.testing.assert_allclose(
+        _outputs(model, observations, initial, done, sequence=True), expected, atol=2e-6
+    )
+    model.reset(observations.shape[1:])
+    for index, (obs, boundary) in enumerate(zip(observations, done, strict=True)):
+        policy, value = model(obs)
+        np.testing.assert_allclose(
+            jnp.concatenate([policy.logits, value], axis=-1), expected[index], atol=2e-6
+        )
+        np.testing.assert_allclose(model.h[...], [0.5, 1.0, 1.0][index], atol=2e-6)
+        model.reset(obs.shape, mask=boundary)
+        if index == 1:
+            np.testing.assert_array_equal(model.h[...], 0.0)

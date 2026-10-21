@@ -60,3 +60,48 @@ def test_aspherical_rotation(rot_integrator):
         body[1:] @ body[1:], initial[1:] @ initial[1:], rtol=2e-5
     )
     np.testing.assert_allclose(w * w + x * x + y * y + z * z, 1.0, atol=2e-6)
+
+
+@pytest.mark.parametrize("rot_integrator", ["spiral", "verletspiral"])
+def test_asymmetric_free_top_conserves_inertial_momentum_under_refinement(
+    rot_integrator,
+):
+    inertia, initial = np.array([1.0, 2.0, 3.0]), np.array([0.3, -0.9, 0.6])
+    momentum0 = inertia * initial
+    energy0 = 0.5 * np.sum(inertia * initial**2)
+    errors = []
+    for steps in [16, 32, 64]:
+        state = jdem.State.create(
+            pos=jnp.zeros((1, 3)),
+            inertia=jnp.asarray(inertia[None]),
+            ang_vel=jnp.asarray(initial[None]),
+        )
+        system = jdem.System.create(
+            state=state,
+            collider_type="",
+            linear_integrator_type="",
+            rotation_integrator_type=rot_integrator,
+            dt=1 / steps,
+        )
+        state, system = jdem.System.initialize(state, system)
+        _, _, (trajectory, _) = jdem.System.trajectory_rollout(state, system, n=steps)
+        w = np.asarray(trajectory.q.w[:, 0, 0])
+        xyz = np.asarray(trajectory.q.xyz[:, 0])
+        skew = np.zeros((steps, 3, 3))
+        skew[:, 0, 1], skew[:, 0, 2] = -xyz[:, 2], xyz[:, 1]
+        skew[:, 1, 0], skew[:, 1, 2] = xyz[:, 2], -xyz[:, 0]
+        skew[:, 2, 0], skew[:, 2, 1] = -xyz[:, 1], xyz[:, 0]
+        rotation = np.eye(3) + 2 * w[:, None, None] * skew + 2 * skew @ skew
+        body_velocity = np.einsum(
+            "tji,tj->ti", rotation, np.asarray(trajectory.ang_vel[:, 0])
+        )
+        momentum = np.einsum("tij,tj->ti", rotation, inertia * body_velocity)
+        energy = 0.5 * np.sum(inertia * body_velocity**2, axis=-1)
+        error = np.max(np.linalg.norm(momentum - momentum0, axis=-1)) / np.linalg.norm(
+            momentum0
+        )
+        errors.append(error)
+        assert error < 2 / steps**2
+        np.testing.assert_allclose(energy, energy0, rtol=2 / steps**2)
+        assert np.linalg.norm(body_velocity[-1] - initial) > 0.1
+    assert np.all(np.asarray(errors[:-1]) / errors[1:] > 2.5)
