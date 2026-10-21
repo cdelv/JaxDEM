@@ -2,14 +2,18 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Unit tests for the State rotation cache and attribute setting under JIT."""
 
+from dataclasses import replace
+
 import jax
 import jax.numpy as jnp
-from dataclasses import replace
+import numpy as np
+import pytest
 
 import jaxdem as jdem
 
 
-def test_jit_update_q_then_pos_p():
+@pytest.mark.parametrize("orientation_first", [False, True])
+def test_jit_geometry_assignments_refresh_cache(orientation_first):
     pos_c = jnp.array([[1.0, 2.0, 3.0]])
     pos_p = jnp.array([[1.0, 0.0, 0.0]])
     q_init = jdem.utils.quaternion.Quaternion.create(
@@ -20,8 +24,12 @@ def test_jit_update_q_then_pos_p():
 
     @jax.jit
     def update_state(s, new_q, new_pos_p):
-        s.q = new_q
-        s.pos_p = new_pos_p
+        if orientation_first:
+            s.q = new_q
+            s.pos_p = new_pos_p
+        else:
+            s.pos_p = new_pos_p
+            s.q = new_q
         return s
 
     # Rotate 90 degrees around Z axis: w = cos(45), z = sin(45)
@@ -60,3 +68,28 @@ def test_replace_updates_cache():
     expected_rot = jnp.array([[0.0, 1.0, 0.0]])
     assert jnp.allclose(state_replaced._pos_p_rot, expected_rot, atol=1e-5)
     assert jnp.allclose(state_replaced.pos, pos_c + expected_rot, atol=1e-5)
+
+
+@pytest.mark.parametrize("dim", [2, 3])
+def test_rotation_cache_survives_batching_abstract_values_and_gradients(dim):
+    offset = jnp.zeros((1, dim)).at[0, 0].set(1.0)
+    state = jdem.State.create(pos=jnp.zeros_like(offset), pos_p=offset)
+
+    def rotate(angle):
+        q = jdem.utils.quaternion.Quaternion.from_rotvec(
+            jnp.array([[0.0, 0.0, angle]])
+        )
+        return replace(state, q=q)
+
+    angles = jnp.array([0.0, 0.3, 0.7])
+    batched = jax.jit(jax.vmap(rotate))(angles)
+    np.testing.assert_allclose(batched.pos[..., 0], jnp.cos(angles)[:, None])
+    np.testing.assert_allclose(batched.pos[..., 1], jnp.sin(angles)[:, None])
+    derivative = jax.grad(lambda angle: rotate(angle).pos[0, 0])(0.7)
+    np.testing.assert_allclose(derivative, -np.sin(0.7))
+
+    abstract = jax.eval_shape(rotate, jax.ShapeDtypeStruct((), offset.dtype))
+    assert abstract._pos_p_rot.shape == state.shape
+    assert abstract._pos_p_rot.dtype == offset.dtype
+    placeholders = jax.tree.map(lambda _: None, state)
+    assert placeholders._pos_p_rot is None

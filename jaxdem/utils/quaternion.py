@@ -15,7 +15,7 @@ from .linalg import cross, dot
 
 
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class Quaternion:
     r"""Quaternion representation for 2D and 3D particle orientations.
 
@@ -26,6 +26,9 @@ class Quaternion:
         q = w + x\mathbf{i} + y\mathbf{j} + z\mathbf{k}
 
     In 2D, the rotation axis is the z-axis: :math:`\vec{v}_{xyz} = (0, 0, z)`.
+
+    Components are immutable. Create or replace the complete quaternion when
+    changing an orientation so an owning ``State`` can refresh its geometry.
 
     Attributes
     ----------

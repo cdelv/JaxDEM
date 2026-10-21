@@ -99,11 +99,11 @@ print(f"Initial position: {state.pos}")
 # as a parameter.
 
 # %%
-# Derived values need an explicit refresh after some nested edits. Assigning a
-# complete ``q`` or ``pos_p`` refreshes rotated clump offsets automatically;
-# after changing ``state.q.w`` or ``state.q.xyz`` directly, call
-# :py:meth:`~jaxdem.state.State.refresh_rotation_cache`. Positions, domain
-# geometry, or force search radii can also invalidate a collider cache; use the
+# Assigning a complete ``q`` or ``pos_p`` refreshes rotated clump offsets
+# automatically. Quaternion components are immutable: create a new quaternion
+# or use ``dataclasses.replace(state.q, w=new_w, xyz=new_xyz)``, then assign it
+# to ``state.q``. Changes to positions, domain geometry, or force search radii
+# can also invalidate a collider cache; use the
 # collider invalidation and refresh helpers described in the
 # :doc:`force-model guide <../auto_examples/force_model_guide>`.
 #

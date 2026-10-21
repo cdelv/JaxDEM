@@ -87,14 +87,16 @@ def test_static_step_supports_reverse_mode_and_dynamic_step_is_explicit() -> Non
         jdem.System.step(state, system, n=jnp.asarray(2))
 
 
-def test_mutable_quaternion_refreshes_explicitly_and_replace_is_automatic() -> None:
+def test_frozen_quaternion_replacement_refreshes_geometry() -> None:
     state = jdem.State.create(pos=jnp.zeros((1, 2)), pos_p=jnp.array([[1.0, 0.0]]))
     q = Quaternion.create(jnp.array([[2**-0.5]]), jnp.array([[0.0, 0.0, 2**-0.5]]))
-    state.q.w = q.w
-    state.q.xyz = q.xyz
-    with pytest.raises(ValueError, match="cache is stale"):
-        state.validate()
-    state.refresh_rotation_cache()
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        state.q.w = q.w
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        state.q.xyz = q.xyz
+    np.testing.assert_allclose(state.pos, jnp.array([[1.0, 0.0]]), atol=1e-6)
+
+    state.q = q
     np.testing.assert_allclose(state.pos, jnp.array([[0.0, 1.0]]), atol=1e-6)
     state.validate()
 

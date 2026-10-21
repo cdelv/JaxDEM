@@ -134,8 +134,8 @@ class State:
 
     For rigid clump members this is the clump orientation, identical on every member.
     Assigning a complete new ``state.q`` refreshes the rotated-offset cache.
-    After mutating ``state.q.w`` or ``state.q.xyz`` in place, call
-    :meth:`refresh_rotation_cache` before reading positions or computing forces.
+    Quaternion components are immutable; replace the complete quaternion
+    instead of assigning ``state.q.w`` or ``state.q.xyz``.
     """
 
     ang_vel: jax.Array
@@ -231,36 +231,35 @@ class State:
 
     _pos_p_rot: jax.Array = field(default_factory=lambda: jnp.zeros((0, 0)))
     """
-    Internal rotated offset ``R(q) @ pos_p``. Use
-    :meth:`refresh_rotation_cache` after nested quaternion mutation.
+    Internal rotated offset ``R(q) @ pos_p``, refreshed automatically when
+    ``q`` or ``pos_p`` is replaced.
     """
 
     def __post_init__(self) -> None:
         """Build the derived rotated-offset cache from the current inputs."""
-        try:
-            computed_rot = self.q.rotate(self.q, self.pos_p)
-            object.__setattr__(self, "_pos_p_rot", computed_rot)
-        except (AttributeError, TypeError, IndexError, ValueError):
-            pass
+        self._try_refresh_rotation_cache()
 
     def __setattr__(self, name: str, value: Any) -> None:
         object.__setattr__(self, name, value)
         if name in ("q", "pos_p") and hasattr(self, "_pos_p_rot"):
-            try:
-                q = self.q
-                pos_p = self.pos_p
-                computed_rot = q.rotate(q, pos_p)
-                object.__setattr__(self, "_pos_p_rot", computed_rot)
-            except (AttributeError, TypeError, IndexError, ValueError):
-                pass
+            self._try_refresh_rotation_cache()
+
+    def _try_refresh_rotation_cache(self) -> None:
+        """Refresh when geometry is concrete; tolerate JAX reconstruction values."""
+        try:
+            self.refresh_rotation_cache()
+        except (AttributeError, TypeError, IndexError, ValueError):
+            # Tree reconstruction can supply placeholders or abstract leaves.
+            # Malformed physical inputs remain the responsibility of validate().
+            pass
 
     @partial(jax.named_call, name="State.refresh_rotation_cache")
     def refresh_rotation_cache(self) -> State:
-        """Refresh rotated body offsets after nested quaternion mutation.
+        """Explicitly rebuild the derived rotated body offsets.
 
         Whole-field assignment to ``state.q`` or ``state.pos_p`` refreshes the
-        cache automatically. This explicit method is required only after
-        assigning ``state.q.w`` or ``state.q.xyz`` directly.
+        cache automatically, so ordinary geometry edits need no manual refresh.
+        Unlike the reconstruction hooks, this method raises on invalid inputs.
         """
         self._pos_p_rot = self.q.rotate(self.q, self.pos_p)
         return self
@@ -470,8 +469,7 @@ class State:
         expected_pos_p_rot = self.q.rotate(self.q, self.pos_p)
         if not bool(jnp.allclose(self._pos_p_rot, expected_pos_p_rot)):
             raise ValueError(
-                "Rotated-offset cache is stale; call refresh_rotation_cache() "
-                "after nested quaternion mutation."
+                "Rotated-offset cache is stale; call refresh_rotation_cache()."
             )
         if self.N:
             if bool(jnp.any((self.clump_id < 0) | (self.clump_id >= self.N))):
@@ -999,7 +997,6 @@ class State:
             flat_ids = clump_id.reshape((-1, N))
             clump_id = jax.vmap(_relabel)(flat_ids).reshape(clump_id.shape)
 
-        pos_p_rot = q_quat.rotate(q_quat, pos_p)
         # Copy so rad and _rad never share a buffer: aliased leaves break
         # argument donation in jitted entry points (XLA rejects donating the
         # same buffer twice).
@@ -1025,7 +1022,6 @@ class State:
             mat_id=mat_id,
             species_id=species_id,
             fixed=fixed,
-            _pos_p_rot=pos_p_rot,
         )
 
         if not state.is_valid:

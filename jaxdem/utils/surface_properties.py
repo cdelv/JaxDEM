@@ -724,8 +724,7 @@ def compute_surface_properties(
     # NOTE: the base state's pos_c / q are intentionally left as-is. Every probe
     # rebuilds them via ``dataclasses.replace(state, pos_c=..., q=...)`` inside
     # ``_measure_probe`` (a whole-attribute replace, which refreshes the cached
-    # R(q) @ pos_p), so initializing them here would be dead work -- and doing
-    # it via in-place ``state.q.w = ...`` would leave ``state.pos`` stale.
+    # R(q) @ pos_p), so initializing them here would be dead work.
 
     # Per-grid PRNG keys for sampling="random" (None -> deterministic lattice).
     # Independent keys per grid so approach directions, facings and rolls are
