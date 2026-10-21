@@ -241,7 +241,7 @@ print("  inertia:", clump_state.inertia)
 
 # %%
 # Filled Members and Hollow Clumps
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # The mass model is the union of **filled** member disks or balls. Material
 # occupies points inside at least one member. Empty space outside every
 # member stays empty, including enclosed cavities: the utility does not fill
