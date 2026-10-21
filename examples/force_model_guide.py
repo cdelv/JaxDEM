@@ -20,7 +20,10 @@ This guide covers:
 # You choose the force model with the ``force_model_type`` string when
 # creating a :py:class:`~jaxdem.system.System`:
 
+from dataclasses import dataclass
+
 import jax.numpy as jnp
+import numpy as np
 import jaxdem as jdem
 
 state = jdem.State.create(
@@ -54,6 +57,37 @@ system_lj = jdem.System.create(
 print("lj     →", type(system_lj.force_model).__name__)
 
 # %%
+# Spring is a finite-overlap normal force, proportional to penetration.
+# Hertz uses nonlinear overlap elasticity. WCA is a steep, purely repulsive
+# potential; Lennard-Jones adds attraction before its cutoff. Cundall-Strack
+# adds damping and history-dependent tangential friction. Choose the law for
+# the physical assumptions, then choose a timestep that resolves its fastest
+# contact response; changing the law does not rescale dt automatically.
+#
+# For the linear spring, let :math:`\mathbf r_{ij}` be the displacement
+# from particle j to particle i, using the domain's minimum-image convention.
+# Write :math:`r=\|\mathbf r_{ij}\|` and
+# :math:`\widehat{\mathbf n}_{ij}=\mathbf r_{ij}/r`. The overlap, force,
+# and pair energy are
+#
+# .. math::
+#
+#    \delta_{ij}=\max(0,R_i+R_j-r),\qquad
+#    \mathbf F_{ij}=k_{ij}\delta_{ij}\widehat{\mathbf n}_{ij},\qquad
+#    U_{ij}=\tfrac12 k_{ij}\delta_{ij}^{2}.
+#
+# Here :math:`k_{ij}` is the coefficient read from ``young_eff`` by the
+# spring implementation. The pair contributes no force or energy after
+# separation. Its force acts along the line of centers, so a sphere has no
+# intrinsic contact torque; the same force on an offset member of a clump
+# can still generate a moment about that body's COM.
+#
+# For a conservative law, :math:`\mathbf F_{ij}=-\nabla_i U_{ij}` and
+# :math:`U=\sum_{i<j}U_{ij}` counts each physical pair once. Damping and
+# history-dependent friction require extra care: stored spring energy does
+# not include dissipated work, and an energy gradient with history held
+# fixed need not reproduce the complete mechanical force.
+#
 # The following ForceModels are registered:
 
 print("ForceModels:", list(jdem.ForceModel._registry.keys()))
@@ -106,6 +140,16 @@ print("Force model:", type(system_2mat.force_model).__name__)
 # elementary force laws into one composite model. You pass it a tuple of
 # :py:class:`~jaxdem.forces.ForceModel` instances via the ``laws`` field.
 # The combiner adds both forces and energies.
+# For child laws indexed by a, this means
+#
+# .. math::
+#
+#    \mathbf F_{ij}^{\mathrm{combined}}=\sum_a\mathbf F_{ij}^{(a)},
+#    \qquad U_{ij}^{\mathrm{combined}}=\sum_a U_{ij}^{(a)}.
+#
+# These contributions must be compared at the same configuration and with
+# material parameters that activate every child law. Below we check this
+# identity numerically before taking any integration step.
 
 combined = jdem.LawCombiner(
     laws=(jdem.ForceModel.create("spring"), jdem.ForceModel.create("wca"))
@@ -119,30 +163,43 @@ print("Combined laws:", [type(l).__name__ for l in combined.laws])
 # ``force_model_kw={"laws": ...}``). Make sure the material table provides
 # all the properties required by the child laws:
 
-mat = jdem.Material.create("elastic", density=1.0, young=1e4, poisson=0.3)
-mat_lj = jdem.Material.create("lj", density=1.0, epsilon=1.0)
+# Both child laws must receive nonzero parameters for the same material pair.
+# A small dataclass can supply both sets of scalar properties. No factory
+# registration is needed when passing its instance directly to the table.
+@dataclass
+class ElasticLJ(jdem.Material):
+    young: float
+    poisson: float
+    epsilon: float
 
-# Build a table that has both young_eff and epsilon_eff.
-mat_table_both = jdem.MaterialTable.from_materials([mat, mat_lj])
-print("Table has young_eff:", hasattr(mat_table_both, "young_eff"))
-print("Table has epsilon_eff:", hasattr(mat_table_both, "epsilon_eff"))
 
+mat = ElasticLJ(density=1.0, young=10.0, poisson=0.3, epsilon=0.02)
+mat_table_both = jdem.MaterialTable.from_materials([mat])
 state_combined = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
     rad=jnp.array([1.0, 1.0]),
-    mat_id=jnp.array([0, 1]),  # particle 0 → mat_a, particle 1 → mat_b
 )
 system_combined = jdem.System.create(
-    state_combined.shape,
-    force_model=combined,
-    mat_table=mat_table_both,
+    state=state_combined, force_model=combined, mat_table=mat_table_both,
 )
+state_combined, system_combined = jdem.System.initialize(state_combined, system_combined)
 
-state_combined, system_combined = jdem.System.initialize(
-    state_combined, system_combined
+# Evaluate each contribution at the same positions, rather than comparing
+# different trajectories. The combiner must equal their vector sum.
+child_forces = []
+for child in combined.laws:
+    child_system = jdem.System.create(
+        state=state_combined, force_model=child, mat_table=mat_table_both,
+    )
+    child_state, _ = jdem.System.initialize(state_combined, child_system)
+    child_forces.append(np.asarray(child_state.force))
+    assert np.linalg.norm(child_forces[-1]) > 0
+np.testing.assert_allclose(
+    state_combined.force, sum(child_forces), rtol=2e-6, atol=1e-6,
 )
-state_combined, system_combined = system_combined.step(state_combined, system_combined)
-print("System force model:", type(system_combined.force_model).__name__)
+print("Spring force on particle 0:", child_forces[0][0])
+print("WCA force on particle 0:", child_forces[1][0])
+print("Combined force on particle 0:", state_combined.force[0])
 
 
 # %%
@@ -178,20 +235,21 @@ print("Router table shape:", len(router.table), "x", len(router.table[0]))
 # ``force_model`` argument:
 
 state_species = jdem.State.create(
-    pos=jnp.array([[0.0, 0.0], [1.5, 0.0], [3.0, 0.0]]),
-    rad=jnp.array([1.0, 1.0, 1.0]),
-    species_id=jnp.array([0, 0, 1]),  # first two are species 0, last is species 1
+    pos=jnp.array([[0.0, 0.0], [1.5, 0.0], [3.0, 0.0], [4.5, 0.0]]),
+    rad=jnp.ones(4),
+    species_id=jnp.array([0, 0, 1, 1]),  # exercises A-A, A-B, and B-B pairs
 )
 
 system_species = jdem.System.create(
     state_species.shape,
     force_model=router,
-    mat_table=jdem.MaterialTable.from_materials([mat, mat_lj]),
+    mat_table=mat_table_both,
 )
 
 state_species, system_species = jdem.System.initialize(state_species, system_species)
-state_species, system_species = system_species.step(state_species, system_species)
-print("Active force model:", type(system_species.force_model).__name__)
+print("Routed forces (A-A, A-B and B-B are active):", state_species.force)
+assert abs(float(state_species.force[0, 0])) > 0
+assert abs(float(state_species.force[-1, 0])) > 0
 
 # %%
 # .. note::
@@ -206,7 +264,8 @@ print("Active force model:", type(system_species.force_model).__name__)
 # ~~~~~~~~~~~~~~~~
 # A force model may keep per-pair state by defining ``history_shape(dim)`` and
 # ``init_history(pair_shape, dim)`` and returning updated history from its force
-# calculation. Such models require a history-capable ``NeighborList``. This API
+# calculation. Use a history-capable ``NeighborList`` or the dense ``Naive``
+# collider; direct CellList/MultiCellList traversals do not store history. This API
 # also works through law combiners and species routers, so contact memory is a
 # general force-model feature.
 #

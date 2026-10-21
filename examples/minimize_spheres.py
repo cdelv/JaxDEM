@@ -1,14 +1,29 @@
-"""Minimization of bidisperse spheres (or disks).
--------------------------------------------------
+r"""Minimization of bidisperse spheres (or disks).
+--------------------------------------------------
 
 In this example, we minimize the energy of a set of random configurations of bidisperse spheres
 (or disks). The particles sit in a 3D (or 2D) periodic box.
 
-The particles use a purely repulsive harmonic interaction potential. The potential energy is zero
-when the particles are not in contact. Otherwise it is proportional to the square of the overlap
-distance.
+The particles use a purely repulsive harmonic interaction potential. For a
+pair with separation :math:`r_{ij}` and radii :math:`R_i,R_j`,
 
-The FIRE minimizer minimizes the energy.
+.. math::
+
+    \delta_{ij}=\max(0,R_i+R_j-r_{ij}),\qquad
+    U=\frac12\sum_{i<j}k_{ij}\delta_{ij}^2.
+
+The energy is zero without overlaps. During an overlap, the normal force
+magnitude is :math:`k_{ij}\delta_{ij}`; it pushes the centers apart. FIRE
+uses these forces to find a stationary configuration at the fixed box size.
+Minimization is a preparation procedure, not a trajectory at a prescribed
+physical temperature or a measurement of a material relaxation time.
+
+FIRE relaxes overlaps until the maximum free-body force and torque meet
+the requested tolerances. A dilute minimum can have zero contact energy
+and still have many floppy motions; minimization does not prove rigidity.
+
+Two small, reproducible systems keep this demonstration quick on a CPU.
+Lengths, masses, and stiffnesses use a consistent set of reduced units.
 
 """
 
@@ -25,17 +40,20 @@ jax.config.update("jax_enable_x64", True)
 # %%
 # Parameters
 # ~~~~~~~~~~~~~~~~~~~~~
-# We minimize 10 systems of 10 particles in parallel.
+# We minimize two systems of eight particles in parallel.
 # This shows system-level parallelism in JaxDEM.
 # Note that the parallel run is only as fast as the slowest system.
-# We place the particles randomly in the box at
-# an initial packing fraction of 0.4.
-N_systems = 10
-N = 10
+# We place the particles randomly in the box at an initial packing fraction
+# of 0.4. Each realization uses a fixed seed, so changes to tolerances or the
+# minimizer can be compared against identical initial positions. At this low
+# fraction, removing overlaps typically yields zero energy with many remaining
+# free motions. A higher fraction can retain positive energy at force balance.
+N_systems = 2
+N = 8
 phi = 0.4
 dim = 2
 e_int = 1.0
-dt = 1e-2
+dt = 5e-2
 
 
 # For the one-call equivalent see
@@ -47,7 +65,10 @@ def build_microstate(i):
     rad = rad.at[: N // 2].set(0.5)
     rad = rad.at[N // 2 :].set(0.7)
 
-    # set the box size for the packing fraction and the radii
+    # Set the box from the nominal fraction phi = sum(V_i) / L**dim.
+    # V_i = pi**(dim/2) R_i**dim / Gamma(dim/2+1), giving area in 2D
+    # and volume in 3D. The equal 0.5/0.7 radius populations introduce
+    # bidispersity without changing the mass convention (unit mass per disk).
     volume = (jnp.pi ** (dim / 2) / jax.scipy.special.gamma(dim / 2 + 1)) * rad**dim
     L = (jnp.sum(volume) / phi) ** (1 / dim)
     box_size = jnp.ones(dim) * L
@@ -81,25 +102,57 @@ def build_microstate(i):
 # %%
 # Run the Minimization for Multiple Systems
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# We first create the systems and states with JAX's vmap function.
-# This creates 10 states and systems in parallel.
-# We could also use the State.stack method to join a list of states and systems.
+# We first create the systems and states with JAX's vmap function. The seed
+# index selects each independent configuration, while all members share the
+# same particle count and dimensionality. The resulting arrays carry a leading
+# system axis, e.g. ``state.pos.shape == (N_systems, N, dim)``. The second
+# vmap below applies minimization independently to those State/System pairs.
+# ``State.stack`` is another way to assemble compatible states prepared
+# separately; the system layouts must be stacked consistently as well.
 state, system = jax.vmap(build_microstate)(jnp.arange(N_systems))
 
-# We run the minimization for up to 1M steps
-n_steps = 1_000_000
+# A finite budget makes failure explicit instead of permitting a long run.
+n_steps = 2_000
+force_tol = 1e-7
 
-# Convergence requires both free-body force and torque norms below their
-# tolerances. A step limit or a nonfinite result is a failure to converge.
-# FIRE evaluates potential energy once after relaxation.
-# The minimizer returns the final state, system, number of steps taken, and the final
-# potential energy. It reports the final potential energy PER PARTICLE (PE / N) when you
-# do not set a custom target_fn.
-result = jax.vmap(lambda st, sys: sys.minimize(st, sys, max_steps=n_steps))(
+# %%
+# FIRE adapts a fictitious velocity and step size using force information.
+# Its internal integration is an optimization device; ``dt`` controls this
+# search, not elapsed physical relaxation time. Accepted mechanical convergence
+# requires finite free-body residuals satisfying
+#
+# .. math::
+#
+#    \max_{I\in\mathrm{free}}\|F_I\|\leq f_{\rm tol},\qquad
+#    \max_{I\in\mathrm{free}}\|\tau_I\|\leq\tau_{\rm tol}.
+#
+# For these smooth spheres the contact law produces no torque; the torque
+# criterion matters when the same workflow is applied to rigid clumps.
+# Reaching a step limit or producing nonfinite residuals is a failure to
+# converge. Low energy alone is not a replacement for checking these forces.
+#
+# The result contains the final state and system, step count, and energy,
+# plus status and residual diagnostics. Four-value unpacking is convenient,
+# but inspect ``result.converged`` first. With the physical target used here,
+# FIRE evaluates the final potential energy after relaxation and reports
+# **energy per constituent sphere**, ``U/N``. A custom ``target_fn`` instead
+# defines its own objective and units, so that interpretation must be revisited.
+from jaxdem.utils.thermal import compute_potential_energy
+
+initial_pe = jax.vmap(compute_potential_energy)(state, system) / N
+result = jax.vmap(
+    lambda st, sys: sys.minimize(
+        st, sys, max_steps=n_steps, force_tol=force_tol, torque_tol=force_tol
+    )
+)(
     state, system
 )
+if not bool(jnp.all(result.converged)):
+    raise RuntimeError(f"Minimization failed: reason={result.reason}")
 state, system, steps, final_pe = result
 
+print(f"Initial energy per particle: {initial_pe}")
+print(f"Maximum residual force: {result.info.force_max}")
 print(f"Converged: {result.converged}")
 print(f"Final potential energy: {final_pe}")
 print(f"Number of steps taken: {steps}")
@@ -109,7 +162,11 @@ print(f"Number of steps taken: {steps}")
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # We can also run the minimization on a single system by passing the state and system to the minimization function.
 state, system = build_microstate(0)
-result = system.minimize(state, system, max_steps=n_steps)
+result = system.minimize(
+    state, system, max_steps=n_steps, force_tol=force_tol, torque_tol=force_tol
+)
+if not bool(result.converged):
+    raise RuntimeError(f"Single-system minimization failed: reason={result.reason}")
 state, system, steps, final_pe = result
 
 print(f"Converged: {result.converged}")

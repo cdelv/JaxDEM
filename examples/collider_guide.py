@@ -21,6 +21,7 @@ This guide covers:
 # You choose the collider via ``collider_type`` when creating a
 # :py:class:`~jaxdem.system.System`. The default is ``"naive"``.
 
+import numpy as np
 import jax.numpy as jnp
 
 import jaxdem as jdem
@@ -49,7 +50,7 @@ print("Collider:", type(system.collider).__name__)
 #    * - ``"naive"``
 #      - :py:class:`~jaxdem.colliders.naive.NaiveSimulator`
 #      - :math:`O(N^2)`
-#      - Small systems (< 1k–4k particles)
+#      - Small systems; benchmark the hardware-dependent crossover
 #    * - ``"cell_list"``
 #      - :py:class:`~jaxdem.colliders.cell_list.DynamicCellList`
 #      - :math:`O(N \log N)`
@@ -60,7 +61,7 @@ print("Collider:", type(system.collider).__name__)
 #      - Highly polydisperse systems (wide size distributions)
 #    * - ``"neighbor_list"``
 #      - :py:class:`~jaxdem.colliders.neighbor_list.NeighborList`
-#      - :math:`O(N)` amortized
+#      - :math:`O(N K)` between rebuilds, with K cached neighbors
 #      - Large systems with infrequent neighbor-list rebuilds
 #
 # The registry normalizes keys: lookups ignore case, underscores, spaces,
@@ -77,8 +78,10 @@ print("Colliders:", sorted(k for k in jdem.Collider._registry if k))
 # The :py:class:`~jaxdem.colliders.naive.NaiveSimulator` evaluates the
 # force model for **every** pair :math:`(i, j)`, giving :math:`O(N^2)`
 # complexity. It requires no configuration and is the default.
-# It has no search overhead, so it is the fastest option for small
-# systems. The cost grows quickly as :math:`N` grows.
+# Its lack of search overhead often makes it competitive for small systems.
+# The crossover depends on hardware, density, shapes, and force-law cost.
+# Measure steady-state work after compilation and synchronize device results
+# before stopping a timer. The pair count grows quadratically with :math:`N`.
 
 system_naive = jdem.System.create(state.shape, collider_type="naive")
 state, system_naive = jdem.System.initialize(state, system_naive)
@@ -91,8 +94,10 @@ print("Forces after one step:\n", state_out.force)
 # ~~~~~~~~~~~~~~~~~~~~~~~~
 # :py:class:`~jaxdem.colliders.cell_list.DynamicCellList` (registered as ``"cell_list"``)
 # partitions space into a regular grid. Only particles in the same or
-# neighboring cells interact. It uses an implicit infinite grid, so it works for all domain
-# types (periodic, free, etc.).
+# neighboring cells interact. It uses an implicit infinite grid for supported
+# free, reflective, periodic, and shear-periodic domain geometries. Custom
+# domains must declare a compatible search geometry; see the
+# :doc:`search contracts <../user_guide/search_contracts>`.
 #
 # It probes each cell with a ``jax.lax.while_loop``, so it handles high or
 # variable cell occupancy. This suits polydisperse systems and clumps.
@@ -110,7 +115,7 @@ print("Forces after one step:\n", state_out.force)
 # :py:meth:`~jaxdem.system.System.create`.
 
 state_p = jdem.State.create(
-    pos=jnp.array([[1.0, 1.0], [3.0, 3.0], [5.0, 5.0]]),
+    pos=jnp.array([[1.0, 1.0], [2.5, 1.0], [5.0, 5.0]]),
     rad=jnp.array([0.5, 0.5, 0.5]),
 )
 system_cl = jdem.System.create(
@@ -153,6 +158,7 @@ print("Multi-Cell List cell size:", getattr(system_mcl.collider, "cell_size", "n
 #
 # The API returns:
 #
+# - Updated ``state`` and ``system`` carrying any search-cache changes.
 # - ``neighbor_list`` with shape ``(N, max_neighbors)`` padded with ``-1``.
 # - ``overflow`` flag, which is ``True`` if any particle had more than
 #   ``max_neighbors`` neighbors within the requested cutoff.
@@ -166,12 +172,18 @@ print("Multi-Cell List cell size:", getattr(system_mcl.collider, "cell_size", "n
 #    ``max_neighbors``, and some interactions are dropped. In that case,
 #    increase ``max_neighbors``.
 #
-# Example with a regular collider (here: Cell List):
-_, _, nl_cl, overflow_cl = system_cl.collider.create_neighbor_list(
+# Example with a regular collider (here: Cell List). The first two centers
+# are 1.5 apart: inside this diagnostic cutoff of 2, but outside contact at
+# radius sum 1. A neighbor query need not describe only force-bearing contacts:
+state_p, system_cl, nl_cl, overflow_cl = system_cl.collider.create_neighbor_list(
     state_p, system_cl, cutoff=2.0, max_neighbors=8
 )
 print("Cell-list neighbor list shape:", nl_cl.shape)
+print("Diagnostic neighbors:\n", nl_cl)
+assert 1 in np.asarray(nl_cl[0]) and 0 in np.asarray(nl_cl[1])
 print("Cell-list overflow:", bool(overflow_cl))
+assert not bool(overflow_cl)
+system_cl.check_overflow()
 
 # %%
 # The Neighbor List collider
@@ -179,8 +191,9 @@ print("Cell-list overflow:", bool(overflow_cl))
 # :py:class:`~jaxdem.colliders.neighbor_list.NeighborList` caches a
 # per-particle list of neighbors built with a secondary collider
 # (by default, the cell list). The collider rebuilds the list only when
-# some particle has moved more than ``skin / 2``. Between rebuilds, the
-# cost is :math:`O(N)`.
+# some particle has moved more than ``skin / 2``, or relevant geometry changes.
+# Between rebuilds the work is proportional to the number of cached pairs;
+# it is linear in N only when the mean neighbor count stays bounded.
 #
 # .. warning::
 #    In a batched simulation (:py:func:`jax.vmap` over many systems), the
@@ -192,7 +205,8 @@ print("Cell-list overflow:", bool(overflow_cl))
 #
 # Key parameters:
 #
-# - ``cutoff`` — physical interaction radius.
+# - ``cutoff`` — requested interaction reach. The cache also covers the force
+#   law's declared search radii; reducing this value cannot truncate the law.
 # - ``skin`` — **absolute** buffer distance added to the cutoff (the same
 #   quantity the stored ``skin`` field holds). Must be > 0 for performance.
 # - ``skin_fraction`` — alternative way to specify the skin as a fraction
@@ -232,6 +246,7 @@ print("Skin:", float(getattr(system_nl.collider, "skin", jnp.nan)))
 print("Max neighbors:", getattr(system_nl.collider, "max_neighbors", "n/a"))
 print("Number of builds:", getattr(system_nl.collider, "n_build_times", "n/a"))
 print("Last build overflow:", bool(getattr(system_nl.collider, "overflow", False)))
+system_nl.check_overflow()
 
 # %%
 # If you edit the state by hand after creating the system, the cached
@@ -273,6 +288,9 @@ state_pe, system_pe, pe = system_pe.collider.compute_potential_energy(
     state_pe, system_pe
 )
 print("Total potential energy:", pe)
+# The sole unique pair has overlap 0.5 and spring energy k * overlap**2 / 2.
+stiffness = system_pe.mat_table.young_eff[0, 0]
+np.testing.assert_allclose(pe, 0.5 * stiffness * 0.5**2, rtol=2e-6)
 
 
 # %%

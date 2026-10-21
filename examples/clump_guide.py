@@ -99,6 +99,7 @@ This guide covers:
 # For a lone sphere ``pos_p = 0``, so ``pos == pos_c``.
 
 import jax.numpy as jnp
+import numpy as np
 
 import jaxdem as jdem
 
@@ -202,6 +203,37 @@ print("Velocities:\n", state_with_clump.vel)
 # - principal moments of inertia (``inertia``)
 # - principal-axes orientation (``q``)
 # - body-frame offsets (``pos_p``) relative to the new center of mass
+#
+# These quantities are moments of the material union, not sums of
+# independent overlapping spheres. With union :math:`\Omega` and material
+# density :math:`\rho(\mathbf{x})`,
+#
+# .. math::
+#
+#    V=\int_\Omega dV,\qquad
+#    M=\int_\Omega\rho(\mathbf{x})\,dV,\qquad
+#    \mathbf{c}=\frac{1}{M}\int_\Omega\rho(\mathbf{x})\mathbf{x}\,dV,
+#
+# and the three-dimensional inertia about the COM is
+#
+# .. math::
+#
+#    \mathbf{I}=\int_\Omega\rho(\mathbf{x})
+#    \left[\lVert\mathbf{x}-\mathbf{c}\rVert^2\mathbf{1}
+#    -(\mathbf{x}-\mathbf{c})(\mathbf{x}-\mathbf{c})^T\right]dV.
+#
+# In 2D, area replaces volume and only
+# :math:`I_{zz}=\int_\Omega\rho\lVert\mathbf{x}-\mathbf{c}\rVert^2dA`
+# is needed. Diagonalizing the 3D tensor defines principal moments and a
+# body-frame orientation. If :math:`R` maps that frame into the world,
+# the member offsets become :math:`\mathbf{p}_i=R^T(\mathbf{x}_i-\mathbf{c})`;
+# consequently :math:`\mathbf{c}+R\mathbf{p}_i=\mathbf{x}_i`, so changing
+# the stored COM and principal frame does not move the physical spheres.
+#
+# The shared mass and inertia belong to the whole rigid body. Although
+# those values are broadcast to its member slots, summing all slots would
+# count the same body repeatedly; select one representative per clump when
+# computing body-level kinetic energy or total mass.
 #
 # Where materials overlap, the utility uses the largest material density
 # at each point, so neither volume nor overlapping mass is counted twice.
@@ -370,8 +402,10 @@ print("  inertia:", clump_state.inertia)
 # %%
 # Running a Simulation with Clumps
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Let's build a small example: a dumbbell clump falling under gravity
-# toward a fixed sphere.
+# A short free-fall interval illustrates rigid-body aggregation and the
+# fixed-particle contract. The dumbbell stays above the fixed support during
+# this interval, so its center of mass follows ``y(t) = y(0) - g*t**2/2``.
+# Contact with the support is outside this short tutorial calculation.
 
 # Fixed floor sphere
 pos_floor = jnp.array([[0.0, 0.0]])
@@ -394,15 +428,21 @@ state_sim = jdem.utils.compute_clump_properties(state_sim, mat_table)
 
 system_sim = jdem.System.create(
     state_sim.shape,
-    dt=1e-4,
+    dt=1e-3,
     force_model_type="spring",
     mat_table=mat_table,
     force_manager_kw={"gravity": jnp.array([0.0, -9.81])},
 )
 
-# Run a few steps
+# Run a short, resolved interval and compare its center of mass with free fall.
 state_sim, system_sim = jdem.System.initialize(state_sim, system_sim)
-state_sim, system_sim = system_sim.step(state_sim, system_sim, n=4)
+initial_com = np.asarray(state_sim.pos_c[1]).copy()
+state_sim, system_sim = system_sim.step(state_sim, system_sim, n=50)
+elapsed = float(system_sim.time)
+expected_com = initial_com + np.array([0.0, -0.5 * 9.81 * elapsed**2])
+np.testing.assert_allclose(state_sim.pos_c[1], expected_com, atol=2e-5)
+np.testing.assert_allclose(state_sim.pos[0], pos_floor[0], atol=1e-7)
+np.testing.assert_allclose(state_sim.pos_c[1], state_sim.pos_c[2], atol=1e-7)
 print("Dumbbell COM:", state_sim.pos_c[1])
 print("Floor position (unchanged):  ", state_sim.pos[0])
 
@@ -442,11 +482,11 @@ print("Floor position (unchanged):  ", state_sim.pos[0])
 #    treats them as one rigid body. They do not interact through contact
 #    forces and they move together.
 #
-# 3. **Non-contiguous** ``clump_id`` **values.**
-#    The aggregation uses ``jax.ops.segment_sum`` with
-#    ``num_segments = N``. Large gaps in ``clump_id`` waste memory but
-#    are functionally correct. The default :py:meth:`~jaxdem.state.State.create` assigns
-#    sequential IDs.
+# 3. **Editing** ``clump_id`` **after construction.**
+#    :py:meth:`~jaxdem.state.State.create` relabels input groups to contiguous
+#    IDs, so inputs such as ``[10, 10, 100, 100]`` become ``[0, 0, 1, 1]``.
+#    Preserve that invariant when editing arrays directly: aggregation indexes
+#    an array with ``N`` segments, so IDs outside ``[0, N)`` are invalid.
 #
 # 4. **Shared fields must be identical** across a clump.
 #    If you manually set ``vel``, ``pos_c``, ``q``, etc., make sure all

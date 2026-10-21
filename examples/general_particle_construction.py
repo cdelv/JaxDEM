@@ -1,4 +1,4 @@
-"""Catch-all builder: polydisperse GA/DP packings in one call
+r"""Catch-all builder: polydisperse GA/DP packings in one call
 ==============================================================
 
 :func:`~jaxdem.utils.particle_creation.build_ga_system` bundles the full
@@ -8,14 +8,42 @@ chosen integrator/collider/material) into a single call. It handles
 polydispersity across the bodies — per-body ``particle_radius``,
 ``vertex_counts``, ``asperity_radius``, ``aspect_ratio``, and Thomson
 minimization steps — by grouping bodies with identical specs so
-``_compute_uniform_union_properties`` can be vmapped over each group.
+construction work can be shared within each group.
 
-This example runs three different configurations in one script:
+This example runs two small 2D configurations: bidisperse rigid clumps
+with a nontrivial aspect ratio, followed by deformable particles. The DP
+variant returns its bonded-force container alongside ``(state, system)``.
+For 3D construction see the clump and sphere construction tutorials; using
+2D here keeps the first run short, including JAX compilation.
 
-1. **3D bidisperse rigid clumps** (periodic box, naive collider).
-2. **2D clumps with a nontrivial aspect ratio** (periodic box, naive collider).
-3. **3D deformable particles** (periodic box, naive collider) — returns
-   the bonded-force container alongside ``(state, system)``.
+These deliberately small, dilute configurations demonstrate the builder API
+quickly. Deterministic Fibonacci meshes avoid iterative mesh optimization.
+Increase the body count, mesh resolution, and relaxation budget for a physical
+study, and check convergence again. For DPs, the reported packing fraction
+uses stored reference sphere-union volumes, not the instantaneous enclosed
+mesh volumes.
+
+The builder separates three levels of description. A body has a nominal
+size and aspect ratio; its contact geometry consists of asperity spheres;
+the returned State stores those constituent spheres or DP nodes. With
+:math:`n_I` nodes on body :math:`I`, the node count is
+:math:`N_{\mathrm{nodes}}=\sum_I n_I`, which differs from the number of
+independent rigid bodies. ``vertex_counts`` changes this geometric
+resolution, whereas ``particle_radii`` changes body size. ``aspect_ratio``
+sets one relative scale per coordinate and can vary independently by body.
+
+For rigid clumps, member forces and their lever-arm moments drive one
+translation and rotation per body. For DPs, the nodes move independently
+and the bonded container supplies the internal elastic forces. This is why
+the DP call returns a third object and disables the rigid rotation module.
+The same builder also accepts 3D geometry: use three-component aspect ratios
+and a suitable surface mesh, as in the construction pipelines. Those
+variants need not all execute to explain the common interface.
+
+The reported fraction is :math:`\phi=\sum_I V_I/V_{\mathrm{box}}`. A rigid
+body's :math:`V_I` is its selected material-union volume, with overlapping
+members counted once. For a DP it is the stored reference union volume;
+it is distinct from the current area or volume enclosed by its mesh.
 """
 
 # %%
@@ -29,78 +57,54 @@ from jaxdem.utils.packing_utils import compute_packing_fraction
 from jaxdem.utils.particle_creation import build_ga_system
 
 
-def summarize(label, state, system, container=None):
+def summarize(label, state, system, target_phi, container=None):
     phi = float(compute_packing_fraction(state, system))
     box = np.asarray(system.domain.box_size)
     extra = "" if container is None else f"  [{type(container).__name__}]"
+    np.testing.assert_allclose(phi, target_phi, atol=1e-9)
+    state, system = system.evaluate_forces(state, system)
+    max_force = float(np.max(np.linalg.norm(np.asarray(state.force), axis=-1)))
+    assert np.isfinite(max_force) and max_force < 1e-6
+    system.check_overflow()
     print(f"[{label}]  N={state.N}  phi={phi:.4f}  box={box}{extra}")
+    print(f"  maximum residual force = {max_force:.2e}")
 
 
 # %%
-# 1) 3D bidisperse rigid clumps
-# ------------------------------
-# Six large + six small clumps. The builder groups by unique
-# ``(nv, radius, asperity_radius, aspect, mass)`` tuples, so this
-# triggers two calls to ``create_ga_state`` — one per group — rather
-# than twelve.
+# 1) Bidisperse rigid clumps with aspect ratio
+# --------------------------------------------
+# One large and one small body have the same four-asperity topology.
+# Per-body radii and aspect ratios illustrate polydispersity without a large
+# packing. An aspect ratio has one entry per spatial dimension; supply one
+# such vector per body to vary the shape independently of its size.
 
 state, system = build_ga_system(
-    particle_radii=[0.5] * 6 + [0.3] * 6,
-    vertex_counts=[12] * 6 + [8] * 6,
+    particle_radii=[0.5, 0.3],
+    vertex_counts=[4, 4],
     asperity_radius=0.1,
-    phi=0.30,
-    dim=3,
+    aspect_ratio=[[1.0, 1.4], [1.0, 1.2]],
+    phi=0.12,
+    dim=2,
     particle_type="clump",
     core_type="solid",
-    # Placement
     domain_type="periodic",
-    # Internal FIRE settings
-    n_property_samples=30_000,
-    compression_step=1e-2,
-    max_n_min_steps_per_outer=50_000,
-    # Final simulation system
+    mesh_type="fibonacci",
+    initial_phi_bb=0.15,
+    compression_step=0.025,
+    compression_force_tol=1e-8,
+    max_n_min_steps_per_outer=500,
     dt=1e-3,
     linear_integrator_type="verlet",
     rotation_integrator_type="verletspiral",
     collider_type="naive",
     seed=0,
 )
-summarize("3D bidisperse rigid clumps", state, system)
+summarize("2D bidisperse, anisotropic clumps", state, system, 0.12)
 
 
 # %%
-# 2) 2D clumps with aspect ratio
-# ------------------------------
-# Ellipsoidal clumps in 2D: the aspect ratio is passed per-body (one
-# length-2 tuple per body) so each clump can have its own ellipse
-# shape. Here all four bodies share the same (1.0, 1.4) aspect for
-# clarity. Pass a shape-``(M, dim)`` array to vary it.
-
-state, system = build_ga_system(
-    particle_radii=[0.4] * 4,
-    vertex_counts=[10] * 4,
-    asperity_radius=0.08,
-    aspect_ratio=[[1.0, 1.4]] * 4,
-    phi=0.35,
-    dim=2,
-    particle_type="clump",
-    core_type="solid",
-    domain_type="periodic",
-    n_property_samples=20_000,
-    compression_step=1e-2,
-    max_n_min_steps_per_outer=30_000,
-    dt=1e-3,
-    linear_integrator_type="verlet",
-    rotation_integrator_type="verletspiral",
-    collider_type="naive",
-    seed=1,
-)
-summarize("2D aspect-ratio clumps", state, system)
-
-
-# %%
-# 3) 3D deformable particles
-# --------------------------
+# 2) Deformable particles
+# ------------------------
 # The DP path returns a third value (the container), which the builder
 # already wires into ``system`` via ``bonded_force_model``. The example
 # supplies the energies ``em, ec, eb, el`` and leaves ``gamma`` (surface
@@ -108,35 +112,37 @@ summarize("2D aspect-ratio clumps", state, system)
 # an edge / perimeter / bending plastic variant instead.
 
 state, system, container = build_ga_system(
-    particle_radii=[0.5] * 4,
-    vertex_counts=[12] * 4,
+    particle_radii=[0.5] * 2,
+    vertex_counts=[4] * 2,
     asperity_radius=0.1,
-    phi=0.12,
-    dim=3,
+    phi=0.02,
+    dim=2,
     particle_type="dp",
     core_type="hollow",
     domain_type="periodic",
-    n_property_samples=20_000,
-    compression_step=1e-2,
-    max_n_min_steps_per_outer=50_000,
+    mesh_type="fibonacci",
+    initial_phi_bb=0.10,
+    compression_step=0.01,
+    compression_force_tol=1e-8,
+    max_n_min_steps_per_outer=500,
     dt=1e-3,
     linear_integrator_type="verlet",
     rotation_integrator_type=None,  # DPs have no rigid-body orientation
     collider_type="naive",
     dp_em=1.0,
     dp_ec=1.0,
-    dp_eb=0.1,  # bending is stiff for small triangles; keep this modest
+    dp_eb=0.1,  # modest bending stiffness for the small boundary mesh
     dp_el=0.3,
     dp_gamma=None,
     seed=2,
 )
-summarize("3D DPs", state, system, container)
+summarize("2D DPs", state, system, 0.02, container)
 
 
 # %%
 # Short rollout on the DP system to confirm everything composes
 # -------------------------------------------------------------
 state, system = system.initialize(state, system)
-for _ in range(100):
-    state, system = system.step(state, system)
-print("100 Verlet steps on the DP system completed cleanly.")
+state, system = system.step(state, system, n=10)
+assert np.all(np.isfinite(state.pos))
+print("10 Verlet steps on the DP system completed cleanly.")

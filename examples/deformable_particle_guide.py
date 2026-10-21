@@ -12,6 +12,39 @@ deviations in element measure (area/length), body content (volume/area),
 bending angle, edge length, and surface tension.
 
 This guide shows how to create, configure, and extend deformable particles.
+
+The coefficients correspond to specific terms in the elastic energy, not
+interchangeable numerical weights. Let :math:`\mathcal{M}_m` be element
+measure, :math:`\mathcal{C}_I` enclosed body content, :math:`L_e` edge length,
+and :math:`\theta_a` the signed bend between adjacent elements. A subscript
+0 denotes the reference geometry. The model uses
+
+.. math::
+
+    E_{\mathrm{measure}} &= \frac12\sum_m
+        \frac{em_m}{\mathcal{M}_{m,0}}
+        (\mathcal{M}_m-\mathcal{M}_{m,0})^2, \\
+    E_{\mathrm{content}} &= \frac12\sum_I
+        \frac{ec_I}{\mathcal{C}_{I,0}}
+        (\mathcal{C}_I-\mathcal{C}_{I,0})^2, \\
+    E_{\mathrm{edge}} &= \frac12\sum_e el_e(L_e-L_{e,0})^2, \\
+    E_{\mathrm{bend}} &= \frac12\sum_a eb_a w_{b,a}
+        \operatorname{wrap}(\theta_a-\theta_{a,0})^2, \\
+    E_{\mathrm{tension}} &= \sum_m\gamma_m\mathcal{M}_m.
+
+In 2D, element measure is segment length and body content is enclosed area;
+in 3D they are triangle area and enclosed volume. The constructor derives
+the geometric bending weight :math:`w_b` from the reference mesh, and
+``wrap`` takes the shortest signed angular difference. Nodal forces are
+:math:`\mathbf{F}_i=-\partial E/\partial\mathbf{x}_i`, with all active
+terms contributing to the same force accumulator.
+
+The measure, content, edge, and bending terms vanish at their reference
+values. Surface tension is different: a positive :math:`\gamma` favors
+shorter perimeter or smaller surface area even at the reference geometry.
+Thus a reference mesh need not be an equilibrium shape when tension is
+active. The batched restoring-force example below sets it to zero to
+isolate the response to a prescribed small stretch.
 """
 
 # %%
@@ -32,9 +65,13 @@ This guide shows how to create, configure, and extend deformable particles.
 #
 # For the simulation to run correctly, all vertices the deformable model
 # references must exist in the simulation ``state``.
+# Content elasticity additionally requires closed, consistently oriented
+# boundaries: counterclockwise segments in 2D and outward-facing triangles
+# in 3D. Open meshes can still use edge, measure, and bending terms.
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import jaxdem as jdem
 
 # A simple square boundary in 2D: 4 vertices connected by 4 segments.
@@ -72,7 +109,7 @@ print("Created DP:", type(dp).__name__)
 #
 # **Option 1** — pass the model object directly:
 
-state = jdem.State.create(pos=vertices_2d)
+state = jdem.State.create(pos=vertices_2d, rad=jnp.full(4, 0.1))
 system = jdem.System.create(state.shape, bonded_force_model=dp)
 
 # %%
@@ -97,6 +134,10 @@ system = jdem.System.create(
 # %%
 # If you pass both, the model object takes precedence and
 # :py:meth:`~jaxdem.system.System.create` ignores the keyword arguments.
+# A bonded model does not automatically disable contact forces. Node radii
+# here are smaller than half the edge length, so the reference square has no
+# self-contact. Use ``bond_id`` explicitly when connected nodes should be
+# excluded from contact even after deformation; see Connectivity Masking.
 
 
 # %%
@@ -218,7 +259,7 @@ vertices_3d = jnp.array(
     dtype=float,
 )
 elements_3d = jnp.array(
-    [[0, 1, 2], [0, 1, 3], [1, 2, 3], [0, 2, 3]],
+    [[0, 2, 1], [0, 1, 3], [1, 2, 3], [0, 3, 2]],
     dtype=int,
 )
 adjacency_3d = jnp.array(
@@ -247,25 +288,28 @@ print("3D adjacency_edges shape:", dp_3d.element_adjacency_edges.shape)  # (6, 2
 # each element per body using ``elements_id``.
 #
 # ``elements_id`` has shape ``(M,)`` and contains integer body indices.
-# For example, if you have two bodies with 3 and 2 elements respectively:
+# For example, two closed square boundaries each have four segments:
 #
 # .. code-block:: python
 #
-#     elements_id = jnp.array([0, 0, 0, 1, 1])
+#     elements_id = jnp.array([0, 0, 0, 0, 1, 1, 1, 1])
 #     ec = jnp.array([0.5, 0.8])  # one value per body
 #
 # Without ``elements_id``, the model treats all elements as one body
 # (body 0), and ``ec`` must have shape ``(1,)``.
 
+two_square_vertices = jnp.concatenate((vertices_2d, vertices_2d + jnp.array([2.0, 0.0])))
+two_square_elements = jnp.concatenate((elements_2d, elements_2d + 4))
 dp_two_bodies = jdem.BondedForceModel.create(
     "deformable_particle_model",
-    vertices=vertices_2d,
-    elements=elements_2d,
-    elements_id=jnp.array([0, 0, 1, 1]),
+    vertices=two_square_vertices,
+    elements=two_square_elements,
+    elements_id=jnp.repeat(jnp.arange(2), 4),
     ec=jnp.array([0.5, 0.8]),
 )
 print("ec shape:", dp_two_bodies.ec.shape)  # (2,)
 print("elements_id:", dp_two_bodies.elements_id)
+np.testing.assert_allclose(dp_two_bodies.initial_body_contents, [1.0, 1.0])
 
 # %%
 # Connectivity Masking
@@ -370,32 +414,44 @@ print("Merged el:", dp_merged.el)  # el padded with 0 for dp_a's edges
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Deformable particles work with :py:func:`jax.vmap`, so you can run
 # many independent simulations in parallel. Each simulation gets its own
-# ``State`` and ``System`` (including its own bonded model).
+# ``State`` and ``System`` (including its own bonded model). The model uses
+# the original square as its reference while each state starts with a small
+# horizontal stretch. Surface tension is off so the reference is stress-free.
 
 
-def create_sim(_i: jax.Array) -> tuple[jdem.State, jdem.System]:
-    state = jdem.State.create(pos=vertices_2d)
+def create_sim(i: jax.Array) -> tuple[jdem.State, jdem.System]:
+    stretch = 1.0 + 0.02 * (i + 1)
+    state = jdem.State.create(
+        pos=vertices_2d * jnp.array([stretch, 1.0]), rad=jnp.full(4, 0.1)
+    )
     dp_model = jdem.BondedForceModel.create(
         "deformable_particle_model",
-        vertices=state.pos,
+        vertices=vertices_2d,
         elements=elements_2d,
         edges=edges_2d,
         element_adjacency=adjacency_2d,
         em=[1.0],
         eb=[0.5],
         el=0.3,
-        gamma=0.1,
+        gamma=None,
     )
     system = jdem.System.create(state.shape, bonded_force_model=dp_model)
     return jdem.System.initialize(state, system)
 
 
-# Build a batch of 8 independent simulations.
-states, systems = jax.vmap(create_sim)(jnp.arange(8))
+# Build a batch of three independent simulations.
+states, systems = jax.vmap(create_sim)(jnp.arange(3))
 print("Batched pos shape (B, N, dim):", states.pos.shape)
 
-# Advance all simulations by 5 steps in parallel.
-states, systems = systems.step(states, systems, n=5)
+# The stretched right-hand vertices feel restoring forces to the left.
+assert bool(jnp.all(states.force[:, 1, 0] < 0))
+initial_widths = states.pos[:, 1, 0] - states.pos[:, 0, 0]
+# Advance all simulations by ten steps in parallel.
+states, systems = systems.step(states, systems, n=10)
+widths = states.pos[:, 1, 0] - states.pos[:, 0, 0]
+assert bool(jnp.all(widths < initial_widths))
+print("Initial widths:", initial_widths)
+print("Widths after elastic response:", widths)
 print("After stepping:", states.pos.shape)
 
 

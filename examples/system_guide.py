@@ -5,13 +5,12 @@ Now that we know how to use and modify the simulation state
 (:py:class:`~jaxdem.state.State`), we move to the simulation
 configuration in :py:class:`~jaxdem.system.System`.
 
-A :py:class:`~jaxdem.system.System` holds the "static" configuration of a
-simulation, such as the domain, integrator settings, and force model. We
-call it "static", but you can change many fields (e.g., the time step
-:math:`\Delta t`, domain dimensions, boundary conditions) at runtime, even
-inside a JIT-compiled function. This works because both
-:py:class:`~jaxdem.state.State` and :py:class:`~jaxdem.system.System` are
-JAX pytrees.
+A :py:class:`~jaxdem.system.System` holds the domain, integrator settings,
+force model, and evolving global values such as time and the PRNG key.
+Both State and System are JAX pytrees: array values such as the time step
+:math:`\Delta t` and box dimensions can change inside compiled functions.
+Component classes, callable configuration, and other static metadata select
+a compiled specialization; change those during host-side setup.
 """
 
 # %%
@@ -163,7 +162,9 @@ state, system = system.step(state, system, n=10)  # 10 steps
 # To record it, save it yourself before the rollout, or pass per-frame
 # ``strides`` with a leading ``0`` entry.
 
-state = jdem.State.create(jnp.zeros((1, 2)))
+state = jdem.State.create(jnp.zeros((1, 2)), vel=jnp.array([[0.1, 0.0]]))
+state, system = jdem.System.initialize(state, system)
+start_time = system.time
 
 state, system, trajectory = system.trajectory_rollout(
     state, system, n=10, stride=2  # total steps = 20
@@ -175,6 +176,8 @@ state, system, trajectory = system.trajectory_rollout(
 
 traj_state, traj_system = trajectory
 print("trajectory pos shape:", traj_state.pos.shape)  # (n, N, d)
+print("Recorded frame times:", traj_system.time)
+assert bool(jnp.isclose(system.time - start_time, 20 * system.dt))
 
 # %%
 # Inspecting Forces Without Evolving the System
@@ -197,7 +200,7 @@ print("Evaluated force shape:", evaluated_state.force.shape)
 
 
 def initialize(i):
-    st = jdem.State.create(jnp.zeros((1, 2)))
+    st = jdem.State.create(pos=jnp.array([[1.0, 1.0]]), rad=jnp.array([0.1]))
     sys = jdem.System.create(
         st.shape,
         domain_type="reflect",
@@ -206,8 +209,8 @@ def initialize(i):
     return jdem.System.initialize(st, sys)
 
 
-# Create a batch of 5 simulations
-state_b, system_b = jax.vmap(initialize)(jnp.arange(5))
+# Create a small batch of three simulations.
+state_b, system_b = jax.vmap(initialize)(jnp.arange(3))
 print(system_b.domain)  # batched variable domain
 
 # %%
@@ -228,7 +231,7 @@ system = jdem.System.create(
 )
 
 system = system.stack([system, system, system])
-print("stacked system:", system)
+print("Stacked time-step shape:", system.dt.shape)
 
 
 # %%
@@ -250,6 +253,9 @@ print("stacked system:", system)
 #    * - ``rotation_integrator_type``
 #      - ``None`` (or ``""``)
 #      - No orientation/angular-velocity updates.
+#    * - ``collider_type``
+#      - ``None`` (or ``""``)
+#      - No non-bonded pair interactions; external and bonded forces remain active.
 #    * - ``bonded_force_model_type``
 #      - ``None`` (default)
 #      - No bonded forces.
@@ -260,9 +266,9 @@ print("stacked system:", system)
 #      - ``()`` (default)
 #      - No custom external force and torque functions.
 #
-# **Note:** you cannot deactivate the domain (``domain_type``), collider
-# (``collider_type``), or force model (``force_model_type``). You must
-# always provide a valid type.
+# Keep a valid domain and force-model configuration. For unbounded motion use
+# ``domain_type="free"``; to omit non-bonded forces, deactivate the collider.
+# Deactivating integration does not deactivate force evaluation or boundaries.
 
 # No integration — a "frozen" system:
 system_frozen = jdem.System.create(

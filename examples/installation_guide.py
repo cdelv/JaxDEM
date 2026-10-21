@@ -1,5 +1,5 @@
 r"""Installation and Setup
-----------------------
+--------------------------
 
 Install JaxDEM from GitHub or a local checkout. Python 3.12 or newer and
 JAX 0.8.1 or newer are required. The core install includes dynamics and
@@ -31,6 +31,17 @@ dependencies use the same installed JAX backend.
 # .. code-block:: bash
 #
 #    python -m pip install "JaxDEM @ git+https://github.com/cdelv/JaxDEM.git"
+#
+# The introduction runs with the core install. To follow its optional export
+# section and the VTK/checkpoint tutorials, install the I/O extra:
+#
+# .. code-block:: bash
+#
+#    python -m pip install "JaxDEM[io] @ git+https://github.com/cdelv/JaxDEM.git"
+#
+# A CPU installation is sufficient for the small tutorial configurations. The
+# first run compiles JAX functions; later calls with the same array shapes reuse
+# those compiled functions within that Python process.
 #
 # All optional features, with JAX's CUDA 13 backend:
 #
@@ -76,6 +87,8 @@ dependencies use the same installed JAX backend.
 #
 # Once the package is published on PyPI, the equivalent command is
 # ``python -m pip install 'jaxdem[all]' 'jax[cuda13]'``.
+# For local development, use ``python -m pip install -e ".[io]"`` so edits to
+# the checkout are reflected in imports without reinstalling.
 # Verify the selected backend with:
 #
 # .. code-block:: bash

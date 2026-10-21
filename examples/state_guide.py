@@ -1,7 +1,7 @@
 """The Simulation State
 ----------------------------------------
 
-This example covers the :py:class:`jaxdem.state.State` object,
+This tutorial covers the :py:class:`jaxdem.state.State` object,
 a core component of JaxDEM that holds all particle data in a simulation.
 
 JaxDEM stores particle data in a Structure-of-Arrays (`SoA <https://en.wikipedia.org/wiki/AoS_and_SoA>`_)
@@ -61,7 +61,8 @@ print(f"Initial position: {state.pos}")
 #     :py:meth:`~jaxdem.state.State.add_clump` broadcasts a provided clump
 #     volume to every member sphere. Packing-fraction utilities read one
 #     value per clump (via a segment max).
-# *   **Identifiers**: ``clump_id``, ``bond_id``, ``mat_id``, ``species_id``
+# *   **Per-sphere identifiers**: ``bond_id``, ``mat_id``, ``species_id``.
+#     The ``clump_id`` itself is shared by all members of the rigid body.
 #
 # This design allows vectorized operations over all spheres without branching
 # on clump membership.
@@ -137,7 +138,8 @@ state.vel = state.vel.at[i].set(jnp.asarray([1, 2, 3], dtype=float))
 print(state.vel)
 
 # %%
-# This is inefficient. Prefer vectorized operations.
+# For many updates, index several rows at once or use vectorized operations
+# rather than a Python loop over individual particles.
 
 # %%
 # 2.  **Constructor arguments:** This is the
@@ -149,8 +151,8 @@ state = jdem.State.create(pos=jnp.zeros((1, 2)), vel=jnp.ones((1, 2)))
 print(state.vel)
 
 # %%
-# Fixed (Immobile) Particles
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Fixed and Prescribed-Motion Particles
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # The boolean field ``state.fixed`` marks particles with a prescribed
 # motion. Forces do not drive them. The integrator multiplies
 # velocity *updates* by ``(1 - fixed)``, which masks the acceleration.
@@ -274,9 +276,10 @@ print(
 
 # %%
 # Note that we provided explicit ``clump_id`` values here.
-# :py:meth:`jaxdem.state.State.add` adds ``jnp.max(state.clump_id) + 1`` to
-# the provided IDs to avoid overlaps. The resulting sequence may not be
-# contiguous, and that is valid.
+# :py:meth:`jaxdem.state.State.add` constructs the new group first, relabels
+# its input clump IDs, and then shifts them above the existing IDs when
+# merging. The grouping is preserved; the supplied numbers are not permanent
+# external identifiers. Keep your own mapping when those labels matter.
 
 # %%
 # Merging Two States
@@ -308,9 +311,10 @@ print(f"Merged state (N={state.N}, clump_ids={state.clump_id}):\npos={state.pos}
 #
 # This is useful for performance. JaxDEM targets **throughput**: if your
 # GPU is not saturated, you are leaving performance on the table. A common
-# DEM task is running parameter sweeps. JaxDEM lets you run many
-# independent simulations in parallel. Until you saturate the GPU, all of
-# them can finish in about the time of one.
+# DEM task is running parameter sweeps. JaxDEM lets you run independent
+# simulations in parallel, often improving throughput when a single system
+# underuses the accelerator. Speedup depends on workload, memory, and hardware;
+# measure the batch sizes relevant to your calculation.
 #
 # Also, with trajectory support you do not have to interrupt the
 # GPU for I/O (e.g., saving state to disk). You can accumulate a full
@@ -354,16 +358,22 @@ print(f"Position at batch 2: {batched_state.pos[2]}")
 
 
 # %%
-# A more realistic way to get a batched state:
+# To initialize independent simulations, return matching State/System pairs.
+# Use separated particles rather than putting every particle at one position:
 
 
 def initialize(i: jax.Array) -> tuple[jdem.State, jdem.System]:
-    state = jdem.State.create(i * jnp.ones((4, 2)))
+    positions = jnp.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
+    state = jdem.State.create(
+        pos=positions,
+        rad=jnp.full(4, 0.1),
+        vel=jnp.broadcast_to(jnp.array([0.05 * (i + 1), 0.0]), (4, 2)),
+    )
     system = jdem.System.create(state.shape)
     return jdem.System.initialize(state, system)
 
 
-N_batches = 10
+N_batches = 3
 state, system = jax.vmap(initialize)(jnp.arange(N_batches))
 
 # %%
@@ -371,6 +381,8 @@ state, system = jax.vmap(initialize)(jnp.arange(N_batches))
 
 state, system = system.step(state, system, n=10)
 print(f"Shape of positions (B, N, dim): {state.pos.shape}")
+print("First-particle x by batch:", state.pos[:, 0, 0])
+assert bool(jnp.all(jnp.diff(state.pos[:, 0, 0]) > 0))
 
 
 # %%
@@ -421,7 +433,7 @@ print(f"Batch size: {batched_state.batch_size}")
 # %%
 # As in the previous section, you can get a trajectory of batches like this:
 
-N_batches = 9
+N_batches = 3
 state, system = jax.vmap(initialize)(jnp.arange(N_batches))
 
 state, system, (state_traj, system_traj) = system.trajectory_rollout(
@@ -440,5 +452,5 @@ print(f"Shape of positions (T, B, N, dim): {state_traj.pos.shape}")
 
 from jaxdem import utils as utils
 
-state = utils.random_state(dim=3, N=10)
-print(state)
+state = utils.random_state(dim=3, N=4)
+print("Random state shape:", state.pos.shape)

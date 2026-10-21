@@ -1,11 +1,14 @@
 """Introduction
 ---------------------
 
-This is the simplest simulation you can run with JaxDEM.
+Create, initialize, and advance a single particle, then optionally export it.
+The dynamics use only the core installation; the final VTK section requires
+``JaxDEM[io]``. The ten-step calculation is deliberately small.
 """
 
 import tempfile
 from pathlib import Path
+import numpy as np
 import jaxdem as jdem
 
 # %%
@@ -13,10 +16,10 @@ import jaxdem as jdem
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # First, we create a :py:class:`jaxdem.state.State` object. It holds all
 # per-particle data in the simulation. Here we create a single particle at the
-# origin. :py:meth:`jaxdem.state.State.create` fills every unspecified
+# origin with velocity ``(1, 0, 0)``. :py:meth:`jaxdem.state.State.create` fills every unspecified
 # attribute with a default value.
 
-state = jdem.State.create(pos=[[0.0, 0.0, 0.0]])
+state = jdem.State.create(pos=[[0.0, 0.0, 0.0]], vel=[[1.0, 0.0, 0.0]])
 
 # %%
 # Note that we wrote ``pos=[[coords]]``, not ``pos=[coords]``.
@@ -32,7 +35,7 @@ state = jdem.State.create(pos=[[0.0, 0.0, 0.0]])
 # defaults for anything we do not specify. The only requirement is that the
 # system dimension matches the state dimension:
 
-system = jdem.System.create(state.shape)
+system = jdem.System.create(state.shape, dt=0.01)
 state, system = jdem.System.initialize(state, system)
 
 # %%
@@ -46,20 +49,28 @@ n_steps = 10
 state, system = system.step(state, system, n=n_steps)
 print(f"Advanced {n_steps} steps to time {float(system.time):.3g}")
 print("Particle position:", state.pos)
+# With no other particle or external force, x(t) = x(0) + v_x * t.
+np.testing.assert_allclose(state.pos, [[0.1, 0.0, 0.0]], atol=2e-7)
 
 
 # %%
 # Saving the Simulation
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# The last step is to save the simulation to VTK files so we can
+# With the optional ``[io]`` extra installed, save the simulation to VTK so we can
 # visualize it in ParaView. Writes happen asynchronously in background
 # threads. Use the writer as a context manager (or call
 # ``writer.block_until_ready()`` before exiting) to make sure the writer
 # finishes all files:
 
-tmp_dir = Path(tempfile.gettempdir()) / "data"
-with jdem.VTKWriter(directory=tmp_dir) as writer:
-    writer.save(state, system)
+tmp_dir = Path(tempfile.mkdtemp(prefix="jaxdem-introduction-"))
+try:
+    writer = jdem.VTKWriter(directory=tmp_dir)
+except ImportError:
+    print("Install JaxDEM[io] to run the optional VTK export section.")
+else:
+    with writer:
+        writer.save(state, system)
+    print("VTK output for ParaView:", tmp_dir)
 
 # %%
 # Where to Go Next

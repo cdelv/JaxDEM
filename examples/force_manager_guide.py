@@ -24,6 +24,7 @@ and how to set up species-wise interactions, see the
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import jaxdem as jdem
 
 # %%
@@ -59,7 +60,7 @@ print("Updated gravity:", system.force_manager.gravity)
 # clumps).
 
 state = jdem.State.create(
-    pos=jnp.array([[0.0, 0.0], [1.0, 0.0]]),
+    pos=jnp.array([[0.0, 0.0], [3.0, 0.0]]),
 )
 system = jdem.System.create(state.shape)
 
@@ -87,6 +88,11 @@ print("After add_force_at:\n", system.force_manager.external_force)
 
 system = jdem.ForceManager.add_torque(state, system, torque=jnp.array([[0.1], [0.2]]))
 print("Buffered external torque:\n", system.force_manager.external_torque)
+state, system = jdem.System.initialize(state, system)
+state, system = system.step(state, system)
+assert bool(jnp.all(system.force_manager.external_force == 0))
+assert bool(jnp.all(system.force_manager.external_torque == 0))
+print("External buffers are empty after one physical step.")
 
 
 # %%
@@ -123,15 +129,19 @@ system = jdem.System.create(
             (harmonic_trap, harmonic_trap_energy),
         ],
     },
-    dt=1e-1,
+    dt=0.02,
 )
 print("Registered force functions:", len(system.force_manager.force_functions))
 
 # %%
 # The system calls the force functions automatically every step:
 state, system = jdem.System.initialize(state, system)
-state, system = system.step(state, system, n=16)
-print("Position after stepping (pulled to origin):", state.pos)
+state, system = system.step(state, system, n=20)
+# With mass=k=1 and initial x=2, v=0, x(t)=2*cos(t). This short
+# check verifies the force-function wiring without a long dynamics run.
+expected_x = 2.0 * np.cos(float(system.time))
+np.testing.assert_allclose(state.pos[0, 0], expected_x, atol=3e-5)
+print("Trap position and analytical expectation:", state.pos[0, 0], expected_x)
 
 
 # %%
@@ -197,6 +207,7 @@ system = jdem.System.create(
 )
 
 pe = system.force_manager.compute_potential_energy(state, system)
+np.testing.assert_allclose(pe, 19.62, rtol=1e-6)
 print(f"Gravitational PE: {pe}")  # U = -m (g . r) = m * 9.81 * 1.0 = +19.62
 
 # %%
@@ -251,3 +262,9 @@ system = jdem.System.create(
         ],
     },
 )
+
+# The sphere overlaps this wall by 0.5, so stiffness 100 gives an upward
+# force of 50. evaluate_forces inspects this load without advancing time.
+state, system = jdem.System.evaluate_forces(state, system)
+np.testing.assert_allclose(state.force, [[0.0, 50.0]], rtol=1e-6)
+print("Wall force on the overlapping sphere:", state.force)

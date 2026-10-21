@@ -31,6 +31,7 @@ This guide covers each one.
 # :py:meth:`~jaxdem.system.System.create`. Pass ``domain_type`` and,
 # optionally, ``domain_kw``:
 
+import numpy as np
 import jax.numpy as jnp
 import jaxdem as jdem
 
@@ -214,8 +215,9 @@ print("Lees-Edwards displacement:", rij)
 # correctly handling both linear and angular velocity for spheres and clumps.
 #
 # An optional ``restitution_coefficient`` (default ``1.0``, i.e. perfectly
-# elastic) controls how much kinetic energy the particle keeps after a
-# wall collision.
+# elastic) scales the normal rebound speed relative to the approach speed.
+# For a head-on impact on a stationary wall, the retained kinetic-energy
+# fraction is its square.
 
 state = jdem.State.create(
     pos=jnp.array([[0.5, 0.5]]),
@@ -225,6 +227,7 @@ state = jdem.State.create(
 system = jdem.System.create(
     state.shape,
     domain_type="reflect",
+    dt=0.01,
     domain_kw={
         "box_size": 10.0 * jnp.ones(2),
         "anchor": jnp.zeros(2),
@@ -233,11 +236,15 @@ system = jdem.System.create(
 )
 print("Restitution:", system.domain.restitution_coefficient)
 
-# After stepping, the particle bounces off the left wall:
+# The center starts 0.1 above the contact position x = radius. At speed 1,
+# it reaches the wall after 0.1 time units. Twenty dt=0.01 steps cover the
+# approach and rebound while keeping this demonstration short:
 state, system = jdem.System.initialize(state, system)
-state, system = system.step(state, system, n=3)
+state, system = system.step(state, system, n=20)
 print("Position after bounce:", state.pos)
 print("Velocity after bounce:", state.vel)
+np.testing.assert_allclose(state.vel, [[1.0, 0.0]], atol=1e-6)
+assert float(state.pos[0, 0]) >= float(state.rad[0])
 
 
 # %%
@@ -259,13 +266,15 @@ state = jdem.State.create(
 system = jdem.System.create(
     state.shape,
     domain_type="reflectsphere",
+    dt=0.01,
     domain_kw={"box_size": 10.0 * jnp.ones(2), "anchor": jnp.zeros(2)},
 )
 
 state, system = jdem.System.initialize(state, system)
-state, system = system.step(state, system, n=3)
+state, system = system.step(state, system, n=20)
 print("Sphere-reflect position:", state.pos)
 print("Sphere-reflect velocity:", state.vel)
+np.testing.assert_allclose(state.vel, [[1.0, 0.0]], atol=1e-6)
 
 
 # %%

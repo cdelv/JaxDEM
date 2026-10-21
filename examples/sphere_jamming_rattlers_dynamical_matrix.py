@@ -1,42 +1,34 @@
 """Jammed bidisperse packing: contacts, rattlers, and the dynamical matrix
-=========================================================================
+==========================================================================
 
-This example combines :mod:`jaxdem.utils.contacts` and
-:mod:`jaxdem.utils.dynamical_matrix` in the classic jamming / isostaticity
-setting. We build a small bidisperse 2D packing and compress it to its
-nearest jammed state. We then count the inter-particle contacts, find the
-rattlers (particles with fewer force-bearing contacts than mechanical
-stability requires), and compute the dynamical matrix.
+Follow a small periodic disk packing from relaxation through contact counting,
+rattler removal, and an energy-Hessian spectrum. Eight disks and moderate,
+explicit tolerances keep this workflow short; the resulting jamming fraction
+has strong finite-size effects and is not a bulk material constant.
 
-The zero-mode count of the dynamical matrix tracks the floppy directions
-of the system. A rattler with ``k`` force-bearing contacts contributes
-``max(0, dim - k)`` zero modes to the hessian (the directions
-perpendicular to its contact constraints), so
+The physical question is whether contacts block collective motion. We first
+find an equilibrated packing, then compare its contact graph with the curvature
+of its energy. These are complementary descriptions: counting contacts is a
+useful screening criterion, while the Hessian measures the effect of their
+actual directions and finite contact forces. A small noncontacting tracer makes
+rattler removal visible without requiring a long search for a particular seed.
 
-    n_zero  =  dim  +  Σ_rattlers max(0, dim - k_i)
-
-The leading ``dim`` is the rigid-translation null space of the pair
-potential (it depends only on differences). A rattler with zero
-contacts gives the full ``dim`` zero modes. A rattler with a single
-contact gives ``dim - 1``. A rattler with ``dim`` generic contacts
-gives none, although the default ``zc = dim + 1`` still flags it as a
-rattler because finite-overlap tangential softening can make it
-mechanically unstable.
-
-After we remove the rattlers, the isostatic count reduces to the
-``dim`` global translations alone. The remaining network is rigid.
+The derivation below separates three ideas that are easily conflated:
+linearized contact constraints, prestress in an overlapping packing, and
+vibrational frequencies. We retain the mathematical discussion even though
+the executable calculation deliberately uses only eight load-bearing disks.
 """
 
 # %%
-# Imports
+# Build a reproducible, loose configuration
+# -----------------------------------------
 import jax
+
+jax.config.update("jax_enable_x64", True)
+
+import jax.numpy as jnp
 import numpy as np
-
-jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
-
-from jaxdem import fire
-from jaxdem.utils.particle_creation import build_sphere_system
-from jaxdem.utils.jamming import bisection_jam
+import jaxdem as jdem
 from jaxdem.utils import (
     count_sphere_contacts,
     get_contacts,
@@ -44,207 +36,302 @@ from jaxdem.utils import (
     remove_rattlers,
 )
 from jaxdem.utils.dynamical_matrix import non_bonded_hessian, zero_mode_mask
+from jaxdem.utils.jamming import bisection_jam
 
 # %%
-# Parameters
-# -----------
-# Small bidisperse 2D packing: 20 small + 20 large spheres, radius ratio 1.4,
-# smallest radius 0.5. We fix the seed so the whole pipeline is reproducible.
+# Use consistent reduced length, mass, and stiffness units. Half the disks
+# have radius 0.5 and half have radius 0.7, giving a size ratio of 1.4.
+# Bidispersity discourages the simple crystalline arrangements favored by
+# identical disks. It does not establish isotropy or remove finite-size effects.
 #
-# We use a bidisperse mix because monodisperse 2D disks crystallize.
-# A 1 : 1.4 radius ratio with roughly equal populations is the standard
-# jamming-literature choice. It is large enough to suppress
-# crystallization and small enough to keep the packing structurally isotropic.
-
-rng = np.random.default_rng(seed=20260422)
+# The nominal packing fraction is the sum of disk areas divided by box area:
+#
+# .. math::
+#
+#    \phi = \frac{\sum_i \pi R_i^2}{L^2},
+#    \qquad L = \sqrt{\frac{\sum_i \pi R_i^2}{\phi}}.
+#
+# Overlaps do not subtract from this conventional soft-particle volume
+# fraction. Uniform random positions can overlap initially; the jamming
+# routine relaxes each trial before interpreting its energy.
 dim = 2
-n_small = 20
-n_large = 20
-r_small = 0.5
-r_large = r_small * 1.4
-
-radii = np.concatenate([np.full(n_small, r_small), np.full(n_large, r_large)])
-N = int(radii.shape[0])
-
-# %%
-# Build and jam
-# -------------
-# :func:`~jaxdem.utils.particle_creation.build_sphere_system` places the
-# spheres uniformly and compresses them quasistatically to the given
-# target phi. :func:`~jaxdem.utils.jamming.bisection_jam` then drives the
-# system to its nearest jammed state by bisection on the packing
-# fraction. It handles the minimization internally, so we do not need an
-# extra FIRE/minimize call. We use the naive collider because the system
-# is small.
-
-state, system = build_sphere_system(
-    particle_radii=radii.tolist(),
-    phi=0.5,  # loose initial target (below 2D jamming ~0.84)
-    dim=dim,
-    seed=int(rng.integers(0, 2**31 - 1)),
-    collider_type="naive",
+N = 8
+radii = jnp.array([0.5] * 4 + [0.7] * 4)
+volume = jnp.pi * radii**2
+initial_phi = 0.65
+L = jnp.sqrt(jnp.sum(volume) / initial_phi)
+state = jdem.State.create(
+    pos=jax.random.uniform(jax.random.PRNGKey(0), (N, dim)) * L,
+    rad=radii,
+    mass=jnp.ones(N),
+    volume=volume,
+)
+mat_table = jdem.MaterialTable.from_materials(
+    [jdem.Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
+)
+system = jdem.System.create(
+    state=state,
+    dt=0.05,
+    rotation_integrator_type=None,
+    minimizer=jdem.fire,
+    minimizer_kw={"dt": 0.05},
     domain_type="periodic",
-    minimizer=fire,
-    minimizer_kw={"dt": 1e-2},
-    dt=1e-2,
+    domain_kw={"box_size": jnp.full(dim, L)},
+    collider_type="naive",
+    mat_table=mat_table,
 )
 
-result = bisection_jam(state, system)  # jam the system. Returns a JamResult
+# %%
+# Find an equilibrated upper bound
+# --------------------------------
+# For a contacting pair, the spring potential uses the penetration
+# :math:`\delta_{ij}=\max(0,R_i+R_j-r_{ij})`:
+#
+# .. math::
+#
+#    U = \sum_{i<j} \frac{k_{ij}}{2}\delta_{ij}^2,
+#    \qquad e = \frac{U}{N}.
+#
+# ``pe_tol`` classifies this energy per constituent sphere **after** force
+# relaxation. Force/torque tolerances control the separate inner minimization;
+# low energy alone does not imply small force or establish rigidity. Bisection
+# stores a lower trial with :math:`e\leq e_{\rm tol}` and an upper trial with
+# :math:`e>e_{\rm tol}`, then refines their packing-fraction bracket. The
+# accepted upper state also lies within the specified energy band.
+#
+# These moderate teaching tolerances resolve the workflow without a
+# near-machine-precision search. Increasing the system size requires checking
+# both relaxation convergence and sensitivity to the bracket/energy criteria.
+pe_tol = 1e-8
+result = bisection_jam(
+    state,
+    system,
+    pe_tol=pe_tol,
+    pe_band_factor=4.0,
+    n_jamming_steps=80,
+    packing_fraction_increment=0.04,
+    packing_fraction_tolerance=1e-4,
+    minimizer_kwargs={"max_steps": 5_000, "force_tol": 1e-7, "torque_tol": 1e-7},
+    verbose=False,
+)
+if not bool(result.converged):
+    raise RuntimeError(
+        f"Jamming failed: reason={result.reason}, "
+        f"minimizer_reason={result.minimizer_reason}"
+    )
 state, system = result.jammed_state, result.jammed_system
 print(
-    f"Jammed: phi = {float(result.packing_fraction):.6f}, "
-    f"residual PE = {float(result.potential_energy):.3e}"
+    f"Finite-system phi_J = {float(result.packing_fraction):.6f}; "
+    f"E/N = {float(result.potential_energy):.3e}; trials = {int(result.steps)}"
 )
-
+assert pe_tol < float(result.potential_energy) <= 4.0 * pe_tol
 
 # %%
-# Count contacts
-# --------------
-# A contact is a sphere pair with nonzero force.
-# :func:`~jaxdem.utils.contacts.count_sphere_contacts` returns the
-# force-bearing contact count for each sphere. Each unique sphere-pair
-# contact counts once per endpoint, so the sum divided by 2 gives the
-# number of distinct inter-particle contacts. Collect one snapshot to
-# share between contact counting and rattler analysis.
+# Make rattler removal visible
+# ----------------------------
+# Add one tiny, noncontacting tracer in a void. The eight-disk search above
+# is unchanged; this extra free disk deliberately contributes floppy motion.
+# A deterministic grid search finds a void using periodic minimum images.
+box = np.asarray(system.domain.box_size)
+axis = (np.arange(16) + 0.5) / 16
+candidates = np.stack(np.meshgrid(axis * box[0], axis * box[1]), axis=-1).reshape(-1, 2)
+delta = candidates[:, None, :] - np.asarray(state.pos)[None, :, :]
+delta -= box * np.round(delta / box)
+clearance = np.min(np.linalg.norm(delta, axis=-1) - np.asarray(state.rad), axis=1)
+void_index = int(np.argmax(clearance))
+tracer_radius = min(0.03, 0.5 * float(clearance[void_index]))
+if tracer_radius <= 0:
+    raise RuntimeError("No noncontacting tracer position was resolved.")
+state = jdem.State.add(
+    state, pos=candidates[void_index : void_index + 1], rad=[tracer_radius],
+    mass=[1.0], volume=[np.pi * tracer_radius**2],
+)
+N = state.N
+system = jdem.System.create(
+    state=state, domain=system.domain, mat_table=mat_table,
+    rotation_integrator_type=None, collider_type="naive",
+)
+state, system = jdem.System.initialize(state, system)
 
+# %%
+# Count contacts and screen for rattlers
+# --------------------------------------
+# :func:`~jaxdem.utils.contacts.get_contacts` records pairs whose force or
+# torque is nonzero. Here contacts have only normal spring forces, so this is
+# the force-bearing overlap network. A pair exactly at zero overlap does not
+# contribute a spring force and is absent from this snapshot.
+#
+# :func:`~jaxdem.utils.contacts.count_sphere_contacts` returns a count
+# :math:`z_i` for each disk. A unique pair contributes once to each endpoint:
+#
+# .. math::
+#
+#    N_c = \frac12\sum_i z_i,
+#    \qquad \bar z = \frac{2N_c}{N}.
+#
+# Reuse one contact snapshot for all diagnostics so counts and rattler IDs
+# describe exactly the same configuration, without reevaluating forces.
 state, system, contacts = get_contacts(state, system)
-state, system, contacts_per_sphere = count_sphere_contacts(
-    state, system, contacts=contacts
-)
-contacts_per_sphere = np.asarray(contacts_per_sphere)
-n_contacts = int(contacts_per_sphere.sum()) // 2
-print(f"{N} particles, {n_contacts} inter-particle contacts")
-
-
-# %%
-# Rattlers
-# --------
-# A sphere with ``dim`` or fewer force-bearing contacts cannot be
-# mechanically stable. Each contact contributes a positive normal
-# stiffness and a negative tangential stiffness (``-k s / r`` from the
-# spring potential's tangential softening). Only when the number of
-# contacts strictly exceeds ``dim`` can the sum of the contributions
-# be positive-definite for generic contact angles. The standard
-# rattler threshold is therefore ``zc = dim + 1``.
-# :func:`~jaxdem.utils.contacts.get_sphere_rattler_ids` iteratively
-# removes any particle with fewer than ``zc`` contacts and re-checks
-# the remaining graph, because removing one rattler can leave its
-# neighbors under-coordinated. It stops when the set stabilizes.
-
+state, system, counts = count_sphere_contacts(state, system, contacts=contacts)
 state, system, rattler_ids, non_rattler_ids = get_sphere_rattler_ids(
     state, system, contacts=contacts
 )
-n_rattlers = int(rattler_ids.shape[0])
-print(f"Rattlers: {n_rattlers} / {N}")
-
-# The number of zero modes each rattler contributes depends on its
-# force-bearing contact count ``k``. With ``k < dim`` contacts it has
-# ``dim - k`` floppy directions. With ``k = dim`` contacts it is
-# generically rank-constrained: no floppy modes, though possibly still
-# mechanically unstable. We read each rattler's contact count from the
-# same per-sphere array we printed above.
-rattler_contacts = contacts_per_sphere[np.asarray(rattler_ids)]
-print(f"Force-bearing contacts per rattler: {rattler_contacts.tolist()}")
-
+print("Contacts per disk:", np.asarray(counts))
+print("Distinct contacts:", int(np.asarray(counts).sum()) // 2)
+print("Rattler disk IDs:", np.asarray(rattler_ids))
 
 # %%
-# Dynamical matrix
-# ----------------
-# Now we calculate the dynamical matrix for the entire system,
-# including the rattler particles, with
-# :func:`~jaxdem.utils.dynamical_matrix.non_bonded_hessian`. We expect
-# each rattler with ``k`` force-bearing contacts to contribute
-# ``max(0, dim - k)`` zero modes (the directions orthogonal to its
-# contact constraints), giving::
+# A rattler can move without being held by the load-bearing network. The
+# default graph screen ``zc = dim + 1`` removes disks with fewer than three
+# force-bearing contacts in 2D. Fewer contacts cannot generically surround a
+# repulsive disk, although even three contacts can all lie on the same side.
+# Removing one disk may leave its neighbors below the threshold, so the
+# utility updates counts and repeats until the surviving set stops changing.
+# This geometric motivation explains the threshold; it is not a proof that
+# the surviving graph is rigid.
 #
-#     n_zero  =  dim  +  Σ_rattlers max(0, dim - k_i)
+# Contact constraints and linearized counting
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Let :math:`q\in\mathbb R^{dN}` contain the disk centers and let
+# :math:`B_{c\alpha}=\partial r_c/\partial q_\alpha` be the contact Jacobian.
+# Each row maps a displacement to the first-order change of one contact
+# distance. With :math:`r_B=\operatorname{rank}B`, rank-nullity gives
 #
-# on top of the ``dim`` zero modes from global translations. The
-# global translations occur because the potential only depends on
-# the difference between particle positions. A background potential
-# would lift them.
+# .. math::
+#
+#    n_0 = dN-r_B,\qquad n_s=N_c-r_B,
+#    \qquad n_0-n_s=dN-N_c.
+#
+# Here :math:`n_0=\dim\ker B` counts motions that preserve all contact
+# distances to first order; :math:`n_s=\dim\ker B^T` counts independent
+# self-stress patterns. This identity concerns the linearized constraint
+# network. Its nullity equals that of an unstressed spring matrix
+# :math:`B^T K B` when all contact stiffnesses in :math:`K` are positive.
+#
+# For one disk with neighbors held fixed, at most :math:`k` independent
+# normal constraints leave at least :math:`\max(0,d-k)` unconstrained
+# first-order directions. Equality requires independent contact normals.
+# Summing such local estimates double-counts shared constraints and cannot
+# determine collective modes. Finite contact forces also add curvature, as
+# the energy Hessian below makes explicit.
 
+# %%
+# Measure the energy-Hessian spectrum
+# -----------------------------------
+# :func:`~jaxdem.utils.dynamical_matrix.non_bonded_hessian` differentiates
+# the total pair energy with respect to disk-center coordinates. At an
+# equilibrated configuration :math:`q_0`,
+#
+# .. math::
+#
+#    U(q_0+u)=U(q_0)+\tfrac12u^T H u+O(\|u\|^3),
+#    \qquad H_{\alpha\beta}
+#      =\left.\frac{\partial^2 U}{\partial q_\alpha\partial q_\beta}
+#       \right|_{q_0}.
+#
+# The linear term vanishes at exact force balance. Here the matrix has
+# shape ``(dim*N, dim*N)``. For a contact at positive separation, with unit
+# normal :math:`n` and relative displacement :math:`u_{ij}`, its local block is
+#
+# .. math::
+#
+#    H_{\rm pair}=k\,nn^T
+#        -\frac{k\delta}{r}(I-nn^T).
+#
+# The positive normal term penalizes changes of distance. The negative
+# transverse term comes from the existing compressive force: a transverse
+# displacement can increase separation and reduce an overlap. In full
+# coordinates the same chain rule gives
+#
+# .. math::
+#
+#    H=B^T K B +\sum_c U'_c(r_c)\,\nabla_q^2 r_c,
+#    \qquad U'_c=-k_c\delta_c.
+#
+# The second term is the prestress contribution. This is why a direction in
+# ``ker(B)`` need not be an exact zero mode of the finite-overlap Hessian.
+# A resolved negative eigenvalue indicates an energy-lowering direction at
+# force balance; positive eigenvalues measure quadratic restoring curvature.
+#
+# Mechanical vibrations satisfy :math:`H u=\omega^2 M u`, where :math:`M`
+# repeats each disk's mass on its coordinate entries. The mass-weighted
+# dynamical matrix is :math:`M^{-1/2}HM^{-1/2}`. We report the energy Hessian
+# directly; unit masses make the numerical spectra coincide in these units.
 state, system, H = non_bonded_hessian(state, system)
 H_np = np.asarray(H)
-# Make exactly symmetric before eigendecomposition. Autograd symmetry
-# holds only to roundoff, and any floating-point asymmetry would give
-# complex eigenvalues.
+# Equality of mixed derivatives makes the mathematical Hessian symmetric.
+# Explicit symmetrization removes roundoff-sized assembly asymmetry before
+# using the real symmetric eigensolver; it does not correct a physical mode.
 H_np = 0.5 * (H_np + H_np.T)
-eigenvalues = np.sort(np.linalg.eigvalsh(H_np))
+eigenvalues = np.linalg.eigvalsh(H_np)
 
-# Zero modes do not come out exactly zero from the eigendecomposition.
-# They land around machine precision times the largest eigenvalue. In a
-# jammed packing there is usually a very large gap (many orders of
-# magnitude) between these numerical zeros and the smallest finite
-# mode, so we can identify them by finding the gap.
-# :func:`~jaxdem.utils.dynamical_matrix.zero_mode_mask` does this for us
-# and returns a boolean mask we can apply to both eigenvalues and
-# eigenvectors.
-
+# %%
+# Numerical zero modes rarely appear as literal floating-point zeros. Their
+# scale is related to machine precision times the spectral scale, whereas
+# genuine soft modes can also be small. ``zero_mode_mask`` looks for a large
+# ratio between successive eigenvalue magnitudes, after grouping values at
+# roundoff scale. Its mask preserves the original eigenvalue ordering and
+# can therefore also select matching eigenvectors. Inspect the spectrum if
+# there is no clear gap; changing tolerance does not prove a mode is floppy.
 zero_mask = np.asarray(zero_mode_mask(eigenvalues))
-n_zero = int(zero_mask.sum())
+scale = max(float(np.max(np.abs(eigenvalues))), 1.0)
+negative = (eigenvalues < -1e-7 * scale) & ~zero_mask
+print("Lowest Hessian eigenvalues:", eigenvalues[:8])
+print("Numerical zero modes:", int(zero_mask.sum()))
+print("Resolved negative modes:", int(negative.sum()))
 
-print("\nEigenvalue spectrum (low end):")
-for i, lam in enumerate(eigenvalues[:12]):
-    mark = "  (zero)" if zero_mask[i] else ""
-    print(f"  λ[{i:3d}] = {lam: .3e}{mark}")
-print("  ...")
-print(f"  λ[-1] = {eigenvalues[-1]: .3e}")
-
-print(f"\n# zero modes   : {n_zero}")
-rattler_floppy = int(np.sum(np.maximum(0, dim - rattler_contacts)))
-expected_zero = dim + rattler_floppy
-print(
-    f"# expected     : {expected_zero} = {dim} (global translations) + "
-    f"{rattler_floppy} (Σ max(0, dim - k_i) over rattlers)"
-)
-assert n_zero == expected_zero, f"zero-mode count {n_zero} != expected {expected_zero}"
-
+# %%
+# A common displacement of every disk leaves pair separations unchanged:
+#
+# .. math::
+#
+#    U(q+\mathbf 1\otimes a)=U(q),
+#    \qquad H(\mathbf 1\otimes e_\alpha)=0.
+#
+# Thus ``dim`` global translations are exact symmetries of this periodic
+# pair-potential problem. A background trap or fixed wall would change that
+# conclusion. We check these vectors directly rather than relying only on
+# a gap-based zero-mode classification.
+translations = np.tile(np.eye(dim), (N, 1))
+np.testing.assert_allclose(H_np @ translations, 0.0, atol=1e-8 * scale)
 
 # %%
 # Remove rattlers and re-analyze
 # ------------------------------
-# We now remove the rattlers with
-# :func:`~jaxdem.utils.contacts.remove_rattlers`. It drops the rattler
-# spheres from the state and returns a matching system re-initialized
-# for the reduced particle count. No manual system reconstruction is
-# needed.
-
-# Two ID spaces are in play. ``get_sphere_rattler_ids`` returns *sphere*
-# indices, while ``remove_rattlers`` expects *clump* IDs. We map sphere
-# index -> clump ID with ``state.clump_id``. For a pure sphere system
-# each sphere is its own one-sphere clump.
+# Two ID spaces are in play. ``get_sphere_rattler_ids`` returns particle-row
+# indices, while ``remove_rattlers`` expects clump IDs. A smooth disk is a
+# one-member clump; the explicit ``state.clump_id`` lookup remains correct
+# even if a preceding construction step has relabeled or reordered particles.
+#
+# :func:`~jaxdem.utils.contacts.remove_rattlers` drops those bodies and returns
+# a matching initialized System for the reduced particle count. It also
+# updates search geometry and indexing; reusing the old System would lose
+# those contracts. We recompute the Hessian because its coordinate space has
+# changed. A fully disconnected disk contributes ``dim`` exactly free
+# translations; its removal eliminates that block without changing the
+# contacting network. The deliberately isolated tracer makes this case
+# explicit. Removing particles with residual contacts can change the finite
+# spectrum too, so spectrum preservation is not a general pruning theorem.
 rattler_clump_ids = state.clump_id[rattler_ids]
 state_nr, system_nr = remove_rattlers(state, system, rattler_clump_ids)
-print(f"After rattler removal: {int(state_nr.N)} particles")
-
 
 # %%
-# Recompute the dynamical matrix
-# ------------------------------
-# With the rattlers gone, we expect only the ``dim`` global translational
-# zero modes to remain. The rest of the spectrum should match the finite
-# modes of the full system.
-
+# Recompute the spectrum after pruning
+# -------------------------------------
+# The full spectrum included two translations of the disconnected tracer.
+# Those disappear from the reduced coordinate space. Compare the remaining
+# low eigenvalues with the required global translations. Additional near-zero
+# or negative modes require inspection of geometry and numerical tolerances;
+# graph pruning alone cannot certify the remaining network's stability.
 state_nr, system_nr, H_nr = non_bonded_hessian(state_nr, system_nr)
 H_nr_np = np.asarray(H_nr)
 H_nr_np = 0.5 * (H_nr_np + H_nr_np.T)
-eigenvalues_nr = np.sort(np.linalg.eigvalsh(H_nr_np))
-
+eigenvalues_nr = np.linalg.eigvalsh(H_nr_np)
 zero_mask_nr = np.asarray(zero_mode_mask(eigenvalues_nr))
-n_zero_nr = int(zero_mask_nr.sum())
-
-print("\nAfter removing rattlers — eigenvalue spectrum (low end):")
-for i, lam in enumerate(eigenvalues_nr[:8]):
-    mark = "  (zero)" if zero_mask_nr[i] else ""
-    print(f"  λ[{i:3d}] = {lam: .3e}{mark}")
-print("  ...")
-print(f"  λ[-1] = {eigenvalues_nr[-1]: .3e}")
-
-print(f"\n# zero modes (no rattlers)  : {n_zero_nr}")
-print(f"# expected                   : {dim} (global translations only)")
-assert n_zero_nr == dim, f"post-rattler zero-mode count {n_zero_nr} != {dim}"
-print(
-    "\nWith the rattlers removed, every zero mode of the dynamical matrix "
-    "corresponds to a global translation of the packing."
-)
+print("Disks after rattler removal:", state_nr.N)
+print("Lowest remaining eigenvalues:", eigenvalues_nr[:8])
+print("Remaining numerical zero modes:", int(zero_mask_nr.sum()))
+print("Global translations required by symmetry:", dim)
+# An equilibrated, rigid remaining network has only the translational null
+# space. Extra soft or negative modes require investigation; deleting graph
+# rattlers alone does not certify rigidity.

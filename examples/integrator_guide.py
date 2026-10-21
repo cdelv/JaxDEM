@@ -34,6 +34,7 @@ Let's see how to choose, configure, and swap them.
 # integrator with a SPIRAL rotation integrator, or disable rotation
 # entirely while keeping translation active.
 
+import numpy as np
 import jax.numpy as jnp
 import jaxdem as jdem
 
@@ -55,6 +56,50 @@ print("Rotation integrator:", type(system.rotation_integrator).__name__)
 # additional keyword arguments through ``linear_integrator_kw`` or
 # ``rotation_integrator_kw``. Consult the API reference for the specific
 # parameters of each integrator.
+#
+# Start with ``verlet`` for inertial, conservative translation and
+# ``verletspiral`` for rigid-body rotation. Use ``langevin`` when stochastic
+# drag and thermal forcing are part of the intended model, or
+# ``verlet_rescaling`` for explicit kinetic-temperature control. ``euler`` is a
+# simpler first-order method; it generally needs smaller steps for comparable
+# accuracy. Smooth frictionless spheres can disable rotation.
+#
+# JaxDEM imposes no unit system: positions, masses, stiffnesses, and time must
+# be consistent. For a linear contact, the oscillation scale is
+# ``sqrt(m_effective / k_effective)``. Choose dt well below the shortest
+# relevant contact time, then repeat at dt/2 over the same physical duration.
+# Compare the quantity of interest and, for conservative dynamics, energy
+# drift. An integrator name or a visually plausible trajectory is not an
+# accuracy check; the factory's default dt is not a stability guarantee.
+#
+# To connect this choice to the equations of motion, for position-dependent
+# forces and constant mass the translational velocity-Verlet update is
+#
+# .. math::
+#
+#    \mathbf x_{n+1}=\mathbf x_n+\Delta t\,\mathbf v_n
+#        +\tfrac12\Delta t^2\mathbf a_n,\qquad
+#    \mathbf a_{n+1}=\mathbf F(\mathbf x_{n+1})/m,
+#
+#    \mathbf v_{n+1}=\mathbf v_n
+#        +\tfrac12\Delta t(\mathbf a_n+\mathbf a_{n+1}).
+#
+# Explicit initialization supplies :math:`\mathbf a_0`; starting with a
+# stale acceleration changes the first update. For a linear two-particle
+# contact the reduced mass and angular frequency are
+#
+# .. math::
+#
+#    m_{\mathrm{eff}}=\frac{m_i m_j}{m_i+m_j},\qquad
+#    \omega=\sqrt{k_{\mathrm{eff}}/m_{\mathrm{eff}}}.
+#
+# The dimensionless resolution parameter is :math:`\omega\Delta t`.
+# For an undamped isolated linear impact the contact duration is
+# :math:`\pi/\omega`; a dense packing can have faster collective modes,
+# so this pair scale is a useful starting estimate rather than a universal
+# stability bound. Timestep refinement tests the accuracy of the observable
+# being measured. Minimization, described below, instead seeks force and
+# torque balance and does not represent this physical time evolution.
 
 
 # %%
@@ -222,6 +267,9 @@ print("Minimizer:", system.minimizer.type_name)
 # Step limits, nonfinite values and search overflow are unsuccessful exits.
 # With the physical objective, FIRE and damped Newtonian evaluate energy once
 # after relaxation. Custom targets are evaluated during optimization.
+# Relaxation iterations are not elapsed physical time. A minimum can still
+# have positive overlap energy under compression; small energy alone does
+# not establish mechanical equilibrium or rigidity.
 
 state = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
@@ -230,13 +278,21 @@ state = jdem.State.create(
 system = jdem.System.create(
     state.shape,
     minimizer=jdem.fire,
-    minimizer_kw={"dt": 1e-2},
+    minimizer_kw={"dt": 0.05},
+    mat_table=jdem.MaterialTable.from_materials(
+        [jdem.Material.create("elastic", young=1.0, poisson=0.25, density=1.0)]
+    ),
 )
 
-result = system.minimize(state, system, max_steps=500)
+# Unit masses and stiffness keep this small relaxation inexpensive.
+result = system.minimize(state, system, max_steps=500, force_tol=1e-6)
 state, system, steps, pe = result
 print(f"Converged: {result.converged}, steps: {steps}, PE = {pe:.6e}")
 print(f"Force residual: {result.info.force_max}, torque residual: {result.info.torque_max}")
+if not bool(result.converged):
+    raise RuntimeError(f"Relaxation failed with reason {result.reason}.")
+# The initially overlapping pair can separate freely, so its minimum energy is zero.
+np.testing.assert_allclose(pe, 0.0, atol=1e-8)
 
 
 # %%

@@ -1,35 +1,15 @@
 Examples
 ========
 
-Getting started
----------------
+These application recipes build on the component tutorials in the
+:doc:`../user_guide/index`. The tutorials explain the API; these recipes
+combine it into simulation and analysis workflows. Both sets of pages are
+generated from Python sources in the repository's ``examples`` directory.
 
-.. toctree::
-   :maxdepth: 1
-
-   ../auto_examples/installation_guide
-   ../auto_examples/introduction
-
-User guides
------------
-
-.. toctree::
-   :maxdepth: 1
-
-   ../auto_examples/state_guide
-   ../auto_examples/system_guide
-   ../auto_examples/domain_guide
-   ../auto_examples/collider_guide
-   ../auto_examples/integrator_guide
-   ../auto_examples/materials_guide
-   ../auto_examples/force_model_guide
-   ../auto_examples/force_manager_guide
-   ../auto_examples/clump_guide
-   ../auto_examples/facets_guide
-   ../auto_examples/deformable_particle_guide
-   ../auto_examples/vtk_writer_guide
-   ../auto_examples/checkpoint_guide
-   ../auto_examples/custom_modules_guide
+The scripts use small, reproducible configurations for a short first run.
+Their particle counts and iteration limits are teaching defaults, not
+production settings or evidence of bulk behavior. Each recipe explains its
+observables and any checks needed before interpreting the result.
 
 Construction & packing pipelines
 --------------------------------
@@ -57,16 +37,18 @@ Dynamics & active matter
    :maxdepth: 1
 
    ../auto_examples/temperature_density_control
-   ../auto_examples/vicsek_model
    ../auto_examples/shear_flow_disks
    ../auto_examples/shear_jammed_disks
+   ../auto_examples/vicsek_model
 
 Reinforcement learning
 ----------------------
 
+Start with the :doc:`training tutorial <../auto_examples/intro_to_rl>` for
+the optional, experimental reinforcement-learning subsystem.
+
 .. toctree::
    :maxdepth: 1
 
-   ../auto_examples/intro_to_rl
    ../auto_examples/environment_custom_policy
    ../auto_examples/data/index

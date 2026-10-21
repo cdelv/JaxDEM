@@ -1,129 +1,168 @@
-"""Driving Environments with a Custom Policy.
----------------------------------------------
+"""Drive vectorized environments with a custom policy
+=====================================================
 
-In this example, we create an environment instance and drive it with a
-custom policy.
+A policy can be any JIT-compatible function with the signature
+``policy(obs, key, carry, **kwargs) -> (action, carry)``. This example uses a
+hand-written proportional/velocity-feedback controller rather than a trained
+network. Three independently reset single-agent environments illustrate
+vectorization, stepping, trajectory collection and VTK output.
+
+Install ``JaxDEM[rl,io]``. The run requests 120 decisions of five physics frames
+each, with three saved frames per environment. It demonstrates the interface;
+the controller gains are heuristic and do not establish optimal navigation.
 """
 
 # %%
-# Imports
-# ~~~~~~~~
+# A policy with no learned or recurrent state
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 import tempfile
 from pathlib import Path
 
 import jax
-from flax import nnx
+import jax.numpy as jnp
+import numpy as np
 
 import jaxdem as jdem
 import jaxdem.rl as rl
 from jaxdem import utils
 
+
 # %%
-# Variables
-# ~~~~~~~~~
-# First, we define all the variables needed for the example.
-frames_dir = Path(tempfile.gettempdir()) / "frames"
+# The callable interface is independent of the policy's implementation.
+# ``obs`` describes the current agent slots, ``key`` supports stochastic
+# choices, and ``carry`` contains any persistent policy state. A stateless
+# controller can leave the key unused and return ``carry`` unchanged.
+#
+# This controller combines a unit goal direction with velocity feedback:
+#
+# .. math::
+#
+#     \mathbf f=-k_p\widehat{\mathbf r-\mathbf r_{\rm goal}}
+#                 -k_v\mathbf v,\qquad
+#     \mathbf a=\frac{\mathbf f}{\max(1,|\mathbf f|)}.
+#
+# The first term pulls toward the goal; the second opposes the current velocity.
+# Normalization caps the requested force norm at one. It is a heuristic
+# saturated feedback law, not an analytical solution of the contact dynamics.
+# A pure proportional force without velocity feedback can overshoot the target.
+# The environment may further smooth the requested action and apply drag.
+#
+# A learned policy fits the same interface. For example, after obtaining an
+# NNX ``graphdef`` and ``graphstate`` from a trained actor–critic, its callback
+# can follow this pattern (see the RL introduction for a complete workflow):
+#
+# .. code-block:: python
+#
+#     from flax import nnx
+#
+#     def learned_policy(obs, key, graphstate, *, graphdef):
+#         model = nnx.merge(graphdef, graphstate)
+#         distribution, _value = model(obs, sequence=False)
+#         action = distribution.sample(seed=key)
+#         _, graphstate = nnx.split(model)
+#         return action, graphstate
+#
+# Pass ``graphdef`` as a keyword argument to the stepping helpers. A trained
+# model can also be restored with ``CheckpointModelLoader``. Call ``eval`` and
+# reset recurrent memory before evaluation; a recurrent callback returns its
+# evolving hidden state as part of ``graphstate`` rather than using ``None``.
+
+def policy(obs, key, carry):
+    # SingleNavigator observes [unit(pos-goal), clamped(pos-goal), velocity].
+    # Negating the first vector therefore points toward the objective.
+    # Shapes retain arbitrary leading environment and agent axes.
+    dim = obs.shape[-1] // 3
+    direction_away = obs[..., :dim]
+    velocity = obs[..., 2 * dim :]
+    force = -2.0 * direction_away - 0.5 * velocity
+    action = force / jnp.maximum(1.0, jnp.linalg.norm(force, axis=-1, keepdims=True))
+    return action, carry
+
+
+# %%
+# Vectorize, then reset each copy with a distinct key
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# The scalar agent axis is retained: observations/actions are (B, 1, features).
+# ``carry=None`` works because this controller has no internal state. A recurrent
+# policy would reset its carry whenever its corresponding episode ends.
+# ``vectorise_env(..., n=B)`` broadcasts the scalar environment into B copies;
+# independent reset keys then produce distinct initial conditions. It does
+# not turn one multi-agent scene into independent single-agent scenes. Here
+# each copy contains one agent, so its arrays retain shapes ``(B, 1, features)``
+# and its policy forces have shape ``(B, 1, dim)``. Keeping that agent axis is
+# important even when its size is one.
+#
+num_envs = 3
+logical_steps = 120
+save_every = 30
+skip_frames = 4
 key = jax.random.key(1)
-N = 24
-save_every = 40
-T = 4000
-batches = T // save_every
-num_envs = 40
-
-
-# %%
-# The Policy
-# ~~~~~~~~~~
-# Next, we define a callable that takes the observations and some keyword
-# arguments, and returns the corresponding actions. For more information,
-# see :py:func:`~jaxdem.utils.env_step`.
-#
-# In this example, we drive the environment with a model from JaxDEM using
-# ``nnx``. However, `model` can be any JIT-compatible function.
-def model(obs, key, graphstate, graphdef):
-    base_model = nnx.merge(graphdef, graphstate)
-    pi, _value = base_model(obs, sequence=False)
-    action = pi.sample(seed=key)
-    _, new_graphstate = nnx.split(base_model)
-    return action, new_graphstate
-
-
-# %%
-# Model and Environment
-# ~~~~~~~~~~~~~~~~~~~~~
-# Now we create a model and an environment to use in the example.
-# We do not train the model here. The goal is to show
-# how to drive the environment directly.
-#
-# You can load a trained model in the same way with
-# :py:class:`~jaxdem.writers.CheckpointModelLoader`.
-env = rl.Environment.create("multi_navigator", N=N)
-
-key, subkey = jax.random.split(key)
-base_model = rl.Model.create(
-    "SharedActorCritic",
-    key=nnx.Rngs(subkey),
-    observation_space_size=env.observation_space_size,
-    action_space_size=env.action_space_size,
+env = rl.Environment.create(
+    "single_navigator",
+    min_box_size=8.0,
+    max_box_size=8.0,
+    max_steps=logical_steps * (skip_frames + 1) + 1,
 )
-base_model.eval()
-
-# %%
-# NOTE: For a recurrent model (like LSTMActorCritic or MinGRUActorCritic), reset
-# its internal memory before running the policy. Always call reset.
-# Non-recurrent models ignore it.
-
-base_model.reset(
-    shape=(num_envs, env.max_num_agents, 1),
-    mask=None,
-)
-graphdef, graphstate = nnx.split(base_model)
-
-# %%
-# Environment Vectorization
-# ~~~~~~~~~~~~~~~~~~~~~~~~~
-# JaxDEM supports vectorized environments, so multiple simulations can
-# run in parallel. Use this to gather statistics about the environment.
-# Passing ``n`` to :py:func:`~jaxdem.rl.vectorise_env` broadcasts the scalar
-# environment to a batch of ``n`` copies. We then reset each copy with its own key.
-key, subkey = jax.random.split(key)
-subkeys = jax.random.split(subkey, num_envs)
 env = rl.vectorise_env(env, n=num_envs)
-env = env.reset(env, subkeys)
-
-# %%
-# Driving the Environment
-# ~~~~~~~~~~~~~~~~~~~~~~~
-# There are two main ways to drive an environment. The first is by stepping
-# it manually for a fixed number of steps. By default each logical step
-# advances exactly one physics frame (``1 + skip_frames`` in general), so the
-# call below runs ``save_every`` physics frames:
-env, key, graphstate = utils.env_step(
-    env,
-    model,
-    key,
-    graphstate,
-    graphdef=graphdef,
-    n=save_every,
+key, reset_key = jax.random.split(key)
+env = env.reset(env, jax.random.split(reset_key, num_envs))
+initial_distance = np.linalg.norm(
+    np.asarray(env.state.pos_c - env.env_params["objective"]), axis=-1
 )
 
 # %%
-# The second approach is to roll out a trajectory, collecting data every
-# `stride` steps:
-env, key, graphstate, env_traj = utils.env_trajectory_rollout(
+# Step once, then collect the remaining chunks
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# One logical decision requests ``1+skip_frames`` physics steps. These helpers
+# freeze completed episodes; they do not reset them automatically. The horizon
+# above is deliberately longer than our complete requested rollout.
+# Manual stepping is useful when the caller must inspect or modify the state
+# between chunks. Trajectory rollout instead keeps the loop in JAX and stacks
+# the saved endpoints after each stride. Here one initial chunk advances 30
+# decisions, then three recorded chunks advance another 90. Thus
+#
+# .. math::
+#
+#     n_{\rm physics}=120(1+4)=600,\qquad
+#     n_{\rm saved}=120/30-1=3.
+#
+# These are requested counts; an earlier termination/truncation would stop
+# accepted physics and require an explicit reset before further advancement.
+# The final step-count check makes that distinction observable.
+carry = None
+env, key, carry = utils.env_step(
+    env, policy, key, carry, n=save_every, skip_frames=skip_frames
+)
+env, key, carry, env_traj = utils.env_trajectory_rollout(
     env,
-    model,
+    policy,
     key,
-    graphstate,
-    graphdef=graphdef,
-    n=batches - 1,
+    carry,
+    n=logical_steps // save_every - 1,
     stride=save_every,
+    skip_frames=skip_frames,
 )
+final_distance = np.linalg.norm(
+    np.asarray(env.state.pos_c - env.env_params["objective"]), axis=-1
+)
+print("Initial distances:", initial_distance.ravel())
+print("Final distances:", final_distance.ravel())
+expected_steps = logical_steps * (skip_frames + 1)
+np.testing.assert_array_equal(env.system.step_count, np.full(num_envs, expected_steps))
+env.system.check_overflow()
+print(f"Each environment advanced {expected_steps} physics frames.")
 
 # %%
-# Saving Data
-# ~~~~~~~~~~~
-# Finally, we use JaxDEM’s :py:class:`~jaxdem.writers.VTKWriter` to save
-# the full rollout to disk in a single call:
-writer = jdem.VTKWriter(directory=frames_dir)
-writer.save(env_traj.state, env_traj.system, trajectory=True)
+# Export the three recorded trajectory frames per environment. The first manual
+# chunk above is not in ``env_traj``; rollout frames are saved after each stride.
+# The temporary root is unique but persists for inspection after the process exits.
+# The saved environment has a trajectory axis before its batch axis, so particle
+# arrays have layout ``(T, B, N, dim)``. Pass the matching trajectory System as
+# well: each frame needs its own time and step count. ``trajectory=True`` tells
+# VTKWriter that axis zero is time, leaving the B environments as independent
+# output collections. Writing the whole trajectory avoids a Python save call
+# for every frame; the context manager still waits for all asynchronous writes.
+frames_dir = Path(tempfile.mkdtemp(prefix="jaxdem-custom-policy-"))
+with jdem.VTKWriter(directory=frames_dir) as writer:
+    writer.save(env_traj.state, env_traj.system, trajectory=True)
+print(f"Open the PVD collections in ParaView: {frames_dir}")

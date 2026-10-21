@@ -8,11 +8,14 @@ This guide introduces JaxDEM checkpointing utilities:
 - :py:class:`~jaxdem.writers.H5Writer`
 
 Checkpoints are useful for long simulations, reproducibility, and restarting
-from intermediate steps.
+from intermediate steps. Install ``JaxDEM[io]`` for Orbax and HDF5 support.
+The walkthrough writes only three tiny dynamic snapshots and one small bonded
+model; all output lives in an isolated temporary directory.
 """
 
 import tempfile
 from pathlib import Path
+import numpy as np
 import jax.numpy as jnp
 import jaxdem as jdem
 
@@ -21,7 +24,11 @@ import jaxdem as jdem
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # We create a small simulation, run it in chunks, and save snapshots.
 
-state = jdem.State.create(pos=jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]))
+state = jdem.State.create(
+    pos=jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
+    rad=jnp.full(2, 0.2),
+    vel=jnp.array([[0.1, 0.0, 0.0], [-0.1, 0.0, 0.0]]),
+)
 system = jdem.System.create(state.shape, dt=1e-3)
 state, system = jdem.System.initialize(state, system)
 
@@ -58,6 +65,15 @@ with jdem.CheckpointLoader(directory=tmp_dir) as loader:
     state_step_5, system_step_5 = loader.load(step=5)
     print("Loaded step_count=5:", int(system_step_5.step_count))
     print("State shape at step 5:", state_step_5.pos.shape)
+
+# Restart from step 5 without reinitializing. The loaded integration state
+# must reproduce the uninterrupted run at step 10, not just its array shapes.
+resumed, resumed_system = jdem.System.step(state_step_5, system_step_5, n=5)
+np.testing.assert_array_equal(resumed.pos, state.pos)
+np.testing.assert_array_equal(resumed.vel, state.vel)
+assert int(resumed_system.step_count) == int(system.step_count) == 10
+np.testing.assert_array_equal(resumed_system.time, system.time)
+print("Restarted and uninterrupted positions/velocities match exactly.")
 
 # %%
 # Resource management note:
@@ -117,11 +133,14 @@ bonded_model = jdem.BondedForceModel.create(
     em=1.0,
 )
 
-state_bonded = jdem.State.create(pos=vertices_2d)
+state_bonded = jdem.State.create(pos=vertices_2d, rad=jnp.full(4, 0.1))
 system_bonded = jdem.System.create(
     state_bonded.shape,
     bonded_force_model=bonded_model,
 )
+
+# Initialize before saving so this snapshot can also continue directly.
+state_bonded, system_bonded = jdem.System.initialize(state_bonded, system_bonded)
 
 # Use a separate directory to avoid mixing the bonded snapshot with the
 # earlier ones.
@@ -131,7 +150,8 @@ with jdem.CheckpointWriter(directory=tmp_dir_bonded) as writer:
     writer.block_until_ready()
 
 with jdem.CheckpointLoader(directory=tmp_dir_bonded) as loader:
-    _, system_restored = loader.load()
+    state_restored, system_restored = loader.load()
+    np.testing.assert_array_equal(state_restored.pos, state_bonded.pos)
     print(
         "Restored bonded model:",
         (
@@ -207,6 +227,9 @@ with jdem.H5Writer(directory=h5_directory) as writer:
 
 state_h5, system_h5 = jdem.utils.h5.load(str(h5_directory / "snapshot_00000000.h5"))
 state_h5, system_h5 = jdem.System.step(state_h5, system_h5)
+reference_state, reference_system = jdem.System.step(state, system)
+np.testing.assert_array_equal(state_h5.pos, reference_state.pos)
+assert int(system_h5.step_count) == int(reference_system.step_count)
 print("HDF5 continuation step:", int(system_h5.step_count))
 
 tmp_root.cleanup()

@@ -1,5 +1,5 @@
 r"""Facets (Triangular & Line Boundaries)
-----------------------------------------
+-----------------------------------------
 
 A **facet** in JaxDEM is a 2D line segment or 3D triangle used to model boundaries, walls, or polygonal obstacles. Clump-based walls are bumpy because they are made of spheres. Facets give flat faces.
 
@@ -26,8 +26,11 @@ This guide covers:
 # - **2D Facets** use 2 spheres.
 #
 # Depending on the application, facets can be:
+#
 # - **Rigid**: Vertices share the same ``clump_id`` and belong to a rigid clump with a computed center of mass (COM) and moment of inertia.
-# - **Flexible/Deformable**: Vertices behave like individual dynamic spheres with unique ``clump_id`` values, allowing the facet to deform under forces.
+# - **Independent vertices**: Vertices have unique ``clump_id`` values and
+#   may move independently. This provides deforming contact geometry, not a
+#   cohesive elastic shell: add a bonded model to enforce material elasticity.
 #
 # To detect collisions with facets during broad-phase:
 #
@@ -41,6 +44,7 @@ This guide covers:
 # Each vertex particle also stores the unique IDs of its facet vertices in ``state.facet_vertices``. This gives :math:`O(1)` lookup of the facet shape during narrow-phase contact resolution.
 
 import jax.numpy as jnp
+import numpy as np
 
 import jaxdem as jdem
 
@@ -84,7 +88,10 @@ print(f"Shared Clump ID: {state.clump_id}")
 # :py:meth:`~jaxdem.state.State.add_mesh` builds entire boundary walls or
 # polyhedra from a collection of mesh vertices and face connectivity indices (faces).
 #
-# - **Rigid vs. Flexible**: Set ``rigid=True`` to group all vertex particles into a single rigid clump (e.g. for a moving obstacle) or ``rigid=False`` for a deformable boundary mesh.
+# - **Rigid vs. independent vertices**: ``rigid=True`` groups the mesh into
+#   one body; ``rigid=False`` creates independent face vertices. Shared input
+#   coordinates are duplicated between faces; no shared-node constraint or
+#   bonded elasticity is added automatically.
 # - **Solid vs. Shell**: If ``rigid=True``, set ``filled=True`` to calculate the center of mass and moment of inertia of a solid filled polyhedron, or ``filled=False`` for a hollow shell/boundary. For open meshes (uneven surfaces, sheets, or boundaries that are not closed), set ``filled=False`` (shell mode). Only then do the center of mass and inertia calculations give physically correct values.
 
 mesh_vertices = jnp.array(
@@ -111,7 +118,7 @@ state_rigid_mesh = jdem.State.add_mesh(
     species_id=1,
 )
 
-# Create a flexible/deformable mesh
+# Create a mesh with independently moving face vertices
 state_flex_mesh = jdem.State.add_mesh(
     empty_state,
     mesh_vertices,
@@ -143,8 +150,10 @@ print(f"Flexible mesh particles: {state_flex_mesh.N}")
 # 5. **One Contact Facet per Particle**: A particle whose ``facet_id`` is already assigned cannot be reused; use bonded deformable-particle meshes when topology must share vertices.
 
 # Start with one ordinary particle, then reuse it as one vertex of a triangle.
+# Its radius is retained, so choose it to match the intended facet thickness.
 connection_seed = jdem.State.create(
-    pos=jnp.array([[0.0, 0.0, 0.0]]), species_id=jnp.array([1])
+    pos=jnp.array([[0.0, 0.0, 0.0]]), rad=jnp.array([0.1]),
+    species_id=jnp.array([1])
 )
 state_connected = jdem.State.add_connected_facet(
     connection_seed,
@@ -200,30 +209,47 @@ mat = jdem.Material.create(
 )
 mat_table = jdem.MaterialTable.from_materials([mat])
 
-# Route collisions between species 1 (Facet mesh vertices) and species 1.
+# Route sphere/facet and facet/facet contacts separately.
 # Note that the force models take no thickness parameter: the contact
 # thickness comes from the facet vertices' ``state.rad``, set via the
 # ``thickness`` argument of ``add_facet`` / ``add_mesh``.
 router = jdem.ForceRouter.from_dict(
-    S=2, mapping={(1, 1): jdem.ForceModel.create("facet_facet_spring")}
+    S=2, mapping={
+        (0, 1): jdem.ForceModel.create("sphere_facet_spring"),
+        (1, 1): jdem.ForceModel.create("facet_facet_spring"),
+    }
 )
 
 # Spatial colliders such as ``"cell_list"`` and ``"multi_cell_list"`` work with
 # facets and derive their search bounds from the current facet geometry.
+# This four-particle walkthrough uses naive search to keep compilation short.
 # Passing ``state=`` to ``System.create`` forwards it to colliders that need it,
 # so there is no need for ``collider_kw={"state": ...}``.
+# Hold the connected triangle fixed and add one sphere just above its face.
+# Its center is 0.15 above the plane, while the radius plus facet expansion
+# is 0.2: overlap=0.05, giving a normal spring force 1000*0.05=50.
+state_connected.fixed = jnp.ones(state_connected.N, dtype=bool)
+state_connected = jdem.State.merge(
+    state_connected,
+    jdem.State.create(pos=[[0.2, 0.2, 0.15]], rad=[0.1], species_id=[0]),
+)
 system = jdem.System.create(
     state=state_connected,
-    collider_type="multi_cell_list",
+    collider_type="naive",
     force_model=router,
     mat_table=mat_table,
     dt=1e-4,
 )
 
-# Run a simulation step to verify
+# Check an actual sphere/facet interaction before advancing.
 state_connected, system = jdem.System.initialize(state_connected, system)
-state_stepped, system = system.step(state_connected, system)
-print("Simulation step successful.")
+np.testing.assert_allclose(state_connected.force[-1], [0.0, 0.0, 50.0], rtol=2e-5, atol=1e-5)
+print("Sphere normal contact force:", state_connected.force[-1])
+fixed_positions = np.asarray(state_connected.pos[:3]).copy()
+state_stepped, system = system.step(state_connected, system, n=2)
+np.testing.assert_allclose(state_stepped.pos[:3], fixed_positions, atol=1e-7)
+assert float(state_stepped.pos[-1, 2]) > 0.15
+print("Sphere moved away from the fixed facet.")
 
 # %%
 # Selecting Contact Calculations
@@ -289,11 +315,10 @@ selective_router = jdem.ForceRouter.from_dict(
 import tempfile
 from pathlib import Path
 
-tmp_root = tempfile.TemporaryDirectory(prefix="jaxdem-facets-guide-")
-tmp_dir = Path(tmp_root.name)
+tmp_dir = Path(tempfile.mkdtemp(prefix="jaxdem-facets-guide-"))
 with jdem.VTKWriter(
     directory=tmp_dir, writers=["facets", "spheres", "facet_spheres"]
 ) as writer:
-    writer.save(state_connected, system)
+    writer.save(state_stepped, system)
 print(f"Saved VTK output (check the generated {tmp_dir} directory).")
-tmp_root.cleanup()
+# Output is retained for ParaView inspection; remove the directory when done.

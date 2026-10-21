@@ -1,19 +1,29 @@
-"""Jamming of bidisperse spheres (or disks).
---------------------------------------------
+r"""Jamming of bidisperse spheres (or disks).
+---------------------------------------------
 
-In this example, we use a bisection search to find the nearest jammed state for a set of random
-configurations of bidisperse spheres (or disks). The particles sit in a 3D (or 2D) periodic box.
+Find an energy threshold for two tiny bidisperse disk packings in a periodic
+box. The harmonic contact energy is zero without overlaps and increases
+quadratically with overlap. Length, mass, and stiffness are in reduced units.
 
-The particles use a purely repulsive harmonic interaction potential. The potential energy is zero
-when the particles are not in contact. Otherwise it is proportional to the square of the overlap
-distance.
+For radii :math:`R_i` and pair separations :math:`r_{ij}`, write
 
-The bisection search works as follows. It compresses the box in small steps (equivalently, it grows
-the radii of the particles) and minimizes the total potential energy after each step. If the potential
-energy is nonzero after a compression, the state is possibly jammed. The algorithm then goes back to
-the last unjammed state and runs a bisection search between the jammed and unjammed states. It finds
-the largest packing fraction in these bounds whose total potential energy is near zero. Compressing
-beyond this packing fraction increases the potential energy sharply.
+.. math::
+
+    \delta_{ij}=\max(0,R_i+R_j-r_{ij}),\qquad
+    U=\frac12\sum_{i<j}k_{ij}\delta_{ij}^2,\qquad e=U/N.
+
+The spring force has magnitude :math:`k_{ij}\delta_{ij}`. Below jamming,
+relaxation can remove every overlap; a compressed force-balanced network can
+retain positive energy. We use this change to bracket a numerical energy
+threshold. Each trial rescales the box, relaxes forces, and measures energy
+per constituent sphere. Equilibrated states below ``pe_tol`` form a lower
+bound; states above it form an upper bound. Bisection narrows these bounds and
+accepts an upper state inside the specified energy band. Mechanical stability
+still requires contact and spectral analysis; energy alone does not prove it.
+
+Eight particles, two fixed seeds, moderate tolerances, and bounded iteration
+counts keep the script quick. Such small packings have large finite-size
+effects: their jamming fractions are not estimates of the bulk value.
 
 :py:func:`~jaxdem.utils.jamming.bisection_jam` implements the bisection search.
 """
@@ -25,26 +35,25 @@ import jax
 import jax.numpy as jnp
 import jaxdem as jdem
 
-# We enable double precision to reach the accuracy that conventional jamming analysis needs.
+# Double precision keeps the small energy threshold resolved.
 jax.config.update("jax_enable_x64", True)
 
 # %%
 # Parameters
-# ~~~~~~~~~~~~~~~~~~~~~
-# We jam 10 systems of 10 particles in parallel.
-# This shows system-level parallelism in JaxDEM.
-# Note that the parallel run is only as fast as the slowest system.
-# Close to jamming, the systems take longer to minimize,
-# so the jamming algorithm can be slow when you parallelize over
-# many systems.
-# We place the particles randomly in the box at
-# an initial packing fraction of 0.4.
-N_systems = 10
-N = 10
-phi = 0.4
+# ~~~~~~~~~~
+# Half the disks have radius 0.5 and half 0.7. The 1.4 size ratio reduces
+# the tendency toward a simple monodisperse crystal. Independent seeds give
+# different initial positions at the same nominal packing fraction, allowing
+# us to inspect finite-sample variation instead of treating one packing as a
+# universal threshold. ``vmap`` adds the system axis; each member retains its
+# own state, box, and minimization history. Batched relaxation proceeds until
+# the slowest active member has finished.
+N_systems = 2
+N = 8
+phi = 0.65
 dim = 2
 e_int = 1.0
-dt = 1e-2
+dt = 5e-2
 
 
 # For the one-call equivalent see
@@ -56,7 +65,11 @@ def build_microstate(i):
     rad = rad.at[: N // 2].set(0.5)
     rad = rad.at[N // 2 :].set(0.7)
 
-    # set the box size for the packing fraction and the radii
+    # The d-dimensional particle volumes are V_i = c_d R_i**d, with
+    # c_d = pi**(d/2) / Gamma(d/2+1). Set L = (sum(V_i)/phi)**(1/d),
+    # so the periodic hypercube has exactly the requested nominal fraction.
+    # This yields disk area in 2D and sphere volume in 3D; it counts nominal
+    # particle volumes even when the initial random particles overlap.
     volume = (jnp.pi ** (dim / 2) / jax.scipy.special.gamma(dim / 2 + 1)) * rad**dim
     L = (jnp.sum(volume) / phi) ** (1 / dim)
     box_size = jnp.ones(dim) * L
@@ -88,35 +101,75 @@ def build_microstate(i):
 
 
 # %%
+# A bounded search
+# ~~~~~~~~~~~~~~~~
+# The energy threshold classifies equilibrated states; ``force_tol`` controls
+# the separate inner relaxation. First the search establishes a lower bound
+# :math:`\phi_-` with :math:`e_-\leq e_{\rm tol}`. It increases packing
+# fraction until an upper bound :math:`\phi_+` has :math:`e_+>e_{\rm tol}`.
+# Subsequent trials use :math:`(\phi_-+\phi_+)/2` and update the appropriate
+# bound only after force/torque relaxation has converged.
+#
+# A successful upper state satisfies both
+#
+# .. math::
+#
+#    e_{\rm tol}<e_+\leq b\,e_{\rm tol},\qquad
+#    \frac{\phi_+}{\phi_-}-1\leq\varepsilon_\phi,
+#
+# where ``b = pe_band_factor`` and ``epsilon_phi`` is the relative bracket
+# tolerance. Thus the returned upper energy is deliberately **above** the
+# threshold; the last accepted lower state is available separately.
+#
+# ``n_jamming_steps`` limits outer trials and ``max_steps`` limits each inner
+# relaxation. Exhausting either is diagnostic information, not a successful
+# jam. Inspect convergence before using the returned state or scalar metrics.
+pe_tol = 1e-8
+search_kw = dict(
+    pe_tol=pe_tol,
+    pe_band_factor=4.0,
+    n_jamming_steps=80,
+    packing_fraction_increment=0.04,
+    packing_fraction_tolerance=1e-4,
+    minimizer_kwargs=dict(max_steps=5_000, force_tol=1e-7, torque_tol=1e-7),
+    verbose=False,
+)
+
+# %%
 # Run the Jamming Algorithm for Multiple Systems
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# We first create the systems and states with JAX's vmap function.
-# This creates 10 states and systems in parallel.
-# We could also use the State.stack method to join a list of states and systems.
+# ``jax.vmap(build_microstate)`` creates two State/System pairs with leading
+# batch axes. The second vmap applies the same search to each pair while
+# retaining separate bounds and convergence records. Parameters and shapes
+# must agree across the batch, but numerical arrays such as box sizes may vary.
 state, system = jax.vmap(build_microstate)(jnp.arange(N_systems))
-
-# We then run the jamming algorithm on the systems with JAX's vmap function.
-# This runs the jamming algorithm on each system in parallel.
-# It returns a :class:`~jaxdem.utils.jamming.JamResult` named tuple with the last
-# unjammed state/system, the jammed state/system, and the jammed state's
-# packing fraction and potential energy.
-# The final potential energy per particle should be less than the tolerance of 1e-16.
-result = jax.vmap(lambda st, sys: jdem.utils.jamming.bisection_jam(st, sys))(
-    state, system
-)
+result = jax.vmap(
+    lambda st, sys: jdem.utils.jamming.bisection_jam(st, sys, **search_kw)
+)(state, system)
+if not bool(jnp.all(result.converged)):
+    raise RuntimeError(
+        f"Jamming failed: reason={result.reason}, "
+        f"minimizer_reason={result.minimizer_reason}"
+    )
 state, system = result.jammed_state, result.jammed_system
-
-print(f"Final potential energy: {result.potential_energy}")
-print(f"Final packing fraction: {result.packing_fraction}")
+print("Jammed energy per constituent sphere:", result.potential_energy)
+print("Finite-system jamming fractions:", result.packing_fraction)
+print("Trial minimizations:", result.steps)
+assert bool(jnp.all(result.potential_energy > pe_tol))
+assert bool(jnp.all(result.potential_energy <= 4.0 * pe_tol))
 
 # %%
 # Run the Jamming Algorithm for a Single System
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# We can also run the jamming algorithm on a single system by passing the state and system to the jamming function.
-# This is slightly more convenient.
+# The same function also accepts one State/System pair without ``vmap``.
+# This is useful when inspecting one failed minimization or studying the
+# bracket sequence before scaling to an ensemble. The small example uses
+# the same seed as the first batch member so both invocation patterns describe
+# the same initial realization and numerical search criteria.
 state, system = build_microstate(0)
-result = jdem.utils.jamming.bisection_jam(state, system)
+result = jdem.utils.jamming.bisection_jam(state, system, **search_kw)
+if not bool(result.converged):
+    raise RuntimeError(f"Single-system jamming failed: reason={result.reason}")
 state, system = result.jammed_state, result.jammed_system
-
-print(f"Final potential energy: {result.potential_energy}")
-print(f"Final packing fraction: {result.packing_fraction}")
+print("Single-system energy per sphere:", float(result.potential_energy))
+print("Single-system jamming fraction:", float(result.packing_fraction))

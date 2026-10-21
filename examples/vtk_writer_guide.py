@@ -11,7 +11,9 @@ This guide introduces the JaxDEM VTK writing utilities:
   ``"deformable_edges"``
 
 VTKWriter exports particle positions, boundaries, meshes, and state fields
-to standard VTK XML files (.vtp) and ParaView manifest collection files (.pvd) for 3D visualization.
+to standard VTK XML files (.vtp) and ParaView manifest collection files (.pvd).
+Install ``JaxDEM[io]``. This small 2D scene is also viewable in ParaView; the
+output directory is kept after execution so you can open the files.
 """
 
 import tempfile
@@ -27,15 +29,16 @@ import jaxdem as jdem
 # (``with ... as ...:``) to make sure all writes finish before exiting.
 
 state = jdem.State.create(
-    pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-    rad=jnp.array([1.0, 1.0]),
+    pos=jnp.array([[0.0, 0.0], [1.0, 0.0]]),
+    rad=jnp.array([0.2, 0.2]),
+    vel=jnp.array([[0.5, 0.0], [-0.5, 0.0]]),
 )
 system = jdem.System.create(state.shape, dt=1e-2)
 state, system = jdem.System.initialize(state, system)
 
-# Create a temporary directory for the VTK frames
-tmp_root = tempfile.TemporaryDirectory(prefix="jaxdem-vtk-guide-")
-tmp_dir = Path(tmp_root.name)
+# Create a unique directory, preserving its few frames for inspection.
+# Replace this with Path("my_output") when choosing a permanent destination.
+tmp_dir = Path(tempfile.mkdtemp(prefix="jaxdem-vtk-guide-"))
 
 # We configure the writer to save to our directory. By default, all registered
 # writers are active (each one skips itself when its data is not present).
@@ -65,9 +68,10 @@ with jdem.VTKWriter(directory=tmp_dir, clean=True) as writer:
 
 # Check the generated files in our directory
 pvd_files = list(tmp_dir.glob("*.pvd"))
-print("Generated PVD collections:")
+assert pvd_files
+print("Generated PVD collections (open one in ParaView):")
 for f in pvd_files:
-    print(f" - {f.name}")
+    print(f" - {f}")
 
 vtp_files = list((tmp_dir / "batch_00000000").glob("*.vtp"))
 print("\nGenerated VTP frames (first few):")
@@ -92,5 +96,6 @@ with jdem.VTKWriter(directory=tmp_dir / "trajectory", clean=True) as writer:
     writer.save(state_trajectory, system_trajectory, trajectory=True, trajectory_axis=0)
     print("\nSaved a trajectory with shape:", state_trajectory.pos.shape)
 
-# Clean up the isolated temporary directory.
-tmp_root.cleanup()
+# The directory is intentionally retained. Remove it once you finish
+# inspecting the PVD collections and their associated frame files.
+print("Output retained at:", tmp_dir)
