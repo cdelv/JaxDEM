@@ -25,6 +25,7 @@ from .meshes import (
 )
 from .quaternion import Quaternion
 from .linalg import norm, unit
+from .packing_utils import CompressionReason, CompressionResult
 from .random_sphere_configuration import random_sphere_configuration
 
 MESH_TYPES = (
@@ -1460,6 +1461,15 @@ def _builder_collider_options(
     return kw
 
 
+def _check_compression(result: CompressionResult) -> None:
+    """Reject a packing that did not reach its target after relaxation."""
+    if result.reason != CompressionReason.TARGET_REACHED:
+        raise RuntimeError(
+            f"Packing failed at phi={float(result.packing_fraction):.8g}: "
+            f"{result.reason.name} (minimizer: {result.minimizer_reason.name})."
+        )
+
+
 def build_ga_system(
     particle_radii: Sequence[float] | np.ndarray,
     vertex_counts: Sequence[int] | np.ndarray,
@@ -1607,6 +1617,11 @@ def build_ga_system(
     tuple
         ``(state, system)`` for clumps / spheres, or
         ``(state, system, container)`` for DPs.
+
+    Raises
+    ------
+    RuntimeError
+        If compression or mechanical relaxation fails to reach the target.
     """
     import jaxdem as jd
 
@@ -1757,18 +1772,18 @@ def build_ga_system(
     # Import here to avoid a cross-module import at module-load time.
     from .packing_utils import quasistatic_compress_to_packing_fraction
 
-    state, fire_system, _final_phi, _final_pe = (
-        quasistatic_compress_to_packing_fraction(
-            state,
-            fire_system,
-            target_phi=float(phi),
-            step=float(compression_step),
-            force_tol=float(compression_force_tol),
-            torque_tol=compression_torque_tol,
-            max_n_min_steps_per_outer=int(max_n_min_steps_per_outer),
-            progress=bool(compression_progress),
-        )
+    compression = quasistatic_compress_to_packing_fraction(
+        state,
+        fire_system,
+        target_phi=float(phi),
+        step=float(compression_step),
+        force_tol=float(compression_force_tol),
+        torque_tol=compression_torque_tol,
+        max_n_min_steps_per_outer=int(max_n_min_steps_per_outer),
+        progress=bool(compression_progress),
     )
+    _check_compression(compression)
+    state, fire_system = compression.state, compression.system
 
     # Build the final system with the user's integrator / collider.
     final_box_size = fire_system.domain.box_size
@@ -1851,6 +1866,11 @@ def build_sphere_system(
 
     Parameters mirror :func:`build_ga_system` (minus all the GA/DP-specific
     knobs that do not apply to bare spheres).
+
+    Raises
+    ------
+    RuntimeError
+        If compression or mechanical relaxation fails to reach the target.
     """
     import jaxdem as jd
 
@@ -1881,7 +1901,7 @@ def build_sphere_system(
     state = create_sphere_state(
         radii=radii_arr,
         dim=int(dim),
-        pos=jnp.asarray(pos_init),
+        pos=jnp.asarray(pos_init).reshape(n_spheres, int(dim)),
         mass=jnp.asarray(mass_arr),
     )
 
@@ -1911,18 +1931,18 @@ def build_sphere_system(
 
     from .packing_utils import quasistatic_compress_to_packing_fraction
 
-    state, fire_system, _final_phi, _final_pe = (
-        quasistatic_compress_to_packing_fraction(
-            state,
-            fire_system,
-            target_phi=float(phi),
-            step=float(compression_step),
-            force_tol=float(compression_force_tol),
-            torque_tol=compression_torque_tol,
-            max_n_min_steps_per_outer=int(max_n_min_steps_per_outer),
-            progress=bool(compression_progress),
-        )
+    compression = quasistatic_compress_to_packing_fraction(
+        state,
+        fire_system,
+        target_phi=float(phi),
+        step=float(compression_step),
+        force_tol=float(compression_force_tol),
+        torque_tol=compression_torque_tol,
+        max_n_min_steps_per_outer=int(max_n_min_steps_per_outer),
+        progress=bool(compression_progress),
     )
+    _check_compression(compression)
+    state, fire_system = compression.state, compression.system
 
     final_box_size = fire_system.domain.box_size
     final_system = jd.System.create(

@@ -16,8 +16,7 @@ from ..materials import Material, MaterialTable
 from ..material_matchmakers import MaterialMatchmaker
 from ..state import State
 from ..system import System
-from ..minimizers import fire
-
+from ..minimizers import TerminationReason, fire
 
 def _broadcast(arr: Any, is_scalar: bool) -> jax.Array:
     arr = jnp.asarray(arr)
@@ -123,6 +122,11 @@ def random_sphere_configuration(
       and ``box_aspect``.
     - The final ``squeeze()`` calls can also drop other singleton dimensions (e.g. if
       ``N == 1``). If you need stable rank/shape, remove the squeezes.
+
+    Raises
+    ------
+    RuntimeError
+        If any sphere system fails mechanical relaxation.
 
     """
     # handle seed assignment
@@ -239,6 +243,11 @@ def minimize_sphere_configuration(
     box_size
         Periodic box size vector(s) (shape ``(S, dim)``, squeezed if
         ``S == 1``).
+
+    Raises
+    ------
+    RuntimeError
+        If any sphere system fails mechanical relaxation.
     """
     collider_type = _normalize_key(collider_type)
     assert collider_type in [
@@ -341,7 +350,7 @@ def minimize_sphere_configuration(
             phi_arr.squeeze(),
         )
     )
-    state, system, _steps, _final_pe = jax.vmap(
+    result = jax.vmap(
         lambda st, sys: sys.minimize(
             st,
             sys,
@@ -349,5 +358,7 @@ def minimize_sphere_configuration(
             force_tol=force_tol,
         )
     )(state, system)
-
-    return state.pos.squeeze(), system.domain.box_size.squeeze()
+    if not bool(jnp.all(result.converged)):
+        reasons = [TerminationReason(int(r)).name for r in np.ravel(result.reason)]
+        raise RuntimeError(f"Sphere relaxation failed: {reasons}.")
+    return result.state.pos.squeeze(), result.system.domain.box_size.squeeze()
