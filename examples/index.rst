@@ -1,5 +1,7 @@
+:orphan:
+
 JaxDEM tutorials and examples
-============================
+=============================
 
 This directory contains the executable sources for two parts of the docs.
 The :doc:`../user_guide/index` introduces the API through component tutorials;

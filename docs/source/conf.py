@@ -103,9 +103,15 @@ os.environ.setdefault("JAX_PLATFORMS", "cpu")
 sphinx_gallery_conf = {
     "examples_dirs": "../../examples",
     "gallery_dirs": "auto_examples",
-    # Generate every page and execute the lightweight guides whose printed
-    # results form part of the documentation.
-    "filename_pattern": r"/(introduction|[^/]+_guide)\.py$",
+    # Generate every page and execute guides plus the small application
+    # examples whose figures form part of the documentation.
+    "filename_pattern": (
+        r"/(introduction|[^/]+_guide|rotating_drum|infer_contact_stiffness|"
+        r"rigid_elastic_viscoplastic_loading|soft_mode_rearrangement|"
+        r"batched_granular_experiments)\.py$"
+    ),
+    # Keep the hand-written gallery index while publishing input assets.
+    "copyfile_regex": r".*\.(rst|stl|json)$",
     "ignore_pattern": r"__init__",
     "download_all_examples": False,
     "plot_gallery": os.environ.get("JAXDEM_DOCS_EXECUTE", "1") == "1",

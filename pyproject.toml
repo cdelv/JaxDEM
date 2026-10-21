@@ -34,6 +34,7 @@ rl = [
 
 docs = [
     "JaxDEM[io,rl]",
+    "matplotlib",
     "sphinx==9.1.0",
     "myst-parser==5.1.0",
     "pydata-sphinx-theme==0.20.0",
