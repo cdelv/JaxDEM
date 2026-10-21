@@ -144,11 +144,13 @@ print(f"Flexible mesh particles: {state_flex_mesh.N}")
 # vertices, use :py:meth:`~jaxdem.state.State.add_connected_facet`.
 #
 # You specify the vertices of the new facet using a list of ``vertex_specs``.
+#
 # - A **scalar integer** index refers to an existing particle in the State,
 #   including one already used by another facet.
 # - An **ArrayLike** position array of shape ``(dim,)`` defines a new vertex.
 #
 # **Rules & Constraints**:
+#
 # 1. **Same Species ID**: All connected existing and new vertices must share the same ``species_id``.
 # 2. **No Hybrid Facets**: You cannot mix rigid and flexible vertices in the same facet (i.e., you cannot connect a rigid clumped vertex to a flexible vertex).
 # 3. **Dynamic Clump Update**: If you connect new vertices to an existing rigid clump, ``add_connected_facet`` updates the center of mass, moment of inertia, and relative vertex offsets of that clump.
