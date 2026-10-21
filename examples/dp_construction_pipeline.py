@@ -20,8 +20,8 @@ Pipeline:
 3. :func:`create_dp_container` builds the bonded-force container on the
    placed state. A per-body convex-hull test (:func:`ga_surface_mask`)
    detects surface and interior nodes. A body with a solid core gets an
-   interior node connected with "fan"-style struts. A hollow body has
-   every node on the surface, with no extra edges.
+   interior node connected with "fan"-style struts. A body without a center
+   node has every node on the surface, with no extra edges.
 4. :func:`quasistatic_compress_to_packing_fraction` compresses to the
    target true-body packing fraction while the DP bonds keep each body
    self-consistent.
@@ -50,9 +50,9 @@ from jaxdem.utils.packing_utils import (
 # %%
 # Parameters
 # -----------------
-# 6 deformable particles in 3D, 12 surface asperities each. ``core_type``
-# is 'hollow' here — try 'solid' to get a central node connected to every
-# surface node via ``interior_edges='fan'``.
+# 6 deformable particles in 3D, 12 surface asperities each. The default
+# adds no center node. Set ``core_type='solid'`` to add a central node
+# connected to every surface node via ``interior_edges='fan'``.
 
 N = 6
 nv = 12
@@ -78,7 +78,6 @@ state = create_ga_state(
     particle_radius=particle_radius,
     asperity_radius=asperity_radius,
     particle_type="dp",
-    core_type="hollow",
     n_samples=50_000,
     seed=seed,
     mesh_kwargs={"steps": 1_000},
@@ -102,7 +101,7 @@ print(f"placed at bounding-sphere phi={initial_phi_bb}: box = {np.asarray(box_si
 # Build the container from the *placed* state so that its
 # ``initial_edge_lengths`` / ``initial_bendings`` / etc. reflect the
 # actual rest configuration. A per-body convex-hull test detects
-# ``is_surface``. For hollow DPs every node is on the hull.
+# ``is_surface``. Here every node is on the hull.
 # ``interior_edges='fan'`` connects any interior (core) node to every
 # surface node in its body. It is a no-op here because there are no
 # interior nodes, but it matters for ``core_type='solid'``.

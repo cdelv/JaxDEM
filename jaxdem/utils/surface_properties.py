@@ -230,8 +230,7 @@ def _core_mask(state: State, clump_id: int) -> np.ndarray:
     Detection is scale-free: the function flags the closest-to-COM sphere as
     the core only when its offset is less than half the next-closest sphere's
     offset. Returns an all-``False`` mask when the clump has no such
-    distinctly interior sphere (e.g. a ``"hollow"`` clump) or is a single
-    bare sphere.
+    distinctly interior sphere or is a single bare sphere.
     """
     mask = np.asarray(state.clump_id) == clump_id
     idx = np.where(mask)[0]
@@ -558,7 +557,7 @@ def compute_surface_properties(
             - ``central_core_contact`` -- ``bool`` per probe, same shape as
               ``mu``. ``True`` if any force-bearing contact involves the
               central clump's interior core sphere. Always ``False`` when
-              the central clump has no core (e.g. a ``"hollow"`` clump).
+              the central clump has no core sphere.
             - ``tracer_core_contact`` -- same, for the tracer clump's core.
             - ``tracer_quaternions`` -- shape ``(n_points, *orientation_shape, 4)``.
               The composed quaternion actually applied to the tracer at

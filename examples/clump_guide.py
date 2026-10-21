@@ -240,28 +240,21 @@ print("  inertia:", clump_state.inertia)
 
 
 # %%
-# Filled Members and Hollow Clumps
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# The mass model is the union of **filled** member disks or balls. Material
-# occupies points inside at least one member. Empty space outside every
-# member stays empty, including enclosed cavities: the utility does not fill
-# a convex hull or an outer envelope. A hollow body assembled from solid
-# beads is therefore supported, provided those beads describe its material.
+# Solid Member Spheres
+# ~~~~~~~~~~~~~~~~~~~~
+# Every member disk or sphere is solid. The mass model uses their union:
+# material occupies points inside at least one member, and overlaps count
+# once. Space outside all supplied members stays empty, including enclosed
+# cavities. To leave the center empty, supply a clump without a center sphere.
 #
 # The geometric-asperity builder ``create_ga_state`` distinguishes:
 #
-# - ``core_type="hollow"``: only the solid asperities contribute material.
-#   Their uncovered interior remains a void.
+# - The default ``core_type=None`` generates only the solid asperities,
+#   without adding a center sphere.
 # - ``core_type="solid"``: a central core contributes both material and
 #   contact geometry, in addition to the asperities.
 # - ``core_type="phantom"``: the core contributes mass, volume, and inertia,
 #   then is removed from the contact geometry. Its interior is still material.
-#
-# A member sphere with an empty interior, an infinitesimally thin shell, or
-# subtracting a cavity from a filled member is a different mass model. This
-# utility does not derive those properties: all supplied member densities
-# must be positive. Supply such a body's mass and principal inertia directly
-# instead of recomputing them with ``compute_clump_properties``.
 #
 # ``compute_clump_properties`` derives mass from the material density table.
 # The uniform-union helper used by ``create_ga_state`` instead preserves the

@@ -132,9 +132,8 @@ def _compute_uniform_union_properties(
     Each member is a filled disk (2D) or ball (3D). The prescribed total mass
     is distributed uniformly over their union, counting overlaps once. Empty
     gaps and enclosed cavities outside that union remain empty: the utility
-    does not fill a convex hull or infer an interior core. Hollow assemblies
-    of solid members are supported; individually hollow members and mass
-    confined to an infinitesimally thin shell require a different mass model.
+    does not fill a convex hull or infer an interior core. The supplied
+    centers and radii alone define which regions contain material.
     Inputs have shapes
     ``pos=(N,nv,dim)`` or ``(nv,dim)``, ``rad=(N,nv)``, ``(nv,)`` or scalar,
     and ``clump_mass=(N,)`` or scalar. Outputs retain the leading body axis
@@ -617,10 +616,10 @@ def compute_clump_properties(
     Each member is a filled disk or ball with volumetric material density
     ``mat_table.density[state.mat_id]``. The density at any covered point is
     the maximum density of its containing members, without double counting.
-    Gaps and enclosed cavities outside the union stay empty, so hollow
-    assemblies of solid members are supported. This does not model hollow
-    individual spheres or thin-shell mass, and zero/negative-density members
-    cannot be used to subtract a cavity.
+    Gaps and enclosed cavities outside the union stay empty. The supplied
+    centers and radii alone define the material geometry; omit a central
+    sphere when the clump should have no material there. Zero/negative-density
+    members cannot be used to subtract a cavity.
 
     Disk unions are exact. Sphere unions use analytical cases where possible
     and otherwise choose boundary or volume quadrature according to overlap
