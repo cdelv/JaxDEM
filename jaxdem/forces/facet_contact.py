@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from functools import partial
 from typing import TYPE_CHECKING
 
 import jax
@@ -16,15 +17,32 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
-@jax.jit
+@partial(jax.jit, static_argnames=("face", "edge", "vertex"))
 def point_triangle_distance(
-    p: jax.Array, a: jax.Array, b: jax.Array, c: jax.Array, system: "System"
+    p: jax.Array,
+    a: jax.Array,
+    b: jax.Array,
+    c: jax.Array,
+    system: "System",
+    *,
+    face: bool = True,
+    edge: bool = True,
+    vertex: bool = True,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Compute the distance from point ``p`` to the triangle with vertices ``a``, ``b``, ``c``.
 
     Also return the closest point on the triangle and its barycentric
-    coordinates.
+    coordinates. Static feature switches omit contacts whose closest point
+    lies in a disabled Voronoi region; they do not select a farther feature.
+    Face and edge interiors exclude their boundaries, which belong to edges
+    and vertices respectively. Disabled contacts return infinite distance
+    and finite placeholder points and coordinates.
     """
+    if not (face and edge and vertex):
+        return _point_triangle_feature_distance(
+            p, a, b, c, system, face=face, edge=edge, vertex=vertex
+        )
+
     ab = system.domain._displacement(b, a, system)
     ac = system.domain._displacement(c, a, system)
     ap = system.domain._displacement(p, a, system)
@@ -141,6 +159,140 @@ def point_triangle_distance(
     return norm(system.domain._displacement(p, closest, system)), closest, coords
 
 
+def _point_triangle_feature_distance(
+    p: jax.Array,
+    a: jax.Array,
+    b: jax.Array,
+    c: jax.Array,
+    system: System,
+    *,
+    face: bool,
+    edge: bool,
+    vertex: bool,
+) -> tuple[jax.Array, jax.Array, jax.Array]:
+    """Specialize closest-feature queries without constructing disabled points."""
+    dtype = jnp.result_type(p, a, b, c, 1.0)
+    p, a, b, c = jnp.broadcast_arrays(
+        *[jnp.asarray(x, dtype=dtype) for x in (p, a, b, c)]
+    )
+    placeholder = jnp.broadcast_to(
+        jnp.array([1.0, 0.0, 0.0], dtype=dtype), a.shape[:-1] + (3,)
+    )
+    if not (face or edge or vertex):
+        return jnp.full(a.shape[:-1], jnp.inf, dtype=dtype), a, placeholder
+
+    ab = system.domain._displacement(b, a, system)
+    ac = system.domain._displacement(c, a, system)
+    ap = system.domain._displacement(p, a, system)
+    d1, d2 = dot(ab, ap), dot(ac, ap)
+
+    if face and not edge and not vertex:
+        # Orthogonal projection suffices when no boundary regions are wanted.
+        if ab.shape[-1] == 3:
+            # Squared cross-product area avoids subtracting nearly equal
+            # Gram products for thin but nondegenerate triangles.
+            normal = jnp.cross(ab, ac)
+            determinant = dot(normal, normal)
+            denominator = jnp.where(determinant > 0.0, determinant, 1.0)
+            v = dot(jnp.cross(ap, ac), normal) / denominator
+            w = dot(jnp.cross(ab, ap), normal) / denominator
+        else:
+            determinant = ab[..., 0] * ac[..., 1] - ab[..., 1] * ac[..., 0]
+            denominator = jnp.where(determinant != 0.0, determinant, 1.0)
+            v = (ap[..., 0] * ac[..., 1] - ap[..., 1] * ac[..., 0]) / denominator
+            w = (ab[..., 0] * ap[..., 1] - ab[..., 1] * ap[..., 0]) / denominator
+            determinant = jnp.abs(determinant)
+        u = 1.0 - v - w
+        enabled = (determinant > 0.0) & (u > 0.0) & (v > 0.0) & (w > 0.0)
+        # Mask before interpolation, so rejected projections stay finite.
+        v, w = jnp.where(enabled, v, 0.0), jnp.where(enabled, w, 0.0)
+        closest = a + v[..., None] * ab + w[..., None] * ac
+        coords = jnp.stack([1.0 - v - w, v, w], axis=-1)
+    else:
+        bp, cp = ap - ab, ap - ac
+        d3, d4 = dot(ab, bp), dot(ac, bp)
+        d5, d6 = dot(ab, cp), dot(ac, cp)
+        is_a = (d1 <= 0.0) & (d2 <= 0.0)
+        is_b = (d3 >= 0.0) & (d4 <= d3)
+        is_c = (d6 >= 0.0) & (d5 <= d6)
+        is_vertex = is_a | is_b | is_c
+        zeros, ones = jnp.zeros_like(d1), jnp.ones_like(d1)
+
+        closest, coords = a, placeholder
+        enabled = jnp.zeros_like(is_vertex)
+        if edge or face:
+            vc = d1 * d4 - d3 * d2
+            vb = d5 * d2 - d1 * d6
+            va = d3 * d6 - d5 * d4
+            denom_ab, denom_ac = d1 - d3, d2 - d6
+            denom_bc = (d4 - d3) + (d5 - d6)
+            v_ab = (vc <= 0.0) & (d1 >= 0.0) & (d3 <= 0.0) & (denom_ab > 0.0)
+            v_ac = (vb <= 0.0) & (d2 >= 0.0) & (d6 <= 0.0) & (denom_ac > 0.0)
+            v_bc = (va <= 0.0) & (d4 - d3 >= 0.0) & (d5 - d6 >= 0.0) & (denom_bc > 0.0)
+            is_edge = ~is_vertex & (v_ab | v_ac | v_bc)
+            if face:
+                denominator = va + vb + vc
+                inverse = 1.0 / jnp.where(denominator != 0.0, denominator, 1.0)
+                v, w = vb * inverse, vc * inverse
+                closest = a + v[..., None] * ab + w[..., None] * ac
+                coords = jnp.stack([ones - v - w, v, w], axis=-1)
+                enabled = ~is_vertex & ~is_edge & (denominator != 0.0)
+            if edge:
+                t_ab = d1 / jnp.where(denom_ab != 0.0, denom_ab, 1.0)
+                t_ac = d2 / jnp.where(denom_ac != 0.0, denom_ac, 1.0)
+                t_bc = (d4 - d3) / jnp.where(denom_bc != 0.0, denom_bc, 1.0)
+                closest = jnp.where(
+                    v_ab[..., None],
+                    a + t_ab[..., None] * ab,
+                    jnp.where(
+                        v_ac[..., None],
+                        a + t_ac[..., None] * ac,
+                        jnp.where(
+                            v_bc[..., None], b + t_bc[..., None] * (ac - ab), closest
+                        ),
+                    ),
+                )
+                coords = jnp.where(
+                    v_ab[..., None],
+                    jnp.stack([ones - t_ab, t_ab, zeros], axis=-1),
+                    jnp.where(
+                        v_ac[..., None],
+                        jnp.stack([ones - t_ac, zeros, t_ac], axis=-1),
+                        jnp.where(
+                            v_bc[..., None],
+                            jnp.stack([zeros, ones - t_bc, t_bc], axis=-1),
+                            coords,
+                        ),
+                    ),
+                )
+                enabled = enabled | is_edge
+        if vertex:
+            closest = jnp.where(
+                is_a[..., None],
+                a,
+                jnp.where(is_b[..., None], b, jnp.where(is_c[..., None], c, closest)),
+            )
+            coords = jnp.where(
+                is_a[..., None],
+                placeholder,
+                jnp.where(
+                    is_b[..., None],
+                    jnp.stack([zeros, ones, zeros], axis=-1),
+                    jnp.where(
+                        is_c[..., None],
+                        jnp.stack([zeros, zeros, ones], axis=-1),
+                        coords,
+                    ),
+                ),
+            )
+            enabled = enabled | is_vertex
+        closest = jnp.where(enabled[..., None], closest, a)
+        coords = jnp.where(enabled[..., None], coords, placeholder)
+
+    distance = norm(system.domain._displacement(p, closest, system))
+    return jnp.where(enabled, distance, jnp.inf), closest, coords
+
+
 @jax.jit
 def segment_segment_distance(
     p1: jax.Array, q1: jax.Array, p2: jax.Array, q2: jax.Array, system: "System"
@@ -222,7 +374,7 @@ def _segment_triangle_intersection(
     )
 
 
-@jax.jit
+@partial(jax.jit, static_argnames=("vertex_triangle", "edge_edge", "edge_triangle"))
 def triangle_triangle_distance(
     t1_a: jax.Array,
     t1_b: jax.Array,
@@ -231,6 +383,10 @@ def triangle_triangle_distance(
     t2_b: jax.Array,
     t2_c: jax.Array,
     system: System,
+    *,
+    vertex_triangle: bool = True,
+    edge_edge: bool = True,
+    edge_triangle: bool = True,
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
     """Return triangle separation, closest points and barycentric coordinates.
 
@@ -238,6 +394,13 @@ def triangle_triangle_distance(
     edge-face piercings also detect interior crossings. Zero-area triangles
     reduce to their edges or vertices. At nonunique contacts, vertex order
     deterministically selects one valid closest point.
+
+    The static switches select computational query families, rather than
+    disjoint geometric contact types. ``vertex_triangle`` includes a
+    triangle's boundary, ``edge_edge`` includes segment endpoints, and
+    ``edge_triangle`` tests piercings only. Disabled families are omitted
+    during tracing. With all families disabled, the distance is infinite and
+    the other outputs are finite placeholders.
     """
     dtype = jnp.result_type(t1_a, t1_b, t1_c, t2_a, t2_b, t2_c, 1.0)
     vertices = jnp.broadcast_arrays(
@@ -247,42 +410,65 @@ def triangle_triangle_distance(
     basis = jnp.eye(3, dtype=dtype)
     candidates = []
 
-    for i in range(3):
-        distance, point, coords = point_triangle_distance(first[i], *second, system)
-        candidates.append(
-            (distance, first[i], point, jnp.broadcast_to(basis[i], point.shape), coords)
-        )
-        distance, point, coords = point_triangle_distance(second[i], *first, system)
-        candidates.append(
-            (
-                distance,
-                point,
-                second[i],
-                coords,
-                jnp.broadcast_to(basis[i], point.shape),
+    if vertex_triangle:
+        for i in range(3):
+            distance, point, coords = point_triangle_distance(first[i], *second, system)
+            candidates.append(
+                (
+                    distance,
+                    first[i],
+                    point,
+                    jnp.broadcast_to(basis[i], point.shape),
+                    coords,
+                )
             )
-        )
-
-    for i in range(3):
-        for j in range(3):
-            distance, point_a, point_b, wa, wb = segment_segment_distance(
-                first[i], first[(i + 1) % 3], second[j], second[(j + 1) % 3], system
+            distance, point, coords = point_triangle_distance(second[i], *first, system)
+            candidates.append(
+                (
+                    distance,
+                    point,
+                    second[i],
+                    coords,
+                    jnp.broadcast_to(basis[i], point.shape),
+                )
             )
-            coords_a = wa[..., :1] * basis[i] + wa[..., 1:] * basis[(i + 1) % 3]
-            coords_b = wb[..., :1] * basis[j] + wb[..., 1:] * basis[(j + 1) % 3]
-            candidates.append((distance, point_a, point_b, coords_a, coords_b))
 
-    for i in range(3):
-        hit, point, edge, face = _segment_triangle_intersection(
-            first[i], first[(i + 1) % 3], *second, system
+    if edge_edge:
+        for i in range(3):
+            for j in range(3):
+                distance, point_a, point_b, wa, wb = segment_segment_distance(
+                    first[i], first[(i + 1) % 3], second[j], second[(j + 1) % 3], system
+                )
+                coords_a = wa[..., :1] * basis[i] + wa[..., 1:] * basis[(i + 1) % 3]
+                coords_b = wb[..., :1] * basis[j] + wb[..., 1:] * basis[(j + 1) % 3]
+                candidates.append((distance, point_a, point_b, coords_a, coords_b))
+
+    if edge_triangle:
+        for i in range(3):
+            hit, point, edge, face = _segment_triangle_intersection(
+                first[i], first[(i + 1) % 3], *second, system
+            )
+            coords = edge[..., :1] * basis[i] + edge[..., 1:] * basis[(i + 1) % 3]
+            candidates.append(
+                (jnp.where(hit, 0.0, jnp.inf), point, point, coords, face)
+            )
+            hit, point, edge, face = _segment_triangle_intersection(
+                second[i], second[(i + 1) % 3], *first, system
+            )
+            coords = edge[..., :1] * basis[i] + edge[..., 1:] * basis[(i + 1) % 3]
+            candidates.append(
+                (jnp.where(hit, 0.0, jnp.inf), point, point, face, coords)
+            )
+
+    if not candidates:
+        coords = jnp.broadcast_to(basis[0], first[0].shape)
+        return (
+            jnp.full(first[0].shape[:-1], jnp.inf, dtype=dtype),
+            first[0],
+            second[0],
+            coords,
+            coords,
         )
-        coords = edge[..., :1] * basis[i] + edge[..., 1:] * basis[(i + 1) % 3]
-        candidates.append((jnp.where(hit, 0.0, jnp.inf), point, point, coords, face))
-        hit, point, edge, face = _segment_triangle_intersection(
-            second[i], second[(i + 1) % 3], *first, system
-        )
-        coords = edge[..., :1] * basis[i] + edge[..., 1:] * basis[(i + 1) % 3]
-        candidates.append((jnp.where(hit, 0.0, jnp.inf), point, point, face, coords))
 
     distances = jnp.stack([candidate[0] for candidate in candidates], axis=-1)
     index = jnp.argmin(distances, axis=-1)
@@ -307,15 +493,49 @@ def facet_normal(
     return unit(jnp.cross(edge, system.domain._displacement(c, a, system)))
 
 
-@jax.jit
+@partial(jax.jit, static_argnames=("edge", "vertex"))
 def point_segment_distance(
-    p: jax.Array, a: jax.Array, b: jax.Array, system: "System"
+    p: jax.Array,
+    a: jax.Array,
+    b: jax.Array,
+    system: "System",
+    *,
+    edge: bool = True,
+    vertex: bool = True,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Compute the distance from point ``p`` to the segment ``a``-``b``.
 
     Also return the closest point on the segment and its interpolation
-    weights.
+    weights. ``edge`` controls the open segment interior and ``vertex`` its
+    endpoints, including collapsed segments. A disabled closest feature
+    returns infinite distance and finite placeholders without substituting
+    another feature. The switches are static and specialize the query.
     """
+    if not (edge and vertex):
+        dtype = jnp.result_type(p, a, b, 1.0)
+        p, a, b = jnp.broadcast_arrays(
+            *[jnp.asarray(x, dtype=dtype) for x in (p, a, b)]
+        )
+        if not (edge or vertex):
+            coords = jnp.broadcast_to(
+                jnp.array([1.0, 0.0], dtype=dtype), a.shape[:-1] + (2,)
+            )
+            return jnp.full(a.shape[:-1], jnp.inf, dtype=dtype), a, coords
+        ab = system.domain._displacement(b, a, system)
+        ap = system.domain._displacement(p, a, system)
+        denominator, numerator = dot(ab, ab), dot(ap, ab)
+        if edge:
+            t = numerator / jnp.where(denominator != 0.0, denominator, 1.0)
+            enabled = (denominator > 0.0) & (t > 0.0) & (t < 1.0)
+            t = jnp.where(enabled, t, 0.0)
+        else:
+            enabled = (numerator <= 0.0) | (numerator >= denominator)
+            t = jnp.where((numerator >= denominator) & (denominator > 0.0), 1.0, 0.0)
+        closest = a + t[..., None] * ab
+        coords = jnp.stack([1.0 - t, t], axis=-1)
+        distance = norm(system.domain._displacement(p, closest, system))
+        return jnp.where(enabled, distance, jnp.inf), closest, coords
+
     ab = system.domain._displacement(b, a, system)
     ap = system.domain._displacement(p, a, system)
     denom = dot(ab, ab)

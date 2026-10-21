@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import jax
 import jax.numpy as jnp
@@ -188,6 +188,25 @@ class SpringForce(ForceModel):
         return ("young_eff",)
 
 
+def _inactive_facet_pair(
+    i: jax.Array, j: jax.Array, pos: jax.Array
+) -> tuple[
+    jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array,
+    jax.Array,
+]:
+    """Return finite, broadcast-compatible data when all queries are disabled."""
+    shape = jnp.broadcast_shapes(jnp.shape(i), jnp.shape(j))
+    zero = jnp.zeros(shape, dtype=pos.dtype)
+    vector = jnp.zeros((*shape, pos.shape[-1]), dtype=pos.dtype)
+    return zero, zero, zero > 0, zero, vector, vector, zero, zero == 0
+
+
 @jax.jit(inline=True)
 def _sphere_facet_pair(
     i: jax.Array, j: jax.Array, pos: jax.Array, state: "State", system: "System"
@@ -212,6 +231,9 @@ def _sphere_facet_pair(
     follow the closest-point displacement. XLA removes unused quantities.
     """
     dim = pos.shape[-1]
+    model = cast(SphereFacetSpringForce, system.force_model)
+    if not (model.edge or model.vertex or (dim == 3 and model.face)):
+        return _inactive_facet_pair(i, j, pos)
 
     is_facet_i, idxs_i, is_primary_i = get_facet_indices(i, state)
     is_facet_j, idxs_j, is_primary_j = get_facet_indices(j, state)
@@ -251,9 +273,20 @@ def _sphere_facet_pair(
     p = jnp.where(is_facet_i[..., None], pos[idx0_j], pos[idx0_i])
 
     if dim == 3:
-        d_sf, c_f, coords_f = point_triangle_distance(p, v_a, v_b, v_c, system)
+        d_sf, c_f, coords_f = point_triangle_distance(
+            p,
+            v_a,
+            v_b,
+            v_c,
+            system,
+            face=model.face,
+            edge=model.edge,
+            vertex=model.vertex,
+        )
     else:
-        d_sf, c_f, coords_f = point_segment_distance(p, v_a, v_b, system)
+        d_sf, c_f, coords_f = point_segment_distance(
+            p, v_a, v_b, system, edge=model.edge, vertex=model.vertex
+        )
 
     c_1 = jnp.where(is_facet_i[..., None], c_f, p)
     c_2 = jnp.where(is_facet_j[..., None], c_f, p)
@@ -278,7 +311,7 @@ def _sphere_facet_pair(
 
     delta = thick_i + thick_j - d_sf
     is_contact = (delta > 0) * compute_interaction
-    delta *= is_contact
+    delta = jnp.where(is_contact, delta, 0.0)
 
     idxs_facet = jnp.where(is_facet_i[..., None], idxs_i, idxs_j)
     particle_facet = jnp.where(is_facet_i, i, j)
@@ -310,7 +343,23 @@ class SphereFacetSpringForce(ForceModel):
     has no thickness parameter. Zero-distance normals are force conventions,
     so physical relaxation requires a gradient-only optimizer. Value-based
     optimization requires a custom energy target differentiated through AD.
+
+    ``face``, ``edge``, and ``vertex`` enable contacts whose closest point is
+    on that feature. Disabling a feature suppresses its contacts without
+    substituting a farther feature. In 2D, the open segment is an ``edge``
+    and its endpoints are ``vertex`` contacts; ``face`` has no effect.
+    All switches default to true and are static JAX configuration, so changing
+    them recompiles the kernel and omits disabled feature calculations.
     """
+
+    face: bool = jax.tree.static(default=True)
+    edge: bool = jax.tree.static(default=True)
+    vertex: bool = jax.tree.static(default=True)
+
+    def __post_init__(self) -> None:
+        for name in ("face", "edge", "vertex"):
+            if not isinstance(getattr(self, name), bool):
+                raise TypeError(f"{type(self).__name__}.{name} must be a Python bool.")
 
     @property
     def supports_analytical_energy_gradient(self) -> bool:
@@ -401,6 +450,11 @@ def _facet_facet_pair(
     follow the closest-point displacement. XLA removes unused quantities.
     """
     dim = pos.shape[-1]
+    model = cast(FacetFacetSpringForce, system.force_model)
+    if not (
+        model.edge_edge or (dim == 3 and (model.vertex_triangle or model.edge_triangle))
+    ):
+        return _inactive_facet_pair(i, j, pos)
     i_arr = jnp.asarray(i)
     j_arr = jnp.asarray(j)
 
@@ -457,7 +511,16 @@ def _facet_facet_pair(
             tA_a, tA_b, tA_c, tB_a, tB_b, tB_c
         )
         d_ff, c_A, c_B, coords_A, coords_B = triangle_triangle_distance(
-            tA_a, tA_b, tA_c, tB_a, tB_b, tB_c, system
+            tA_a,
+            tA_b,
+            tA_c,
+            tB_a,
+            tB_b,
+            tB_c,
+            system,
+            vertex_triangle=model.vertex_triangle,
+            edge_edge=model.edge_edge,
+            edge_triangle=model.edge_triangle,
         )
     else:
         tA_a, tA_b, tB_a, tB_b = jnp.broadcast_arrays(tA_a, tA_b, tB_a, tB_b)
@@ -475,7 +538,7 @@ def _facet_facet_pair(
 
     delta = thick_i + thick_j - d_ff
     is_contact = (delta > 0) & compute_interaction
-    delta *= is_contact
+    delta = jnp.where(is_contact, delta, 0.0)
 
     rij = system.domain._displacement(c_ff_1, c_ff_2, system)
     n, r = unit_and_norm(rij)
@@ -531,7 +594,25 @@ class FacetFacetSpringForce(ForceModel):
     has no thickness parameter. Zero-distance normals are force conventions,
     so physical relaxation requires a gradient-only optimizer. Value-based
     optimization requires a custom energy target differentiated through AD.
+
+    Static switches select geometry query groups: ``vertex_triangle`` measures
+    all vertices against the opposite triangle, ``edge_edge`` measures all
+    edge pairs, and ``edge_triangle`` detects edge piercings of the opposite
+    face. The minimum remaining candidate defines the contact. These groups
+    overlap physical feature types: vertex-triangle queries include boundary
+    contacts, and parallel face-face separation can be found by edge queries.
+    In 2D, only ``edge_edge`` is used. All switches default to true; disabled
+    groups are omitted when JAX compiles the kernel.
     """
+
+    vertex_triangle: bool = jax.tree.static(default=True)
+    edge_edge: bool = jax.tree.static(default=True)
+    edge_triangle: bool = jax.tree.static(default=True)
+
+    def __post_init__(self) -> None:
+        for name in ("vertex_triangle", "edge_edge", "edge_triangle"):
+            if not isinstance(getattr(self, name), bool):
+                raise TypeError(f"{type(self).__name__}.{name} must be a Python bool.")
 
     @property
     def supports_analytical_energy_gradient(self) -> bool:

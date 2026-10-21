@@ -193,12 +193,17 @@ Both ``SwarmNavigator`` and ``SwarmRoller`` default to
 ``hide_occupied_objectives=True``. For the policy
 observation only, an objective reading becomes zero when its distance is
 strictly below half the LiDAR range, strictly beyond the observer's own radius,
-and a detected peer is estimated to be within one radius of that objective:
+and a detected peer is estimated to be within the masking radius of that objective:
 
 .. math::
 
    a_i < d_{ik} < L/2,\qquad
-   \min_{q\in Q_i}\widehat\delta_{ikq}\le a_i.
+   \min_{q\in Q_i}\widehat\delta_{ikq}\le \sigma a_i.
+
+For SwarmNavigator, ``occupancy_radius_scale`` sets :math:`\sigma`, defaulting
+to 1.2 observing-agent radii. Set it to 1.0 for the original masking cutoff.
+SwarmRoller retains its one-radius cutoff (:math:`\sigma=1`). This tolerance
+does not change the reward, coverage criterion, or own-goal exception.
 
 The separation estimate compares all pairs of angular bins using the same
 bin-center geometry as the reward. Walls, self IDs, and invalid detections
