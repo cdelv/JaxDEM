@@ -139,7 +139,7 @@ def _trajectory_rollout(
 
 @final
 @jax.tree_util.register_dataclass
-@dataclass
+@dataclass(slots=True, weakref_slot=True)
 class System:
     """The full simulation configuration.
 

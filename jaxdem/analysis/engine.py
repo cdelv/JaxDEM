@@ -72,7 +72,7 @@ def _cached_jit(fn: Any, cache_key: Any) -> Any:
         return jax.jit(fn)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True, weakref_slot=True)
 class Binned:
     """Binned accumulation output.
 

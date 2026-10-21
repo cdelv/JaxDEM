@@ -14,7 +14,7 @@ import numpy as np
 from .bins import BinSpec
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True, weakref_slot=True)
 class Pairs:
     """Flat representation of bin tuples, suitable for JAX execution.
 

@@ -180,7 +180,7 @@ def _deserialize_force_functions(
     return entries
 
 
-@dataclass
+@dataclass(slots=True, weakref_slot=True)
 class BaseCheckpointManager:
     """Base class that provides context management and shared setup for Orbax checkpointers."""
 
@@ -257,7 +257,7 @@ class BaseCheckpointManager:
         return False
 
 
-@dataclass
+@dataclass(slots=True)
 class CheckpointWriter(BaseCheckpointManager):
     """Thin wrapper around Orbax checkpoint saving.
 
@@ -340,7 +340,7 @@ class CheckpointWriter(BaseCheckpointManager):
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class CheckpointLoader(BaseCheckpointManager):
     """Restore current manifests and legacy JaxDEM schema versions 1 and 2.
 
@@ -557,7 +557,7 @@ class CheckpointLoader(BaseCheckpointManager):
         return self.checkpointer.latest_step()
 
 
-@dataclass
+@dataclass(slots=True)
 class CheckpointModelWriter(BaseCheckpointManager):
     """Thin wrapper around Orbax checkpoint saving for jaxdem.rl.models.Model."""
 
@@ -606,7 +606,7 @@ class CheckpointModelWriter(BaseCheckpointManager):
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class CheckpointModelLoader(BaseCheckpointManager):
     """Thin wrapper around Orbax checkpoint restoring for jaxdem.rl.models.Model."""
 
