@@ -1,4 +1,8 @@
-"""Constant-rate shear of disks below jamming, without a thermostat."""
+"""Constant-rate shear below jamming
+=================================
+
+Shear a disk packing at a constant rate without a thermostat.
+"""
 
 from dataclasses import replace
 

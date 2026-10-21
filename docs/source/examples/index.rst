@@ -58,6 +58,8 @@ Dynamics & active matter
 
    ../auto_examples/temperature_density_control
    ../auto_examples/vicsek_model
+   ../auto_examples/shear_flow_disks
+   ../auto_examples/shear_jammed_disks
 
 Reinforcement learning
 ----------------------

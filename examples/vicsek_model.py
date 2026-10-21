@@ -37,7 +37,7 @@ from jaxdem.utils.random_sphere_configuration import random_sphere_configuration
 
 # %%
 # Local Vicsek integrators
-# ~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 def _vicsek_alignment(

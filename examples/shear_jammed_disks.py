@@ -1,4 +1,8 @@
-"""Quasistatic shear of a jammed disk packing."""
+"""Quasistatic shear of jammed disks
+=================================
+
+Relax a jammed disk packing between small shear increments.
+"""
 
 from dataclasses import replace
 
