@@ -19,7 +19,7 @@ from ...state import State
 from ...system import System
 from ...utils import cross_lidar_2d, cross_lidar_3d, lidar_2d, lidar_3d
 from . import Environment
-from ._swarm import filter_objectives, shared_potential
+from ._swarm import filter_objectives, shared_potential, vacant_objective_lidar
 
 
 @jax.jit(static_argnames=("N",))
@@ -247,6 +247,12 @@ class SwarmNavigator(Environment):
     num_objectives: int = jax.tree.static()
     """Number of objectives sampled per environment."""
 
+    vacancy_aware_lidar: bool = jax.tree.static(default=False)
+    """Opt in to removing occupied goals before objective LiDAR bin reduction."""
+
+    approach_kernel: str = jax.tree.static(default="legacy")
+    """Select the original attraction or an opt-in raised-cosine approach."""
+
     @classmethod
     @partial(jax.named_call, name="SwarmNavigator.Create")
     def Create(
@@ -268,6 +274,8 @@ class SwarmNavigator(Environment):
         dim: int = 2,
         n_lidar_elevation: int = 12,
         *,
+        vacancy_aware_lidar: bool = False,
+        approach_kernel: str = "legacy",
         occupancy_radius_scale: float = 1.2,
     ) -> SwarmNavigator:
         r"""Create a swarm navigator environment.
@@ -297,9 +305,11 @@ class SwarmNavigator(Environment):
             disables only the approach term.
         attraction_constant, attraction_quadratic : float
             Nonnegative coefficients :math:`c,b` of the attraction strength
-            :math:`(c+b x^2)e^{-\lambda x}`, with :math:`x=d/\mathrm{rad}_i`.
+            :math:`(c+b x^2)e^{-\lambda x}`, with :math:`x=d/\mathrm{rad}_i`,
+            used by the legacy approach kernel.
         attraction_decay : float
             Positive exponential decay :math:`\lambda` in radius units.
+            Used by the legacy approach kernel.
         sharing_range : float
             Positive quartic claim scale in observing-agent radii. The default
             matches the settling scale, 1.5.
@@ -310,15 +320,30 @@ class SwarmNavigator(Environment):
             observer's radius. A hidden reading becomes zero; farther goals are not
             revealed. Applies only to observations, never reward or checkpoints.
             Set to False to recover the unfiltered observation.
+        vacancy_aware_lidar : bool
+            Disabled by default. When enabled, remove goals occupied by visible
+            peers before nearest-per-bin reduction, revealing farther vacant
+            goals in the same bin. Preserve goals covered by the observer.
+            Requires all goal and peer detections within the observer's LiDAR
+            range before binning; rewards still use the original raw scans.
+            ``hide_occupied_objectives=False`` disables either occupancy mask.
         dim : int
             Spatial dimension, either 2 (default) or 3. Three-dimensional
             agents and objectives occupy a volume, with agents in its
             padding shell.
         n_lidar_elevation : int
             Positive number of elevation bins in 3-D; unused in 2-D.
+        approach_kernel : {"legacy", "cosine"}
+            The default retains the original approach potential. ``"cosine"``
+            replaces only that term with ``(1 + cos(pi*d/lidar_range)) / 2``
+            for visible goals, preserving settling, sharing, observations,
+            and potential-difference timing. This option uses the existing
+            attraction weight and sharing range; the constant, quadratic,
+            and decay attraction controls have no effect on its score.
         occupancy_radius_scale : float
             Positive peer-to-objective masking tolerance in observing-agent
-            radii, default 1.2. Set to 1.0 for the original cutoff.
+            radii, default 1.2. Set to 1.0 for the original cutoff. Applies to
+            the default post-bin mask only, not ``vacancy_aware_lidar``.
 
         Returns
         -------
@@ -330,16 +355,20 @@ class SwarmNavigator(Environment):
         ValueError
             If an attraction coefficient is nonfinite or negative, or
             ``attraction_decay``, ``sharing_range``, or ``occupancy_radius_scale``
-            is nonfinite or nonpositive.
+            is nonfinite or nonpositive, or ``approach_kernel`` is not
+            ``"legacy"`` or ``"cosine"``.
 
         Notes
         -----
         Construction allocates placeholder agent and objective arrays. Reset
         samples the geometry and initializes the physical system and reward
         baseline. ``N``, ``num_objectives``, and ``n_lidar_rays`` determine
-        array shapes. The remaining controls are stored in ``env_params``
-        as JAX arrays.
+        array shapes. Kernel and sensing selections are static fields.
+        Physical, reward, and observation coefficients are stored in
+        ``env_params`` as JAX arrays.
         """
+        if approach_kernel not in ("legacy", "cosine"):
+            raise ValueError("approach_kernel must be 'legacy' or 'cosine'")
         if not isfinite(attraction_coeff) or attraction_coeff < 0:
             raise ValueError("attraction_coeff must be finite and nonnegative")
         for name, value in (
@@ -390,6 +419,8 @@ class SwarmNavigator(Environment):
             n_lidar_rays=int(n_lidar_rays),
             n_lidar_elevation=int(n_lidar_elevation),
             num_objectives=n_obj,
+            vacancy_aware_lidar=bool(vacancy_aware_lidar),
+            approach_kernel=approach_kernel,
         )
 
     @staticmethod
@@ -567,6 +598,7 @@ class SwarmNavigator(Environment):
             peer_ids,
             env,
             n_elevation=env.n_lidar_elevation if env.state.dim == 3 else None,
+            approach_kernel=env.approach_kernel,
         )
 
     @staticmethod
@@ -698,16 +730,31 @@ class SwarmNavigator(Environment):
         environment's experiments. The congestion-game and reward-shaping
         references in :meth:`reward` motivate the reward, not this observation
         filter, and do not guarantee that discarding observations is harmless.
+
+        With ``vacancy_aware_lidar=True``, occupied objectives are removed
+        before nearest-per-bin reduction over all local detections instead.
+        Visible peers within range can mask goals at any distance below range;
+        occupancy uses each peer's own radius and preserves the observer's
+        covered goals. This can reveal farther vacant goals behind occupied
+        ones, while retaining the same observation layout. Setting
+        ``hide_occupied_objectives=False`` disables occupancy filtering.
         """
         lidar, lidar_obj, peer_ids = SwarmNavigator._sense(env)
         lr = env.env_params["lidar_range"]
-        lidar_obj = filter_objectives(
-            lidar_obj,
-            lidar,
-            peer_ids,
-            env,
-            n_elevation=env.n_lidar_elevation if env.state.dim == 3 else None,
-        )
+        if env.vacancy_aware_lidar:
+            lidar_obj = jnp.where(
+                env.env_params["hide_occupied_objectives"],
+                vacant_objective_lidar(env),
+                lidar_obj,
+            )
+        else:
+            lidar_obj = filter_objectives(
+                lidar_obj,
+                lidar,
+                peer_ids,
+                env,
+                n_elevation=env.n_lidar_elevation if env.state.dim == 3 else None,
+            )
         return jnp.concatenate(
             [
                 env.state.vel,
@@ -757,6 +804,14 @@ class SwarmNavigator(Environment):
         ``attraction_decay`` set :math:`c,b,\lambda`. Defaults 0.01, 0.02,
         and 1/3 place the strength peak near 5.92 radii; strength at two radii
         is about 47 percent of the peak. The potential itself is monotone.
+
+        With ``approach_kernel="cosine"``, replace this approach potential
+        by :math:`H(d)=(1+\cos(\pi d/L))/2` for visible goals, where :math:`L`
+        is the sensor range. Its value and slope vanish at :math:`L`, and
+        the three attraction-shape controls have no effect on it. Settling,
+        soft claim sharing, attraction weight, and reward timing are unchanged.
+        This scalar potential adapts the exploration kernel of Sun et al.
+        (2023), rather than implementing their mean-shift velocity controller.
 
         The potential estimates peer claims on each visible
         objective from all pairs of objective and peer LiDAR bins:
@@ -821,6 +876,10 @@ class SwarmNavigator(Environment):
 
         References
         ----------
+        Sun, G. et al. (2023). "Mean-shift exploration in shape assembly of
+        robot swarms." Nature Communications, 14, 3476.
+        https://doi.org/10.1038/s41467-023-39251-5
+
         Rosenthal, R. W. (1973). "A class of games possessing pure-strategy
         Nash equilibria." International Journal of Game Theory, 2, 65-67.
         https://doi.org/10.1007/BF01737559

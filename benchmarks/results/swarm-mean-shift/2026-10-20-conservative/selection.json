@@ -1,0 +1,15 @@
+{
+  "phase": "diagnostic_replication",
+  "families": [
+    "baseline",
+    "cosine"
+  ],
+  "extra_seeds": [
+    3,
+    4
+  ],
+  "both_spacings": true,
+  "reason": "Cosine-only matched sparse baseline in initial3seeds andlost3.64ppdense; preservesstructurewith3fewerrewardcontrols. Replicate before freshconfirmation to assess simplificationtradeoff. Vacancy-only alreadylosessparsefirst2seedssubstantially; combinedinitialscreenstillfinishing. This decisionuses onlyscreening, nofreshconfirmation.",
+  "confirmation_reset_seed": 70000,
+  "confirmation_action_seed": 80000
+}

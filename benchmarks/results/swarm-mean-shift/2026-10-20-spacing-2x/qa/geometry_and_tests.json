@@ -1,0 +1,23 @@
+{
+  "focused_tests_passed": 12,
+  "cpu_smoke_variants": [
+    "spacing_baseline",
+    "spacing_rational_delta"
+  ],
+  "N64_geometry_key": 17,
+  "max_objective_coordinate_error_vs_2x": 4.7683716e-07,
+  "max_pairwise_distance_error_vs_2x": 3.8146973e-06,
+  "agent_positions_bitwise_2x": true,
+  "domain_box": [
+    60,
+    60
+  ],
+  "domain_anchor": [
+    -10,
+    -10
+  ],
+  "radius": 1,
+  "lidar_range": 16,
+  "observation_size": 26,
+  "dt": 0.002
+}

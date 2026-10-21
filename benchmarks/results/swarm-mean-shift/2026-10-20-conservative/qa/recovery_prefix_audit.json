@@ -1,0 +1,167 @@
+{
+  "baseline_s1_seed_4": {
+    "training_epochs_compared": 49,
+    "all_original_epochs_available": true,
+    "non_timing_metrics_bitwise_equal": false,
+    "non_timing_metric_differences_count": 587,
+    "first_metric_differences": [
+      {
+        "epoch": 1,
+        "key": "actor_loss",
+        "old": -0.048082027584314346,
+        "new": -0.04808203876018524,
+        "absolute_difference": 1.1175870895385742e-08
+      },
+      {
+        "epoch": 1,
+        "key": "approx_KL",
+        "old": 9.688946011010557e-05,
+        "new": 9.682281961431727e-05,
+        "absolute_difference": 6.6640495788306e-08
+      },
+      {
+        "epoch": 1,
+        "key": "caps_spatial_loss",
+        "old": 6.544398729602108e-07,
+        "new": 6.550371836056001e-07,
+        "absolute_difference": 5.973106453893706e-10
+      },
+      {
+        "epoch": 1,
+        "key": "caps_temporal_loss",
+        "old": 0.002773537766188383,
+        "new": 0.002773579675704241,
+        "absolute_difference": 4.190951585769653e-08
+      },
+      {
+        "epoch": 1,
+        "key": "entropy",
+        "old": 1.0773346424102783,
+        "new": 1.077328085899353,
+        "absolute_difference": 6.556510925292969e-06
+      }
+    ],
+    "all_critical_configuration_values_identical": true,
+    "critical_configuration_checks": {
+      "model_seed": true,
+      "trainer_seed": true,
+      "training_initial_layout_sha256": true,
+      "source_hashes": true,
+      "package_versions": true,
+      "epochs": true,
+      "max_physics_steps": true,
+      "schedule_epochs": true,
+      "observation_space_size": true
+    },
+    "archives": {
+      "evaluation_epoch_0040.npz": {
+        "bitwise_equal": {
+          "coverage": false,
+          "finite_state": true,
+          "nearest_agent_distance_radii": false,
+          "overlapping_agent_fraction": false,
+          "speed": false
+        },
+        "old_coverage_episode_mean": 0.29909107089042664,
+        "new_coverage_episode_mean": 0.2988654673099518,
+        "old_coverage_endpoint_mean": 0.3076171875,
+        "new_coverage_endpoint_mean": 0.3115234375,
+        "max_per_episode_per_action_coverage_difference": 0.296875
+      }
+    }
+  },
+  "cosine_vacancy_s2_seed_0": {
+    "training_epochs_compared": 123,
+    "all_original_epochs_available": true,
+    "non_timing_metrics_bitwise_equal": false,
+    "non_timing_metric_differences_count": 1475,
+    "first_metric_differences": [
+      {
+        "epoch": 1,
+        "key": "actor_loss",
+        "old": -0.022335119545459747,
+        "new": -0.022334983572363853,
+        "absolute_difference": 1.3597309589385986e-07
+      },
+      {
+        "epoch": 1,
+        "key": "approx_KL",
+        "old": 3.972973718191497e-05,
+        "new": 3.97802323277574e-05,
+        "absolute_difference": 5.0495145842432976e-08
+      },
+      {
+        "epoch": 1,
+        "key": "caps_spatial_loss",
+        "old": 1.6998203591356287e-06,
+        "new": 1.6991726852211286e-06,
+        "absolute_difference": 6.476739145000465e-10
+      },
+      {
+        "epoch": 1,
+        "key": "caps_temporal_loss",
+        "old": 0.0004162245895713568,
+        "new": 0.0004162451659794897,
+        "absolute_difference": 2.057640813291073e-08
+      },
+      {
+        "epoch": 1,
+        "key": "entropy",
+        "old": 2.4140920639038086,
+        "new": 2.414088726043701,
+        "absolute_difference": 3.337860107421875e-06
+      }
+    ],
+    "all_critical_configuration_values_identical": true,
+    "critical_configuration_checks": {
+      "model_seed": true,
+      "trainer_seed": true,
+      "training_initial_layout_sha256": true,
+      "source_hashes": true,
+      "package_versions": true,
+      "epochs": true,
+      "max_physics_steps": true,
+      "schedule_epochs": true,
+      "observation_space_size": true
+    },
+    "archives": {
+      "evaluation_epoch_0040.npz": {
+        "bitwise_equal": {
+          "coverage": false,
+          "finite_state": true,
+          "nearest_agent_distance_radii": false,
+          "overlapping_agent_fraction": false,
+          "speed": false
+        },
+        "old_coverage_episode_mean": 0.06296472251415253,
+        "new_coverage_episode_mean": 0.07482445985078812,
+        "old_coverage_endpoint_mean": 0.0546875,
+        "new_coverage_endpoint_mean": 0.0712890625,
+        "max_per_episode_per_action_coverage_difference": 0.171875
+      },
+      "evaluation_epoch_0120.npz": {
+        "bitwise_equal": {
+          "coverage": false,
+          "finite_state": true,
+          "nearest_agent_distance_radii": false,
+          "overlapping_agent_fraction": false,
+          "speed": false
+        },
+        "old_coverage_episode_mean": 0.7272536754608154,
+        "new_coverage_episode_mean": 0.715989351272583,
+        "old_coverage_endpoint_mean": 0.91796875,
+        "new_coverage_endpoint_mean": 0.90185546875,
+        "max_per_episode_per_action_coverage_difference": 0.296875
+      }
+    }
+  },
+  "interpretation": {
+    "driver_before": "kernel615.71.09,initialmatchinglibraries; laterupdatedlibraries615.78.08 causedunavailability",
+    "driver_after": "matching615.78.08",
+    "restarts_are_not_bitwise_replays": true,
+    "source_equations_and_initial_seeds_unchanged": true,
+    "possible_reason": "Floatingpoint compiler/autotuning/driver arithmetic; causenotisolated",
+    "main_training_pairs": "Seeds0..2baseline+cosinebothpreupdate;seeds3..4bothpostupdateoncebaselines1seed3reruncompleted. Parentrecordscohortrecovery.",
+    "exploratory_cohort_limit": "Combined_s2postupdateversusbaselines0..2preupdate; treatasexploratory."
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "status": "prepared",
+  "N": 64,
+  "num_objectives": 64,
+  "geometry_scale": 2.0,
+  "geometry": "Reset original seeded20x20 objectives andpadding10, thenmultiplyagentcenters,goalcenters,domainbox/anchorby2; retainradius1.",
+  "effective_objective_box": 40,
+  "effective_padding": 20,
+  "effective_domain_box": 60,
+  "lidar_range": 16,
+  "action_max_norm": 2,
+  "radius": 1,
+  "training_variants": [
+    "spacing_baseline",
+    "spacing_rational_delta"
+  ],
+  "paired_training_seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "episode_actions": 4000,
+  "max_physics_steps": 200000,
+  "physics_steps_per_action": 50,
+  "simulated_seconds": 400,
+  "epochs": 240,
+  "original_epochs": 120,
+  "schedule_epochs": 4320,
+  "original_schedule_epochs": 2160,
+  "num_envs": 32,
+  "steps_per_epoch": 100,
+  "episodes_per_environment": 6,
+  "agent_policy_decisions_per_model": 49152000,
+  "training_budget_reason": "2x episodes and2xepochs preserve6episodecycles/env and relativeLRschedulephase.",
+  "primary_metric": "Unique-objectivecoverage averagedover final10% ofevaluationepisode (400actions); comparematchedseedmeans.",
+  "additional_metrics": [
+    "endpointcoverage",
+    "coverageafter2000actions",
+    "wholeepisodecoverageaverage",
+    "last200actions",
+    "speed",
+    "overlapfraction"
+  ],
+  "screening_evaluation": {
+    "num_envs": 32,
+    "actions": 4000,
+    "epochs": [
+      40,
+      120,
+      240
+    ],
+    "reset_seed": 10000,
+    "action_seed": 20000
+  },
+  "confirmation_evaluation": {
+    "num_envs": 64,
+    "actions": 4000,
+    "reset_seed": 50000,
+    "action_seed": 60000
+  },
+  "fixed_controls": [
+    "unitradii",
+    "force/actionnorm",
+    "drag",
+    "dt",
+    "LiDARrange16",
+    "26observations",
+    "rewardwidth1.5radii",
+    "PPOgamma.99andotherhyperparameters"
+  ],
+  "runtime_source": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20/runtime",
+  "action_mapping": "Originalradialtanhfrozenruntime, unchangedfrompreviouscomparison.",
+  "contingency": "Ifcoverageisstillrisingmateriallyat4000actions,evaluatebothvariantsfor8000actionswithproperextendedenvironmenttimelimitbeforeconcludingnogain;reportseparately.",
+  "production_edits": false,
+  "zero_shot": {
+    "input_original_results": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20",
+    "training": "Original120epochs/2000actions; nofurtherupdates",
+    "evaluation": "2xgeometry,4000actions,64freshlayouts50000/action60000",
+    "paired_seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "purpose": "Separateout-of-distributionpolicytransferfromfreshtrainingrewardrobustness"
+  }
+}

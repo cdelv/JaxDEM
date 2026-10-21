@@ -9,6 +9,8 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 
+from ...utils.environment import _bin_azimuth, _bin_min_dist_and_idx, _bin_spherical
+
 
 def bin_directions(n_azimuth: int, n_elevation: int | None = None) -> jax.Array:
     """Return LiDAR bin-center directions, flattened azimuth then elevation."""
@@ -67,11 +69,14 @@ def shared_potential(
     env: Any,
     *,
     n_elevation: int | None = None,
+    approach_kernel: str = "legacy",
 ) -> jax.Array:
     """Evaluate shared settling and approach value from unfiltered live scans.
 
     Only valid peer returns can claim objectives; walls, self and empty bins
     contribute nothing. The environment is read without changing its history.
+    ``cosine`` changes only the broad approach term to a raised cosine at the
+    sensor range; ``legacy`` retains the original attraction arithmetic.
     """
     distance, separation_sq, valid_peer = _peer_geometry(
         lidar_obj, lidar, peer_ids, env, n_elevation
@@ -87,13 +92,20 @@ def shared_potential(
     weight = 1 / (1 + claims)
     settling = jnp.exp(-((distance / (1.5 * radii)) ** 4))
     local = jnp.where(valid_objective, weight * settling, 0.0).max(axis=-1)
-    x = distance / radii
-    decay = env.env_params["attraction_decay"]
-    attraction = jnp.exp(-decay * x) * (
-        env.env_params["attraction_constant"] / decay
-        + env.env_params["attraction_quadratic"]
-        * (x**2 / decay + 2 * x / decay**2 + 2 / decay**3)
-    )
+    if approach_kernel == "cosine":
+        attraction = 0.5 * (
+            1 + jnp.cos(jnp.pi * distance / env.env_params["lidar_range"])
+        )
+    elif approach_kernel == "legacy":
+        x = distance / radii
+        decay = env.env_params["attraction_decay"]
+        attraction = jnp.exp(-decay * x) * (
+            env.env_params["attraction_constant"] / decay
+            + env.env_params["attraction_quadratic"]
+            * (x**2 / decay + 2 * x / decay**2 + 2 / decay**3)
+        )
+    else:
+        raise ValueError("approach_kernel must be 'legacy' or 'cosine'")
     return local + env.env_params["attraction_coeff"] * jnp.where(
         valid_objective, weight * attraction, 0.0
     ).sum(axis=-1)
@@ -130,3 +142,44 @@ def filter_objectives(
         & occupied
     )
     return jnp.where(hide, 0.0, lidar_obj)
+
+
+def vacant_objective_lidar(env: Any) -> jax.Array:
+    """Read local vacant goals, removing occupied goals before bin reduction.
+
+    For each observer, only goals and peers strictly inside its sensor range
+    participate. A visible peer occupies a goal when its center is within its
+    own radius; goals already covered by the observer are always preserved.
+    This requires all local goal/peer detections before angular-bin reduction,
+    so an occupied near goal can reveal a farther vacant goal in the same bin.
+    The output is proximity in the original objective LiDAR bins, in 2-D/3-D.
+    """
+    bins = env.n_lidar_rays * (
+        env.n_lidar_elevation if env.state.dim == 3 else 1
+    )
+    if env.num_objectives == 0:
+        return jnp.zeros((env.max_num_agents, bins))
+    displacement = env.env_params["objective"][None, :, :] - env.state.pos[:, None, :]
+    distance_sq = jnp.sum(displacement**2, axis=-1)
+    lr = env.env_params["lidar_range"]
+    peer_distance_sq = jnp.sum(
+        (env.state.pos[None, :, :] - env.state.pos[:, None, :]) ** 2, axis=-1
+    )
+    visible_peers = (peer_distance_sq < lr**2) & ~jnp.eye(
+        env.max_num_agents, dtype=bool
+    )
+    peer_occupies_goal = distance_sq <= env.state.rad[:, None] ** 2
+    occupied = (
+        visible_peers.astype(jnp.int32) @ peer_occupies_goal.astype(jnp.int32)
+    ) > 0
+    keep = (distance_sq < lr**2) & (peer_occupies_goal | ~occupied)
+    if env.state.dim == 3:
+        bin_indices = _bin_spherical(
+            displacement, env.n_lidar_rays, env.n_lidar_elevation
+        )
+    else:
+        bin_indices = _bin_azimuth(displacement, env.n_lidar_rays)
+    nearest, _ = _bin_min_dist_and_idx(
+        jnp.where(keep, jnp.sqrt(distance_sq), jnp.inf), bin_indices, bins
+    )
+    return jnp.maximum(0, lr - nearest)

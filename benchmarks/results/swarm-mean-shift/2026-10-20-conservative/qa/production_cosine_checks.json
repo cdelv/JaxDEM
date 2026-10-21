@@ -1,0 +1,32 @@
+{
+  "status": "passed",
+  "api": "SwarmNavigator.Create(approach_kernel=\"cosine\")",
+  "default": "legacy",
+  "default_changed": false,
+  "frozen_runtime_changed": false,
+  "project_default_CPU_tests_passed": 42,
+  "new_CPU_float32_tests_passed": 15,
+  "validation_commands": [
+    "JAX_PLATFORMS=cpu python -m pytest -q tests/test_swarm_cosine_approach.py tests/test_swarm_environments.py tests/test_swarm_vacancy_lidar.py",
+    "JAX_PLATFORMS=cpu JAX_ENABLE_X64=0 python -m pytest -q tests/test_swarm_cosine_approach.py"
+  ],
+  "legacy_preservation": {
+    "legacy_attraction_assignments_AST_exact": true,
+    "geometry_sharing_settling_AST_exact": true,
+    "final_weighted_sum_AST_exact": true
+  },
+  "checked_cases": [
+    "2D/3D exact experimental cosine score and physical action interval at1x/2x geometry",
+    "default/explicit legacy compiled paths bit exact",
+    "old3shapecontrols no cosine effect",
+    "zero attraction keeps exact shared settling",
+    "invalid enum rejected",
+    "empty goals and vectorized reset"
+  ],
+  "source_sha256": {
+    "jaxdem/rl/environments/_swarm.py": "56824cf3fca927c0103f33f27c92188fb13472f1207a94975db9a363887ce32b",
+    "jaxdem/rl/environments/swarm_navigator.py": "86d877b203acf29d44053a5e1725574434cf16216279d0a0f0a9b27a6d62b85f",
+    "tests/test_swarm_cosine_approach.py": "78edb9130239aadc690e952508486ce94177e1ef98a259c20a681c4cd97db539"
+  },
+  "precision_note": "Two unchanged analytic tests use tolerances designed for the project default float64; forcedfloat32 whole suite roundoff exceeds that tolerance. They pass at project default, and all15new tests pass separately in float32."
+}

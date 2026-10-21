@@ -1,0 +1,4116 @@
+{
+  "status": "passed",
+  "scope": "Ten complete 240-epoch training runs, ten independent 4000-action confirmations, ten 8000-action continuations, and cross-checks against ten previously audited zero-shot evaluations. No GPU or checkpoint pickle execution during this audit.",
+  "training": [
+    {
+      "variant": "spacing_baseline",
+      "seed": 0,
+      "contiguous_finite_epochs": 240,
+      "agent_policy_decisions": 49152000,
+      "no_collider_overflow": true,
+      "source_hashes_checked": 15
+    },
+    {
+      "variant": "spacing_baseline",
+      "seed": 1,
+      "contiguous_finite_epochs": 240,
+      "agent_policy_decisions": 49152000,
+      "no_collider_overflow": true,
+      "source_hashes_checked": 15
+    },
+    {
+      "variant": "spacing_baseline",
+      "seed": 2,
+      "contiguous_finite_epochs": 240,
+      "agent_policy_decisions": 49152000,
+      "no_collider_overflow": true,
+      "source_hashes_checked": 15
+    },
+    {
+      "variant": "spacing_baseline",
+      "seed": 3,
+      "contiguous_finite_epochs": 240,
+      "agent_policy_decisions": 49152000,
+      "no_collider_overflow": true,
+      "source_hashes_checked": 15
+    },
+    {
+      "variant": "spacing_baseline",
+      "seed": 4,
+      "contiguous_finite_epochs": 240,
+      "agent_policy_decisions": 49152000,
+      "no_collider_overflow": true,
+      "source_hashes_checked": 15
+    },
+    {
+      "variant": "spacing_rational_delta",
+      "seed": 0,
+      "contiguous_finite_epochs": 240,
+      "agent_policy_decisions": 49152000,
+      "no_collider_overflow": true,
+      "source_hashes_checked": 15
+    },
+    {
+      "variant": "spacing_rational_delta",
+      "seed": 1,
+      "contiguous_finite_epochs": 240,
+      "agent_policy_decisions": 49152000,
+      "no_collider_overflow": true,
+      "source_hashes_checked": 15
+    },
+    {
+      "variant": "spacing_rational_delta",
+      "seed": 2,
+      "contiguous_finite_epochs": 240,
+      "agent_policy_decisions": 49152000,
+      "no_collider_overflow": true,
+      "source_hashes_checked": 15
+    },
+    {
+      "variant": "spacing_rational_delta",
+      "seed": 3,
+      "contiguous_finite_epochs": 240,
+      "agent_policy_decisions": 49152000,
+      "no_collider_overflow": true,
+      "source_hashes_checked": 15
+    },
+    {
+      "variant": "spacing_rational_delta",
+      "seed": 4,
+      "contiguous_finite_epochs": 240,
+      "agent_policy_decisions": 49152000,
+      "no_collider_overflow": true,
+      "source_hashes_checked": 15
+    }
+  ],
+  "confirmation": [
+    {
+      "variant": "spacing_baseline",
+      "seed": 0,
+      "source_checkpoint_sha256": "bbd8d5b64ffda39651e710a9c151a5e822b50fb5b84b0091d3d7df037913b38f",
+      "source_hashes_checked": 15,
+      "helper_hashes_checked": 4,
+      "initial_layout_reconstruction_matches": true
+    },
+    {
+      "variant": "spacing_baseline",
+      "seed": 1,
+      "source_checkpoint_sha256": "3e4ea7b1faa609118c568c0e66ddd0fe3d39f9d531c56e472dc5458f240649de",
+      "source_hashes_checked": 15,
+      "helper_hashes_checked": 4,
+      "initial_layout_reconstruction_matches": true
+    },
+    {
+      "variant": "spacing_baseline",
+      "seed": 2,
+      "source_checkpoint_sha256": "bdf77e7e0acee3202fce2318ff1868f6a32ce316399e4ea62e6b42f3c624a483",
+      "source_hashes_checked": 15,
+      "helper_hashes_checked": 4,
+      "initial_layout_reconstruction_matches": true
+    },
+    {
+      "variant": "spacing_baseline",
+      "seed": 3,
+      "source_checkpoint_sha256": "586444cb3d730df091cbcd53b9a1e032f1d00bdaca762b44d1cdf847d2f20fb6",
+      "source_hashes_checked": 15,
+      "helper_hashes_checked": 4,
+      "initial_layout_reconstruction_matches": true
+    },
+    {
+      "variant": "spacing_baseline",
+      "seed": 4,
+      "source_checkpoint_sha256": "070aeec116c59d4cd6bc07aa1b604caedea4f5a2a81dd65b468297fa9aaf90a7",
+      "source_hashes_checked": 15,
+      "helper_hashes_checked": 4,
+      "initial_layout_reconstruction_matches": true
+    },
+    {
+      "variant": "spacing_rational_delta",
+      "seed": 0,
+      "source_checkpoint_sha256": "f24587ec1d85c79c8be0dc925bb1ee5539a61e90d664e6dad5a1e15758dfd1f8",
+      "source_hashes_checked": 15,
+      "helper_hashes_checked": 4,
+      "initial_layout_reconstruction_matches": true
+    },
+    {
+      "variant": "spacing_rational_delta",
+      "seed": 1,
+      "source_checkpoint_sha256": "61080d064ec29ec575e9b37254ba070bb7ffee8f1462baca1ff40e36fb41674e",
+      "source_hashes_checked": 15,
+      "helper_hashes_checked": 4,
+      "initial_layout_reconstruction_matches": true
+    },
+    {
+      "variant": "spacing_rational_delta",
+      "seed": 2,
+      "source_checkpoint_sha256": "366133cabcd10342fa343a64f54ee44a99b3e2a8c053831957ede3bea99e0ec7",
+      "source_hashes_checked": 15,
+      "helper_hashes_checked": 4,
+      "initial_layout_reconstruction_matches": true
+    },
+    {
+      "variant": "spacing_rational_delta",
+      "seed": 3,
+      "source_checkpoint_sha256": "10d3f7ce0d577ed8a6e111ae28c69fc523044d5eb59eb5224a5e4d0ab5ad1860",
+      "source_hashes_checked": 15,
+      "helper_hashes_checked": 4,
+      "initial_layout_reconstruction_matches": true
+    },
+    {
+      "variant": "spacing_rational_delta",
+      "seed": 4,
+      "source_checkpoint_sha256": "bd3f15d718b8d3d6b49a2b966456e416c15eb93ec857258f5620ece1efdec593",
+      "source_hashes_checked": 15,
+      "helper_hashes_checked": 4,
+      "initial_layout_reconstruction_matches": true
+    }
+  ],
+  "extended_confirmation": [
+    {
+      "variant": "spacing_baseline",
+      "seed": 0,
+      "source_checkpoint_sha256": "bbd8d5b64ffda39651e710a9c151a5e822b50fb5b84b0091d3d7df037913b38f",
+      "source_hashes_checked": 15,
+      "helper_hashes_checked": 5,
+      "initial_layout_reconstruction_matches": true,
+      "final_physics_steps": 400000,
+      "continued_past_training_horizon": true,
+      "reset_geometry_equal_to_4000_action_environment": true
+    },
+    {
+      "variant": "spacing_baseline",
+      "seed": 1,
+      "source_checkpoint_sha256": "3e4ea7b1faa609118c568c0e66ddd0fe3d39f9d531c56e472dc5458f240649de",
+      "source_hashes_checked": 15,
+      "helper_hashes_checked": 5,
+      "initial_layout_reconstruction_matches": true,
+      "final_physics_steps": 400000,
+      "continued_past_training_horizon": true,
+      "reset_geometry_equal_to_4000_action_environment": true
+    },
+    {
+      "variant": "spacing_baseline",
+      "seed": 2,
+      "source_checkpoint_sha256": "bdf77e7e0acee3202fce2318ff1868f6a32ce316399e4ea62e6b42f3c624a483",
+      "source_hashes_checked": 15,
+      "helper_hashes_checked": 5,
+      "initial_layout_reconstruction_matches": true,
+      "final_physics_steps": 400000,
+      "continued_past_training_horizon": true,
+      "reset_geometry_equal_to_4000_action_environment": true
+    },
+    {
+      "variant": "spacing_baseline",
+      "seed": 3,
+      "source_checkpoint_sha256": "586444cb3d730df091cbcd53b9a1e032f1d00bdaca762b44d1cdf847d2f20fb6",
+      "source_hashes_checked": 15,
+      "helper_hashes_checked": 5,
+      "initial_layout_reconstruction_matches": true,
+      "final_physics_steps": 400000,
+      "continued_past_training_horizon": true,
+      "reset_geometry_equal_to_4000_action_environment": true
+    },
+    {
+      "variant": "spacing_baseline",
+      "seed": 4,
+      "source_checkpoint_sha256": "070aeec116c59d4cd6bc07aa1b604caedea4f5a2a81dd65b468297fa9aaf90a7",
+      "source_hashes_checked": 15,
+      "helper_hashes_checked": 5,
+      "initial_layout_reconstruction_matches": true,
+      "final_physics_steps": 400000,
+      "continued_past_training_horizon": true,
+      "reset_geometry_equal_to_4000_action_environment": true
+    },
+    {
+      "variant": "spacing_rational_delta",
+      "seed": 0,
+      "source_checkpoint_sha256": "f24587ec1d85c79c8be0dc925bb1ee5539a61e90d664e6dad5a1e15758dfd1f8",
+      "source_hashes_checked": 15,
+      "helper_hashes_checked": 5,
+      "initial_layout_reconstruction_matches": true,
+      "final_physics_steps": 400000,
+      "continued_past_training_horizon": true,
+      "reset_geometry_equal_to_4000_action_environment": true
+    },
+    {
+      "variant": "spacing_rational_delta",
+      "seed": 1,
+      "source_checkpoint_sha256": "61080d064ec29ec575e9b37254ba070bb7ffee8f1462baca1ff40e36fb41674e",
+      "source_hashes_checked": 15,
+      "helper_hashes_checked": 5,
+      "initial_layout_reconstruction_matches": true,
+      "final_physics_steps": 400000,
+      "continued_past_training_horizon": true,
+      "reset_geometry_equal_to_4000_action_environment": true
+    },
+    {
+      "variant": "spacing_rational_delta",
+      "seed": 2,
+      "source_checkpoint_sha256": "366133cabcd10342fa343a64f54ee44a99b3e2a8c053831957ede3bea99e0ec7",
+      "source_hashes_checked": 15,
+      "helper_hashes_checked": 5,
+      "initial_layout_reconstruction_matches": true,
+      "final_physics_steps": 400000,
+      "continued_past_training_horizon": true,
+      "reset_geometry_equal_to_4000_action_environment": true
+    },
+    {
+      "variant": "spacing_rational_delta",
+      "seed": 3,
+      "source_checkpoint_sha256": "10d3f7ce0d577ed8a6e111ae28c69fc523044d5eb59eb5224a5e4d0ab5ad1860",
+      "source_hashes_checked": 15,
+      "helper_hashes_checked": 5,
+      "initial_layout_reconstruction_matches": true,
+      "final_physics_steps": 400000,
+      "continued_past_training_horizon": true,
+      "reset_geometry_equal_to_4000_action_environment": true
+    },
+    {
+      "variant": "spacing_rational_delta",
+      "seed": 4,
+      "source_checkpoint_sha256": "bd3f15d718b8d3d6b49a2b966456e416c15eb93ec857258f5620ece1efdec593",
+      "source_hashes_checked": 15,
+      "helper_hashes_checked": 5,
+      "initial_layout_reconstruction_matches": true,
+      "final_physics_steps": 400000,
+      "continued_past_training_horizon": true,
+      "reset_geometry_equal_to_4000_action_environment": true
+    }
+  ],
+  "archive_checks": [
+    {
+      "collection": "screen",
+      "variant": "spacing_baseline",
+      "seed": 0,
+      "actions": 4000,
+      "envs": 32,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 400,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.7346154451370239,
+        "coverage_endpoint_mean": 0.73486328125,
+        "coverage_time_average_mean": 0.6557580232620239,
+        "coverage_last_200_actions_mean": 0.7351611852645874,
+        "coverage_action_2000_mean": 0.7021484375,
+        "coverage_action_4000_mean": 0.73486328125
+      }
+    },
+    {
+      "collection": "screen",
+      "variant": "spacing_baseline",
+      "seed": 1,
+      "actions": 4000,
+      "envs": 32,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 400,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.7936315536499023,
+        "coverage_endpoint_mean": 0.7958984375,
+        "coverage_time_average_mean": 0.7033907771110535,
+        "coverage_last_200_actions_mean": 0.7959204316139221,
+        "coverage_action_2000_mean": 0.7548828125,
+        "coverage_action_4000_mean": 0.7958984375
+      }
+    },
+    {
+      "collection": "screen",
+      "variant": "spacing_baseline",
+      "seed": 2,
+      "actions": 4000,
+      "envs": 32,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 400,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.7887377738952637,
+        "coverage_endpoint_mean": 0.79150390625,
+        "coverage_time_average_mean": 0.7060599327087402,
+        "coverage_last_200_actions_mean": 0.7897070646286011,
+        "coverage_action_2000_mean": 0.75830078125,
+        "coverage_action_4000_mean": 0.79150390625
+      }
+    },
+    {
+      "collection": "screen",
+      "variant": "spacing_baseline",
+      "seed": 3,
+      "actions": 4000,
+      "envs": 32,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 400,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.778228759765625,
+        "coverage_endpoint_mean": 0.7783203125,
+        "coverage_time_average_mean": 0.6939685344696045,
+        "coverage_last_200_actions_mean": 0.7785863876342773,
+        "coverage_action_2000_mean": 0.744140625,
+        "coverage_action_4000_mean": 0.7783203125
+      }
+    },
+    {
+      "collection": "screen",
+      "variant": "spacing_baseline",
+      "seed": 4,
+      "actions": 4000,
+      "envs": 32,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 400,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.7703503370285034,
+        "coverage_endpoint_mean": 0.76904296875,
+        "coverage_time_average_mean": 0.6857224106788635,
+        "coverage_last_200_actions_mean": 0.7707104682922363,
+        "coverage_action_2000_mean": 0.73193359375,
+        "coverage_action_4000_mean": 0.76904296875
+      }
+    },
+    {
+      "collection": "screen",
+      "variant": "spacing_rational_delta",
+      "seed": 0,
+      "actions": 4000,
+      "envs": 32,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 400,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.6155761480331421,
+        "coverage_endpoint_mean": 0.62939453125,
+        "coverage_time_average_mean": 0.48515769839286804,
+        "coverage_last_200_actions_mean": 0.620983898639679,
+        "coverage_action_2000_mean": 0.51904296875,
+        "coverage_action_4000_mean": 0.62939453125
+      }
+    },
+    {
+      "collection": "screen",
+      "variant": "spacing_rational_delta",
+      "seed": 1,
+      "actions": 4000,
+      "envs": 32,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 400,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.6111120581626892,
+        "coverage_endpoint_mean": 0.6201171875,
+        "coverage_time_average_mean": 0.48375803232192993,
+        "coverage_last_200_actions_mean": 0.6150780916213989,
+        "coverage_action_2000_mean": 0.51416015625,
+        "coverage_action_4000_mean": 0.6201171875
+      }
+    },
+    {
+      "collection": "screen",
+      "variant": "spacing_rational_delta",
+      "seed": 2,
+      "actions": 4000,
+      "envs": 32,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 400,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.6330615282058716,
+        "coverage_endpoint_mean": 0.63720703125,
+        "coverage_time_average_mean": 0.5088639259338379,
+        "coverage_last_200_actions_mean": 0.635195255279541,
+        "coverage_action_2000_mean": 0.55224609375,
+        "coverage_action_4000_mean": 0.63720703125
+      }
+    },
+    {
+      "collection": "screen",
+      "variant": "spacing_rational_delta",
+      "seed": 3,
+      "actions": 4000,
+      "envs": 32,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 400,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.6573253870010376,
+        "coverage_endpoint_mean": 0.6640625,
+        "coverage_time_average_mean": 0.4995514750480652,
+        "coverage_last_200_actions_mean": 0.660275936126709,
+        "coverage_action_2000_mean": 0.5234375,
+        "coverage_action_4000_mean": 0.6640625
+      }
+    },
+    {
+      "collection": "screen",
+      "variant": "spacing_rational_delta",
+      "seed": 4,
+      "actions": 4000,
+      "envs": 32,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 400,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.6210925579071045,
+        "coverage_endpoint_mean": 0.62890625,
+        "coverage_time_average_mean": 0.4831845760345459,
+        "coverage_last_200_actions_mean": 0.6237767934799194,
+        "coverage_action_2000_mean": 0.51953125,
+        "coverage_action_4000_mean": 0.62890625
+      }
+    },
+    {
+      "collection": "confirmation",
+      "variant": "spacing_baseline",
+      "seed": 0,
+      "actions": 4000,
+      "envs": 64,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 400,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.7303198575973511,
+        "coverage_endpoint_mean": 0.733642578125,
+        "coverage_time_average_mean": 0.6540937423706055,
+        "coverage_last_200_actions_mean": 0.7312060594558716,
+        "coverage_action_2000_mean": 0.703125,
+        "coverage_action_4000_mean": 0.733642578125
+      }
+    },
+    {
+      "collection": "confirmation",
+      "variant": "spacing_baseline",
+      "seed": 1,
+      "actions": 4000,
+      "envs": 64,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 400,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.7898242473602295,
+        "coverage_endpoint_mean": 0.792236328125,
+        "coverage_time_average_mean": 0.7000414133071899,
+        "coverage_last_200_actions_mean": 0.7912915349006653,
+        "coverage_action_2000_mean": 0.750732421875,
+        "coverage_action_4000_mean": 0.792236328125
+      }
+    },
+    {
+      "collection": "confirmation",
+      "variant": "spacing_baseline",
+      "seed": 2,
+      "actions": 4000,
+      "envs": 64,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 400,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.8008209466934204,
+        "coverage_endpoint_mean": 0.8046875,
+        "coverage_time_average_mean": 0.7111986875534058,
+        "coverage_last_200_actions_mean": 0.8025671243667603,
+        "coverage_action_2000_mean": 0.761962890625,
+        "coverage_action_4000_mean": 0.8046875
+      }
+    },
+    {
+      "collection": "confirmation",
+      "variant": "spacing_baseline",
+      "seed": 3,
+      "actions": 4000,
+      "envs": 64,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 400,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.7679693698883057,
+        "coverage_endpoint_mean": 0.7705078125,
+        "coverage_time_average_mean": 0.6863070726394653,
+        "coverage_last_200_actions_mean": 0.7690673470497131,
+        "coverage_action_2000_mean": 0.739501953125,
+        "coverage_action_4000_mean": 0.7705078125
+      }
+    },
+    {
+      "collection": "confirmation",
+      "variant": "spacing_baseline",
+      "seed": 4,
+      "actions": 4000,
+      "envs": 64,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 400,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.7581036686897278,
+        "coverage_endpoint_mean": 0.75927734375,
+        "coverage_time_average_mean": 0.6787927150726318,
+        "coverage_last_200_actions_mean": 0.7592126131057739,
+        "coverage_action_2000_mean": 0.721923828125,
+        "coverage_action_4000_mean": 0.75927734375
+      }
+    },
+    {
+      "collection": "confirmation",
+      "variant": "spacing_rational_delta",
+      "seed": 0,
+      "actions": 4000,
+      "envs": 64,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 400,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.6361414194107056,
+        "coverage_endpoint_mean": 0.64599609375,
+        "coverage_time_average_mean": 0.4944154620170593,
+        "coverage_last_200_actions_mean": 0.6408276557922363,
+        "coverage_action_2000_mean": 0.524658203125,
+        "coverage_action_4000_mean": 0.64599609375
+      }
+    },
+    {
+      "collection": "confirmation",
+      "variant": "spacing_rational_delta",
+      "seed": 1,
+      "actions": 4000,
+      "envs": 64,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 400,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.6071276664733887,
+        "coverage_endpoint_mean": 0.6162109375,
+        "coverage_time_average_mean": 0.48312023282051086,
+        "coverage_last_200_actions_mean": 0.6116735935211182,
+        "coverage_action_2000_mean": 0.513427734375,
+        "coverage_action_4000_mean": 0.6162109375
+      }
+    },
+    {
+      "collection": "confirmation",
+      "variant": "spacing_rational_delta",
+      "seed": 2,
+      "actions": 4000,
+      "envs": 64,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 400,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.6325194835662842,
+        "coverage_endpoint_mean": 0.636474609375,
+        "coverage_time_average_mean": 0.5100941061973572,
+        "coverage_last_200_actions_mean": 0.6344555616378784,
+        "coverage_action_2000_mean": 0.55908203125,
+        "coverage_action_4000_mean": 0.636474609375
+      }
+    },
+    {
+      "collection": "confirmation",
+      "variant": "spacing_rational_delta",
+      "seed": 3,
+      "actions": 4000,
+      "envs": 64,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 400,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.6450836658477783,
+        "coverage_endpoint_mean": 0.65380859375,
+        "coverage_time_average_mean": 0.49551519751548767,
+        "coverage_last_200_actions_mean": 0.6490747332572937,
+        "coverage_action_2000_mean": 0.52197265625,
+        "coverage_action_4000_mean": 0.65380859375
+      }
+    },
+    {
+      "collection": "confirmation",
+      "variant": "spacing_rational_delta",
+      "seed": 4,
+      "actions": 4000,
+      "envs": 64,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 400,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.6153448224067688,
+        "coverage_endpoint_mean": 0.622314453125,
+        "coverage_time_average_mean": 0.4813569188117981,
+        "coverage_last_200_actions_mean": 0.618955135345459,
+        "coverage_action_2000_mean": 0.523193359375,
+        "coverage_action_4000_mean": 0.622314453125
+      }
+    },
+    {
+      "collection": "extended_confirmation",
+      "variant": "spacing_baseline",
+      "seed": 0,
+      "actions": 8000,
+      "envs": 64,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 800,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.7507580518722534,
+        "coverage_endpoint_mean": 0.75341796875,
+        "coverage_time_average_mean": 0.6992433667182922,
+        "coverage_last_200_actions_mean": 0.7517187595367432,
+        "coverage_action_2000_mean": 0.703125,
+        "coverage_action_4000_mean": 0.733642578125,
+        "coverage_action_8000_mean": 0.75341796875
+      }
+    },
+    {
+      "collection": "extended_confirmation",
+      "variant": "spacing_baseline",
+      "seed": 1,
+      "actions": 8000,
+      "envs": 64,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 800,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.8268808126449585,
+        "coverage_endpoint_mean": 0.83056640625,
+        "coverage_time_average_mean": 0.7571869492530823,
+        "coverage_last_200_actions_mean": 0.8281579613685608,
+        "coverage_action_2000_mean": 0.750732421875,
+        "coverage_action_4000_mean": 0.792236328125,
+        "coverage_action_8000_mean": 0.83056640625
+      }
+    },
+    {
+      "collection": "extended_confirmation",
+      "variant": "spacing_baseline",
+      "seed": 2,
+      "actions": 8000,
+      "envs": 64,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 800,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.8315157890319824,
+        "coverage_endpoint_mean": 0.83447265625,
+        "coverage_time_average_mean": 0.7659251689910889,
+        "coverage_last_200_actions_mean": 0.8331738710403442,
+        "coverage_action_2000_mean": 0.761962890625,
+        "coverage_action_4000_mean": 0.8046875,
+        "coverage_action_8000_mean": 0.83447265625
+      }
+    },
+    {
+      "collection": "extended_confirmation",
+      "variant": "spacing_baseline",
+      "seed": 3,
+      "actions": 8000,
+      "envs": 64,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 800,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.79901522397995,
+        "coverage_endpoint_mean": 0.7998046875,
+        "coverage_time_average_mean": 0.737718403339386,
+        "coverage_last_200_actions_mean": 0.8002489805221558,
+        "coverage_action_2000_mean": 0.739501953125,
+        "coverage_action_4000_mean": 0.7705078125,
+        "coverage_action_8000_mean": 0.7998046875
+      }
+    },
+    {
+      "collection": "extended_confirmation",
+      "variant": "spacing_baseline",
+      "seed": 4,
+      "actions": 8000,
+      "envs": 64,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 800,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.7886059880256653,
+        "coverage_endpoint_mean": 0.7919921875,
+        "coverage_time_average_mean": 0.7280598878860474,
+        "coverage_last_200_actions_mean": 0.7903295755386353,
+        "coverage_action_2000_mean": 0.721923828125,
+        "coverage_action_4000_mean": 0.75927734375,
+        "coverage_action_8000_mean": 0.7919921875
+      }
+    },
+    {
+      "collection": "extended_confirmation",
+      "variant": "spacing_rational_delta",
+      "seed": 0,
+      "actions": 8000,
+      "envs": 64,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 800,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.7101767063140869,
+        "coverage_endpoint_mean": 0.71484375,
+        "coverage_time_average_mean": 0.5909634828567505,
+        "coverage_last_200_actions_mean": 0.7134350538253784,
+        "coverage_action_2000_mean": 0.524658203125,
+        "coverage_action_4000_mean": 0.64599609375,
+        "coverage_action_8000_mean": 0.71484375
+      }
+    },
+    {
+      "collection": "extended_confirmation",
+      "variant": "spacing_rational_delta",
+      "seed": 1,
+      "actions": 8000,
+      "envs": 64,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 800,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.7134756445884705,
+        "coverage_endpoint_mean": 0.720458984375,
+        "coverage_time_average_mean": 0.5805352926254272,
+        "coverage_last_200_actions_mean": 0.71783447265625,
+        "coverage_action_2000_mean": 0.513427734375,
+        "coverage_action_4000_mean": 0.6162109375,
+        "coverage_action_8000_mean": 0.720458984375
+      }
+    },
+    {
+      "collection": "extended_confirmation",
+      "variant": "spacing_rational_delta",
+      "seed": 2,
+      "actions": 8000,
+      "envs": 64,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 800,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.6705178618431091,
+        "coverage_endpoint_mean": 0.673828125,
+        "coverage_time_average_mean": 0.5837805271148682,
+        "coverage_last_200_actions_mean": 0.6729602217674255,
+        "coverage_action_2000_mean": 0.55908203125,
+        "coverage_action_4000_mean": 0.636474609375,
+        "coverage_action_8000_mean": 0.673828125
+      }
+    },
+    {
+      "collection": "extended_confirmation",
+      "variant": "spacing_rational_delta",
+      "seed": 3,
+      "actions": 8000,
+      "envs": 64,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 800,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.7384756207466125,
+        "coverage_endpoint_mean": 0.7421875,
+        "coverage_time_average_mean": 0.6021039485931396,
+        "coverage_last_200_actions_mean": 0.7414538264274597,
+        "coverage_action_2000_mean": 0.52197265625,
+        "coverage_action_4000_mean": 0.65380859375,
+        "coverage_action_8000_mean": 0.7421875
+      }
+    },
+    {
+      "collection": "extended_confirmation",
+      "variant": "spacing_rational_delta",
+      "seed": 4,
+      "actions": 8000,
+      "envs": 64,
+      "finite_and_coverage_discretization_pass": true,
+      "primary_window_actions": 800,
+      "metrics_recomputed": {
+        "coverage_final_10_percent_mean": 0.6963473558425903,
+        "coverage_endpoint_mean": 0.69921875,
+        "coverage_time_average_mean": 0.5761197209358215,
+        "coverage_last_200_actions_mean": 0.6988256573677063,
+        "coverage_action_2000_mean": 0.523193359375,
+        "coverage_action_4000_mean": 0.622314453125,
+        "coverage_action_8000_mean": 0.69921875
+      }
+    }
+  ],
+  "prefix_checks": [
+    {
+      "variant": "spacing_baseline",
+      "seed": 0,
+      "first_4000_actions_bitwise_equal_for_all_saved_metrics": true,
+      "maximum_absolute_difference": {
+        "coverage": 0.0,
+        "finite_state": 0.0,
+        "nearest_agent_distance_radii": 0.0,
+        "overlapping_agent_fraction": 0.0,
+        "speed": 0.0
+      }
+    },
+    {
+      "variant": "spacing_baseline",
+      "seed": 1,
+      "first_4000_actions_bitwise_equal_for_all_saved_metrics": true,
+      "maximum_absolute_difference": {
+        "coverage": 0.0,
+        "finite_state": 0.0,
+        "nearest_agent_distance_radii": 0.0,
+        "overlapping_agent_fraction": 0.0,
+        "speed": 0.0
+      }
+    },
+    {
+      "variant": "spacing_baseline",
+      "seed": 2,
+      "first_4000_actions_bitwise_equal_for_all_saved_metrics": true,
+      "maximum_absolute_difference": {
+        "coverage": 0.0,
+        "finite_state": 0.0,
+        "nearest_agent_distance_radii": 0.0,
+        "overlapping_agent_fraction": 0.0,
+        "speed": 0.0
+      }
+    },
+    {
+      "variant": "spacing_baseline",
+      "seed": 3,
+      "first_4000_actions_bitwise_equal_for_all_saved_metrics": true,
+      "maximum_absolute_difference": {
+        "coverage": 0.0,
+        "finite_state": 0.0,
+        "nearest_agent_distance_radii": 0.0,
+        "overlapping_agent_fraction": 0.0,
+        "speed": 0.0
+      }
+    },
+    {
+      "variant": "spacing_baseline",
+      "seed": 4,
+      "first_4000_actions_bitwise_equal_for_all_saved_metrics": true,
+      "maximum_absolute_difference": {
+        "coverage": 0.0,
+        "finite_state": 0.0,
+        "nearest_agent_distance_radii": 0.0,
+        "overlapping_agent_fraction": 0.0,
+        "speed": 0.0
+      }
+    },
+    {
+      "variant": "spacing_rational_delta",
+      "seed": 0,
+      "first_4000_actions_bitwise_equal_for_all_saved_metrics": true,
+      "maximum_absolute_difference": {
+        "coverage": 0.0,
+        "finite_state": 0.0,
+        "nearest_agent_distance_radii": 0.0,
+        "overlapping_agent_fraction": 0.0,
+        "speed": 0.0
+      }
+    },
+    {
+      "variant": "spacing_rational_delta",
+      "seed": 1,
+      "first_4000_actions_bitwise_equal_for_all_saved_metrics": true,
+      "maximum_absolute_difference": {
+        "coverage": 0.0,
+        "finite_state": 0.0,
+        "nearest_agent_distance_radii": 0.0,
+        "overlapping_agent_fraction": 0.0,
+        "speed": 0.0
+      }
+    },
+    {
+      "variant": "spacing_rational_delta",
+      "seed": 2,
+      "first_4000_actions_bitwise_equal_for_all_saved_metrics": true,
+      "maximum_absolute_difference": {
+        "coverage": 0.0,
+        "finite_state": 0.0,
+        "nearest_agent_distance_radii": 0.0,
+        "overlapping_agent_fraction": 0.0,
+        "speed": 0.0
+      }
+    },
+    {
+      "variant": "spacing_rational_delta",
+      "seed": 3,
+      "first_4000_actions_bitwise_equal_for_all_saved_metrics": true,
+      "maximum_absolute_difference": {
+        "coverage": 0.0,
+        "finite_state": 0.0,
+        "nearest_agent_distance_radii": 0.0,
+        "overlapping_agent_fraction": 0.0,
+        "speed": 0.0
+      }
+    },
+    {
+      "variant": "spacing_rational_delta",
+      "seed": 4,
+      "first_4000_actions_bitwise_equal_for_all_saved_metrics": true,
+      "maximum_absolute_difference": {
+        "coverage": 0.0,
+        "finite_state": 0.0,
+        "nearest_agent_distance_radii": 0.0,
+        "overlapping_agent_fraction": 0.0,
+        "speed": 0.0
+      }
+    }
+  ],
+  "collections": {
+    "screen": {
+      "primary_metric": "coverage_final_10_percent_mean",
+      "uncertainty": "Sample SD (ddof=1), SE, and two-sided 95% Student-t mean intervals across independent training seeds. Null uncertainty for one seed. Evaluation episodes are averaged within each trained model, never counted as independent training seeds.",
+      "completed_runs": 10,
+      "zero_shot": false,
+      "warnings": [],
+      "variants": {
+        "baseline": {
+          "label": "Baseline",
+          "num_training_seeds": 5,
+          "seeds": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "epochs": [
+            240
+          ],
+          "metrics": {
+            "coverage_final_10_percent_mean": {
+              "n": 5,
+              "mean": 0.7731127738952637,
+              "std": 0.02335064045164466,
+              "se": 0.01044272387360677,
+              "ci95": [
+                0.744119124311456,
+                0.8021064234790714
+              ]
+            },
+            "coverage_endpoint_mean": {
+              "n": 5,
+              "mean": 0.77392578125,
+              "std": 0.02429413905792749,
+              "se": 0.010864669277671712,
+              "ci95": [
+                0.7437606234144155,
+                0.8040909390855845
+              ]
+            },
+            "coverage_action_2000_mean": {
+              "n": 5,
+              "mean": 0.73828125,
+              "std": 0.022674868595705677,
+              "se": 0.010140509512174618,
+              "ci95": [
+                0.7101266820007112,
+                0.7664358179992888
+              ]
+            },
+            "coverage_action_4000_mean": {
+              "n": 5,
+              "mean": 0.77392578125,
+              "std": 0.02429413905792749,
+              "se": 0.010864669277671712,
+              "ci95": [
+                0.7437606234144155,
+                0.8040909390855845
+              ]
+            },
+            "coverage_time_average_mean": {
+              "n": 5,
+              "mean": 0.6889799356460571,
+              "std": 0.02023976099770627,
+              "se": 0.009051496287844038,
+              "ci95": [
+                0.6638489530829565,
+                0.7141109182091576
+              ]
+            },
+            "coverage_last_200_actions_mean": {
+              "n": 5,
+              "mean": 0.7740171074867248,
+              "std": 0.02380926940551261,
+              "se": 0.01064782897706644,
+              "ci95": [
+                0.7444539948423655,
+                0.8035802201310841
+              ]
+            },
+            "speed_endpoint_mean": {
+              "n": 5,
+              "mean": 0.27709661722183226,
+              "std": 0.009604843158437664,
+              "se": 0.00429541644309808,
+              "ci95": [
+                0.26517062926360646,
+                0.28902260518005807
+              ]
+            },
+            "speed_time_average_mean": {
+              "n": 5,
+              "mean": 0.2840001583099365,
+              "std": 0.009887019582701877,
+              "se": 0.0044216095763586,
+              "ci95": [
+                0.27172380204456,
+                0.29627651457531307
+              ]
+            },
+            "overlapping_agent_fraction_endpoint_mean": {
+              "n": 5,
+              "mean": 0.004296875,
+              "std": 0.0028969525340217434,
+              "se": 0.001295556558732578,
+              "ci95": [
+                0.0006998333340000364,
+                0.007893916665999964
+              ]
+            },
+            "overlapping_agent_fraction_time_average_mean": {
+              "n": 5,
+              "mean": 0.00492421854287386,
+              "std": 0.00045263219666473404,
+              "se": 0.00020242327210947977,
+              "ci95": [
+                0.004362201439847373,
+                0.005486235645900346
+              ]
+            },
+            "nearest_agent_distance_radii_endpoint_mean": {
+              "n": 5,
+              "mean": 1.3911560297012329,
+              "std": 0.1478612094216651,
+              "se": 0.06612554310043511,
+              "ci95": [
+                1.207562089231484,
+                1.5747499701709817
+              ]
+            },
+            "nearest_agent_distance_radii_time_average_mean": {
+              "n": 5,
+              "mean": 1.9825742721557618,
+              "std": 0.14426267522255934,
+              "se": 0.06451622968272346,
+              "ci95": [
+                1.8034485020473476,
+                2.161700042264176
+              ]
+            }
+          },
+          "paired_vs_baseline": {
+            "num_pairs": 0,
+            "seeds": [],
+            "delta_definition": "Candidate minus matched baseline; positive coverage is better.",
+            "metrics": {},
+            "per_seed": []
+          },
+          "per_seed": [
+            {
+              "seed": 0,
+              "original_variant": "spacing_baseline",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/spacing_baseline_seed_0",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.7346154451370239,
+                "coverage_endpoint_mean": 0.73486328125,
+                "coverage_action_2000_mean": 0.7021484375,
+                "coverage_action_4000_mean": 0.73486328125,
+                "coverage_time_average_mean": 0.6557580232620239,
+                "coverage_last_200_actions_mean": 0.7351611852645874,
+                "speed_endpoint_mean": 0.27719956636428833,
+                "speed_time_average_mean": 0.2805957496166229,
+                "overlapping_agent_fraction_endpoint_mean": 0.00390625,
+                "overlapping_agent_fraction_time_average_mean": 0.005554443225264549,
+                "nearest_agent_distance_radii_endpoint_mean": 1.6356103420257568,
+                "nearest_agent_distance_radii_time_average_mean": 2.2275164127349854
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 32,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 200000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 10000,
+                "eval_action_seed": 20000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 4000,
+                "action_mode": "stochastic",
+                "layout_sha256": "94208a664fc645f5aec1f955ae9f34a4f570925499719627508a0fbf25774af7",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 400,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 1,
+              "trainer_seed": 6,
+              "training_initial_layout_sha256": "31072d725f22097303648aec2d44dcf62a595dad0dc7e00ccf14395edfa6fd76"
+            },
+            {
+              "seed": 1,
+              "original_variant": "spacing_baseline",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/spacing_baseline_seed_1",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.7936315536499023,
+                "coverage_endpoint_mean": 0.7958984375,
+                "coverage_action_2000_mean": 0.7548828125,
+                "coverage_action_4000_mean": 0.7958984375,
+                "coverage_time_average_mean": 0.7033907771110535,
+                "coverage_last_200_actions_mean": 0.7959204316139221,
+                "speed_endpoint_mean": 0.2790444493293762,
+                "speed_time_average_mean": 0.2876931130886078,
+                "overlapping_agent_fraction_endpoint_mean": 0.005859375,
+                "overlapping_agent_fraction_time_average_mean": 0.0046763913705945015,
+                "nearest_agent_distance_radii_endpoint_mean": 1.2595722675323486,
+                "nearest_agent_distance_radii_time_average_mean": 1.9030358791351318
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 32,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 200000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 10000,
+                "eval_action_seed": 20000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 4000,
+                "action_mode": "stochastic",
+                "layout_sha256": "94208a664fc645f5aec1f955ae9f34a4f570925499719627508a0fbf25774af7",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 400,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 2,
+              "trainer_seed": 7,
+              "training_initial_layout_sha256": "b1dff19c4cc34e737250cf16306a5f4104dd547e67154394f85fb4301d1e5e45"
+            },
+            {
+              "seed": 2,
+              "original_variant": "spacing_baseline",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/spacing_baseline_seed_2",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.7887377738952637,
+                "coverage_endpoint_mean": 0.79150390625,
+                "coverage_action_2000_mean": 0.75830078125,
+                "coverage_action_4000_mean": 0.79150390625,
+                "coverage_time_average_mean": 0.7060599327087402,
+                "coverage_last_200_actions_mean": 0.7897070646286011,
+                "speed_endpoint_mean": 0.2747791111469269,
+                "speed_time_average_mean": 0.2856289744377136,
+                "overlapping_agent_fraction_endpoint_mean": 0.00390625,
+                "overlapping_agent_fraction_time_average_mean": 0.004340576007962227,
+                "nearest_agent_distance_radii_endpoint_mean": 1.2900629043579102,
+                "nearest_agent_distance_radii_time_average_mean": 1.8558909893035889
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 32,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 200000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 10000,
+                "eval_action_seed": 20000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 4000,
+                "action_mode": "stochastic",
+                "layout_sha256": "94208a664fc645f5aec1f955ae9f34a4f570925499719627508a0fbf25774af7",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 400,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 3,
+              "trainer_seed": 8,
+              "training_initial_layout_sha256": "546445b05bf86e83c34e9eb3ec8b33c2d3b9061af8f2ef3a073318bcd4a4c776"
+            },
+            {
+              "seed": 3,
+              "original_variant": "spacing_baseline",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/spacing_baseline_seed_3",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.778228759765625,
+                "coverage_endpoint_mean": 0.7783203125,
+                "coverage_action_2000_mean": 0.744140625,
+                "coverage_action_4000_mean": 0.7783203125,
+                "coverage_time_average_mean": 0.6939685344696045,
+                "coverage_last_200_actions_mean": 0.7785863876342773,
+                "speed_endpoint_mean": 0.26381728053092957,
+                "speed_time_average_mean": 0.2696009874343872,
+                "overlapping_agent_fraction_endpoint_mean": 0.0078125,
+                "overlapping_agent_fraction_time_average_mean": 0.005027465522289276,
+                "nearest_agent_distance_radii_endpoint_mean": 1.3785450458526611,
+                "nearest_agent_distance_radii_time_average_mean": 1.9552900791168213
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 32,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 200000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 10000,
+                "eval_action_seed": 20000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 4000,
+                "action_mode": "stochastic",
+                "layout_sha256": "94208a664fc645f5aec1f955ae9f34a4f570925499719627508a0fbf25774af7",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 400,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 4,
+              "trainer_seed": 9,
+              "training_initial_layout_sha256": "c4f67f6dad301dffa3f5104f71b0d7621cb8c2939398f6232a6ea438ed6594d3"
+            },
+            {
+              "seed": 4,
+              "original_variant": "spacing_baseline",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/spacing_baseline_seed_4",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.7703503370285034,
+                "coverage_endpoint_mean": 0.76904296875,
+                "coverage_action_2000_mean": 0.73193359375,
+                "coverage_action_4000_mean": 0.76904296875,
+                "coverage_time_average_mean": 0.6857224106788635,
+                "coverage_last_200_actions_mean": 0.7707104682922363,
+                "speed_endpoint_mean": 0.2906426787376404,
+                "speed_time_average_mean": 0.2964819669723511,
+                "overlapping_agent_fraction_endpoint_mean": 0.0,
+                "overlapping_agent_fraction_time_average_mean": 0.005022216588258743,
+                "nearest_agent_distance_radii_endpoint_mean": 1.3919895887374878,
+                "nearest_agent_distance_radii_time_average_mean": 1.9711380004882812
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 32,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 200000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 10000,
+                "eval_action_seed": 20000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 4000,
+                "action_mode": "stochastic",
+                "layout_sha256": "94208a664fc645f5aec1f955ae9f34a4f570925499719627508a0fbf25774af7",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 400,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 5,
+              "trainer_seed": 10,
+              "training_initial_layout_sha256": "a27aa45cc02e585fbb74bcdf56deedaac7fdc3343169187e288dd13df47a2351"
+            }
+          ]
+        },
+        "rational_delta": {
+          "label": "Simpler reward",
+          "num_training_seeds": 5,
+          "seeds": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "epochs": [
+            240
+          ],
+          "metrics": {
+            "coverage_final_10_percent_mean": {
+              "n": 5,
+              "mean": 0.627633535861969,
+              "std": 0.018521564082027743,
+              "se": 0.008283095267406504,
+              "ci95": [
+                0.6046359765508912,
+                0.6506310951730468
+              ]
+            },
+            "coverage_endpoint_mean": {
+              "n": 5,
+              "mean": 0.6359375,
+              "std": 0.01684605694827694,
+              "se": 0.007533785697835979,
+              "ci95": [
+                0.6150203575756342,
+                0.6568546424243659
+              ]
+            },
+            "coverage_action_2000_mean": {
+              "n": 5,
+              "mean": 0.52568359375,
+              "std": 0.015209784590921926,
+              "se": 0.006802022453686051,
+              "ci95": [
+                0.5067981518030178,
+                0.5445690356969821
+              ]
+            },
+            "coverage_action_4000_mean": {
+              "n": 5,
+              "mean": 0.6359375,
+              "std": 0.01684605694827694,
+              "se": 0.007533785697835979,
+              "ci95": [
+                0.6150203575756342,
+                0.6568546424243659
+              ]
+            },
+            "coverage_time_average_mean": {
+              "n": 5,
+              "mean": 0.4921031415462494,
+              "std": 0.011552298522271687,
+              "se": 0.005166344958433972,
+              "ci95": [
+                0.4777590683746421,
+                0.5064472147178567
+              ]
+            },
+            "coverage_last_200_actions_mean": {
+              "n": 5,
+              "mean": 0.6310619950294495,
+              "std": 0.01789319389702273,
+              "se": 0.008002079577665439,
+              "ci95": [
+                0.608844660354637,
+                0.653279329704262
+              ]
+            },
+            "speed_endpoint_mean": {
+              "n": 5,
+              "mean": 0.22368385195732116,
+              "std": 0.0032566346981126376,
+              "se": 0.0014564113125728727,
+              "ci95": [
+                0.2196402058973735,
+                0.2277274980172688
+              ]
+            },
+            "speed_time_average_mean": {
+              "n": 5,
+              "mean": 0.2245416074991226,
+              "std": 0.004250316523215965,
+              "se": 0.0019007993343602922,
+              "ci95": [
+                0.21926414249127474,
+                0.22981907250697048
+              ]
+            },
+            "overlapping_agent_fraction_endpoint_mean": {
+              "n": 5,
+              "mean": 0.0015625,
+              "std": 0.001113452563573377,
+              "se": 0.0004979511243742954,
+              "ci95": [
+                0.00017996603810324988,
+                0.0029450339618967503
+              ]
+            },
+            "overlapping_agent_fraction_time_average_mean": {
+              "n": 5,
+              "mean": 0.0015648681903257966,
+              "std": 0.0001548621305676613,
+              "se": 6.925645021794775e-05,
+              "ci95": [
+                0.001372581458114801,
+                0.0017571549225367923
+              ]
+            },
+            "nearest_agent_distance_radii_endpoint_mean": {
+              "n": 5,
+              "mean": 2.3973949432373045,
+              "std": 0.14931807196820682,
+              "se": 0.06677707183802326,
+              "ci95": [
+                2.2119920689931836,
+                2.5827978174814255
+              ]
+            },
+            "nearest_agent_distance_radii_time_average_mean": {
+              "n": 5,
+              "mean": 3.677445983886719,
+              "std": 0.11048375188155334,
+              "se": 0.049409835923274706,
+              "ci95": [
+                3.540262286788917,
+                3.814629680984521
+              ]
+            }
+          },
+          "paired_vs_baseline": {
+            "num_pairs": 5,
+            "seeds": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "delta_definition": "Candidate minus matched baseline; positive coverage is better.",
+            "metrics": {
+              "coverage_final_10_percent_mean": {
+                "n": 5,
+                "mean": -0.14547923803329468,
+                "std": 0.02642574805091644,
+                "se": 0.011817953799626347,
+                "ci95": [
+                  -0.17829113801372093,
+                  -0.11266733805286845
+                ]
+              },
+              "coverage_endpoint_mean": {
+                "n": 5,
+                "mean": -0.13798828125,
+                "std": 0.028807766142773354,
+                "se": 0.012883224675031626,
+                "ci95": [
+                  -0.173757847338155,
+                  -0.10221871516184503
+                ]
+              },
+              "coverage_action_2000_mean": {
+                "n": 5,
+                "mean": -0.21259765625,
+                "std": 0.021031832773373053,
+                "se": 0.009405721554534015,
+                "ci95": [
+                  -0.23871212582093934,
+                  -0.18648318667906064
+                ]
+              },
+              "coverage_action_4000_mean": {
+                "n": 5,
+                "mean": -0.13798828125,
+                "std": 0.028807766142773354,
+                "se": 0.012883224675031626,
+                "ci95": [
+                  -0.173757847338155,
+                  -0.10221871516184503
+                ]
+              },
+              "coverage_time_average_mean": {
+                "n": 5,
+                "mean": -0.19687679409980774,
+                "std": 0.01765280217465465,
+                "se": 0.007894573131176783,
+                "ci95": [
+                  -0.21879564302748955,
+                  -0.17495794517212593
+                ]
+              },
+              "coverage_last_200_actions_mean": {
+                "n": 5,
+                "mean": -0.14295511245727538,
+                "std": 0.027478859077176218,
+                "se": 0.012288919368140631,
+                "ci95": [
+                  -0.1770746224851198,
+                  -0.10883560242943097
+                ]
+              },
+              "speed_endpoint_mean": {
+                "n": 5,
+                "mean": -0.05341276526451111,
+                "std": 0.009690022432276091,
+                "se": 0.004333509772413438,
+                "ci95": [
+                  -0.0654445172604552,
+                  -0.04138101326856702
+                ]
+              },
+              "speed_time_average_mean": {
+                "n": 5,
+                "mean": -0.0594585508108139,
+                "std": 0.010919987203441207,
+                "se": 0.004883566740064473,
+                "ci95": [
+                  -0.07301750578217266,
+                  -0.04589959583945515
+                ]
+              },
+              "overlapping_agent_fraction_endpoint_mean": {
+                "n": 5,
+                "mean": -0.002734375,
+                "std": 0.002709850962013986,
+                "se": 0.0012118821919912947,
+                "ci95": [
+                  -0.006099099380030603,
+                  0.0006303493800306026
+                ]
+              },
+              "overlapping_agent_fraction_time_average_mean": {
+                "n": 5,
+                "mean": -0.003359350352548063,
+                "std": 0.000524857606331721,
+                "se": 0.00023472345725311045,
+                "ci95": [
+                  -0.0040110471465135645,
+                  -0.002707653558582561
+                ]
+              },
+              "nearest_agent_distance_radii_endpoint_mean": {
+                "n": 5,
+                "mean": 1.0062389135360719,
+                "std": 0.2304614740172247,
+                "se": 0.10306550441946319,
+                "ci95": [
+                  0.7200831982759117,
+                  1.292394628796232
+                ]
+              },
+              "nearest_agent_distance_radii_time_average_mean": {
+                "n": 5,
+                "mean": 1.694871711730957,
+                "std": 0.144902539901315,
+                "se": 0.0648023858663432,
+                "ci95": [
+                  1.5149514446872099,
+                  1.8747919787747043
+                ]
+              }
+            },
+            "per_seed": [
+              {
+                "seed": 0,
+                "candidate_minus_baseline": {
+                  "coverage_final_10_percent_mean": -0.11903929710388184,
+                  "coverage_endpoint_mean": -0.10546875,
+                  "coverage_action_2000_mean": -0.18310546875,
+                  "coverage_action_4000_mean": -0.10546875,
+                  "coverage_time_average_mean": -0.17060032486915588,
+                  "coverage_last_200_actions_mean": -0.11417728662490845,
+                  "speed_endpoint_mean": -0.050275400280952454,
+                  "speed_time_average_mean": -0.051025331020355225,
+                  "overlapping_agent_fraction_endpoint_mean": -0.00390625,
+                  "overlapping_agent_fraction_time_average_mean": -0.003984741168096662,
+                  "nearest_agent_distance_radii_endpoint_mean": 0.7610805034637451,
+                  "nearest_agent_distance_radii_time_average_mean": 1.4964964389801025
+                }
+              },
+              {
+                "seed": 1,
+                "candidate_minus_baseline": {
+                  "coverage_final_10_percent_mean": -0.18251949548721313,
+                  "coverage_endpoint_mean": -0.17578125,
+                  "coverage_action_2000_mean": -0.24072265625,
+                  "coverage_action_4000_mean": -0.17578125,
+                  "coverage_time_average_mean": -0.21963274478912354,
+                  "coverage_last_200_actions_mean": -0.1808423399925232,
+                  "speed_endpoint_mean": -0.057572633028030396,
+                  "speed_time_average_mean": -0.06552198529243469,
+                  "overlapping_agent_fraction_endpoint_mean": -0.00390625,
+                  "overlapping_agent_fraction_time_average_mean": -0.0031715084332972765,
+                  "nearest_agent_distance_radii_endpoint_mean": 1.2723863124847412,
+                  "nearest_agent_distance_radii_time_average_mean": 1.8669862747192383
+                }
+              },
+              {
+                "seed": 2,
+                "candidate_minus_baseline": {
+                  "coverage_final_10_percent_mean": -0.1556762456893921,
+                  "coverage_endpoint_mean": -0.154296875,
+                  "coverage_action_2000_mean": -0.2060546875,
+                  "coverage_action_4000_mean": -0.154296875,
+                  "coverage_time_average_mean": -0.19719600677490234,
+                  "coverage_last_200_actions_mean": -0.15451180934906006,
+                  "speed_endpoint_mean": -0.04743748903274536,
+                  "speed_time_average_mean": -0.056880295276641846,
+                  "overlapping_agent_fraction_endpoint_mean": -0.0029296875,
+                  "overlapping_agent_fraction_time_average_mean": -0.002603881643153727,
+                  "nearest_agent_distance_radii_endpoint_mean": 1.139594554901123,
+                  "nearest_agent_distance_radii_time_average_mean": 1.6735665798187256
+                }
+              },
+              {
+                "seed": 3,
+                "candidate_minus_baseline": {
+                  "coverage_final_10_percent_mean": -0.1209033727645874,
+                  "coverage_endpoint_mean": -0.1142578125,
+                  "coverage_action_2000_mean": -0.220703125,
+                  "coverage_action_4000_mean": -0.1142578125,
+                  "coverage_time_average_mean": -0.1944170594215393,
+                  "coverage_last_200_actions_mean": -0.11831045150756836,
+                  "speed_endpoint_mean": -0.04363211989402771,
+                  "speed_time_average_mean": -0.04869982600212097,
+                  "overlapping_agent_fraction_endpoint_mean": -0.0048828125,
+                  "overlapping_agent_fraction_time_average_mean": -0.003353637410327792,
+                  "nearest_agent_distance_radii_endpoint_mean": 0.768103837966919,
+                  "nearest_agent_distance_radii_time_average_mean": 1.6367228031158447
+                }
+              },
+              {
+                "seed": 4,
+                "candidate_minus_baseline": {
+                  "coverage_final_10_percent_mean": -0.14925777912139893,
+                  "coverage_endpoint_mean": -0.14013671875,
+                  "coverage_action_2000_mean": -0.21240234375,
+                  "coverage_action_4000_mean": -0.14013671875,
+                  "coverage_time_average_mean": -0.20253783464431763,
+                  "coverage_last_200_actions_mean": -0.1469336748123169,
+                  "speed_endpoint_mean": -0.06814618408679962,
+                  "speed_time_average_mean": -0.07516531646251678,
+                  "overlapping_agent_fraction_endpoint_mean": 0.001953125,
+                  "overlapping_agent_fraction_time_average_mean": -0.0036829831078648567,
+                  "nearest_agent_distance_radii_endpoint_mean": 1.0900293588638306,
+                  "nearest_agent_distance_radii_time_average_mean": 1.800586462020874
+                }
+              }
+            ]
+          },
+          "per_seed": [
+            {
+              "seed": 0,
+              "original_variant": "spacing_rational_delta",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/spacing_rational_delta_seed_0",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.6155761480331421,
+                "coverage_endpoint_mean": 0.62939453125,
+                "coverage_action_2000_mean": 0.51904296875,
+                "coverage_action_4000_mean": 0.62939453125,
+                "coverage_time_average_mean": 0.48515769839286804,
+                "coverage_last_200_actions_mean": 0.620983898639679,
+                "speed_endpoint_mean": 0.22692416608333588,
+                "speed_time_average_mean": 0.2295704185962677,
+                "overlapping_agent_fraction_endpoint_mean": 0.0,
+                "overlapping_agent_fraction_time_average_mean": 0.0015697020571678877,
+                "nearest_agent_distance_radii_endpoint_mean": 2.396690845489502,
+                "nearest_agent_distance_radii_time_average_mean": 3.724012851715088
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 32,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 200000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 10000,
+                "eval_action_seed": 20000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 4000,
+                "action_mode": "stochastic",
+                "layout_sha256": "94208a664fc645f5aec1f955ae9f34a4f570925499719627508a0fbf25774af7",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 400,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 1,
+              "trainer_seed": 6,
+              "training_initial_layout_sha256": "31072d725f22097303648aec2d44dcf62a595dad0dc7e00ccf14395edfa6fd76"
+            },
+            {
+              "seed": 1,
+              "original_variant": "spacing_rational_delta",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/spacing_rational_delta_seed_1",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.6111120581626892,
+                "coverage_endpoint_mean": 0.6201171875,
+                "coverage_action_2000_mean": 0.51416015625,
+                "coverage_action_4000_mean": 0.6201171875,
+                "coverage_time_average_mean": 0.48375803232192993,
+                "coverage_last_200_actions_mean": 0.6150780916213989,
+                "speed_endpoint_mean": 0.22147181630134583,
+                "speed_time_average_mean": 0.2221711277961731,
+                "overlapping_agent_fraction_endpoint_mean": 0.001953125,
+                "overlapping_agent_fraction_time_average_mean": 0.001504882937297225,
+                "nearest_agent_distance_radii_endpoint_mean": 2.53195858001709,
+                "nearest_agent_distance_radii_time_average_mean": 3.77002215385437
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 32,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 200000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 10000,
+                "eval_action_seed": 20000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 4000,
+                "action_mode": "stochastic",
+                "layout_sha256": "94208a664fc645f5aec1f955ae9f34a4f570925499719627508a0fbf25774af7",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 400,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 2,
+              "trainer_seed": 7,
+              "training_initial_layout_sha256": "b1dff19c4cc34e737250cf16306a5f4104dd547e67154394f85fb4301d1e5e45"
+            },
+            {
+              "seed": 2,
+              "original_variant": "spacing_rational_delta",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/spacing_rational_delta_seed_2",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.6330615282058716,
+                "coverage_endpoint_mean": 0.63720703125,
+                "coverage_action_2000_mean": 0.55224609375,
+                "coverage_action_4000_mean": 0.63720703125,
+                "coverage_time_average_mean": 0.5088639259338379,
+                "coverage_last_200_actions_mean": 0.635195255279541,
+                "speed_endpoint_mean": 0.22734162211418152,
+                "speed_time_average_mean": 0.22874867916107178,
+                "overlapping_agent_fraction_endpoint_mean": 0.0009765625,
+                "overlapping_agent_fraction_time_average_mean": 0.0017366943648084998,
+                "nearest_agent_distance_radii_endpoint_mean": 2.429657459259033,
+                "nearest_agent_distance_radii_time_average_mean": 3.5294575691223145
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 32,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 200000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 10000,
+                "eval_action_seed": 20000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 4000,
+                "action_mode": "stochastic",
+                "layout_sha256": "94208a664fc645f5aec1f955ae9f34a4f570925499719627508a0fbf25774af7",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 400,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 3,
+              "trainer_seed": 8,
+              "training_initial_layout_sha256": "546445b05bf86e83c34e9eb3ec8b33c2d3b9061af8f2ef3a073318bcd4a4c776"
+            },
+            {
+              "seed": 3,
+              "original_variant": "spacing_rational_delta",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/spacing_rational_delta_seed_3",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.6573253870010376,
+                "coverage_endpoint_mean": 0.6640625,
+                "coverage_action_2000_mean": 0.5234375,
+                "coverage_action_4000_mean": 0.6640625,
+                "coverage_time_average_mean": 0.4995514750480652,
+                "coverage_last_200_actions_mean": 0.660275936126709,
+                "speed_endpoint_mean": 0.22018516063690186,
+                "speed_time_average_mean": 0.22090116143226624,
+                "overlapping_agent_fraction_endpoint_mean": 0.0029296875,
+                "overlapping_agent_fraction_time_average_mean": 0.001673828111961484,
+                "nearest_agent_distance_radii_endpoint_mean": 2.14664888381958,
+                "nearest_agent_distance_radii_time_average_mean": 3.592012882232666
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 32,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 200000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 10000,
+                "eval_action_seed": 20000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 4000,
+                "action_mode": "stochastic",
+                "layout_sha256": "94208a664fc645f5aec1f955ae9f34a4f570925499719627508a0fbf25774af7",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 400,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 4,
+              "trainer_seed": 9,
+              "training_initial_layout_sha256": "c4f67f6dad301dffa3f5104f71b0d7621cb8c2939398f6232a6ea438ed6594d3"
+            },
+            {
+              "seed": 4,
+              "original_variant": "spacing_rational_delta",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/spacing_rational_delta_seed_4",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.6210925579071045,
+                "coverage_endpoint_mean": 0.62890625,
+                "coverage_action_2000_mean": 0.51953125,
+                "coverage_action_4000_mean": 0.62890625,
+                "coverage_time_average_mean": 0.4831845760345459,
+                "coverage_last_200_actions_mean": 0.6237767934799194,
+                "speed_endpoint_mean": 0.22249649465084076,
+                "speed_time_average_mean": 0.2213166505098343,
+                "overlapping_agent_fraction_endpoint_mean": 0.001953125,
+                "overlapping_agent_fraction_time_average_mean": 0.0013392334803938866,
+                "nearest_agent_distance_radii_endpoint_mean": 2.4820189476013184,
+                "nearest_agent_distance_radii_time_average_mean": 3.7717244625091553
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 32,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 200000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 10000,
+                "eval_action_seed": 20000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 4000,
+                "action_mode": "stochastic",
+                "layout_sha256": "94208a664fc645f5aec1f955ae9f34a4f570925499719627508a0fbf25774af7",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 400,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 5,
+              "trainer_seed": 10,
+              "training_initial_layout_sha256": "a27aa45cc02e585fbb74bcdf56deedaac7fdc3343169187e288dd13df47a2351"
+            }
+          ]
+        }
+      },
+      "primary_simpler_reward_seed_wins": 0
+    },
+    "confirmation": {
+      "primary_metric": "coverage_final_10_percent_mean",
+      "uncertainty": "Sample SD (ddof=1), SE, and two-sided 95% Student-t mean intervals across independent training seeds. Null uncertainty for one seed. Evaluation episodes are averaged within each trained model, never counted as independent training seeds.",
+      "completed_runs": 10,
+      "zero_shot": false,
+      "warnings": [],
+      "variants": {
+        "baseline": {
+          "label": "Baseline",
+          "num_training_seeds": 5,
+          "seeds": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "epochs": [
+            240
+          ],
+          "metrics": {
+            "coverage_final_10_percent_mean": {
+              "n": 5,
+              "mean": 0.7694076180458069,
+              "std": 0.027664674293079703,
+              "se": 0.01237201845894343,
+              "ci95": [
+                0.7350573879540567,
+                0.8037578481375571
+              ]
+            },
+            "coverage_endpoint_mean": {
+              "n": 5,
+              "mean": 0.7720703125,
+              "std": 0.027898661847308794,
+              "se": 0.012476660874372464,
+              "ci95": [
+                0.7374295484861357,
+                0.8067110765138643
+              ]
+            },
+            "coverage_action_2000_mean": {
+              "n": 5,
+              "mean": 0.73544921875,
+              "std": 0.023349341850072414,
+              "se": 0.010442143121328525,
+              "ci95": [
+                0.7064571815930126,
+                0.7644412559069874
+              ]
+            },
+            "coverage_action_4000_mean": {
+              "n": 5,
+              "mean": 0.7720703125,
+              "std": 0.027898661847308794,
+              "se": 0.012476660874372464,
+              "ci95": [
+                0.7374295484861357,
+                0.8067110765138643
+              ]
+            },
+            "coverage_time_average_mean": {
+              "n": 5,
+              "mean": 0.6860867261886596,
+              "std": 0.021806799744930324,
+              "se": 0.009752297320277855,
+              "ci95": [
+                0.6590100080293406,
+                0.7131634443479786
+              ]
+            },
+            "coverage_last_200_actions_mean": {
+              "n": 5,
+              "mean": 0.7706689357757568,
+              "std": 0.02799069958512385,
+              "se": 0.012517821402022417,
+              "ci95": [
+                0.7359138918163715,
+                0.8054239797351421
+              ]
+            },
+            "speed_endpoint_mean": {
+              "n": 5,
+              "mean": 0.27390540242195127,
+              "std": 0.01294086976913959,
+              "se": 0.005787332898353626,
+              "ci95": [
+                0.2578371903241672,
+                0.28997361451973536
+              ]
+            },
+            "speed_time_average_mean": {
+              "n": 5,
+              "mean": 0.2843563616275787,
+              "std": 0.009608024378529983,
+              "se": 0.004296839127973642,
+              "ci95": [
+                0.27242642366289394,
+                0.2962862995922635
+              ]
+            },
+            "overlapping_agent_fraction_endpoint_mean": {
+              "n": 5,
+              "mean": 0.00400390625,
+              "std": 0.001965294120849425,
+              "se": 0.0008789062500000001,
+              "ci95": [
+                0.001563671294259751,
+                0.006444141205740248
+              ]
+            },
+            "overlapping_agent_fraction_time_average_mean": {
+              "n": 5,
+              "mean": 0.00501942140981555,
+              "std": 0.0004729081042791014,
+              "se": 0.00021149093365572597,
+              "ci95": [
+                0.004432228442273398,
+                0.005606614377357702
+              ]
+            },
+            "nearest_agent_distance_radii_endpoint_mean": {
+              "n": 5,
+              "mean": 1.4220598459243774,
+              "std": 0.18244467594036454,
+              "se": 0.0815917395071151,
+              "ci95": [
+                1.1955248601452744,
+                1.6485948317034804
+              ]
+            },
+            "nearest_agent_distance_radii_time_average_mean": {
+              "n": 5,
+              "mean": 2.0035830974578857,
+              "std": 0.1549433970269052,
+              "se": 0.06929279368337977,
+              "ci95": [
+                1.8111954596101854,
+                2.195970735305586
+              ]
+            }
+          },
+          "paired_vs_baseline": {
+            "num_pairs": 0,
+            "seeds": [],
+            "delta_definition": "Candidate minus matched baseline; positive coverage is better.",
+            "metrics": {},
+            "per_seed": []
+          },
+          "per_seed": [
+            {
+              "seed": 0,
+              "original_variant": "spacing_baseline",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/confirmation/spacing_baseline_seed_0",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.7303198575973511,
+                "coverage_endpoint_mean": 0.733642578125,
+                "coverage_action_2000_mean": 0.703125,
+                "coverage_action_4000_mean": 0.733642578125,
+                "coverage_time_average_mean": 0.6540937423706055,
+                "coverage_last_200_actions_mean": 0.7312060594558716,
+                "speed_endpoint_mean": 0.2713257074356079,
+                "speed_time_average_mean": 0.28177088499069214,
+                "overlapping_agent_fraction_endpoint_mean": 0.0068359375,
+                "overlapping_agent_fraction_time_average_mean": 0.005437988322228193,
+                "nearest_agent_distance_radii_endpoint_mean": 1.671020269393921,
+                "nearest_agent_distance_radii_time_average_mean": 2.2382161617279053
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 64,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 200000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 50000,
+                "eval_action_seed": 60000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 4000,
+                "action_mode": "stochastic",
+                "layout_sha256": "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 400,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 1,
+              "trainer_seed": 6,
+              "training_initial_layout_sha256": "31072d725f22097303648aec2d44dcf62a595dad0dc7e00ccf14395edfa6fd76"
+            },
+            {
+              "seed": 1,
+              "original_variant": "spacing_baseline",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/confirmation/spacing_baseline_seed_1",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.7898242473602295,
+                "coverage_endpoint_mean": 0.792236328125,
+                "coverage_action_2000_mean": 0.750732421875,
+                "coverage_action_4000_mean": 0.792236328125,
+                "coverage_time_average_mean": 0.7000414133071899,
+                "coverage_last_200_actions_mean": 0.7912915349006653,
+                "speed_endpoint_mean": 0.27462804317474365,
+                "speed_time_average_mean": 0.2876908779144287,
+                "overlapping_agent_fraction_endpoint_mean": 0.00244140625,
+                "overlapping_agent_fraction_time_average_mean": 0.004741577431559563,
+                "nearest_agent_distance_radii_endpoint_mean": 1.2879259586334229,
+                "nearest_agent_distance_radii_time_average_mean": 1.9309840202331543
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 64,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 200000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 50000,
+                "eval_action_seed": 60000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 4000,
+                "action_mode": "stochastic",
+                "layout_sha256": "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 400,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 2,
+              "trainer_seed": 7,
+              "training_initial_layout_sha256": "b1dff19c4cc34e737250cf16306a5f4104dd547e67154394f85fb4301d1e5e45"
+            },
+            {
+              "seed": 2,
+              "original_variant": "spacing_baseline",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/confirmation/spacing_baseline_seed_2",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.8008209466934204,
+                "coverage_endpoint_mean": 0.8046875,
+                "coverage_action_2000_mean": 0.761962890625,
+                "coverage_action_4000_mean": 0.8046875,
+                "coverage_time_average_mean": 0.7111986875534058,
+                "coverage_last_200_actions_mean": 0.8025671243667603,
+                "speed_endpoint_mean": 0.2787051200866699,
+                "speed_time_average_mean": 0.28630608320236206,
+                "overlapping_agent_fraction_endpoint_mean": 0.001953125,
+                "overlapping_agent_fraction_time_average_mean": 0.004323425702750683,
+                "nearest_agent_distance_radii_endpoint_mean": 1.204489827156067,
+                "nearest_agent_distance_radii_time_average_mean": 1.8156158924102783
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 64,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 200000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 50000,
+                "eval_action_seed": 60000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 4000,
+                "action_mode": "stochastic",
+                "layout_sha256": "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 400,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 3,
+              "trainer_seed": 8,
+              "training_initial_layout_sha256": "546445b05bf86e83c34e9eb3ec8b33c2d3b9061af8f2ef3a073318bcd4a4c776"
+            },
+            {
+              "seed": 3,
+              "original_variant": "spacing_baseline",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/confirmation/spacing_baseline_seed_3",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.7679693698883057,
+                "coverage_endpoint_mean": 0.7705078125,
+                "coverage_action_2000_mean": 0.739501953125,
+                "coverage_action_4000_mean": 0.7705078125,
+                "coverage_time_average_mean": 0.6863070726394653,
+                "coverage_last_200_actions_mean": 0.7690673470497131,
+                "speed_endpoint_mean": 0.2546110451221466,
+                "speed_time_average_mean": 0.2698919177055359,
+                "overlapping_agent_fraction_endpoint_mean": 0.0048828125,
+                "overlapping_agent_fraction_time_average_mean": 0.005339477211236954,
+                "nearest_agent_distance_radii_endpoint_mean": 1.4567549228668213,
+                "nearest_agent_distance_radii_time_average_mean": 2.0121572017669678
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 64,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 200000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 50000,
+                "eval_action_seed": 60000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 4000,
+                "action_mode": "stochastic",
+                "layout_sha256": "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 400,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 4,
+              "trainer_seed": 9,
+              "training_initial_layout_sha256": "c4f67f6dad301dffa3f5104f71b0d7621cb8c2939398f6232a6ea438ed6594d3"
+            },
+            {
+              "seed": 4,
+              "original_variant": "spacing_baseline",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/confirmation/spacing_baseline_seed_4",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.7581036686897278,
+                "coverage_endpoint_mean": 0.75927734375,
+                "coverage_action_2000_mean": 0.721923828125,
+                "coverage_action_4000_mean": 0.75927734375,
+                "coverage_time_average_mean": 0.6787927150726318,
+                "coverage_last_200_actions_mean": 0.7592126131057739,
+                "speed_endpoint_mean": 0.2902570962905884,
+                "speed_time_average_mean": 0.2961220443248749,
+                "overlapping_agent_fraction_endpoint_mean": 0.00390625,
+                "overlapping_agent_fraction_time_average_mean": 0.005254638381302357,
+                "nearest_agent_distance_radii_endpoint_mean": 1.4901082515716553,
+                "nearest_agent_distance_radii_time_average_mean": 2.020942211151123
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 64,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 200000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 50000,
+                "eval_action_seed": 60000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 4000,
+                "action_mode": "stochastic",
+                "layout_sha256": "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 400,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 5,
+              "trainer_seed": 10,
+              "training_initial_layout_sha256": "a27aa45cc02e585fbb74bcdf56deedaac7fdc3343169187e288dd13df47a2351"
+            }
+          ]
+        },
+        "rational_delta": {
+          "label": "Simpler reward",
+          "num_training_seeds": 5,
+          "seeds": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "epochs": [
+            240
+          ],
+          "metrics": {
+            "coverage_final_10_percent_mean": {
+              "n": 5,
+              "mean": 0.6272434115409851,
+              "std": 0.015584493710145232,
+              "se": 0.006969597466160529,
+              "ci95": [
+                0.6078927067708647,
+                0.6465941163111054
+              ]
+            },
+            "coverage_endpoint_mean": {
+              "n": 5,
+              "mean": 0.6349609375,
+              "std": 0.015738456795159138,
+              "se": 0.007038451850983863,
+              "ci95": [
+                0.6154190623101655,
+                0.6545028126898346
+              ]
+            },
+            "coverage_action_2000_mean": {
+              "n": 5,
+              "mean": 0.528466796875,
+              "std": 0.01766319880847824,
+              "se": 0.007899222647170127,
+              "ci95": [
+                0.5065350388213969,
+                0.550398554928603
+              ]
+            },
+            "coverage_action_4000_mean": {
+              "n": 5,
+              "mean": 0.6349609375,
+              "std": 0.015738456795159138,
+              "se": 0.007038451850983863,
+              "ci95": [
+                0.6154190623101655,
+                0.6545028126898346
+              ]
+            },
+            "coverage_time_average_mean": {
+              "n": 5,
+              "mean": 0.49290038347244264,
+              "std": 0.01155053829658316,
+              "se": 0.0051655577615749146,
+              "ci95": [
+                0.4785584959097015,
+                0.5072422710351838
+              ]
+            },
+            "coverage_last_200_actions_mean": {
+              "n": 5,
+              "mean": 0.6309973359107971,
+              "std": 0.015441894503043441,
+              "se": 0.006905825162037093,
+              "ci95": [
+                0.6118236914423074,
+                0.6501709803792868
+              ]
+            },
+            "speed_endpoint_mean": {
+              "n": 5,
+              "mean": 0.2232757568359375,
+              "std": 0.0033700863496921823,
+              "se": 0.0015071484335911693,
+              "ci95": [
+                0.2190912419446868,
+                0.22746027172718822
+              ]
+            },
+            "speed_time_average_mean": {
+              "n": 5,
+              "mean": 0.2245803952217102,
+              "std": 0.004211087946811942,
+              "se": 0.001883255781660304,
+              "ci95": [
+                0.219351638924884,
+                0.2298091515185364
+              ]
+            },
+            "overlapping_agent_fraction_endpoint_mean": {
+              "n": 5,
+              "mean": 0.00263671875,
+              "std": 0.0011241078548067712,
+              "se": 0.0005027163154778809,
+              "ci95": [
+                0.0012409544965883681,
+                0.004032483003411632
+              ]
+            },
+            "overlapping_agent_fraction_time_average_mean": {
+              "n": 5,
+              "mean": 0.00155848388094455,
+              "std": 0.00018915029693449055,
+              "se": 8.459058438195819e-05,
+              "ci95": [
+                0.0013236227669914413,
+                0.0017933449948976587
+              ]
+            },
+            "nearest_agent_distance_radii_endpoint_mean": {
+              "n": 5,
+              "mean": 2.410941982269287,
+              "std": 0.14822328967125917,
+              "se": 0.0662874703107156,
+              "ci95": [
+                2.226898459789157,
+                2.5949855047494172
+              ]
+            },
+            "nearest_agent_distance_radii_time_average_mean": {
+              "n": 5,
+              "mean": 3.6731639385223387,
+              "std": 0.11276714062485335,
+              "se": 0.05043099841309004,
+              "ci95": [
+                3.533145039828077,
+                3.8131828372166003
+              ]
+            }
+          },
+          "paired_vs_baseline": {
+            "num_pairs": 5,
+            "seeds": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "delta_definition": "Candidate minus matched baseline; positive coverage is better.",
+            "metrics": {
+              "coverage_final_10_percent_mean": {
+                "n": 5,
+                "mean": -0.14216420650482178,
+                "std": 0.03535773526260595,
+                "se": 0.015812459915525656,
+                "ci95": [
+                  -0.1860666334384193,
+                  -0.09826177957122426
+                ]
+              },
+              "coverage_endpoint_mean": {
+                "n": 5,
+                "mean": -0.137109375,
+                "std": 0.03655495329350767,
+                "se": 0.016347872095722592,
+                "ci95": [
+                  -0.1824983444605686,
+                  -0.09172040553943142
+                ]
+              },
+              "coverage_action_2000_mean": {
+                "n": 5,
+                "mean": -0.206982421875,
+                "std": 0.021958681536911034,
+                "se": 0.009820220922560526,
+                "ci95": [
+                  -0.2342477261874041,
+                  -0.17971711756259587
+                ]
+              },
+              "coverage_action_4000_mean": {
+                "n": 5,
+                "mean": -0.137109375,
+                "std": 0.03655495329350767,
+                "se": 0.016347872095722592,
+                "ci95": [
+                  -0.1824983444605686,
+                  -0.09172040553943142
+                ]
+              },
+              "coverage_time_average_mean": {
+                "n": 5,
+                "mean": -0.19318634271621704,
+                "std": 0.021051262437952828,
+                "se": 0.009414410764690094,
+                "ci95": [
+                  -0.21932493740216227,
+                  -0.1670477480302718
+                ]
+              },
+              "coverage_last_200_actions_mean": {
+                "n": 5,
+                "mean": -0.13967159986495972,
+                "std": 0.0361315880691504,
+                "se": 0.01615853741152813,
+                "ci95": [
+                  -0.18453489196835243,
+                  -0.09480830776156701
+                ]
+              },
+              "speed_endpoint_mean": {
+                "n": 5,
+                "mean": -0.050629645586013794,
+                "std": 0.012534854269904661,
+                "se": 0.005605757247112064,
+                "ci95": [
+                  -0.06619372285568514,
+                  -0.035065568316342444
+                ]
+              },
+              "speed_time_average_mean": {
+                "n": 5,
+                "mean": -0.05977596640586853,
+                "std": 0.010268916399598486,
+                "se": 0.004592399024952921,
+                "ci95": [
+                  -0.0725265101998142,
+                  -0.04702542261192288
+                ]
+              },
+              "overlapping_agent_fraction_endpoint_mean": {
+                "n": 5,
+                "mean": -0.0013671875,
+                "std": 0.0024753499718040187,
+                "se": 0.0011070101610111947,
+                "ci95": [
+                  -0.004440740442943753,
+                  0.001706365442943753
+                ]
+              },
+              "overlapping_agent_fraction_time_average_mean": {
+                "n": 5,
+                "mean": -0.003460937528871,
+                "std": 0.0006007716085830497,
+                "se": 0.000268673231148719,
+                "ci95": [
+                  -0.004206894006391536,
+                  -0.002714981051350464
+                ]
+              },
+              "nearest_agent_distance_radii_endpoint_mean": {
+                "n": 5,
+                "mean": 0.9888821363449096,
+                "std": 0.28155044154836967,
+                "se": 0.12591318527944714,
+                "ci95": [
+                  0.6392910893959258,
+                  1.3384731832938934
+                ]
+              },
+              "nearest_agent_distance_radii_time_average_mean": {
+                "n": 5,
+                "mean": 1.669580841064453,
+                "std": 0.17116734775811943,
+                "se": 0.07654836502310025,
+                "ci95": [
+                  1.4570485076851725,
+                  1.8821131744437336
+                ]
+              }
+            },
+            "per_seed": [
+              {
+                "seed": 0,
+                "candidate_minus_baseline": {
+                  "coverage_final_10_percent_mean": -0.09417843818664551,
+                  "coverage_endpoint_mean": -0.087646484375,
+                  "coverage_action_2000_mean": -0.178466796875,
+                  "coverage_action_4000_mean": -0.087646484375,
+                  "coverage_time_average_mean": -0.15967828035354614,
+                  "coverage_last_200_actions_mean": -0.09037840366363525,
+                  "speed_endpoint_mean": -0.04380643367767334,
+                  "speed_time_average_mean": -0.05216503143310547,
+                  "overlapping_agent_fraction_endpoint_mean": -0.00537109375,
+                  "overlapping_agent_fraction_time_average_mean": -0.0039008790627121925,
+                  "nearest_agent_distance_radii_endpoint_mean": 0.6281325817108154,
+                  "nearest_agent_distance_radii_time_average_mean": 1.4023425579071045
+                }
+              },
+              {
+                "seed": 1,
+                "candidate_minus_baseline": {
+                  "coverage_final_10_percent_mean": -0.18269658088684082,
+                  "coverage_endpoint_mean": -0.176025390625,
+                  "coverage_action_2000_mean": -0.2373046875,
+                  "coverage_action_4000_mean": -0.176025390625,
+                  "coverage_time_average_mean": -0.21692118048667908,
+                  "coverage_last_200_actions_mean": -0.17961794137954712,
+                  "speed_endpoint_mean": -0.05368703603744507,
+                  "speed_time_average_mean": -0.06553757190704346,
+                  "overlapping_agent_fraction_endpoint_mean": 0.0,
+                  "overlapping_agent_fraction_time_average_mean": -0.0032189333578571677,
+                  "nearest_agent_distance_radii_endpoint_mean": 1.2762291431427002,
+                  "nearest_agent_distance_radii_time_average_mean": 1.8472723960876465
+                }
+              },
+              {
+                "seed": 2,
+                "candidate_minus_baseline": {
+                  "coverage_final_10_percent_mean": -0.16830146312713623,
+                  "coverage_endpoint_mean": -0.168212890625,
+                  "coverage_action_2000_mean": -0.202880859375,
+                  "coverage_action_4000_mean": -0.168212890625,
+                  "coverage_time_average_mean": -0.20110458135604858,
+                  "coverage_last_200_actions_mean": -0.16811156272888184,
+                  "speed_endpoint_mean": -0.05252265930175781,
+                  "speed_time_average_mean": -0.057623445987701416,
+                  "overlapping_agent_fraction_endpoint_mean": 0.0009765625,
+                  "overlapping_agent_fraction_time_average_mean": -0.0025232548359781504,
+                  "nearest_agent_distance_radii_endpoint_mean": 1.2169235944747925,
+                  "nearest_agent_distance_radii_time_average_mean": 1.7064158916473389
+                }
+              },
+              {
+                "seed": 3,
+                "candidate_minus_baseline": {
+                  "coverage_final_10_percent_mean": -0.12288570404052734,
+                  "coverage_endpoint_mean": -0.11669921875,
+                  "coverage_action_2000_mean": -0.217529296875,
+                  "coverage_action_4000_mean": -0.11669921875,
+                  "coverage_time_average_mean": -0.19079187512397766,
+                  "coverage_last_200_actions_mean": -0.11999261379241943,
+                  "speed_endpoint_mean": -0.0347248911857605,
+                  "speed_time_average_mean": -0.049166589975357056,
+                  "overlapping_agent_fraction_endpoint_mean": -0.00048828125,
+                  "overlapping_agent_fraction_time_average_mean": -0.0036916499957442284,
+                  "nearest_agent_distance_radii_endpoint_mean": 0.7694103717803955,
+                  "nearest_agent_distance_radii_time_average_mean": 1.6202518939971924
+                }
+              },
+              {
+                "seed": 4,
+                "candidate_minus_baseline": {
+                  "coverage_final_10_percent_mean": -0.14275884628295898,
+                  "coverage_endpoint_mean": -0.136962890625,
+                  "coverage_action_2000_mean": -0.19873046875,
+                  "coverage_action_4000_mean": -0.136962890625,
+                  "coverage_time_average_mean": -0.19743579626083374,
+                  "coverage_last_200_actions_mean": -0.14025747776031494,
+                  "speed_endpoint_mean": -0.06840720772743225,
+                  "speed_time_average_mean": -0.07438719272613525,
+                  "overlapping_agent_fraction_endpoint_mean": -0.001953125,
+                  "overlapping_agent_fraction_time_average_mean": -0.00396997039206326,
+                  "nearest_agent_distance_radii_endpoint_mean": 1.0537149906158447,
+                  "nearest_agent_distance_radii_time_average_mean": 1.7716214656829834
+                }
+              }
+            ]
+          },
+          "per_seed": [
+            {
+              "seed": 0,
+              "original_variant": "spacing_rational_delta",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/confirmation/spacing_rational_delta_seed_0",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.6361414194107056,
+                "coverage_endpoint_mean": 0.64599609375,
+                "coverage_action_2000_mean": 0.524658203125,
+                "coverage_action_4000_mean": 0.64599609375,
+                "coverage_time_average_mean": 0.4944154620170593,
+                "coverage_last_200_actions_mean": 0.6408276557922363,
+                "speed_endpoint_mean": 0.22751927375793457,
+                "speed_time_average_mean": 0.22960585355758667,
+                "overlapping_agent_fraction_endpoint_mean": 0.00146484375,
+                "overlapping_agent_fraction_time_average_mean": 0.0015371092595160007,
+                "nearest_agent_distance_radii_endpoint_mean": 2.2991528511047363,
+                "nearest_agent_distance_radii_time_average_mean": 3.6405587196350098
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 64,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 200000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 50000,
+                "eval_action_seed": 60000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 4000,
+                "action_mode": "stochastic",
+                "layout_sha256": "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 400,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 1,
+              "trainer_seed": 6,
+              "training_initial_layout_sha256": "31072d725f22097303648aec2d44dcf62a595dad0dc7e00ccf14395edfa6fd76"
+            },
+            {
+              "seed": 1,
+              "original_variant": "spacing_rational_delta",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/confirmation/spacing_rational_delta_seed_1",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.6071276664733887,
+                "coverage_endpoint_mean": 0.6162109375,
+                "coverage_action_2000_mean": 0.513427734375,
+                "coverage_action_4000_mean": 0.6162109375,
+                "coverage_time_average_mean": 0.48312023282051086,
+                "coverage_last_200_actions_mean": 0.6116735935211182,
+                "speed_endpoint_mean": 0.22094100713729858,
+                "speed_time_average_mean": 0.22215330600738525,
+                "overlapping_agent_fraction_endpoint_mean": 0.00244140625,
+                "overlapping_agent_fraction_time_average_mean": 0.001522644073702395,
+                "nearest_agent_distance_radii_endpoint_mean": 2.564155101776123,
+                "nearest_agent_distance_radii_time_average_mean": 3.778256416320801
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 64,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 200000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 50000,
+                "eval_action_seed": 60000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 4000,
+                "action_mode": "stochastic",
+                "layout_sha256": "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 400,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 2,
+              "trainer_seed": 7,
+              "training_initial_layout_sha256": "b1dff19c4cc34e737250cf16306a5f4104dd547e67154394f85fb4301d1e5e45"
+            },
+            {
+              "seed": 2,
+              "original_variant": "spacing_rational_delta",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/confirmation/spacing_rational_delta_seed_2",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.6325194835662842,
+                "coverage_endpoint_mean": 0.636474609375,
+                "coverage_action_2000_mean": 0.55908203125,
+                "coverage_action_4000_mean": 0.636474609375,
+                "coverage_time_average_mean": 0.5100941061973572,
+                "coverage_last_200_actions_mean": 0.6344555616378784,
+                "speed_endpoint_mean": 0.2261824607849121,
+                "speed_time_average_mean": 0.22868263721466064,
+                "overlapping_agent_fraction_endpoint_mean": 0.0029296875,
+                "overlapping_agent_fraction_time_average_mean": 0.0018001708667725325,
+                "nearest_agent_distance_radii_endpoint_mean": 2.4214134216308594,
+                "nearest_agent_distance_radii_time_average_mean": 3.522031784057617
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 64,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 200000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 50000,
+                "eval_action_seed": 60000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 4000,
+                "action_mode": "stochastic",
+                "layout_sha256": "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 400,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 3,
+              "trainer_seed": 8,
+              "training_initial_layout_sha256": "546445b05bf86e83c34e9eb3ec8b33c2d3b9061af8f2ef3a073318bcd4a4c776"
+            },
+            {
+              "seed": 3,
+              "original_variant": "spacing_rational_delta",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/confirmation/spacing_rational_delta_seed_3",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.6450836658477783,
+                "coverage_endpoint_mean": 0.65380859375,
+                "coverage_action_2000_mean": 0.52197265625,
+                "coverage_action_4000_mean": 0.65380859375,
+                "coverage_time_average_mean": 0.49551519751548767,
+                "coverage_last_200_actions_mean": 0.6490747332572937,
+                "speed_endpoint_mean": 0.2198861539363861,
+                "speed_time_average_mean": 0.22072532773017883,
+                "overlapping_agent_fraction_endpoint_mean": 0.00439453125,
+                "overlapping_agent_fraction_time_average_mean": 0.0016478272154927254,
+                "nearest_agent_distance_radii_endpoint_mean": 2.226165294647217,
+                "nearest_agent_distance_radii_time_average_mean": 3.63240909576416
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 64,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 200000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 50000,
+                "eval_action_seed": 60000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 4000,
+                "action_mode": "stochastic",
+                "layout_sha256": "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 400,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 4,
+              "trainer_seed": 9,
+              "training_initial_layout_sha256": "c4f67f6dad301dffa3f5104f71b0d7621cb8c2939398f6232a6ea438ed6594d3"
+            },
+            {
+              "seed": 4,
+              "original_variant": "spacing_rational_delta",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/confirmation/spacing_rational_delta_seed_4",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.6153448224067688,
+                "coverage_endpoint_mean": 0.622314453125,
+                "coverage_action_2000_mean": 0.523193359375,
+                "coverage_action_4000_mean": 0.622314453125,
+                "coverage_time_average_mean": 0.4813569188117981,
+                "coverage_last_200_actions_mean": 0.618955135345459,
+                "speed_endpoint_mean": 0.22184988856315613,
+                "speed_time_average_mean": 0.22173485159873962,
+                "overlapping_agent_fraction_endpoint_mean": 0.001953125,
+                "overlapping_agent_fraction_time_average_mean": 0.0012846679892390966,
+                "nearest_agent_distance_radii_endpoint_mean": 2.5438232421875,
+                "nearest_agent_distance_radii_time_average_mean": 3.7925636768341064
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 64,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 200000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 50000,
+                "eval_action_seed": 60000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 4000,
+                "action_mode": "stochastic",
+                "layout_sha256": "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 400,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 5,
+              "trainer_seed": 10,
+              "training_initial_layout_sha256": "a27aa45cc02e585fbb74bcdf56deedaac7fdc3343169187e288dd13df47a2351"
+            }
+          ]
+        }
+      },
+      "primary_simpler_reward_seed_wins": 0
+    },
+    "extended_confirmation": {
+      "primary_metric": "coverage_final_10_percent_mean",
+      "uncertainty": "Sample SD (ddof=1), SE, and two-sided 95% Student-t mean intervals across independent training seeds. Null uncertainty for one seed. Evaluation episodes are averaged within each trained model, never counted as independent training seeds.",
+      "completed_runs": 10,
+      "zero_shot": false,
+      "warnings": [],
+      "variants": {
+        "baseline": {
+          "label": "Baseline",
+          "num_training_seeds": 5,
+          "seeds": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "epochs": [
+            240
+          ],
+          "metrics": {
+            "coverage_final_10_percent_mean": {
+              "n": 5,
+              "mean": 0.7993551731109619,
+              "std": 0.03266996627743242,
+              "se": 0.014610453083792928,
+              "ci95": [
+                0.758790052161743,
+                0.8399202940601809
+              ]
+            },
+            "coverage_endpoint_mean": {
+              "n": 5,
+              "mean": 0.80205078125,
+              "std": 0.03292297656909888,
+              "se": 0.014723602726027579,
+              "ci95": [
+                0.7611715065304439,
+                0.8429300559695561
+              ]
+            },
+            "coverage_action_2000_mean": {
+              "n": 5,
+              "mean": 0.73544921875,
+              "std": 0.023349341850072414,
+              "se": 0.010442143121328525,
+              "ci95": [
+                0.7064571815930126,
+                0.7644412559069874
+              ]
+            },
+            "coverage_action_4000_mean": {
+              "n": 5,
+              "mean": 0.7720703125,
+              "std": 0.027898661847308794,
+              "se": 0.012476660874372464,
+              "ci95": [
+                0.7374295484861357,
+                0.8067110765138643
+              ]
+            },
+            "coverage_action_8000_mean": {
+              "n": 5,
+              "mean": 0.80205078125,
+              "std": 0.03292297656909888,
+              "se": 0.014723602726027579,
+              "ci95": [
+                0.7611715065304439,
+                0.8429300559695561
+              ]
+            },
+            "coverage_time_average_mean": {
+              "n": 5,
+              "mean": 0.7376267552375794,
+              "std": 0.026211730558129163,
+              "se": 0.011722242267177062,
+              "ci95": [
+                0.7050805930729329,
+                0.7701729174022258
+              ]
+            },
+            "coverage_last_200_actions_mean": {
+              "n": 5,
+              "mean": 0.8007258296012878,
+              "std": 0.0328458507517252,
+              "se": 0.014689111011934021,
+              "ci95": [
+                0.7599423192324966,
+                0.841509339970079
+              ]
+            },
+            "speed_endpoint_mean": {
+              "n": 5,
+              "mean": 0.27896995544433595,
+              "std": 0.009974806489756535,
+              "se": 0.004460869074700334,
+              "ci95": [
+                0.266584597336956,
+                0.2913553135517159
+              ]
+            },
+            "speed_time_average_mean": {
+              "n": 5,
+              "mean": 0.27979466915130613,
+              "std": 0.009975810485260809,
+              "se": 0.004461318075139666,
+              "ci95": [
+                0.2674080644188542,
+                0.2921812738837581
+              ]
+            },
+            "overlapping_agent_fraction_endpoint_mean": {
+              "n": 5,
+              "mean": 0.004541015625,
+              "std": 0.002274573183369554,
+              "se": 0.0010172200515624833,
+              "ci95": [
+                0.0017167599919302966,
+                0.007365271258069704
+              ]
+            },
+            "overlapping_agent_fraction_time_average_mean": {
+              "n": 5,
+              "mean": 0.0044698120094835755,
+              "std": 0.0005474233320289905,
+              "se": 0.0002448151565772521,
+              "ci95": [
+                0.0037900961663264324,
+                0.0051495278526407185
+              ]
+            },
+            "nearest_agent_distance_radii_endpoint_mean": {
+              "n": 5,
+              "mean": 1.239142370223999,
+              "std": 0.2063129180117656,
+              "se": 0.09226594186212972,
+              "ci95": [
+                0.9829710475644247,
+                1.4953136928835733
+              ]
+            },
+            "nearest_agent_distance_radii_time_average_mean": {
+              "n": 5,
+              "mean": 1.6597009420394897,
+              "std": 0.17497066245021517,
+              "se": 0.0782492590613702,
+              "ci95": [
+                1.4424461697331943,
+                1.8769557143457851
+              ]
+            }
+          },
+          "paired_vs_baseline": {
+            "num_pairs": 0,
+            "seeds": [],
+            "delta_definition": "Candidate minus matched baseline; positive coverage is better.",
+            "metrics": {},
+            "per_seed": []
+          },
+          "per_seed": [
+            {
+              "seed": 0,
+              "original_variant": "spacing_baseline",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/extended_confirmation/spacing_baseline_seed_0",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.7507580518722534,
+                "coverage_endpoint_mean": 0.75341796875,
+                "coverage_action_2000_mean": 0.703125,
+                "coverage_action_4000_mean": 0.733642578125,
+                "coverage_action_8000_mean": 0.75341796875,
+                "coverage_time_average_mean": 0.6992433667182922,
+                "coverage_last_200_actions_mean": 0.7517187595367432,
+                "speed_endpoint_mean": 0.27433454990386963,
+                "speed_time_average_mean": 0.27671730518341064,
+                "overlapping_agent_fraction_endpoint_mean": 0.005615234375,
+                "overlapping_agent_fraction_time_average_mean": 0.0051762694492936134,
+                "nearest_agent_distance_radii_endpoint_mean": 1.5493868589401245,
+                "nearest_agent_distance_radii_time_average_mean": 1.919774055480957
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 64,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 400000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 50000,
+                "eval_action_seed": 60000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 8000,
+                "action_mode": "stochastic",
+                "layout_sha256": "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 800,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 1,
+              "trainer_seed": 6,
+              "training_initial_layout_sha256": "31072d725f22097303648aec2d44dcf62a595dad0dc7e00ccf14395edfa6fd76"
+            },
+            {
+              "seed": 1,
+              "original_variant": "spacing_baseline",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/extended_confirmation/spacing_baseline_seed_1",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.8268808126449585,
+                "coverage_endpoint_mean": 0.83056640625,
+                "coverage_action_2000_mean": 0.750732421875,
+                "coverage_action_4000_mean": 0.792236328125,
+                "coverage_action_8000_mean": 0.83056640625,
+                "coverage_time_average_mean": 0.7571869492530823,
+                "coverage_last_200_actions_mean": 0.8281579613685608,
+                "speed_endpoint_mean": 0.2842943072319031,
+                "speed_time_average_mean": 0.2829204797744751,
+                "overlapping_agent_fraction_endpoint_mean": 0.00439453125,
+                "overlapping_agent_fraction_time_average_mean": 0.004075103905051947,
+                "nearest_agent_distance_radii_endpoint_mean": 1.0735726356506348,
+                "nearest_agent_distance_radii_time_average_mean": 1.5457977056503296
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 64,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 400000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 50000,
+                "eval_action_seed": 60000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 8000,
+                "action_mode": "stochastic",
+                "layout_sha256": "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 800,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 2,
+              "trainer_seed": 7,
+              "training_initial_layout_sha256": "b1dff19c4cc34e737250cf16306a5f4104dd547e67154394f85fb4301d1e5e45"
+            },
+            {
+              "seed": 2,
+              "original_variant": "spacing_baseline",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/extended_confirmation/spacing_baseline_seed_2",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.8315157890319824,
+                "coverage_endpoint_mean": 0.83447265625,
+                "coverage_action_2000_mean": 0.761962890625,
+                "coverage_action_4000_mean": 0.8046875,
+                "coverage_action_8000_mean": 0.83447265625,
+                "coverage_time_average_mean": 0.7659251689910889,
+                "coverage_last_200_actions_mean": 0.8331738710403442,
+                "speed_endpoint_mean": 0.281566858291626,
+                "speed_time_average_mean": 0.28244006633758545,
+                "overlapping_agent_fraction_endpoint_mean": 0.00244140625,
+                "overlapping_agent_fraction_time_average_mean": 0.003783111460506916,
+                "nearest_agent_distance_radii_endpoint_mean": 1.0294854640960693,
+                "nearest_agent_distance_radii_time_average_mean": 1.4596318006515503
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 64,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 400000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 50000,
+                "eval_action_seed": 60000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 8000,
+                "action_mode": "stochastic",
+                "layout_sha256": "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 800,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 3,
+              "trainer_seed": 8,
+              "training_initial_layout_sha256": "546445b05bf86e83c34e9eb3ec8b33c2d3b9061af8f2ef3a073318bcd4a4c776"
+            },
+            {
+              "seed": 3,
+              "original_variant": "spacing_baseline",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/extended_confirmation/spacing_baseline_seed_3",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.79901522397995,
+                "coverage_endpoint_mean": 0.7998046875,
+                "coverage_action_2000_mean": 0.739501953125,
+                "coverage_action_4000_mean": 0.7705078125,
+                "coverage_action_8000_mean": 0.7998046875,
+                "coverage_time_average_mean": 0.737718403339386,
+                "coverage_last_200_actions_mean": 0.8002489805221558,
+                "speed_endpoint_mean": 0.26436537504196167,
+                "speed_time_average_mean": 0.26487940549850464,
+                "overlapping_agent_fraction_endpoint_mean": 0.00244140625,
+                "overlapping_agent_fraction_time_average_mean": 0.004688598681241274,
+                "nearest_agent_distance_radii_endpoint_mean": 1.2553893327713013,
+                "nearest_agent_distance_radii_time_average_mean": 1.6731092929840088
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 64,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 400000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 50000,
+                "eval_action_seed": 60000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 8000,
+                "action_mode": "stochastic",
+                "layout_sha256": "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 800,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 4,
+              "trainer_seed": 9,
+              "training_initial_layout_sha256": "c4f67f6dad301dffa3f5104f71b0d7621cb8c2939398f6232a6ea438ed6594d3"
+            },
+            {
+              "seed": 4,
+              "original_variant": "spacing_baseline",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/extended_confirmation/spacing_baseline_seed_4",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.7886059880256653,
+                "coverage_endpoint_mean": 0.7919921875,
+                "coverage_action_2000_mean": 0.721923828125,
+                "coverage_action_4000_mean": 0.75927734375,
+                "coverage_action_8000_mean": 0.7919921875,
+                "coverage_time_average_mean": 0.7280598878860474,
+                "coverage_last_200_actions_mean": 0.7903295755386353,
+                "speed_endpoint_mean": 0.29028868675231934,
+                "speed_time_average_mean": 0.29201608896255493,
+                "overlapping_agent_fraction_endpoint_mean": 0.0078125,
+                "overlapping_agent_fraction_time_average_mean": 0.004625976551324129,
+                "nearest_agent_distance_radii_endpoint_mean": 1.2878775596618652,
+                "nearest_agent_distance_radii_time_average_mean": 1.700191855430603
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 64,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 400000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 50000,
+                "eval_action_seed": 60000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 8000,
+                "action_mode": "stochastic",
+                "layout_sha256": "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 800,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 5,
+              "trainer_seed": 10,
+              "training_initial_layout_sha256": "a27aa45cc02e585fbb74bcdf56deedaac7fdc3343169187e288dd13df47a2351"
+            }
+          ]
+        },
+        "rational_delta": {
+          "label": "Simpler reward",
+          "num_training_seeds": 5,
+          "seeds": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
+          "epochs": [
+            240
+          ],
+          "metrics": {
+            "coverage_final_10_percent_mean": {
+              "n": 5,
+              "mean": 0.7057986378669738,
+              "std": 0.02489954324077178,
+              "se": 0.011135414259012223,
+              "ci95": [
+                0.6748817714531896,
+                0.736715504280758
+              ]
+            },
+            "coverage_endpoint_mean": {
+              "n": 5,
+              "mean": 0.710107421875,
+              "std": 0.025463059614621024,
+              "se": 0.01138742644268444,
+              "ci95": [
+                0.6784908574674089,
+                0.7417239862825911
+              ]
+            },
+            "coverage_action_2000_mean": {
+              "n": 5,
+              "mean": 0.528466796875,
+              "std": 0.01766319880847824,
+              "se": 0.007899222647170127,
+              "ci95": [
+                0.5065350388213969,
+                0.550398554928603
+              ]
+            },
+            "coverage_action_4000_mean": {
+              "n": 5,
+              "mean": 0.6349609375,
+              "std": 0.015738456795159138,
+              "se": 0.007038451850983863,
+              "ci95": [
+                0.6154190623101655,
+                0.6545028126898346
+              ]
+            },
+            "coverage_action_8000_mean": {
+              "n": 5,
+              "mean": 0.710107421875,
+              "std": 0.025463059614621024,
+              "se": 0.01138742644268444,
+              "ci95": [
+                0.6784908574674089,
+                0.7417239862825911
+              ]
+            },
+            "coverage_time_average_mean": {
+              "n": 5,
+              "mean": 0.5867005944252014,
+              "std": 0.010172612257677629,
+              "se": 0.004549330503382957,
+              "ci95": [
+                0.5740696280171568,
+                0.599331560833246
+              ]
+            },
+            "coverage_last_200_actions_mean": {
+              "n": 5,
+              "mean": 0.708901846408844,
+              "std": 0.025265110091521905,
+              "se": 0.011298900724731782,
+              "ci95": [
+                0.6775310687975467,
+                0.7402726240201414
+              ]
+            },
+            "speed_endpoint_mean": {
+              "n": 5,
+              "mean": 0.22423638701438903,
+              "std": 0.0033489055441629882,
+              "se": 0.001497676089394873,
+              "ci95": [
+                0.22007817156681686,
+                0.2283946024619612
+              ]
+            },
+            "speed_time_average_mean": {
+              "n": 5,
+              "mean": 0.2235830008983612,
+              "std": 0.003605713369263178,
+              "se": 0.0016125240402104534,
+              "ci95": [
+                0.21910591641990512,
+                0.22806008537681727
+              ]
+            },
+            "overlapping_agent_fraction_endpoint_mean": {
+              "n": 5,
+              "mean": 0.00166015625,
+              "std": 0.0008870069396769995,
+              "se": 0.0003966815627263652,
+              "ci95": [
+                0.0005587916668461719,
+                0.002761520833153828
+              ]
+            },
+            "overlapping_agent_fraction_time_average_mean": {
+              "n": 5,
+              "mean": 0.0018909363076090812,
+              "std": 0.00026355385834834425,
+              "se": 0.00011786486859984963,
+              "ci95": [
+                0.0015636909701102475,
+                0.0022181816451079146
+              ]
+            },
+            "nearest_agent_distance_radii_endpoint_mean": {
+              "n": 5,
+              "mean": 1.8158253192901612,
+              "std": 0.19028883645914263,
+              "se": 0.08509975473639665,
+              "ci95": [
+                1.57955052179876,
+                2.0521001167815625
+              ]
+            },
+            "nearest_agent_distance_radii_time_average_mean": {
+              "n": 5,
+              "mean": 2.860642671585083,
+              "std": 0.09235109018402027,
+              "se": 0.041300663089536574,
+              "ci95": [
+                2.745973647708716,
+                2.97531169546145
+              ]
+            }
+          },
+          "paired_vs_baseline": {
+            "num_pairs": 5,
+            "seeds": [
+              0,
+              1,
+              2,
+              3,
+              4
+            ],
+            "delta_definition": "Candidate minus matched baseline; positive coverage is better.",
+            "metrics": {
+              "coverage_final_10_percent_mean": {
+                "n": 5,
+                "mean": -0.09355653524398803,
+                "std": 0.04701192041915889,
+                "se": 0.021024369962009935,
+                "ci95": [
+                  -0.15192954431487804,
+                  -0.035183526173098036
+                ]
+              },
+              "coverage_endpoint_mean": {
+                "n": 5,
+                "mean": -0.091943359375,
+                "std": 0.04763670974112,
+                "se": 0.021303784241114145,
+                "ci95": [
+                  -0.15109214685343125,
+                  -0.03279457189656875
+                ]
+              },
+              "coverage_action_2000_mean": {
+                "n": 5,
+                "mean": -0.206982421875,
+                "std": 0.021958681536911034,
+                "se": 0.009820220922560526,
+                "ci95": [
+                  -0.2342477261874041,
+                  -0.17971711756259587
+                ]
+              },
+              "coverage_action_4000_mean": {
+                "n": 5,
+                "mean": -0.137109375,
+                "std": 0.03655495329350767,
+                "se": 0.016347872095722592,
+                "ci95": [
+                  -0.1824983444605686,
+                  -0.09172040553943142
+                ]
+              },
+              "coverage_action_8000_mean": {
+                "n": 5,
+                "mean": -0.091943359375,
+                "std": 0.04763670974112,
+                "se": 0.021303784241114145,
+                "ci95": [
+                  -0.15109214685343125,
+                  -0.03279457189656875
+                ]
+              },
+              "coverage_time_average_mean": {
+                "n": 5,
+                "mean": -0.15092616081237792,
+                "std": 0.030375056311659633,
+                "se": 0.013584138146650994,
+                "ci95": [
+                  -0.1886417746779777,
+                  -0.11321054694677814
+                ]
+              },
+              "coverage_last_200_actions_mean": {
+                "n": 5,
+                "mean": -0.09182398319244385,
+                "std": 0.04737337183749859,
+                "se": 0.021186015950404192,
+                "ci95": [
+                  -0.15064579347658594,
+                  -0.033002172908301756
+                ]
+              },
+              "speed_endpoint_mean": {
+                "n": 5,
+                "mean": -0.0547335684299469,
+                "std": 0.009994212866789545,
+                "se": 0.0044695478703488944,
+                "ci95": [
+                  -0.06714302273702431,
+                  -0.04232411412286949
+                ]
+              },
+              "speed_time_average_mean": {
+                "n": 5,
+                "mean": -0.05621166825294495,
+                "std": 0.010326743446113227,
+                "se": 0.004618260066341922,
+                "ci95": [
+                  -0.06903401380867041,
+                  -0.043389322697219485
+                ]
+              },
+              "overlapping_agent_fraction_endpoint_mean": {
+                "n": 5,
+                "mean": -0.002880859375,
+                "std": 0.0026654968874914417,
+                "se": 0.0011920464468489944,
+                "ci95": [
+                  -0.006190510897522312,
+                  0.00042879214752231196
+                ]
+              },
+              "overlapping_agent_fraction_time_average_mean": {
+                "n": 5,
+                "mean": -0.0025788757018744947,
+                "std": 0.0006633815166957654,
+                "se": 0.0002966732332697286,
+                "ci95": [
+                  -0.003402572648229436,
+                  -0.0017551787555195536
+                ]
+              },
+              "nearest_agent_distance_radii_endpoint_mean": {
+                "n": 5,
+                "mean": 0.5766829490661621,
+                "std": 0.3278820037574541,
+                "se": 0.14663328980010176,
+                "ci95": [
+                  0.16956366934162004,
+                  0.9838022287907042
+                ]
+              },
+              "nearest_agent_distance_radii_time_average_mean": {
+                "n": 5,
+                "mean": 1.2009417295455933,
+                "std": 0.22234419968525154,
+                "se": 0.09943534897980195,
+                "ci95": [
+                  0.9248649415869878,
+                  1.4770185175041988
+                ]
+              }
+            },
+            "per_seed": [
+              {
+                "seed": 0,
+                "candidate_minus_baseline": {
+                  "coverage_final_10_percent_mean": -0.040581345558166504,
+                  "coverage_endpoint_mean": -0.03857421875,
+                  "coverage_action_2000_mean": -0.178466796875,
+                  "coverage_action_4000_mean": -0.087646484375,
+                  "coverage_action_8000_mean": -0.03857421875,
+                  "coverage_time_average_mean": -0.10827988386154175,
+                  "coverage_last_200_actions_mean": -0.038283705711364746,
+                  "speed_endpoint_mean": -0.04542188346385956,
+                  "speed_time_average_mean": -0.04863482713699341,
+                  "overlapping_agent_fraction_endpoint_mean": -0.005126953125,
+                  "overlapping_agent_fraction_time_average_mean": -0.003252685535699129,
+                  "nearest_agent_distance_radii_endpoint_mean": 0.21893012523651123,
+                  "nearest_agent_distance_radii_time_average_mean": 0.8896536827087402
+                }
+              },
+              {
+                "seed": 1,
+                "candidate_minus_baseline": {
+                  "coverage_final_10_percent_mean": -0.11340516805648804,
+                  "coverage_endpoint_mean": -0.110107421875,
+                  "coverage_action_2000_mean": -0.2373046875,
+                  "coverage_action_4000_mean": -0.176025390625,
+                  "coverage_action_8000_mean": -0.110107421875,
+                  "coverage_time_average_mean": -0.17665165662765503,
+                  "coverage_last_200_actions_mean": -0.11032348871231079,
+                  "speed_endpoint_mean": -0.06113576889038086,
+                  "speed_time_average_mean": -0.06179755926132202,
+                  "overlapping_agent_fraction_endpoint_mean": -0.00146484375,
+                  "overlapping_agent_fraction_time_average_mean": -0.0021470338106155396,
+                  "nearest_agent_distance_radii_endpoint_mean": 0.6564656496047974,
+                  "nearest_agent_distance_radii_time_average_mean": 1.3745712041854858
+                }
+              },
+              {
+                "seed": 2,
+                "candidate_minus_baseline": {
+                  "coverage_final_10_percent_mean": -0.1609979271888733,
+                  "coverage_endpoint_mean": -0.16064453125,
+                  "coverage_action_2000_mean": -0.202880859375,
+                  "coverage_action_4000_mean": -0.168212890625,
+                  "coverage_action_8000_mean": -0.16064453125,
+                  "coverage_time_average_mean": -0.1821446418762207,
+                  "coverage_last_200_actions_mean": -0.1602136492729187,
+                  "speed_endpoint_mean": -0.0554981529712677,
+                  "speed_time_average_mean": -0.055579304695129395,
+                  "overlapping_agent_fraction_endpoint_mean": -0.00048828125,
+                  "overlapping_agent_fraction_time_average_mean": -0.001711913850158453,
+                  "nearest_agent_distance_radii_endpoint_mean": 1.0605559349060059,
+                  "nearest_agent_distance_radii_time_average_mean": 1.4160150289535522
+                }
+              },
+              {
+                "seed": 3,
+                "candidate_minus_baseline": {
+                  "coverage_final_10_percent_mean": -0.0605396032333374,
+                  "coverage_endpoint_mean": -0.0576171875,
+                  "coverage_action_2000_mean": -0.217529296875,
+                  "coverage_action_4000_mean": -0.11669921875,
+                  "coverage_action_8000_mean": -0.0576171875,
+                  "coverage_time_average_mean": -0.13561445474624634,
+                  "coverage_last_200_actions_mean": -0.058795154094696045,
+                  "speed_endpoint_mean": -0.04420953989028931,
+                  "speed_time_average_mean": -0.04459825158119202,
+                  "overlapping_agent_fraction_endpoint_mean": -0.0009765625,
+                  "overlapping_agent_fraction_time_average_mean": -0.00259738159365952,
+                  "nearest_agent_distance_radii_endpoint_mean": 0.33170509338378906,
+                  "nearest_agent_distance_radii_time_average_mean": 1.0586793422698975
+                }
+              },
+              {
+                "seed": 4,
+                "candidate_minus_baseline": {
+                  "coverage_final_10_percent_mean": -0.09225863218307495,
+                  "coverage_endpoint_mean": -0.0927734375,
+                  "coverage_action_2000_mean": -0.19873046875,
+                  "coverage_action_4000_mean": -0.136962890625,
+                  "coverage_action_8000_mean": -0.0927734375,
+                  "coverage_time_average_mean": -0.15194016695022583,
+                  "coverage_last_200_actions_mean": -0.09150391817092896,
+                  "speed_endpoint_mean": -0.06740249693393707,
+                  "speed_time_average_mean": -0.07044839859008789,
+                  "overlapping_agent_fraction_endpoint_mean": -0.00634765625,
+                  "overlapping_agent_fraction_time_average_mean": -0.003185363719239831,
+                  "nearest_agent_distance_radii_endpoint_mean": 0.615757942199707,
+                  "nearest_agent_distance_radii_time_average_mean": 1.2657893896102905
+                }
+              }
+            ]
+          },
+          "per_seed": [
+            {
+              "seed": 0,
+              "original_variant": "spacing_rational_delta",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/extended_confirmation/spacing_rational_delta_seed_0",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.7101767063140869,
+                "coverage_endpoint_mean": 0.71484375,
+                "coverage_action_2000_mean": 0.524658203125,
+                "coverage_action_4000_mean": 0.64599609375,
+                "coverage_action_8000_mean": 0.71484375,
+                "coverage_time_average_mean": 0.5909634828567505,
+                "coverage_last_200_actions_mean": 0.7134350538253784,
+                "speed_endpoint_mean": 0.22891266644001007,
+                "speed_time_average_mean": 0.22808247804641724,
+                "overlapping_agent_fraction_endpoint_mean": 0.00048828125,
+                "overlapping_agent_fraction_time_average_mean": 0.0019235839135944843,
+                "nearest_agent_distance_radii_endpoint_mean": 1.7683169841766357,
+                "nearest_agent_distance_radii_time_average_mean": 2.8094277381896973
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 64,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 400000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 50000,
+                "eval_action_seed": 60000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 8000,
+                "action_mode": "stochastic",
+                "layout_sha256": "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 800,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 1,
+              "trainer_seed": 6,
+              "training_initial_layout_sha256": "31072d725f22097303648aec2d44dcf62a595dad0dc7e00ccf14395edfa6fd76"
+            },
+            {
+              "seed": 1,
+              "original_variant": "spacing_rational_delta",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/extended_confirmation/spacing_rational_delta_seed_1",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.7134756445884705,
+                "coverage_endpoint_mean": 0.720458984375,
+                "coverage_action_2000_mean": 0.513427734375,
+                "coverage_action_4000_mean": 0.6162109375,
+                "coverage_action_8000_mean": 0.720458984375,
+                "coverage_time_average_mean": 0.5805352926254272,
+                "coverage_last_200_actions_mean": 0.71783447265625,
+                "speed_endpoint_mean": 0.22315853834152222,
+                "speed_time_average_mean": 0.22112292051315308,
+                "overlapping_agent_fraction_endpoint_mean": 0.0029296875,
+                "overlapping_agent_fraction_time_average_mean": 0.001928070094436407,
+                "nearest_agent_distance_radii_endpoint_mean": 1.7300382852554321,
+                "nearest_agent_distance_radii_time_average_mean": 2.9203689098358154
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 64,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 400000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 50000,
+                "eval_action_seed": 60000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 8000,
+                "action_mode": "stochastic",
+                "layout_sha256": "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 800,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 2,
+              "trainer_seed": 7,
+              "training_initial_layout_sha256": "b1dff19c4cc34e737250cf16306a5f4104dd547e67154394f85fb4301d1e5e45"
+            },
+            {
+              "seed": 2,
+              "original_variant": "spacing_rational_delta",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/extended_confirmation/spacing_rational_delta_seed_2",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.6705178618431091,
+                "coverage_endpoint_mean": 0.673828125,
+                "coverage_action_2000_mean": 0.55908203125,
+                "coverage_action_4000_mean": 0.636474609375,
+                "coverage_action_8000_mean": 0.673828125,
+                "coverage_time_average_mean": 0.5837805271148682,
+                "coverage_last_200_actions_mean": 0.6729602217674255,
+                "speed_endpoint_mean": 0.22606870532035828,
+                "speed_time_average_mean": 0.22686076164245605,
+                "overlapping_agent_fraction_endpoint_mean": 0.001953125,
+                "overlapping_agent_fraction_time_average_mean": 0.002071197610348463,
+                "nearest_agent_distance_radii_endpoint_mean": 2.090041399002075,
+                "nearest_agent_distance_radii_time_average_mean": 2.8756468296051025
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 64,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 400000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 50000,
+                "eval_action_seed": 60000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 8000,
+                "action_mode": "stochastic",
+                "layout_sha256": "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 800,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 3,
+              "trainer_seed": 8,
+              "training_initial_layout_sha256": "546445b05bf86e83c34e9eb3ec8b33c2d3b9061af8f2ef3a073318bcd4a4c776"
+            },
+            {
+              "seed": 3,
+              "original_variant": "spacing_rational_delta",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/extended_confirmation/spacing_rational_delta_seed_3",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.7384756207466125,
+                "coverage_endpoint_mean": 0.7421875,
+                "coverage_action_2000_mean": 0.52197265625,
+                "coverage_action_4000_mean": 0.65380859375,
+                "coverage_action_8000_mean": 0.7421875,
+                "coverage_time_average_mean": 0.6021039485931396,
+                "coverage_last_200_actions_mean": 0.7414538264274597,
+                "speed_endpoint_mean": 0.22015583515167236,
+                "speed_time_average_mean": 0.22028115391731262,
+                "overlapping_agent_fraction_endpoint_mean": 0.00146484375,
+                "overlapping_agent_fraction_time_average_mean": 0.0020912170875817537,
+                "nearest_agent_distance_radii_endpoint_mean": 1.5870944261550903,
+                "nearest_agent_distance_radii_time_average_mean": 2.7317886352539062
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 64,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 400000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 50000,
+                "eval_action_seed": 60000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 8000,
+                "action_mode": "stochastic",
+                "layout_sha256": "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 800,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 4,
+              "trainer_seed": 9,
+              "training_initial_layout_sha256": "c4f67f6dad301dffa3f5104f71b0d7621cb8c2939398f6232a6ea438ed6594d3"
+            },
+            {
+              "seed": 4,
+              "original_variant": "spacing_rational_delta",
+              "directory": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-spacing-2x/extended_confirmation/spacing_rational_delta_seed_4",
+              "metrics": {
+                "coverage_final_10_percent_mean": 0.6963473558425903,
+                "coverage_endpoint_mean": 0.69921875,
+                "coverage_action_2000_mean": 0.523193359375,
+                "coverage_action_4000_mean": 0.622314453125,
+                "coverage_action_8000_mean": 0.69921875,
+                "coverage_time_average_mean": 0.5761197209358215,
+                "coverage_last_200_actions_mean": 0.6988256573677063,
+                "speed_endpoint_mean": 0.22288618981838226,
+                "speed_time_average_mean": 0.22156769037246704,
+                "overlapping_agent_fraction_endpoint_mean": 0.00146484375,
+                "overlapping_agent_fraction_time_average_mean": 0.0014406128320842981,
+                "nearest_agent_distance_radii_endpoint_mean": 1.9036355018615723,
+                "nearest_agent_distance_radii_time_average_mean": 2.9659812450408936
+              },
+              "checks": {
+                "physical_state_finite": true,
+                "parameters_finite": true,
+                "collider_overflow": false
+              },
+              "comparison_conditions": {
+                "N": 64,
+                "num_objectives": 64,
+                "num_envs": 64,
+                "steps_per_epoch": 100,
+                "skip_frames": 49,
+                "max_physics_steps": 400000,
+                "schedule_epochs": 4320,
+                "eval_reset_seed": 50000,
+                "eval_action_seed": 60000,
+                "observation_space_size": 26,
+                "action_space_size": 2,
+                "model_parameter_count": 51077,
+                "epoch": 240,
+                "actions": 8000,
+                "action_mode": "stochastic",
+                "layout_sha256": "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e",
+                "physics_steps_per_action": 50,
+                "coverage_final_10_percent_actions": 800,
+                "epochs": 240,
+                "zero_shot": false
+              },
+              "model_seed": 5,
+              "trainer_seed": 10,
+              "training_initial_layout_sha256": "a27aa45cc02e585fbb74bcdf56deedaac7fdc3343169187e288dd13df47a2351"
+            }
+          ]
+        }
+      },
+      "primary_simpler_reward_seed_wins": 0
+    }
+  },
+  "warnings": [],
+  "core_runtime_sha256": {
+    "jaxdem/rl/action_spaces/__init__.py": "45e66791a82489e265ab76c3422049aa75ff554f8e9675dcf608c6379c1b5715",
+    "jaxdem/rl/action_spaces/max_norm_space.py": "e53cdb72c5c0e387bb485663e1fcd75b85aa04937a3eefc0376c3d877247a73f",
+    "jaxdem/rl/environments/swarm_navigator.py": "d324d967b3bf311fdbe70f2aeb397bf2174e99446fc2b46722351ef52517aabd",
+    "jaxdem/rl/environments/_swarm.py": "747412f05cea40cdb3e2132f336e5744e40f4d85c45625eb11ac05423b3790a5",
+    "jaxdem/rl/trainers/ppo_trainer.py": "3ba65bfaca5e997b2e8f18755c26310af83016efa1371c0da71ce7fd6207c0d1",
+    "jaxdem/rl/models/mingru.py": "64c377b979136aeea1a87e44909592b529fba89344180efe9a342a8e3633d68b"
+  },
+  "layout_alignment": {
+    "screen": [
+      "94208a664fc645f5aec1f955ae9f34a4f570925499719627508a0fbf25774af7"
+    ],
+    "confirmation": [
+      "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e"
+    ],
+    "extended_confirmation": [
+      "af321b96e71559ba1d17a8baa7da01b8c5876b8e71e5b70c99d8f75794ac005e"
+    ],
+    "zero_shot_same_64_scenes": true,
+    "all_five_training_seed_initial_layouts_match_between_rewards": true
+  },
+  "extension_progress": {
+    "spacing_baseline": {
+      "endpoint4000": {
+        "n": 5,
+        "mean": 0.7720703125,
+        "std": 0.027898661847308794,
+        "se": 0.012476660874372464,
+        "ci95": [
+          0.7374295484861357,
+          0.8067110765138643
+        ]
+      },
+      "endpoint8000": {
+        "n": 5,
+        "mean": 0.80205078125,
+        "std": 0.03292297656909888,
+        "se": 0.014723602726027579,
+        "ci95": [
+          0.7611715065304439,
+          0.8429300559695561
+        ]
+      },
+      "endpoint_gain4000to8000": {
+        "n": 5,
+        "mean": 0.02998046875,
+        "std": 0.006742437435393111,
+        "se": 0.0030153096879156683,
+        "ci95": [
+          0.021608626926331056,
+          0.038352310573668946
+        ]
+      },
+      "final800_minus_previous800": {
+        "n": 5,
+        "mean": 0.004130053520202637,
+        "std": 0.0011823783978734724,
+        "se": 0.0005287756945544754,
+        "ci95": [
+          0.0026619368313093,
+          0.005598170209095974
+        ]
+      },
+      "episodeaverage8000": {
+        "n": 5,
+        "mean": 0.7376267790794373,
+        "std": 0.026211719857310335,
+        "se": 0.0117222374816254,
+        "ci95": [
+          0.7050806302016124,
+          0.7701729279572622
+        ]
+      }
+    },
+    "spacing_rational_delta": {
+      "endpoint4000": {
+        "n": 5,
+        "mean": 0.6349609375,
+        "std": 0.015738456795159138,
+        "se": 0.007038451850983863,
+        "ci95": [
+          0.6154190623101655,
+          0.6545028126898346
+        ]
+      },
+      "endpoint8000": {
+        "n": 5,
+        "mean": 0.710107421875,
+        "std": 0.025463059614621024,
+        "se": 0.01138742644268444,
+        "ci95": [
+          0.6784908574674089,
+          0.7417239862825911
+        ]
+      },
+      "endpoint_gain4000to8000": {
+        "n": 5,
+        "mean": 0.075146484375,
+        "std": 0.024965333745472485,
+        "se": 0.011164836667169182,
+        "ci95": [
+          0.04414792826010528,
+          0.10614504048989473
+        ]
+      },
+      "final800_minus_previous800": {
+        "n": 5,
+        "mean": 0.009469914436340331,
+        "std": 0.0027674840394475617,
+        "se": 0.0012376564877700914,
+        "ci95": [
+          0.006033629138954768,
+          0.012906199733725894
+        ]
+      },
+      "episodeaverage8000": {
+        "n": 5,
+        "mean": 0.5867005825042725,
+        "std": 0.010172567950779933,
+        "se": 0.004549310688735933,
+        "ci95": [
+          0.5740696711105076,
+          0.5993314938980374
+        ]
+      }
+    }
+  },
+  "counts": {
+    "training_runs": 10,
+    "training_epochs": 2400,
+    "screening_archives": 30,
+    "confirmation_archives": 10,
+    "extended_confirmation_archives": 10,
+    "zero_shot_archives_previously_audited": 10
+  }
+}

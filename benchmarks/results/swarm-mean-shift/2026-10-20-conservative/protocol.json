@@ -1,0 +1,72 @@
+{
+  "status": "prepared",
+  "N": 64,
+  "num_objectives": 64,
+  "runtime": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-conservative/runtime",
+  "mapping": "CURRENT Gaussian-CDF uniform-ball mapping; all variants receive fresh matched training",
+  "variants": [
+    "baseline",
+    "cosine",
+    "vacancy",
+    "cosine_vacancy"
+  ],
+  "spacings": [
+    1,
+    2
+  ],
+  "initial_training_seeds": [
+    0,
+    1,
+    2
+  ],
+  "additional_seeds_if_promising": [
+    3,
+    4
+  ],
+  "reward_cosine": "Preserve original quartic settling, quartic peer sharing and delta timing. Replace only approach with attraction_coeff * sum(w * .5*(1+cos(pi*d/lidar_range))) over raw visible scans; attraction_coeff=.1 unchanged. Remove constant/quadratic/decay influence.",
+  "vacancy_observation": "Existing experimental vacancy_lidar: filter occupied goals before nearest-per-bin reduction, retaining own covered goals; richer strictly local sensor, same26outputs.",
+  "geometry": "Generate seeded20box10padding then scale objectives/agentstarts/domain by1or2; retainradius1/lidar16/settling1.5",
+  "budgets": {
+    "s1": {
+      "epochs": 120,
+      "schedule_epochs": 2160,
+      "physics_steps": 100000,
+      "actions": 2000,
+      "simulated_seconds": 200
+    },
+    "s2": {
+      "epochs": 240,
+      "schedule_epochs": 4320,
+      "physics_steps": 200000,
+      "actions": 4000,
+      "simulated_seconds": 400
+    }
+  },
+  "num_envs": 32,
+  "steps_per_epoch": 100,
+  "skip_frames": 49,
+  "screening": {
+    "num_envs": 32,
+    "reset_seed": 10000,
+    "action_seed": 20000,
+    "s1_eval_at": [
+      40,
+      120
+    ],
+    "s2_eval_at": [
+      40,
+      120,
+      240
+    ]
+  },
+  "confirmation": {
+    "num_envs": 64,
+    "reset_seed": 70000,
+    "action_seed": 80000
+  },
+  "primary_metric": "coverage_final_10_percent_mean",
+  "selection": "Screen all4 factorial variants with3 pairedseeds at bothspacings. Replicate baseline plus candidate(s) to5 if promising; confirm on64freshlayouts withouttuning. Report allscreens and finitehorizon uncertainty. Moretimeevaluation if trajectoriesremainmateriallyrising or conclusionrequiresit.",
+  "production_edits": false,
+  "rewards_and_policy_observations_local": true,
+  "screen_selection_details": "Rank candidates by the smaller paired mean final-window difference across the two spacings. Treat cosine-only within3percentagepoints of baseline at both spacings as a promising simplification; this is a screening heuristic, not a noninferiority claim. Replicate baseline and up to2promisingfamilies to5seeds before fresh confirmation. Preserve all results and do not tune on confirmation."
+}

@@ -121,11 +121,20 @@ class MultiNavigator(Environment):
     -----
     The observation vector per agent is:
 
-    - Unit objective-to-agent direction: ``dim`` entries.
-    - Clamped agent-minus-objective displacement: ``dim`` entries.
-    - Velocity: ``dim`` entries.
-    - Normalized agent/wall LiDAR: ``n_lidar_rays`` entries in 2-D, or
-      ``n_lidar_rays * n_lidar_elevation`` in 3-D.
+    .. list-table::
+       :header-rows: 1
+
+       * - Feature
+         - Size
+       * - Unit direction to objective
+         - ``dim``
+       * - Clamped displacement
+         - ``dim``
+       * - Velocity
+         - ``dim``
+       * - Normalized agent/wall LiDAR
+         - ``n_lidar_rays`` in 2-D;
+           ``n_lidar_rays * n_lidar_elevation`` in 3-D
 
     With ``dt = 0.002`` and ``skip_frames = 49``, each action spans 50
     physics steps (0.1 seconds). One checkpoint captures each agent's

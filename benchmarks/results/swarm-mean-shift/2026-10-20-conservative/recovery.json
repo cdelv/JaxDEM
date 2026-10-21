@@ -1,0 +1,22 @@
+{
+  "cuda_verified": true,
+  "completed_preserved": 22,
+  "interrupted_archives": [
+    {
+      "run": "baseline_s1_seed_4",
+      "archive": "benchmarks/results/swarm-mean-shift/2026-10-20-conservative/interrupted_attempts/baseline_s1_seed_4_attempt1",
+      "reason": "App interruption; retain partial logs/checkpoints, restart deterministic matched seed from epoch0."
+    },
+    {
+      "run": "cosine_vacancy_s2_seed_0",
+      "archive": "benchmarks/results/swarm-mean-shift/2026-10-20-conservative/interrupted_attempts/cosine_vacancy_s2_seed_0_attempt1",
+      "reason": "App interruption; retain partial logs/checkpoints, restart deterministic matched seed from epoch0."
+    }
+  ],
+  "restart_same_seeds_and_frozen_runtime": true,
+  "additional_matched_driver_control": {
+    "run": "baseline_s1_seed_3",
+    "archive": "/home/wind/Documents/JaxDEM/benchmarks/results/swarm-mean-shift/2026-10-20-conservative/interrupted_attempts/baseline_s1_seed_3_completed_before_driver_update",
+    "reason": "RestartedCUDAproducessmallfloatingdifferences; paircosine_s1seed3firsttrainspostupdate,sorerunitscontrolwithsamecurrentdriver. Alloriginalcompletedartifactspreserved; noselectiononscore."
+  }
+}
