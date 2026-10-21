@@ -37,7 +37,7 @@ class ForceRouter(ForceModel):
     - Use :meth:`from_dict` to build the table from a mapping of species pairs.
       Pairs not present in the mapping default to an empty :class:`LawCombiner`,
       which produces zero force, torque, and energy.
-    - Dispatch evaluates every law in the table and selects the result with
+    - Dispatch evaluates each upper-triangle entry and selects the result with
       :func:`jax.lax.select_n`. The cost grows quadratically with the number
       of species, for scalar and batched calls alike.
     - :attr:`required_material_properties` is the union of the requirements of
@@ -53,7 +53,9 @@ class ForceRouter(ForceModel):
     def supports_analytical_energy_gradient(self) -> bool:
         """Whether every law reachable through the table supports minimization."""
         return all(
-            law.supports_analytical_energy_gradient for row in self.table for law in row
+            law.supports_analytical_energy_gradient
+            for a, row in enumerate(self.table)
+            for law in row[a:]
         )
 
     @property
@@ -62,8 +64,8 @@ class ForceRouter(ForceModel):
         capacities = [len(self.table)]
         capacities.extend(
             capacity
-            for row in self.table
-            for law in row
+            for a, row in enumerate(self.table)
+            for law in row[a:]
             if (capacity := law.species_capacity) is not None
         )
         return min(capacities)
@@ -92,8 +94,8 @@ class ForceRouter(ForceModel):
     def search_radii(self, state: State, system: System) -> jax.Array:
         """Conservative per-primitive reach across every routable law."""
         radii = jnp.zeros_like(state.rad)
-        for row in self.table:
-            for law in row:
+        for a, row in enumerate(self.table):
+            for law in row[a:]:
                 sub_system = dataclasses.replace(system, force_model=law)
                 radii = jnp.maximum(radii, law.search_radii(state, sub_system))
         return radii
@@ -200,8 +202,8 @@ class ForceRouter(ForceModel):
             sorted(
                 {
                     p
-                    for row in self.table
-                    for law in row
+                    for a, row in enumerate(self.table)
+                    for law in row[a:]
                     for p in law.required_material_properties
                 }
             )
