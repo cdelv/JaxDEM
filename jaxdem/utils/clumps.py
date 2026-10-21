@@ -1,31 +1,122 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Mass properties of unions of disks and spheres with maximum overlap density."""
 
 from __future__ import annotations
 
+from dataclasses import replace
+from functools import partial
+import operator
+from typing import TYPE_CHECKING, Any
+
 import jax
 import jax.numpy as jnp
-from jax.scipy.spatial.transform import Rotation
+import numpy as np
 
-from typing import TYPE_CHECKING, Any
-from functools import partial
-
-from dataclasses import replace
+from ._clump_arcs import _disk_union_moments
+from ._clump_axes import _principal_frame
+from ._clump_spheres import _two_sphere_overlap_moments
 from .quaternion import Quaternion
-from .linalg import norm2
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..materials import MaterialTable
 
 
-@jax.jit(static_argnames=("n", "dim"), inline=True)
+def _phase_fraction(indices: jax.Array, steps: jax.Array, dtype: Any) -> jax.Array:
+    """Multiply phases modulo 2**32 before converting to floating point."""
+    phase = indices.astype(jnp.uint32) * steps + jnp.uint32(0x80000000)
+    if jnp.dtype(dtype) == jnp.float32:
+        return ((phase >> 8).astype(dtype) + 0.5) * (1.0 / 2**24)
+    return phase.astype(dtype) * (1.0 / 2**32)
+
+
+@partial(jax.jit, static_argnames=("n", "dim"))
 def _generate_golden_lattice(n: int, dim: int = 2) -> jax.Array:
-    phi = 1.32471795724475 if dim == 2 else 1.22074408460576
-    exponents = 1.0 + jax.lax.iota(int, size=dim)
-    alphas = 1.0 / jnp.power(phi, exponents)
-    ids = 1.0 + jax.lax.iota(int, size=n)
-    return (0.5 + jnp.outer(ids, alphas)) % 1.0
+    """Generate a fixed-point lattice without large-index float32 cancellation."""
+    return _golden_lattice_points(
+        jnp.arange(n, dtype=jnp.uint32), dim, jnp.asarray(0.0, dtype=float).dtype
+    )
+
+
+def _golden_lattice_points(indices: jax.Array, dim: int, dtype: Any) -> jax.Array:
+    """Generate the same lattice points regardless of sample chunk boundaries."""
+    phi = {2: 1.32471795724475, 3: 1.22074408460576}[dim]
+    steps = jnp.asarray([round(2**32 / phi ** (i + 1)) for i in range(dim)], jnp.uint32)
+    return _phase_fraction(indices.astype(jnp.uint32)[:, None] + 1, steps, dtype)
+
+
+@partial(jax.jit, static_argnames=("n_directions", "dtype"))
+def _fibonacci_normals(indices: jax.Array, n_directions: int, dtype: Any) -> jax.Array:
+    """Return indexed antithetic Fibonacci sphere normals, generated in chunks."""
+    pair = indices // 2
+    z = (pair.astype(dtype) + 0.5) / (n_directions // 2)
+    angle = (2.0 * jnp.pi) * _phase_fraction(pair, jnp.uint32(0x9E3779B9), dtype)
+    transverse = jnp.sqrt(jnp.maximum(0.0, 1.0 - z * z))
+    normals = jnp.stack(
+        (transverse * jnp.cos(angle), transverse * jnp.sin(angle), z), -1
+    )
+    return jnp.where((indices % 2 == 0)[..., None], normals, -normals)
+
+
+def _validate_budgets(
+    n_samples: int, sample_batch_size: int, clump_batch_size: int
+) -> None:
+    for name, value in (
+        ("n_samples", n_samples),
+        ("sample_batch_size", sample_batch_size),
+        ("clump_batch_size", clump_batch_size),
+    ):
+        try:
+            integer = operator.index(value)
+        except TypeError as error:
+            raise TypeError(f"{name} must be a positive integer.") from error
+        if isinstance(value, (bool, np.bool_)) or integer <= 0:
+            raise ValueError(f"{name} must be a positive integer.")
+
+
+@jax.jit
+def _geometry_validity(pos: jax.Array, rad: jax.Array, density: jax.Array) -> jax.Array:
+    return jnp.stack(
+        (
+            jnp.all(jnp.isfinite(pos)),
+            jnp.all(jnp.isfinite(rad) & (rad > 0.0)),
+            jnp.all(jnp.isfinite(density) & (density > 0.0)),
+        )
+    )
+
+
+def _validate_geometry(pos: jax.Array, rad: jax.Array, density: jax.Array) -> None:
+    valid = np.asarray(_geometry_validity(pos, rad, density))
+    for good, message in zip(
+        valid,
+        (
+            "All positions must be finite.",
+            "All radii must be finite and strictly positive.",
+            "All densities or clump masses must be finite and strictly positive.",
+        ),
+    ):
+        if not good:
+            raise ValueError(message)
+
+
+@jax.jit
+def _properties_are_physical(properties: tuple[jax.Array, ...]) -> jax.Array:
+    finite = jnp.all(jnp.stack([jnp.all(jnp.isfinite(value)) for value in properties]))
+    return (
+        finite
+        & jnp.all(properties[0] > 0.0)
+        & jnp.all(properties[1] > 0.0)
+        & jnp.all(properties[3] > 0.0)
+    )
+
+
+def _validate_properties(properties: tuple[jax.Array, ...]) -> None:
+    if not bool(_properties_are_physical(properties)):
+        raise ValueError(
+            "Union integration did not resolve positive finite mass properties; "
+            "increase n_samples or use higher precision."
+        )
 
 
 def _compute_uniform_union_properties(
@@ -36,134 +127,66 @@ def _compute_uniform_union_properties(
     sample_batch_size: int = 4096,
     clump_batch_size: int = 32,
 ) -> tuple[jax.Array, ...]:
-    """Compute rigid-body properties of clumps defined as unions of overlapping
-    spheres (3D) or disks (2D). The function assumes **uniform mass density
-    throughout the clump volume**.
+    """Return volume, COM, principal moments, quaternion, and body-frame centers.
 
-    Each clump has ``nv`` sphere-vertices (centers ``pos`` and radii ``rad``).
-    The clump itself is the *union* of those spheres. The total clump mass is
-    fixed (``clump_mass``) and the function distributes it uniformly over the
-    union volume, so the mass density is ``clump_mass / volume``. The function
-    handles overlaps between sphere-vertices correctly: the union volume (and
-    therefore the density) never double-counts overlapped regions.
+    Each member is a filled disk (2D) or ball (3D). The prescribed total mass
+    is distributed uniformly over their union, counting overlaps once. Empty
+    gaps and enclosed cavities outside that union remain empty: the utility
+    does not fill a convex hull or infer an interior core. Hollow assemblies
+    of solid members are supported; individually hollow members and mass
+    confined to an infinitesimally thin shell require a different mass model.
+    Inputs have shapes
+    ``pos=(N,nv,dim)`` or ``(nv,dim)``, ``rad=(N,nv)``, ``(nv,)`` or scalar,
+    and ``clump_mass=(N,)`` or scalar. Outputs retain the leading body axis
+    unless the positions describe a single body.
 
-    For each clump the function returns:
+    Disk unions use exact circular-arc integrals. Disjoint, contained, nested,
+    and two-sphere unions are analytical. Small clumps with at most 32 members
+    and no overlap-graph triangles also use exact pair corrections. Other 3D
+    configurations choose numerical boundary or volume integration according
+    to overlap density. The dense-volume path avoids relying on tiny exposed
+    boundary patches when many members overlap. Arbitrarily many simultaneous
+    overlaps are supported; the numerical paths do not truncate the
+    calculation at pairwise overlap terms.
 
-    * ``volume``  -- union volume, estimated by Monte Carlo integration over
-      the clump's bounding box.
-    * ``com``     -- center of mass, in the input/world frame.
-    * ``inertia`` -- principal moments of inertia (diagonal entries of the
-      inertia tensor in the body frame): length-3 in 3D, length-1 in 2D.
-    * ``q``       -- unit quaternion ``[w, x, y, z]`` rotating from the body
-      frame (principal axes) to the world frame.
-    * ``pos_p``   -- each sphere-vertex center in the body frame, i.e.
-      ``pos - com`` rotated by ``q^{-1}``.  These are what downstream rigid-
-      body integrators actually consume: COM-relative, axis-aligned positions
-      that stay constant under rigid motion.
+    ``n_samples`` sets the 3D numerical integration budget, with a minimum
+    resolution of 32 points per member. Boundary integration rounds up to an
+    even number per member. The budget has no effect in 2D or analytical 3D
+    cases. Samples are generated in bounded chunks; chunk sizes do not change
+    the rule. For numerical 3D cases, compare volume, COM, and the reconstructed
+    world-frame inertia tensor at increasing budgets. Positive finite output
+    is not an accuracy certificate. Unresolved nonpositive properties raise a
+    ValueError.
 
-    These outputs are the full set of properties a rigid-body simulator needs
-    for each clump. Mass is given, volume / density come from here, and COM and
-    inertia set up the equations of motion. ``q`` + ``pos_p`` let the
-    integrator place each sphere-vertex at any pose during a simulation.
-
-    Accuracy scales with ``n_samples``. ``n_samples = 10_000_000`` gives
-    noise-free results on typical clumps. ``50_000`` (the default) is useful
-    for quick sanity checks.
-
-    Input shapes:
-        pos:        (N, nv, dim) or (nv, dim) for a single clump
-        rad:        (N, nv), (nv,), or scalar
-        clump_mass: (N,) or scalar
-
-    Returns:
-        volume:  (N,)
-        com:     (N, dim)
-        inertia: (N, 3) in 3D or (N, 1) in 2D
-        q:       (N, 4)
-        pos_p:   (N, nv, dim)
-
-    The computation is split into two phases:
-
-    * **Phase 1** (Monte Carlo accumulation) runs a per-clump kernel that
-      scans over sample batches of ``sample_batch_size`` and is vmapped
-      across ``clump_batch_size`` clumps per outer ``jax.lax.scan`` step.
-      The kernel produces only per-clump aggregates (``count``, ``sum_pos``,
-      ``sum_r_sq``, ``sum_outer``, ``box_vol``). The ``n_samples`` axis is
-      fully reduced away.  When ``N <= clump_batch_size`` the kernel skips
-      the outer scan and any clump-axis padding in favor of a single vmap.
-    * **Phase 2** vmaps the O(1)-per-clump finalization (volume / COM /
-      inertia / quaternion) over all N clumps.  Small, fast kernel.
-
-    Both batch sizes should be powers of two.  The defaults
-    ``sample_batch_size=4096`` and ``clump_batch_size=32`` are a good
-    starting point on modern GPUs. They are exposed here so callers can
-    tune memory footprint and per-kernel occupancy for their hardware.
+    The returned unit quaternion uses ``[w,x,y,z]`` and rotates body coordinates
+    into world coordinates. Its signs and degenerate principal axes have a
+    deterministic convention. Exact rotational symmetry has no unique physical
+    orientation, and nearly repeated moments make individual axes sensitive
+    to numerical error. This host-validated utility is not itself a jittable
+    function.
     """
+    _validate_budgets(n_samples, sample_batch_size, clump_batch_size)
     pos = jnp.asarray(pos, dtype=float)
     single_clump = pos.ndim == 2
     if single_clump:
         pos = pos[None, ...]
-    if pos.ndim != 3:
-        raise ValueError("pos must have shape (N, nv, dim) or (nv, dim).")
-
-    n_clumps, nv, dim = pos.shape
-
-    rad = jnp.asarray(rad, dtype=pos.dtype)
-    if rad.ndim == 0:
-        rad = jnp.full((n_clumps, nv), rad, dtype=pos.dtype)
-    elif rad.ndim == 1:
-        if rad.shape != (nv,):
-            raise ValueError(f"Expected rad to have shape ({nv},), got {rad.shape}.")
-        rad = jnp.broadcast_to(rad[None, :], (n_clumps, nv))
-    elif rad.ndim == 2:
-        if single_clump and rad.shape == (nv, 1):
-            rad = rad.reshape(1, nv)
-        elif rad.shape != (n_clumps, nv):
-            raise ValueError(
-                f"Expected rad to have shape ({n_clumps}, {nv}), got {rad.shape}."
-            )
-    else:
-        raise ValueError("rad must be scalar, (nv,), or (N, nv).")
-
-    clump_mass = jnp.asarray(clump_mass, dtype=pos.dtype)
-    if clump_mass.ndim == 0:
-        clump_mass = jnp.full((n_clumps,), clump_mass, dtype=pos.dtype)
-    elif clump_mass.shape != (n_clumps,):
+    if pos.ndim != 3 or pos.shape[-1] not in (2, 3) or pos.shape[-2] == 0:
         raise ValueError(
-            f"Expected clump_mass to have shape ({n_clumps},), got {clump_mass.shape}."
+            "pos must have shape (N, nv, dim) or (nv, dim), nv > 0, dim=2 or 3."
         )
-
-    if bool(jnp.any(rad <= 0.0)):
-        raise ValueError("All radii must be strictly positive.")
-    if bool(jnp.any(clump_mass <= 0.0)):
-        raise ValueError("All clump masses must be strictly positive.")
-    if n_samples <= 0:
-        raise ValueError("n_samples must be positive.")
-    if sample_batch_size <= 0:
-        raise ValueError("sample_batch_size must be positive.")
-    if clump_batch_size <= 0:
-        raise ValueError("clump_batch_size must be positive.")
-
-    # single spheres are treated analytically
-    if nv == 1:
-        sphere_pos = pos[:, 0, :]  # (n_clumps, dim)
-        sphere_rad = rad[:, 0]  # (n_clumps,)
-        if dim == 3:
-            volume = (4.0 / 3.0) * jnp.pi * sphere_rad**3
-            inertia_scalar = 0.4 * clump_mass * sphere_rad**2  # 2/5 m r^2
-            inertia = jnp.broadcast_to(inertia_scalar[:, None], (n_clumps, 3))
-        else:
-            volume = jnp.pi * sphere_rad**2
-            inertia_scalar = 0.5 * clump_mass * sphere_rad**2
-            inertia = inertia_scalar[:, None]
-        com = sphere_pos
-        q = jnp.tile(jnp.asarray([1.0, 0.0, 0.0, 0.0], dtype=pos.dtype), (n_clumps, 1))
-        pos_p = jnp.zeros_like(pos)
-        if single_clump:
-            return volume[0], com[0], inertia[0], q[0], pos_p[0]
-        return volume, com, inertia, q, pos_p
-
-    volume, _mass, com, inertia, q, pos_p = _union_properties_kernel(
+    n_clumps, nv, _dim = pos.shape
+    rad = jnp.asarray(rad, dtype=pos.dtype)
+    if single_clump and rad.shape == (nv, 1):
+        rad = rad.reshape(1, nv)
+    if rad.ndim not in (0, 1, 2) or (rad.ndim == 1 and rad.shape != (nv,)):
+        raise ValueError("rad must be scalar, (nv,), or (N, nv).")
+    try:
+        rad = jnp.broadcast_to(rad, (n_clumps, nv))
+        clump_mass = jnp.broadcast_to(jnp.asarray(clump_mass, pos.dtype), (n_clumps,))
+    except ValueError as error:
+        raise ValueError("rad or clump_mass has incompatible shape.") from error
+    _validate_geometry(pos, rad, clump_mass)
+    result = _union_properties_kernel(
         pos,
         rad,
         jnp.ones_like(rad),
@@ -172,19 +195,364 @@ def _compute_uniform_union_properties(
         sample_batch_size,
         clump_batch_size,
     )
+    _validate_properties(result)
+    volume, _mass, com, inertia, q, pos_p = result
+    properties = volume, com, inertia, q, pos_p
+    return tuple(value[0] for value in properties) if single_clump else properties
 
-    if single_clump:
-        return volume[0], com[0], inertia[0], q[0], pos_p[0]
-    return volume, com, inertia, q, pos_p
+
+def _sphere_boundary_corrections(
+    positions: jax.Array,
+    radii: jax.Array,
+    densities: jax.Array,
+    partial: jax.Array,
+    container_density: jax.Array,
+    volume_coefficient: jax.Array,
+    density_coefficient: jax.Array,
+    n_samples: int,
+    sample_batch_size: int,
+) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+    """Integrate the boundary portions removed from analytical sphere moments."""
+    nv = positions.shape[0]
+    n_directions = 2 * max(16, (n_samples + 2 * nv - 1) // (2 * nv))
+    total = nv * n_directions
+    batch = min(sample_batch_size, total)
+    batches = (total + batch - 1) // batch
+    offsets = jnp.arange(batch)
+    area_per_point = 4.0 * jnp.pi * radii * radii / n_directions
+    difference = positions[None, :, :] - positions[:, None, :]
+    cap_offset = (
+        radii[:, None] ** 2
+        + jnp.sum(difference * difference, axis=-1)
+        - radii[None, :] ** 2
+    ) / (2.0 * radii[:, None])
+
+    def accumulate(
+        carry: tuple[jax.Array, ...], batch_index: jax.Array
+    ) -> tuple[tuple[jax.Array, ...], None]:
+        index = batch_index * batch + offsets
+        source = jnp.minimum(index // n_directions, nv - 1)
+        normals = _fibonacci_normals(
+            index % n_directions, n_directions, positions.dtype
+        )
+        points = positions[source] + radii[source, None] * normals
+        # A spherical overlap cuts a cap bounded by a plane in normal space.
+        # Its precomputed offset avoids per-sample point-distance tensors.
+        projection = jnp.einsum("si,sji->sj", normals, difference[source])
+        covered = (projection > cap_offset[source]) & partial[source]
+        outside_density = jnp.maximum(
+            container_density[source],
+            jnp.max(jnp.where(covered, densities[None, :], 0.0), axis=-1),
+        )
+        removed_density = density_coefficient[source] - jnp.maximum(
+            densities[source] - outside_density, 0.0
+        )
+        removed_volume = volume_coefficient[source] & jnp.any(covered, axis=-1)
+        flux = jnp.sum(points * normals, axis=-1) * area_per_point[source]
+        flux = jnp.where(index < total, flux, 0.0)
+        weighted = flux * removed_density
+        increments = (
+            jnp.sum(jnp.where(removed_volume, flux / 3.0, 0.0)),
+            jnp.sum(weighted / 3.0),
+            jnp.sum((weighted / 4.0)[:, None] * points, axis=0),
+            jnp.einsum("n,ni,nj->ij", weighted / 5.0, points, points),
+        )
+        return tuple(old + new for old, new in zip(carry, increments)), None
+
+    initial: tuple[jax.Array, ...] = (
+        jnp.zeros((), positions.dtype),
+        jnp.zeros((), positions.dtype),
+        jnp.zeros((3,), positions.dtype),
+        jnp.zeros((3, 3), positions.dtype),
+    )
+    corrections = jax.lax.scan(accumulate, initial, jnp.arange(batches))[0]
+    return corrections[0], corrections[1], corrections[2], corrections[3]
+
+
+def _dense_sphere_union_moments(
+    positions: jax.Array,
+    radii: jax.Array,
+    densities: jax.Array,
+    n_samples: int,
+    sample_batch_size: int,
+) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+    """Integrate dense unions directly, avoiding tiny exposed-patch aliasing."""
+    lower = jnp.min(positions - radii[:, None], axis=0)
+    extent = jnp.max(positions + radii[:, None], axis=0) - lower
+    count = max(n_samples, 32 * positions.shape[0])
+    batch = min(sample_batch_size, count)
+    offsets = jnp.arange(batch)
+
+    def accumulate(
+        carry: tuple[jax.Array, ...], step: jax.Array
+    ) -> tuple[tuple[jax.Array, ...], None]:
+        indices = step * batch + offsets
+        points = lower + _golden_lattice_points(indices, 3, positions.dtype) * extent
+        delta = points[:, None, :] - positions[None, :, :]
+        covered = jnp.sum(delta * delta, axis=-1) < radii[None, :] ** 2
+        valid = indices < count
+        inside = jnp.any(covered, axis=-1) & valid
+        rho = jnp.where(
+            valid, jnp.max(jnp.where(covered, densities[None, :], 0.0), axis=-1), 0.0
+        )
+        increments = (
+            jnp.sum(inside.astype(positions.dtype)),
+            jnp.sum(rho),
+            jnp.sum(rho[:, None] * points, axis=0),
+            jnp.einsum("n,ni,nj->ij", rho, points, points),
+        )
+        return tuple(old + new for old, new in zip(carry, increments)), None
+
+    initial: tuple[jax.Array, ...] = (
+        jnp.zeros((), positions.dtype),
+        jnp.zeros((), positions.dtype),
+        jnp.zeros((3,), positions.dtype),
+        jnp.zeros((3, 3), positions.dtype),
+    )
+    moments = jax.lax.scan(
+        accumulate, initial, jnp.arange((count + batch - 1) // batch)
+    )[0]
+    measure = jnp.prod(extent) / count
+    return (
+        moments[0] * measure,
+        moments[1] * measure,
+        moments[2] * measure,
+        moments[3] * measure,
+    )
+
+
+def _sphere_union_moments(
+    positions: jax.Array,
+    radii: jax.Array,
+    densities: jax.Array,
+    n_samples: int,
+    sample_batch_size: int,
+) -> tuple[jax.Array, ...]:
+    """Compute batched moments, retaining intrinsic isotropic inertia separately."""
+    n, nv, _ = positions.shape
+    difference = positions[:, :, None, :] - positions[:, None, :, :]
+    distance = jnp.sqrt(jnp.sum(difference * difference, axis=-1))
+    ri, rj = radii[:, :, None], radii[:, None, :]
+    indices = jnp.arange(nv)
+    distinct = indices[:, None] != indices[None, :]
+    coincident = (distance == 0.0) & (ri == rj)
+    contains = (
+        (distance + ri <= rj)
+        & distinct
+        & (~coincident | (indices[None, :] < indices[:, None]))
+    )
+    partial = (distance < ri + rj) & (distance > jnp.abs(ri - rj)) & distinct
+    container_density = jnp.max(
+        jnp.where(contains, densities[:, None, :], 0.0), axis=-1
+    )
+    volume_coefficient = ~jnp.any(contains, axis=-1)
+    density_coefficient = jnp.maximum(densities - container_density, 0.0)
+    sphere_volume = (4.0 * jnp.pi / 3.0) * radii**3
+    weights = sphere_volume * density_coefficient
+    mass = jnp.sum(weights, axis=-1)
+    # Center the analytic baseline before subtracting the small boundary
+    # corrections. This avoids world-scale parallel-axis cancellation.
+    shift = jnp.sum(weights[..., None] * positions, axis=1) / mass[:, None]
+    positions = positions - shift[:, None, :]
+    volume = jnp.sum(sphere_volume * volume_coefficient, axis=-1)
+    first = jnp.sum(weights[..., None] * positions, axis=1)
+    second = jnp.einsum("ni,nij,nik->njk", weights, positions, positions)
+    isotropic_second = jnp.sum(weights * radii**2 / 5.0, axis=-1)
+    relevant = (volume_coefficient | (density_coefficient > 0.0)) & jnp.any(
+        partial, axis=-1
+    )
+    has_partial = jnp.any(relevant, axis=-1)
+    # A heavily overlapped union can expose only a thin belt on each member.
+    # Reusing one angular rule on those belts causes coherent quadrature
+    # error. Prefer direct volume integration when overlap is high and the
+    # largest member alone guarantees a useful bounding-box occupancy.
+    if nv > 2:
+        lower = jnp.min(positions - radii[..., None], axis=1)
+        upper = jnp.max(positions + radii[..., None], axis=1)
+        box_volume = jnp.prod(upper - lower, axis=-1)
+        dense = (jnp.sum(sphere_volume, axis=-1) > 2.0 * box_volume) & (
+            jnp.max(sphere_volume, axis=-1) >= 0.05 * box_volume
+        )
+    else:
+        dense = jnp.zeros((n,), dtype=bool)
+
+    def integrate() -> tuple[jax.Array, ...]:
+        return jax.vmap(
+            _sphere_boundary_corrections, in_axes=(0, 0, 0, 0, 0, 0, 0, None, None)
+        )(
+            positions,
+            radii,
+            densities,
+            partial,
+            container_density,
+            volume_coefficient,
+            density_coefficient,
+            n_samples,
+            sample_batch_size,
+        )
+
+    def zero_corrections() -> tuple[jax.Array, ...]:
+        return (
+            jnp.zeros((n,), positions.dtype),
+            jnp.zeros((n,), positions.dtype),
+            jnp.zeros((n, 3), positions.dtype),
+            jnp.zeros((n, 3, 3), positions.dtype),
+        )
+
+    if nv == 2:
+        corrections = _two_sphere_overlap_moments(positions, radii, densities)
+    elif 2 < nv <= 32:
+        # No triple intersection is possible without an overlap-graph
+        # triangle. Pairwise inclusion-exclusion is exact for small sparse
+        # clumps. Bound this shortcut to avoid cubic work for large clumps.
+        adjacent = (distance < ri + rj) & distinct
+        paths = adjacent.astype(jnp.int32) @ adjacent.astype(jnp.int32)
+        triangle_free = ~jnp.any((paths > 0) & adjacent, axis=(1, 2))
+        pairs = np.stack(np.triu_indices(nv, k=1), axis=-1)
+        pair_count = len(pairs)
+
+        def pair_corrections() -> tuple[jax.Array, ...]:
+            result = _two_sphere_overlap_moments(
+                positions[:, pairs].reshape((-1, 2, 3)),
+                radii[:, pairs].reshape((-1, 2)),
+                densities[:, pairs].reshape((-1, 2)),
+            )
+            return tuple(
+                value.reshape((n, pair_count, *value.shape[1:])).sum(axis=1)
+                for value in result
+            )
+
+        analytic = jax.lax.cond(
+            jnp.any(triangle_free & has_partial), pair_corrections, zero_corrections
+        )
+        sampled = jax.lax.cond(
+            jnp.any(~triangle_free & has_partial & ~dense), integrate, zero_corrections
+        )
+        use_dense = dense & ~triangle_free & has_partial
+        corrections = tuple(
+            jnp.where(triangle_free.reshape((n,) + (1,) * (a.ndim - 1)), a, b)
+            for a, b in zip(analytic, sampled)
+        )
+    else:
+        corrections = jax.lax.cond(
+            jnp.any(has_partial & ~dense), integrate, zero_corrections
+        )
+        use_dense = dense & has_partial
+    dv, dm, df, ds = corrections
+    volume, mass, first, second = volume - dv, mass - dm, first - df, second - ds
+    point_psd = ~has_partial
+    if nv > 2:
+        direct = jax.lax.cond(
+            jnp.any(use_dense),
+            lambda: jax.vmap(
+                _dense_sphere_union_moments, in_axes=(0, 0, 0, None, None)
+            )(positions, radii, densities, n_samples, sample_batch_size),
+            zero_corrections,
+        )
+        volume, mass, first, second = tuple(
+            jnp.where(use_dense.reshape((n,) + (1,) * (a.ndim - 1)), a, b)
+            for a, b in zip(direct, (volume, mass, first, second))
+        )
+        isotropic_second = jnp.where(use_dense, 0.0, isotropic_second)
+        point_psd = point_psd | use_dense
+    return (
+        volume,
+        mass,
+        first,
+        second,
+        isotropic_second,
+        shift,
+        point_psd,
+    )
+
+
+def _property_batch(
+    positions: jax.Array,
+    radii: jax.Array,
+    densities: jax.Array,
+    target_mass: jax.Array | None,
+    n_samples: int,
+    sample_batch_size: int,
+) -> tuple[jax.Array, ...]:
+    """Integrate and diagonalize one bounded body batch."""
+    n, _nv, dim = positions.shape
+    origin = positions[:, 0, :]
+    local = positions - origin[:, None, :]
+    if dim == 2:
+        weights = jnp.pi * radii**2 * densities
+        shift = (
+            jnp.sum(weights[..., None] * local, axis=1)
+            / jnp.sum(weights, axis=1)[:, None]
+        )
+        local = local - shift[:, None, :]
+        origin = origin + shift
+        # Put this condition outside vmap so a uniform-density body batch
+        # executes only the cheaper coverage-event sweep.
+        volume, mass, first, second = jax.lax.cond(
+            jnp.all(densities == densities[:, :1]),
+            lambda: jax.vmap(partial(_disk_union_moments, uniform_density=True))(
+                local, radii, densities
+            ),
+            lambda: jax.vmap(_disk_union_moments)(local, radii, densities),
+        )
+        com = first / mass[:, None]
+        covariance = second - mass[:, None, None] * com[:, :, None] * com[:, None, :]
+        polar = covariance[:, 0, 0] + covariance[:, 1, 1]
+        anisotropy_x = covariance[:, 0, 0] - covariance[:, 1, 1]
+        anisotropy_y = 2.0 * covariance[:, 1, 0]
+        degenerate = jnp.hypot(anisotropy_x, anisotropy_y) <= (
+            64.0 * np.finfo(np.dtype(local.dtype)).eps * jnp.abs(polar)
+        )
+        angle = jnp.where(
+            degenerate, 0.0, 0.5 * jnp.arctan2(anisotropy_y, anisotropy_x)
+        )
+        q = jnp.stack(
+            (
+                jnp.cos(angle / 2.0),
+                jnp.zeros(n, local.dtype),
+                jnp.zeros(n, local.dtype),
+                jnp.sin(angle / 2.0),
+            ),
+            axis=-1,
+        )
+        moments = polar[:, None]
+    else:
+        volume, mass, first, second, intrinsic, shift, exact = _sphere_union_moments(
+            local, radii, densities, n_samples, sample_batch_size
+        )
+        local = local - shift[:, None, :]
+        origin = origin + shift
+        com = first / mass[:, None]
+        covariance = second - mass[:, None, None] * com[:, :, None] * com[:, None, :]
+        # Sum the other two diagonal terms explicitly. trace(C)-Cii can
+        # erase intrinsic moments of very thin bodies in float32.
+        diagonal = jnp.stack(
+            (
+                covariance[:, 1, 1] + covariance[:, 2, 2],
+                covariance[:, 0, 0] + covariance[:, 2, 2],
+                covariance[:, 0, 0] + covariance[:, 1, 1],
+            ),
+            axis=-1,
+        )
+        tensor = -covariance
+        tensor = tensor.at[:, jnp.arange(3), jnp.arange(3)].set(diagonal)
+        moments, q = _principal_frame(tensor, 2.0 * intrinsic, exact)
+        if radii.shape[1] == 2:
+            # Two weighted sphere centers lie on one axis. Their point-mass
+            # inertia about that axis is exactly zero, even if eigh leaves a
+            # positive roundoff residual larger than the intrinsic moment.
+            moments = moments.at[:, 0].set(
+                jnp.where(exact, 2.0 * intrinsic, moments[:, 0])
+            )
+    actual_mass = mass if target_mass is None else target_mass
+    moments = moments * (actual_mass / mass)[:, None]
+    quaternion = Quaternion(q[:, None, 0:1], q[:, None, 1:])
+    body = Quaternion.rotate_back(quaternion, local - com[:, None, :])
+    return volume, actual_mass, com + origin, moments, q, body
 
 
 @partial(
-    jax.jit,
-    static_argnames=(
-        "n_samples",
-        "sample_batch_size",
-        "clump_batch_size",
-    ),
+    jax.jit, static_argnames=("n_samples", "sample_batch_size", "clump_batch_size")
 )
 def _union_properties_kernel(
     pos: jax.Array,
@@ -195,178 +563,46 @@ def _union_properties_kernel(
     sample_batch_size: int,
     clump_batch_size: int,
 ) -> tuple[jax.Array, ...]:
-    """Shared Monte Carlo kernel for sphere/disk-union rigid-body properties.
-
-    The kernel weights each sample point by the *maximum* density of the
-    sphere-vertices that contain it (``vertex_density``, shape ``(N, nv)``),
-    so it never double-counts overlapping regions. If ``clump_mass`` is
-    ``None`` the total mass is the Monte Carlo mass integral
-    ``sum(rho) * sample_volume``. Otherwise the kernel distributes the
-    given mass proportionally to the sampled density field (for uniform
-    ``vertex_density`` this is exactly the uniform-density assumption of
-    :func:`_compute_uniform_union_properties`).
-
-    Returns ``(volume, mass, com, inertia, q, pos_p)`` with one leading
-    clump axis.
-    Moments use a local origin for each body; only the returned COM is moved
-    back to the world frame.
-    """
-    n_clumps, nv, dim = pos.shape
-    # Accumulate moments near each body, avoiding cancellation of world-scale
-    # second moments when subtracting the center-of-mass contribution.
-    origin = pos[:, 0, :]
-    pos = pos - origin[:, None, :]
-    n_batches = max(1, (n_samples + sample_batch_size - 1) // sample_batch_size)
-    effective_samples = n_batches * sample_batch_size
-    points_u = _generate_golden_lattice(effective_samples, dim=dim).reshape(
-        n_batches, sample_batch_size, dim
-    )
-
-    # ---------- Phase 1: per-clump Monte Carlo accumulation ----------
-    def phase1_single(
-        positions: jax.Array, radii: jax.Array, densities: jax.Array
-    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
-        bb_min = jnp.min(positions - radii[:, None], axis=0)
-        bb_max = jnp.max(positions + radii[:, None], axis=0)
-        box_range = bb_max - bb_min
-        box_vol = jnp.prod(box_range)
-        radii_sq = jnp.square(radii)
-
-        def accumulate(
-            carry: tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array],
-            pts_u: jax.Array,
-        ) -> tuple[tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array], None]:
-            count, sum_rho, sum_pos, sum_r_sq, sum_outer = carry
-            pts = bb_min + pts_u * box_range
-            diff = pts[:, None, :] - positions[None, :, :]
-            inside_v = norm2(diff) < radii_sq[None, :]
-            inside = jnp.any(inside_v, axis=-1).astype(positions.dtype)
-            # Per-sample density: max density of the containing vertices,
-            # so overlapping regions are never double-counted.
-            rho = jnp.max(inside_v * densities[None, :], axis=-1)
-            count = count + jnp.sum(inside)
-            sum_rho = sum_rho + jnp.sum(rho)
-            sum_pos = sum_pos + jnp.sum(pts * rho[:, None], axis=0)
-            sum_r_sq = sum_r_sq + jnp.sum(rho * norm2(pts))
-            sum_outer = sum_outer + jnp.einsum("n,ni,nj->ij", rho, pts, pts)
-            return (count, sum_rho, sum_pos, sum_r_sq, sum_outer), None
-
-        init = (
-            jnp.zeros((), dtype=positions.dtype),
-            jnp.zeros((), dtype=positions.dtype),
-            jnp.zeros((dim,), dtype=positions.dtype),
-            jnp.zeros((), dtype=positions.dtype),
-            jnp.zeros((dim, dim), dtype=positions.dtype),
+    """Bounded union integration; overlapping density is the maximum density."""
+    n, nv, dim = pos.shape
+    if n == 0:
+        return (
+            jnp.zeros((0,), pos.dtype),
+            jnp.zeros((0,), pos.dtype),
+            jnp.zeros((0, dim), pos.dtype),
+            jnp.zeros((0, 1 if dim == 2 else 3), pos.dtype),
+            jnp.zeros((0, 4), pos.dtype),
+            jnp.zeros_like(pos),
         )
-        (count, sum_rho, sum_pos, sum_r_sq, sum_outer), _ = jax.lax.scan(
-            accumulate, init, points_u
+    if n <= clump_batch_size:
+        return _property_batch(
+            pos, rad, vertex_density, clump_mass, n_samples, sample_batch_size
         )
-        return count, sum_rho, sum_pos, sum_r_sq, sum_outer, box_vol
+    pad = (-n) % clump_batch_size
 
-    phase1_vmapped = jax.vmap(phase1_single)
+    def chunks(value: jax.Array) -> jax.Array:
+        if pad:
+            value = jnp.concatenate(
+                (value, jnp.broadcast_to(value[:1], (pad, *value.shape[1:])))
+            )
+        return value.reshape((-1, clump_batch_size, *value.shape[1:]))
 
-    if n_clumps <= clump_batch_size:
-        # Fast path: skip outer scan + padding entirely.
-        count, sum_rho, sum_pos, sum_r_sq, sum_outer, box_vol = phase1_vmapped(
-            pos, rad, vertex_density
+    inputs = (chunks(pos), chunks(rad), chunks(vertex_density))
+    if clump_mass is None:
+        result = jax.lax.map(
+            lambda arrays: _property_batch(
+                arrays[0], arrays[1], arrays[2], None, n_samples, sample_batch_size
+            ),
+            inputs,
         )
     else:
-        # Pad to a multiple of clump_batch_size by duplicating the first clump,
-        # reshape into (n_chunks, clump_batch_size, ...), scan over chunks, then
-        # slice the pad off the outputs.
-        pad = (-n_clumps) % clump_batch_size
-        if pad:
-            pos_pad = jnp.broadcast_to(pos[:1], (pad, nv, dim))
-            rad_pad = jnp.broadcast_to(rad[:1], (pad, nv))
-            den_pad = jnp.broadcast_to(vertex_density[:1], (pad, nv))
-            pos_padded = jnp.concatenate([pos, pos_pad], axis=0)
-            rad_padded = jnp.concatenate([rad, rad_pad], axis=0)
-            den_padded = jnp.concatenate([vertex_density, den_pad], axis=0)
-        else:
-            pos_padded = pos
-            rad_padded = rad
-            den_padded = vertex_density
-
-        n_padded = n_clumps + pad
-        n_chunks = n_padded // clump_batch_size
-
-        pos_c = pos_padded.reshape(n_chunks, clump_batch_size, nv, dim)
-        rad_c = rad_padded.reshape(n_chunks, clump_batch_size, nv)
-        den_c = den_padded.reshape(n_chunks, clump_batch_size, nv)
-
-        def phase1_scan_body(
-            carry: Any, clump_chunk: tuple[jax.Array, jax.Array, jax.Array]
-        ) -> tuple[
-            Any,
-            tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array],
-        ]:
-            positions, radii, densities = clump_chunk
-            return carry, phase1_vmapped(positions, radii, densities)
-
-        _, (count, sum_rho, sum_pos, sum_r_sq, sum_outer, box_vol) = jax.lax.scan(
-            phase1_scan_body, None, (pos_c, rad_c, den_c)
+        result = jax.lax.map(
+            lambda arrays: _property_batch(
+                arrays[0], arrays[1], arrays[2], arrays[3], n_samples, sample_batch_size
+            ),
+            (*inputs, chunks(clump_mass)),
         )
-        count = count.reshape(n_padded)[:n_clumps]
-        sum_rho = sum_rho.reshape(n_padded)[:n_clumps]
-        sum_pos = sum_pos.reshape(n_padded, dim)[:n_clumps]
-        sum_r_sq = sum_r_sq.reshape(n_padded)[:n_clumps]
-        sum_outer = sum_outer.reshape(n_padded, dim, dim)[:n_clumps]
-        box_vol = box_vol.reshape(n_padded)[:n_clumps]
-
-    # ---------- Phase 2: per-clump finalization (no n_samples dim) ----------
-    sample_volume = box_vol / effective_samples  # (n_clumps,)
-    mass_mc = sum_rho * sample_volume  # Monte Carlo mass integral
-    total_mass = mass_mc if clump_mass is None else clump_mass
-
-    def phase2_single(
-        count: jax.Array,
-        sum_rho: jax.Array,
-        sum_pos: jax.Array,
-        sum_r_sq: jax.Array,
-        sum_outer: jax.Array,
-        sample_volume: jax.Array,
-        mass_mc: jax.Array,
-        total_mass: jax.Array,
-    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
-        volume = count * sample_volume
-        com = sum_pos / sum_rho
-        # Rescale the density-weighted Monte Carlo moments so they integrate
-        # to the requested total mass (scale == density for uniform unions).
-        scale = total_mass / mass_mc
-
-        if dim == 3:
-            eye = jnp.eye(3, dtype=pos.dtype)
-            inertia_origin = (sum_r_sq * eye - sum_outer) * sample_volume
-            inertia = scale * (
-                inertia_origin - mass_mc * (norm2(com) * eye - jnp.outer(com, com))
-            )
-            inertia = 0.5 * (inertia + inertia.T)
-            eigvals, eigvecs = jnp.linalg.eigh(inertia)
-            sign = jnp.sign(jnp.linalg.det(eigvecs))
-            eigvecs = eigvecs.at[:, -1].set(eigvecs[:, -1] * sign)
-            rot = Rotation.from_matrix(eigvecs)
-            q_xyzw = rot.as_quat()
-            q = jnp.concatenate([q_xyzw[3:4], q_xyzw[:3]])
-            return volume, com, eigvals, q
-
-        # 2D: principal angle of the COM-frame second-moment matrix.
-        cov = sum_outer * sample_volume - mass_mc * jnp.outer(com, com)
-        theta = jnp.arctan2(2.0 * cov[1, 0], cov[0, 0] - cov[1, 1]) / 2.0
-        half_theta = 0.5 * theta
-        q = jnp.array(
-            [jnp.cos(half_theta), 0.0, 0.0, jnp.sin(half_theta)],
-            dtype=pos.dtype,
-        )
-        inertia = scale * (sum_r_sq * sample_volume - mass_mc * norm2(com))
-        return volume, com, inertia.reshape(1), q
-
-    volume, com, inertia, q = jax.vmap(phase2_single)(
-        count, sum_rho, sum_pos, sum_r_sq, sum_outer, sample_volume, mass_mc, total_mass
-    )
-    quat = Quaternion(q[:, None, 0:1], q[:, None, 1:])
-    pos_p = Quaternion.rotate_back(quat, pos - com[:, None, :])
-
-    return volume, total_mass, com + origin, inertia, q, pos_p
+    return tuple(value.reshape((n + pad, *value.shape[2:]))[:n] for value in result)
 
 
 def compute_clump_properties(
@@ -376,86 +612,91 @@ def compute_clump_properties(
     sample_batch_size: int = 4096,
     clump_batch_size: int = 32,
 ) -> State:
-    """Compute volume / mass / COM / inertia / orientation for every multi-sphere clump.
+    """Compute rigid union properties for multi-member clumps in an unbatched state.
 
-    The function treats each clump (group of spheres sharing
-    ``state.clump_id``) as the union of its spheres with per-vertex
-    material density ``mat_table.density[state.mat_id]`` (overlaps take
-    the maximum density, never double-counted). It gets the properties
-    by Monte Carlo integration via the shared batched kernel
-    :func:`_union_properties_kernel`. Single-sphere clumps keep their
-    existing analytic state values.
+    Each member is a filled disk or ball with volumetric material density
+    ``mat_table.density[state.mat_id]``. The density at any covered point is
+    the maximum density of its containing members, without double counting.
+    Gaps and enclosed cavities outside the union stay empty, so hollow
+    assemblies of solid members are supported. This does not model hollow
+    individual spheres or thin-shell mass, and zero/negative-density members
+    cannot be used to subtract a cavity.
 
-    This function groups spheres into clumps on the host, so it cannot be
-    wrapped in ``jax.jit`` itself. The heavy Monte Carlo kernel it calls
-    is jitted.
+    Disk unions are exact. Sphere unions use analytical cases where possible
+    and otherwise choose boundary or volume quadrature according to overlap
+    density. The dense-volume path avoids dependence on tiny exposed boundary
+    patches. Simultaneous triple and higher-order overlaps are supported.
+    ``n_samples`` controls the 3D numerical budget; the two batch sizes bound
+    intermediate memory without changing the rule. Check convergence using
+    volume, COM, and the world-frame inertia tensor at increasing budgets.
+    Positive finite output alone does not certify accuracy.
+
+    Principal frames use deterministic signs and handle degenerate moments.
+    Nearly equal principal moments still make individual axes sensitive to
+    integration error. Single-member clumps retain all existing state values.
+
+    Host grouping uses compact IDs and separate batches for each member count,
+    so gaps in IDs or one unusually large clump do not create padded work for
+    all other clumps. This grouping/validation step cannot be wrapped in jit;
+    the integration itself is compiled by JAX.
     """
-    dim = state.dim
-    pos = state.pos
-    n_groups = int(jnp.max(state.clump_id)) + 1
-    counts = jnp.bincount(state.clump_id, length=n_groups)
-    is_clump = counts[state.clump_id] > 1
-
-    multi_ids = jnp.where(counts > 1)[0]
-    if multi_ids.shape[0] == 0:
+    _validate_budgets(n_samples, sample_batch_size, clump_batch_size)
+    if state.clump_id.ndim != 1:
+        raise ValueError("compute_clump_properties requires an unbatched state.")
+    if state.N == 0:
         return state
+    ids = np.asarray(state.clump_id)
+    _groups, inverse, counts = np.unique(ids, return_inverse=True, return_counts=True)
+    if not np.any(counts > 1):
+        return state
+    pos = state.pos
+    density = mat_table.density[state.mat_id]
+    _validate_geometry(pos, state.rad, density)
+    order = np.argsort(inverse, kind="stable")
+    starts = np.cumsum(counts) - counts
+    selected = []
+    properties: list[tuple[jax.Array, ...]] = []
+    for nv in np.unique(counts[counts > 1]):
+        groups = np.flatnonzero(counts == nv)
+        selection = order[starts[groups, None] + np.arange(nv)[None, :]]
+        result = _union_properties_kernel(
+            pos[selection],
+            state.rad[selection],
+            density[selection],
+            None,
+            n_samples,
+            sample_batch_size,
+            clump_batch_size,
+        )
+        volume, mass, com, inertia, q, body = result
 
-    # Build a (n_groups, nv_max) table of sphere indices per clump. Padding
-    # slots repeat the clump's first sphere: a duplicated sphere does not
-    # change the union, so the kernel result is unaffected.
-    nv_max = int(jnp.max(counts))
-    order = jnp.argsort(state.clump_id)
-    sorted_ids = state.clump_id[order]
-    starts = jnp.concatenate(
-        [jnp.zeros((1,), dtype=counts.dtype), jnp.cumsum(counts[:-1])]
+        def members(value: jax.Array) -> jax.Array:
+            return jnp.repeat(value, int(nv), axis=0)
+
+        selected.append(selection.reshape(-1))
+        properties.append(
+            (
+                members(volume),
+                members(mass),
+                members(com),
+                members(inertia),
+                members(q),
+                body.reshape((-1, state.dim)),
+            )
+        )
+    index = np.concatenate(selected)
+    volume, mass, com, inertia, q, body = (
+        jnp.concatenate(items, axis=0) for items in zip(*properties)
     )
-    slot = jnp.arange(state.N) - starts[sorted_ids]
-    idx_table = jnp.zeros((n_groups, nv_max), dtype=int).at[sorted_ids, slot].set(order)
-    valid_slot = jnp.arange(nv_max)[None, :] < counts[:, None]
-    idx_table = jnp.where(valid_slot, idx_table, idx_table[:, :1])
-
-    sel = idx_table[multi_ids]  # (n_multi, nv_max)
-    volume_g, mass_g, com_g, inertia_g, q_g, _pos_p_g = _union_properties_kernel(
-        pos[sel],
-        state.rad[sel],
-        mat_table.density[state.mat_id][sel],
-        None,
-        n_samples,
-        sample_batch_size,
-        clump_batch_size,
-    )
-
-    inertia_width = inertia_g.shape[-1]
-    tv = jnp.zeros((n_groups,), dtype=pos.dtype).at[multi_ids].set(volume_g)
-    tm = jnp.zeros((n_groups,), dtype=pos.dtype).at[multi_ids].set(mass_g)
-    cm = jnp.zeros((n_groups, dim), dtype=pos.dtype).at[multi_ids].set(com_g)
-    it = (
-        jnp.zeros((n_groups, inertia_width), dtype=pos.dtype)
-        .at[multi_ids]
-        .set(inertia_g)
-    )
-    qt = jnp.zeros((n_groups, 4), dtype=pos.dtype).at[multi_ids].set(q_g)
-
-    new_mass = jnp.where(is_clump, tm[state.clump_id], state.mass)
-    new_com = jnp.where(is_clump[:, None], cm[state.clump_id], state.pos_c)
-    new_inertia = jnp.where(is_clump[:, None], it[state.clump_id], state.inertia)
-
-    new_q_arr = jnp.where(
-        is_clump[:, None],
-        qt[state.clump_id],
-        jnp.concatenate([state.q.w, state.q.xyz], axis=-1),
-    )
-
-    new_q = Quaternion(new_q_arr[..., 0:1], new_q_arr[..., 1:])
-    new_pos_p = new_q.rotate_back(new_q, pos - new_com)
-    state = replace(
+    _validate_properties((volume, mass, com, inertia, q, body))
+    return replace(
         state,
-        volume=jnp.where(is_clump, tv[state.clump_id], state.volume),
-        mass=new_mass,
-        pos_c=new_com,
-        inertia=new_inertia,
-        q=new_q,
-        pos_p=new_pos_p,
+        volume=state.volume.at[index].set(volume),
+        mass=state.mass.at[index].set(mass),
+        pos_c=state.pos_c.at[index].set(com),
+        inertia=state.inertia.at[index].set(inertia),
+        q=Quaternion(
+            state.q.w.at[index].set(q[:, 0:1]), state.q.xyz.at[index].set(q[:, 1:])
+        ),
+        pos_p=state.pos_p.at[index].set(body),
     )
-
-    return state

@@ -183,16 +183,32 @@ print("Velocities:\n", state_with_clump.vel)
 # inertia tensor. This is **not trivial** because spheres may overlap.
 # Summing individual volumes would over-count shared regions.
 #
-# :py:func:`~jaxdem.utils.compute_clump_properties` solves this with a
-# Monte-Carlo integration. It scatters sample points inside the bounding
-# box of each clump, checks which spheres contain each point, and uses
-# the resulting density field to compute:
+# :py:func:`~jaxdem.utils.compute_clump_properties` computes the mass properties
+# of the union. In 2D it splits intersecting circles into exposed arcs and
+# integrates those arcs analytically. In 3D it combines analytical sphere
+# moments with numerical integration where needed: boundary quadrature for
+# sparse unions and direct volume quadrature for dense, heavily overlapping
+# unions. The dense path avoids undersampling tiny exposed boundary patches.
+# Separated and nested spheres have analytical properties in either
+# dimension, as do overlapping pairs of spheres in 3D. Analytical and sparse
+# boundary paths avoid spending samples in empty bounding-box space.
+# For clumps with at most 32 members, pairwise lens corrections are also
+# analytical when the overlap graph has no triangles. The shortcut is
+# conservative: more complicated overlap patterns use numerical integration.
+# The resulting density field determines:
 #
 # - total mass (accounting for overlap)
 # - center of mass (``pos_c``)
 # - principal moments of inertia (``inertia``)
 # - principal-axes orientation (``q``)
 # - body-frame offsets (``pos_p``) relative to the new center of mass
+#
+# Where materials overlap, the utility uses the largest material density
+# at each point, so neither volume nor overlapping mass is counted twice.
+# It preserves the world-space sphere positions while updating the body
+# frame. Principal frames have consistent signs and handedness; exactly
+# repeated moments use a deterministic frame because their physical
+# principal axes are not unique.
 #
 # .. important::
 #
@@ -221,6 +237,78 @@ print("  pos_c:", clump_state.pos_c)
 print("  pos_p:", clump_state.pos_p)
 print("  mass :", clump_state.mass)
 print("  inertia:", clump_state.inertia)
+
+
+# %%
+# Filled Members and Hollow Clumps
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# The mass model is the union of **filled** member disks or balls. Material
+# occupies points inside at least one member. Empty space outside every
+# member stays empty, including enclosed cavities: the utility does not fill
+# a convex hull or an outer envelope. A hollow body assembled from solid
+# beads is therefore supported, provided those beads describe its material.
+#
+# The geometric-asperity builder ``create_ga_state`` distinguishes:
+#
+# - ``core_type="hollow"``: only the solid asperities contribute material.
+#   Their uncovered interior remains a void.
+# - ``core_type="solid"``: a central core contributes both material and
+#   contact geometry, in addition to the asperities.
+# - ``core_type="phantom"``: the core contributes mass, volume, and inertia,
+#   then is removed from the contact geometry. Its interior is still material.
+#
+# A member sphere with an empty interior, an infinitesimally thin shell, or
+# subtracting a cavity from a filled member is a different mass model. This
+# utility does not derive those properties: all supplied member densities
+# must be positive. Supply such a body's mass and principal inertia directly
+# instead of recomputing them with ``compute_clump_properties``.
+#
+# ``compute_clump_properties`` derives mass from the material density table.
+# The uniform-union helper used by ``create_ga_state`` instead preserves the
+# requested total body mass and spreads it uniformly over the chosen union.
+# Both models preserve geometric voids and avoid double-counting overlaps.
+
+
+# %%
+# Accuracy and Construction Cost
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# The same call works in both dimensions. ``n_samples`` controls the total
+# numerical integration budget per 3D clump; it has no effect on analytical
+# 2D arc integration or analytical 3D cases. The numerical budget has a floor
+# of 32 points per member; boundary quadrature also rounds up to an even
+# number of points per member. Increase it when a more accurate inertia
+# tensor is needed; there is no universal sample count that makes every
+# shape exact.
+#
+# Any number of members may overlap. The 2D arc integrals remain analytical;
+# general 3D integration evaluates coverage by all other members, including
+# triple and higher-order overlaps. The pairwise analytical shortcut is used
+# only when its overlap-graph check rules out triple intersections.
+#
+# Adaptive selection keeps volume integration for dense cases where one
+# member alone guarantees useful bounding-box occupancy, and retains
+# boundary integration for sparse unions. A positive finite result does
+# not certify accuracy. For a 3D body requiring quadrature, compare
+# increasing budgets, for example ``50_000``, ``200_000``, and ``800_000``,
+# until volume, center of mass, and inertia meet the needed tolerances.
+# Compare inertia in world coordinates, ``R(q) @ diag(inertia) @ R(q).T``:
+# quaternion signs and axes within an almost repeated eigenspace can change
+# even when the physical tensor agrees. Unresolved nonpositive properties
+# raise ``ValueError``; increasing samples or precision can resolve them.
+#
+# ``sample_batch_size`` bounds the temporary sample arrays, while
+# ``clump_batch_size`` bounds the number of bodies processed together.
+# These settings control memory use without changing the integration rule.
+# Samples are generated as needed rather than stored as one large point
+# array, and their angular phases retain precision in float32.
+#
+# The host wrapper groups clumps by their actual member counts. Small
+# clumps therefore do not acquire padding to the largest clump in the
+# state, and sparse IDs do not require a table indexed by their largest
+# value. Single-sphere bodies keep their existing state properties.
+# Compute these properties during construction, before running dynamics.
+# The grouping step runs on the host, so call the wrapper outside
+# ``jax.jit``; its numerical kernels are compiled internally.
 
 
 # %%
