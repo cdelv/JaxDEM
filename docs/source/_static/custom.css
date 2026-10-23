@@ -15,6 +15,48 @@ dl.py.attribute {
     display: none;
 }
 
+/* Keep example downloads unobtrusive, without a callout above the content. */
+.sphx-glr-download-link-note {
+    display: none;
+}
+
+.bd-article .sphx-glr-footer-example {
+    margin-top: 1.25rem;
+    text-align: left;
+}
+
+.bd-article div.sphx-glr-download {
+    margin: 0.25rem 0;
+    font-size: 0.9rem;
+}
+
+.bd-article .sphx-glr-download p {
+    margin: 0;
+}
+
+.bd-article .sphx-glr-download a,
+.bd-article .sphx-glr-download a:hover {
+    display: inline;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    color: var(--pst-color-link);
+    font-weight: normal;
+    text-align: left;
+    text-decoration: underline;
+}
+
+.bd-article .sphx-glr-download code.download {
+    display: inline;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+}
+
 /* Keep long module names, signatures, and links inside their columns. */
 .bd-article h1,
 .bd-article h2,
