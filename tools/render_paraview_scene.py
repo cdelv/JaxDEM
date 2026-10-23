@@ -566,7 +566,9 @@ def render(manifest_path: Path) -> dict[str, Any]:
                         for entry in dataset.get("pointData", {}).get("arrays", [])
                     }
                 for actor, required in expected_arrays.items():
-                    missing = required - scene_arrays.get(actor, set())
+                    if actor not in scene_arrays:
+                        raise ValueError(f"the scene lost required actor: {actor}")
+                    missing = required - scene_arrays[actor]
                     if missing:
                         raise ValueError(
                             f"{actor} lost required point arrays: {sorted(missing)}"

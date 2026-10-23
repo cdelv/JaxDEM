@@ -15,6 +15,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+from textwrap import indent
 import time
 from urllib.parse import urlencode
 
@@ -160,9 +161,8 @@ def paraview_scraper(block, block_vars, gallery_conf):
     if (output / "animation.mp4").is_file():
         # Retain the image for gallery thumbnails, notebooks and print, while
         # HTML uses the video's identical poster instead of showing it twice.
-        rst = rst.replace(
-            ":class: sphx-glr-single-img",
-            ":class: sphx-glr-single-img animation-poster",
+        rst = (
+            ".. container:: animation-poster\n\n" + indent(rst.strip(), "    ") + "\n\n"
         )
     caption = manifest.get("caption", "ParaView rendering of this run's VTK output.")
     rst += f"\n{caption}\n\n"
