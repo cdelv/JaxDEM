@@ -542,7 +542,8 @@ print("Diagonal springs — elements stored?", dp_extra_springs.elements is not 
 # %%
 # A deformable particle bouncing from a wall
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Give a small, stress-free square a uniform velocity toward the right wall.
+# Give a small, stress-free 20-vertex polygon a uniform velocity toward the
+# right wall. Its vertices run counterclockwise around the closed boundary.
 # Its leading vertices reflect first while the trailing vertices are still
 # moving right, compressing the body. The elastic terms then redistribute
 # momentum and restore its shape during the rebound.
@@ -553,20 +554,34 @@ print("Diagonal springs — elements stored?", dp_extra_springs.elements is not 
 # have an independent wall-contact law. Neighboring vertices are bonded so
 # their pairwise contact interactions are masked; the deformable model
 # supplies the internal forces.
-wall_vertices = jnp.array([[0.8, 1.1], [1.6, 1.1], [1.6, 1.9], [0.8, 1.9]])
+wall_num_vertices = 20
+wall_angles = jnp.linspace(0.0, 2 * jnp.pi, wall_num_vertices, endpoint=False)
+wall_vertices = jnp.array([1.2, 1.5]) + 0.45 * jnp.stack(
+    (jnp.cos(wall_angles), jnp.sin(wall_angles)), axis=-1
+)
+wall_indices = jnp.arange(wall_num_vertices)
+wall_next = (wall_indices + 1) % wall_num_vertices
+# Segment i joins vertex i to i+1; consecutive segments share a bending hinge.
+# Modulo indexing closes both the boundary and its final-to-first hinge.
+wall_elements = jnp.stack((wall_indices, wall_next), axis=-1)
+wall_adjacency = jnp.stack((wall_indices, wall_next), axis=-1)
+wall_bonds = jnp.stack(((wall_indices - 1) % wall_num_vertices, wall_next), axis=-1)
+# Keep total mass equal to one as the boundary resolution increases. The nodal
+# radius is small relative to the initial segment length (about 0.141).
+wall_node_radius = 0.025
 wall_state = jdem.State.create(
     pos=wall_vertices,
-    vel=jnp.tile(jnp.array([1.2, 0.0]), (4, 1)),
-    rad=jnp.full(4, 0.08),
-    mass=jnp.full(4, 0.25),
-    bond_id=jnp.array([[1, 3], [0, 2], [1, 3], [0, 2]]),
+    vel=jnp.tile(jnp.array([1.2, 0.0]), (wall_num_vertices, 1)),
+    rad=jnp.full(wall_num_vertices, wall_node_radius),
+    mass=jnp.full(wall_num_vertices, 1.0 / wall_num_vertices),
+    bond_id=wall_bonds,
 )
 wall_model = jdem.BondedForceModel.create(
     "deformable_particle_model",
     vertices=wall_vertices,
-    elements=elements_2d,
-    edges=edges_2d,
-    element_adjacency=adjacency_2d,
+    elements=wall_elements,
+    edges=wall_elements,
+    element_adjacency=wall_adjacency,
     em=1.5,
     ec=3.0,
     el=1.5,
@@ -589,12 +604,25 @@ wall_state, wall_system, (scene_states, scene_systems) = jdem.System.trajectory_
 wall_positions = np.asarray(scene_states.pos)
 wall_widths = wall_positions[:, :, 0].max(axis=1) - wall_positions[:, :, 0].min(axis=1)
 wall_com_velocities = np.asarray(scene_states.vel).mean(axis=1)
+assert wall_positions.shape == (41, wall_num_vertices, 2)
 assert np.isfinite(wall_positions).all()
+np.testing.assert_allclose(wall_state.mass.sum(), 1.0, atol=1e-6)
+# The oriented polygon must retain positive enclosed area during impact.
+wall_following = np.roll(wall_positions, -1, axis=1)
+wall_areas = 0.5 * np.sum(
+    wall_positions[:, :, 0] * wall_following[:, :, 1]
+    - wall_positions[:, :, 1] * wall_following[:, :, 0],
+    axis=1,
+)
+assert np.all(wall_areas > 0)
 assert wall_widths.min() < 0.9 * wall_widths[0]
 assert wall_com_velocities[:, 0].min() < -0.2
-assert np.all(wall_positions >= 0.08 - 1e-5)
-assert np.all(wall_positions <= np.array([3.5, 3.0]) - 0.08 + 1e-5)
+assert np.all(wall_positions >= wall_node_radius - 1e-5)
+assert np.all(wall_positions <= np.array([3.5, 3.0]) - wall_node_radius + 1e-5)
 wall_system.check_overflow()
+print(
+    f"Wall-bounce body: {wall_num_vertices} vertices, total mass {wall_state.mass.sum():.3f}"
+)
 print(f"Width during impact: {wall_widths[0]:.3f} -> {wall_widths.min():.3f}")
 print(f"Peak leftward center-of-mass speed: {-wall_com_velocities[:, 0].min():.3f}")
 
