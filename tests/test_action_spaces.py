@@ -1,9 +1,12 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Numerical and contract tests for RL action-space bijectors."""
-
-import math
 
 import jax
 import jax.numpy as jnp
+
+import math
+
 import pytest
 import numpy as np
 import distrax

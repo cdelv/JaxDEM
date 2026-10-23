@@ -19,6 +19,8 @@ from ..utils.linalg import norm, norm2
 
 
 class KernelFn(Protocol):
+    """Callable interface for pure kernels over a pair of analysis frames."""
+
     def __call__(
         self, arrays: Mapping[str, jnp.ndarray], t0: Any, t1: Any, **kwargs: Any
     ) -> Any: ...

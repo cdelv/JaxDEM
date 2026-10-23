@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import dataclass
 from enum import IntFlag
 from typing import TYPE_CHECKING
-
-import jax
-import jax.numpy as jnp
 
 if TYPE_CHECKING:
     from .state import State

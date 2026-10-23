@@ -4,13 +4,13 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from collections.abc import Iterator
 from dataclasses import dataclass, replace
 from enum import IntEnum
 from typing import TYPE_CHECKING, Any, NamedTuple
-
-import jax
-import jax.numpy as jnp
 
 from ..forces.force_manager import default_energy_func
 from ..topology import BodyTopology, body_topology

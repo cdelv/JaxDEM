@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Vicsek alignment of rigid dumbbells
 ======================================
 
@@ -20,17 +22,18 @@ We initialize nonaligned random headings, run 2,000 steps, and report polarizati
 and larger ensembles are needed to study collective ordering.
 """
 
+import jax
+
 from dataclasses import dataclass
 from functools import partial
 from typing import cast
 
-import jax
-
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 import jax.numpy as jnp
-import jaxdem as jdem
+
 import numpy as np
 
+import jaxdem as jdem
 from jaxdem.integrators import free_mask
 from jaxdem.utils.linalg import cross, dot, unit
 

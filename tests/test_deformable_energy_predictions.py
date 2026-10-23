@@ -1,7 +1,10 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Independent polygon/polyhedron energies and signed hinge moments."""
 
 import jax
 import jax.numpy as jnp
+
 import numpy as np
 import pytest
 

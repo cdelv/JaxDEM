@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
-
-import jax
-import jax.numpy as jnp
 
 from ..factory import Factory
 
@@ -31,22 +31,22 @@ class ForceModel(Factory, ABC):
     ``advance_history``; a law without velocity-dependent terms ignores
     ``quasistatic``.
 
-    Notes:
+    Notes
     ------
     - The :meth:`force <jaxdem.forces.ForceModel.force>` and :meth:`energy <jaxdem.forces.ForceModel.energy>` methods must handle the case where
       `i` and `j` refer to the same particle (`i == j`). Self-interaction
       calls can occur.
 
-    Example:
+    Example
     --------
     To define a custom force model, inherit from :class:`ForceModel <jaxdem.forces.ForceModel>` and implement
     its abstract methods:
 
     >>> @ForceModel.register("myCustomForce")
-    >>> @jax.tree_util.register_dataclass
-    >>> @dataclass(slots=True)
-    >>> class MyCustomForce(ForceModel):
-            ...
+    ... @jax.tree_util.register_dataclass
+    ... @dataclass(slots=True)
+    ... class MyCustomForce(ForceModel):
+    ...     ...
 
     """
 

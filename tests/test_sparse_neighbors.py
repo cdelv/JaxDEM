@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-from dataclasses import dataclass, replace
+"""Check pooled sparse neighbor capacity, contact history, and force equivalence."""
 
 import jax
 import jax.numpy as jnp
+
+from dataclasses import dataclass, replace
+
 import numpy as np
 import pytest
 

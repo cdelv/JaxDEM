@@ -1,10 +1,13 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Physical field ownership and frame identity in real VTK files."""
+
+import jax
+import jax.numpy as jnp
 
 from dataclasses import replace
 import xml.etree.ElementTree as ET
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 import scipy.spatial

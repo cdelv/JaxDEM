@@ -2,10 +2,11 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Heterogeneous replicas retain independent physics through batch dispatch."""
 
-from dataclasses import replace
-
 import jax
 import jax.numpy as jnp
+
+from dataclasses import replace
+
 import numpy as np
 import pytest
 

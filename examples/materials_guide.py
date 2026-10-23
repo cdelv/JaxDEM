@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""Materials, Matchmakers, and Material Tables
 ------------------------------------------------
 
@@ -22,7 +24,9 @@ consume these properties, see :doc:`../auto_examples/force_model_guide`.
 # Each registered material type defines its own required fields.
 
 import jax.numpy as jnp
+
 import numpy as np
+
 import jaxdem as jdem
 
 elastic = jdem.Material.create(

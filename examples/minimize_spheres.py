@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""Minimization of bidisperse spheres (or disks).
 --------------------------------------------------
 
@@ -30,12 +32,14 @@ Lengths, masses, and stiffnesses use a consistent set of reduced units.
 # %%
 # Imports
 # ~~~~~~~~~~~~~~~~~~~~~
-from dataclasses import replace
-
 import jax
 import jax.numpy as jnp
+
+from dataclasses import replace
+
 import matplotlib.pyplot as plt
 import numpy as np
+
 import jaxdem as jdem
 from jaxdem.minimizers.optimizers import CustomGradientTransformation
 

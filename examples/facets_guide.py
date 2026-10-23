@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""Facets (Triangular & Line Boundaries)
 -----------------------------------------
 
@@ -45,10 +47,11 @@ This guide covers:
 # :py:attr:`~jaxdem.state.State.facet_vertices_extra`. Forces from all incident faces accumulate on the
 # same physical node; no extra mass or integration degree of freedom is added.
 
+import jax.numpy as jnp
+
 import tempfile
 from pathlib import Path
 
-import jax.numpy as jnp
 import numpy as np
 
 import jaxdem as jdem

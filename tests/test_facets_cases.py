@@ -2,8 +2,10 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Tests for rigid and deformable facet use cases."""
 
-import dataclasses
 import jax.numpy as jnp
+
+import dataclasses
+
 import numpy as np
 import pytest
 

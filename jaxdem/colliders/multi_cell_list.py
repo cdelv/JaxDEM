@@ -4,14 +4,14 @@ r"""Multi-cell (loose-grid / UGrid) collider — a JAX port of dragon-space's lo
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+from jax.typing import ArrayLike
+
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, cast
-
-import jax
-import jax.numpy as jnp
-from jax.typing import ArrayLike
 
 try:  # Python 3.11+
     from typing import Self

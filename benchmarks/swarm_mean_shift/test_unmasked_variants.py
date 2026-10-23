@@ -1,7 +1,10 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Raw sensing must retain occupied goals without changing reward or physics."""
 
 import jax
 import jax.numpy as jnp
+
 import numpy as np
 import pytest
 
@@ -79,19 +82,27 @@ def test_scaled_geometry_is_once_only_and_checkpoints_initialize_to_zero(variant
     original = make_conservative("baseline_s1", N=4, num_objectives=4, seed=5)
     np.testing.assert_array_equal(env.state.pos, original.state.pos * scale)
     np.testing.assert_allclose(
-        env.env_params["objective"], original.env_params["objective"] * scale,
-        rtol=2e-7, atol=1e-6,
+        env.env_params["objective"],
+        original.env_params["objective"] * scale,
+        rtol=2e-7,
+        atol=1e-6,
     )
-    positions, goals = np.asarray(env.state.pos), np.asarray(env.env_params["objective"])
+    positions, goals = np.asarray(env.state.pos), np.asarray(
+        env.env_params["objective"]
+    )
     for _ in range(2):
         env = env.reset(env, jax.random.key(5))
         np.testing.assert_array_equal(env.state.pos, positions)
         np.testing.assert_array_equal(env.env_params["objective"], goals)
         np.testing.assert_array_equal(env.reward(env), 0)
-        np.testing.assert_array_equal(env.system.domain.box_size, [30 * scale, 30 * scale])
+        np.testing.assert_array_equal(
+            env.system.domain.box_size, [30 * scale, 30 * scale]
+        )
     assert env.observation_space_size == 26
     assert env.vacancy_aware_lidar is False
-    assert bool(env.env_params["hide_occupied_objectives"]) == variant.startswith("masked_")
+    assert bool(env.env_params["hide_occupied_objectives"]) == variant.startswith(
+        "masked_"
+    )
 
 
 def test_matched_cosine_amplitude_and_reward_history():
@@ -102,10 +113,12 @@ def test_matched_cosine_amplitude_and_reward_history():
     legacy.state.pos_c = env.state.pos_c
     legacy.env_params["objective"] = env.env_params["objective"]
     # The default legacy approach at d=0 is .1*(.01/lambda+2*.02/lambda^3).
-    baseline_peak = .1 * (.01 / (1/3) + 2 * .02 / (1/3)**3)
+    baseline_peak = 0.1 * (0.01 / (1 / 3) + 2 * 0.02 / (1 / 3) ** 3)
     assert MATCHED_COSINE_COEFF == pytest.approx(baseline_peak)
     np.testing.assert_allclose(env._potential(env), [1 + baseline_peak], rtol=2e-7)
-    np.testing.assert_allclose(env._potential(env), legacy._potential(legacy), rtol=2e-7)
+    np.testing.assert_allclose(
+        env._potential(env), legacy._potential(legacy), rtol=2e-7
+    )
     env = env.checkpoint(env, jnp.zeros((1, 2)))
     saved = np.asarray(env.env_params["prev_potential"])
     env.state.pos_c = env.state.pos_c.at[0, 0].add(0.5)
@@ -121,7 +134,9 @@ def test_nonlocal_goals_and_peers_cannot_change_raw_observation_or_reward(varian
     before_observation = np.asarray(env.observation(env))[0]
     before_potential = np.asarray(env._potential(env))[0]
     env.state.pos_c = env.state.pos_c.at[1].set(jnp.asarray([27.0, 27.0]))
-    env.env_params["objective"] = env.env_params["objective"].at[1].set(jnp.asarray([28.0, 28.0]))
+    env.env_params["objective"] = (
+        env.env_params["objective"].at[1].set(jnp.asarray([28.0, 28.0]))
+    )
     np.testing.assert_array_equal(env.observation(env)[0], before_observation)
     np.testing.assert_array_equal(env._potential(env)[0], before_potential)
     # A genuinely visible target moving closer changes its raw return.
@@ -134,8 +149,13 @@ def test_nonlocal_goals_and_peers_cannot_change_raw_observation_or_reward(varian
 @pytest.mark.parametrize("family", ["raw_cosine_matched", "raw_typed"])
 def test_raw_empty_goals_and_vectorized_spatial_shapes(dim, goals, family):
     env = make_environment(
-        f"{family}_s2", N=2, num_objectives=goals, dim=dim,
-        n_lidar_rays=4, n_lidar_elevation=2, seed=10,
+        f"{family}_s2",
+        N=2,
+        num_objectives=goals,
+        dim=dim,
+        n_lidar_rays=4,
+        n_lidar_elevation=2,
+        seed=10,
     )
     np.testing.assert_array_equal(env.reward(env), 0)
     peers, raw_goals, ids = SwarmNavigator._sense(env)
@@ -153,10 +173,12 @@ def test_raw_empty_goals_and_vectorized_spatial_shapes(dim, goals, family):
 
 def test_signed_return_types_and_invalid_empty_self_returns():
     env = make_environment("raw_typed_s1", N=2, num_objectives=2, seed=4)
-    lidar = jnp.asarray([[4., 3., 2., 0., 1.], [4., 3., 2., 0., 1.]])
+    lidar = jnp.asarray([[4.0, 3.0, 2.0, 0.0, 1.0], [4.0, 3.0, 2.0, 0.0, 1.0]])
     ids = jnp.asarray([[-1, 1, 0, -1, 5], [-2, 0, 1, -1, 7]])
     signed = signed_peer_wall_lidar(lidar, ids, env)
-    np.testing.assert_array_equal(signed, [[-4., 3., 0., 0., 0.], [-4., 3., 0., 0., 0.]])
+    np.testing.assert_array_equal(
+        signed, [[-4.0, 3.0, 0.0, 0.0, 0.0], [-4.0, 3.0, 0.0, 0.0, 0.0]]
+    )
 
 
 @pytest.mark.parametrize("scale", [1, 2])
@@ -167,8 +189,8 @@ def test_typed_returns_preserve_raw_goals_and_baseline_reward_physics(scale):
     assert isinstance(typed, TypedUnmaskedSwarmNavigator)
     assert typed.observation_mode == "baseline"
     for env in (typed, raw):
-        env.state.pos_c = jnp.asarray([[2., 2.], [5., 2.]])
-        env.env_params["objective"] = jnp.asarray([[5., 2.], [8., 2.]])
+        env.state.pos_c = jnp.asarray([[2.0, 2.0], [5.0, 2.0]])
+        env.env_params["objective"] = jnp.asarray([[5.0, 2.0], [8.0, 2.0]])
     peers, goals, ids = SwarmNavigator._sense(typed)
     observed = typed.observation(typed)
     np.testing.assert_array_equal(observed[:, :14], raw.observation(raw)[:, :14])
@@ -178,7 +200,7 @@ def test_typed_returns_preserve_raw_goals_and_baseline_reward_physics(scale):
     np.testing.assert_allclose(np.max(observed[0, 2:14]), 13 / 16)
     assert np.max(observed[1, 2:14]) == 1
     np.testing.assert_array_equal(typed._potential(typed), raw._potential(raw))
-    action = jnp.full((2, 2), .1)
+    action = jnp.full((2, 2), 0.1)
     typed, _, _ = advance_action(typed, action, skip_frames=2)
     raw, _, _ = advance_action(raw, action, skip_frames=2)
     np.testing.assert_array_equal(typed.state.pos, raw.state.pos)
@@ -195,24 +217,41 @@ def test_low_entropy_is_exactly_raw_environment(scale):
     np.testing.assert_array_equal(low.state.pos, raw.state.pos)
     np.testing.assert_array_equal(low.observation(low), raw.observation(raw))
     np.testing.assert_array_equal(low._potential(low), raw._potential(raw))
-    action = jnp.full((2, 2), .1)
+    action = jnp.full((2, 2), 0.1)
     raw, _, _ = advance_action(raw, action, skip_frames=2)
     low, _, _ = advance_action(low, action, skip_frames=2)
     np.testing.assert_array_equal(low.state.pos, raw.state.pos)
     np.testing.assert_array_equal(low.reward(low), raw.reward(raw))
 
 
-@pytest.mark.parametrize("variant,kwargs,parameter", [
-    ("raw_s1", {"hide_occupied_objectives": True}, "hide_occupied_objectives"),
-    ("raw_typed_s1", {"hide_occupied_objectives": True}, "hide_occupied_objectives"),
-    ("raw_low_entropy_s2", {"hide_occupied_objectives": True}, "hide_occupied_objectives"),
-    ("raw_cosine_matched_s2", {"hide_occupied_objectives": True}, "hide_occupied_objectives"),
-    ("masked_s1", {"hide_occupied_objectives": False}, "hide_occupied_objectives"),
-    ("raw_s1", {"vacancy_aware_lidar": True}, "vacancy_aware_lidar"),
-    ("raw_s1", {"approach_kernel": "cosine"}, "approach_kernel"),
-    ("raw_cosine_matched_s1", {"attraction_coeff": 0.1}, "attraction_coeff"),
-    ("raw_s1", {"spacing_scale": 2}, "spacing_scale"),
-])
-def test_conflicting_overrides_cannot_silently_enable_masking(variant, kwargs, parameter):
+@pytest.mark.parametrize(
+    "variant,kwargs,parameter",
+    [
+        ("raw_s1", {"hide_occupied_objectives": True}, "hide_occupied_objectives"),
+        (
+            "raw_typed_s1",
+            {"hide_occupied_objectives": True},
+            "hide_occupied_objectives",
+        ),
+        (
+            "raw_low_entropy_s2",
+            {"hide_occupied_objectives": True},
+            "hide_occupied_objectives",
+        ),
+        (
+            "raw_cosine_matched_s2",
+            {"hide_occupied_objectives": True},
+            "hide_occupied_objectives",
+        ),
+        ("masked_s1", {"hide_occupied_objectives": False}, "hide_occupied_objectives"),
+        ("raw_s1", {"vacancy_aware_lidar": True}, "vacancy_aware_lidar"),
+        ("raw_s1", {"approach_kernel": "cosine"}, "approach_kernel"),
+        ("raw_cosine_matched_s1", {"attraction_coeff": 0.1}, "attraction_coeff"),
+        ("raw_s1", {"spacing_scale": 2}, "spacing_scale"),
+    ],
+)
+def test_conflicting_overrides_cannot_silently_enable_masking(
+    variant, kwargs, parameter
+):
     with pytest.raises(ValueError, match=parameter):
         make_environment(variant, **kwargs)

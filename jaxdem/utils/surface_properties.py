@@ -25,12 +25,13 @@ single angle.
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import dataclasses
 import math
 from typing import TYPE_CHECKING, Any
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 
 from ..state import State

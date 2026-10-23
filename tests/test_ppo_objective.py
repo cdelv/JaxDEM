@@ -2,10 +2,11 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Production PPO loss and derivatives against scalar probability calculus."""
 
-import distrax
-from flax import nnx
 import jax
 import jax.numpy as jnp
+
+import distrax
+from flax import nnx
 import numpy as np
 import pytest
 

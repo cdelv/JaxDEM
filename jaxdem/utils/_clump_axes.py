@@ -6,8 +6,9 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 from jax.scipy.spatial.transform import Rotation
+
+import numpy as np
 
 
 def _canonical_columns(vectors: jax.Array) -> jax.Array:

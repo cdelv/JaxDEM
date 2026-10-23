@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Matched follow-ups separating a rational kernel from reward timing/scale.
 
 Example (uses the unchanged matched PPO runner and all its defaults)::
@@ -17,6 +19,9 @@ neither is claimed to be a policy-invariant transformation of the baseline.
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from contextlib import contextmanager
 from dataclasses import dataclass
 import hashlib
@@ -24,13 +29,8 @@ from pathlib import Path
 import sys
 from typing import Any, Iterator
 
-import jax
-import jax.numpy as jnp
-
 from jaxdem.rl.environments import SwarmNavigator
-
 from benchmarks.swarm_mean_shift.variants import ExperimentalSwarmNavigator
-
 
 FOLLOWUP_NAMES = ("rational_delta", "rational_scaled")
 
@@ -92,7 +92,9 @@ def make_followup_environment(
 ) -> RationalFollowupNavigator:
     """Match the frozen runner's factory signature without editing its files."""
     if variant not in FOLLOWUP_NAMES:
-        raise ValueError(f"Unknown follow-up {variant!r}; expected one of {FOLLOWUP_NAMES}")
+        raise ValueError(
+            f"Unknown follow-up {variant!r}; expected one of {FOLLOWUP_NAMES}"
+        )
     env = RationalFollowupNavigator.Create(
         reward_transform=variant,
         N=N,
@@ -139,7 +141,9 @@ def main() -> None:
     # The frozen parser has baseline variant defaults.  Supply follow-up
     # defaults only when the caller did not explicitly choose any variants.
     original_argv = sys.argv
-    if not any(arg == "--variants" or arg.startswith("--variants=") for arg in sys.argv[1:]):
+    if not any(
+        arg == "--variants" or arg.startswith("--variants=") for arg in sys.argv[1:]
+    ):
         sys.argv = [sys.argv[0], "--variants", *FOLLOWUP_NAMES, *sys.argv[1:]]
     try:
         with matched_followup_runner() as runner:

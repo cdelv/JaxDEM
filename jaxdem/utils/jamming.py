@@ -9,15 +9,15 @@ constituent sphere, and optional convergence diagnostics.
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import math
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from enum import IntEnum
 from functools import partial
 from typing import TYPE_CHECKING, Any, NamedTuple
-
-import jax
-import jax.numpy as jnp
 
 from ..minimizers.routines import COLLIDER_OVERFLOW, MAX_STEPS, NONFINITE, MinimizeInfo
 from .contacts import compute_contact_pressure

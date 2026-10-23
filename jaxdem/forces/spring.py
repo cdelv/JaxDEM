@@ -4,13 +4,13 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, cast
-
-import jax
-import jax.numpy as jnp
 
 from ..utils.linalg import cross, dot, norm, norm2, unit, unit_and_norm
 from . import ForceModel
@@ -189,9 +189,7 @@ class SpringForce(ForceModel):
         return ("young_eff",)
 
 
-def _inactive_facet_pair(
-    i: jax.Array, j: jax.Array, pos: jax.Array
-) -> tuple[
+def _inactive_facet_pair(i: jax.Array, j: jax.Array, pos: jax.Array) -> tuple[
     jax.Array,
     jax.Array,
     jax.Array,

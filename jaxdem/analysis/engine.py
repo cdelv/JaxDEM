@@ -1,24 +1,24 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
-# JAX binned accumulation engine (vmap + segment_sum).
-#
-# Minimal, high-performance path:
-# - Precompute (pair_i, pair_j, bin_id) once on host from a BinSpec.
-# - vmap a *pure* kernel over pairs.
-# - Reduce into bins with `jax.ops.segment_sum`.
+"""JAX accumulation of pure pair kernels into analysis bins.
+
+Precompute pair indices and bin identifiers on the host, vmap a pure kernel
+over pairs, and reduce into bins with ``jax.ops.segment_sum``.
+"""
 
 from __future__ import annotations
+
+import jax
+import jax.numpy as jnp
+from jax import tree_util
+from jax import ops
 
 from dataclasses import dataclass
 from typing import Any
 from collections.abc import Mapping
 from collections import OrderedDict
 
-import jax
-import jax.numpy as jnp
 import numpy as np
-from jax import tree_util
-from jax import ops
 
 from .bins import BinSpec
 from .pairs import Pairs, build_pairs

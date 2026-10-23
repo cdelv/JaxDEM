@@ -1,11 +1,14 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Bonded meshes retain their actual geometry across periodic cell boundaries."""
+
+import jax
+import jax.numpy as jnp
 
 from dataclasses import replace
 from itertools import product
 import xml.etree.ElementTree as ET
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 import vtk

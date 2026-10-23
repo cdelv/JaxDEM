@@ -4,13 +4,13 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import dataclass
 from enum import IntEnum
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
-
-import jax
-import jax.numpy as jnp
 
 from ..minimizers import TerminationReason
 

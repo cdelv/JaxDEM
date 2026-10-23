@@ -1,10 +1,13 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Block-diagonal Jacobians and independent marginal entropy integrals."""
+
+import jax
+import jax.numpy as jnp
 
 import json
 
 import distrax
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 from scipy.integrate import quad

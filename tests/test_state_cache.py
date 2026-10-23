@@ -2,10 +2,11 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Unit tests for the State rotation cache and attribute setting under JIT."""
 
-from dataclasses import replace
-
 import jax
 import jax.numpy as jnp
+
+from dataclasses import replace
+
 import numpy as np
 import pytest
 
@@ -76,9 +77,7 @@ def test_rotation_cache_survives_batching_abstract_values_and_gradients(dim):
     state = jdem.State.create(pos=jnp.zeros_like(offset), pos_p=offset)
 
     def rotate(angle):
-        q = jdem.utils.quaternion.Quaternion.from_rotvec(
-            jnp.array([[0.0, 0.0, angle]])
-        )
+        q = jdem.utils.quaternion.Quaternion.from_rotvec(jnp.array([[0.0, 0.0, angle]]))
         return replace(state, q=q)
 
     angles = jnp.array([0.0, 0.3, 0.7])

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Jammed bidisperse packing: contacts, rattlers, and the dynamical matrix
 ==========================================================================
 
@@ -27,8 +29,10 @@ import jax
 jax.config.update("jax_enable_x64", True)
 
 import jax.numpy as jnp
+
 import matplotlib.pyplot as plt
 import numpy as np
+
 import jaxdem as jdem
 from jaxdem.utils import (
     count_sphere_contacts,

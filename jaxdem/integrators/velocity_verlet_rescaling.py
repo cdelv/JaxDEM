@@ -4,11 +4,10 @@
 
 from __future__ import annotations
 
-import math
-
 import jax
 import jax.numpy as jnp
 
+import math
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, cast

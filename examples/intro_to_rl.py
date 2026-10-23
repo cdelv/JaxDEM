@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Intro to JaxDEM reinforcement learning
 =========================================
 
@@ -20,11 +22,12 @@ making a claim about learning quality.
 # %%
 # Environment and action intervals
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+import jax
+import jax.numpy as jnp
+
 import tempfile
 from pathlib import Path
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import optax
 from flax import nnx

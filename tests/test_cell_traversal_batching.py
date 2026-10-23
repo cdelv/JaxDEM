@@ -2,9 +2,10 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Traversal batching must preserve forces, energy and shared capacity."""
 
+import jax.numpy as jnp
+
 from dataclasses import replace
 
-import jax.numpy as jnp
 import numpy as np
 import pytest
 

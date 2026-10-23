@@ -11,10 +11,10 @@ on a user-specified schedule while integration runs.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import jax
 import jax.numpy as jnp
+
+from typing import TYPE_CHECKING
 
 from .packing_utils import _host_body_grouping, _scale_to_packing_fraction_grouped
 

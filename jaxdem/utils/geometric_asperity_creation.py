@@ -12,14 +12,14 @@
 
 from __future__ import annotations
 
-import warnings
-
 import jax
 import jax.numpy as jnp
-import numpy as np
 
+import warnings
 from typing import Any, Literal, cast
 from collections.abc import Sequence
+
+import numpy as np
 
 from .quaternion import Quaternion
 from .random_sphere_configuration import random_sphere_configuration

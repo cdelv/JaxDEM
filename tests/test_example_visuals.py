@@ -6,19 +6,20 @@ These tests need the ordinary VTK Python package, without ParaView or rendering.
 The complete two-disk snapshots are tiny data fixtures; no simulation is run.
 """
 
+import jax.numpy as jnp
+
 from dataclasses import replace
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
-import jax.numpy as jnp
 import numpy as np
 import pytest
 
 vtk = pytest.importorskip("vtk")
 from vtk.util.numpy_support import vtk_to_numpy
+from tools.example_scene_exports import export_example
 
 import jaxdem as jd
-from tools.example_scene_exports import export_example
 
 
 @pytest.fixture

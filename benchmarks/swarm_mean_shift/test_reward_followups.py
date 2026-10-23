@@ -1,11 +1,14 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Focused reward-history and runner-isolation checks for follow-up ablations."""
+
+import jax
+import jax.numpy as jnp
 
 import hashlib
 from pathlib import Path
 import sys
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 
@@ -106,7 +109,12 @@ def test_cli_default_variants_and_argv_are_process_local(monkeypatch):
     monkeypatch.setattr(run, "main", fake_main)
     reward_followups.main()
     assert captured["argv"] == [
-        "reward_followups", "--variants", "rational_delta", "rational_scaled", "--epochs", "120"
+        "reward_followups",
+        "--variants",
+        "rational_delta",
+        "rational_scaled",
+        "--epochs",
+        "120",
     ]
     assert captured["factory"] is make_followup_environment
     assert sys.argv is argv

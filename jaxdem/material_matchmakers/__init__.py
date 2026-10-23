@@ -17,20 +17,20 @@ from ..factory import Factory
 class MaterialMatchmaker(Factory, ABC):
     """Abstract base class for material property mixing rules.
 
-    Notes:
+    Notes
     ------
     - The :class:`jaxdem.MaterialTable <jaxdem.materials.material_table.MaterialTable>` uses these matchmakers to pre-compute interaction matrices.
 
-    Example:
+    Example
     --------
     To define a custom matchmaker, inherit from :class:`MaterialMatchmaker <jaxdem.material_matchmakers.MaterialMatchmaker>` and implement
     its abstract methods:
 
     >>> @MaterialMatchmaker.register("myCustomForce")
-    >>> @jax.tree_util.register_dataclass
-    >>> @dataclass(slots=True)
-    >>> class MyCustomMatchmaker(MaterialMatchmaker):
-            ...
+    ... @jax.tree_util.register_dataclass
+    ... @dataclass(slots=True)
+    ... class MyCustomMatchmaker(MaterialMatchmaker):
+    ...     ...
 
     """
 

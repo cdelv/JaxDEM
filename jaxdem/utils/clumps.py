@@ -4,13 +4,14 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import replace
 from functools import partial
 import operator
 from typing import TYPE_CHECKING, Any
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 
 from ._clump_arcs import _disk_union_moments

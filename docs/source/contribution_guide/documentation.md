@@ -47,7 +47,6 @@ when a mechanics change alters the result. Numerical assertions provide the
 pass/fail checks; images make changes easier to inspect, without assuming
 identical pixels across graphics drivers.
 
-
 ## Modules and Submodules
 
 At the beginning of each module, write the copyright notice followed by a brief description of the things defined in the module:
@@ -62,58 +61,55 @@ The factory defines and instantiates specific simulation components.
 
 ## Classes
 
-When writing documentation of a class, everyone should follow the following structure:
+Start with a short description of the class. Add NumPy-style sections such as
+`Parameters`, `Attributes`, `Returns`, `Raises`, `Notes`, and `Examples` only
+when they provide useful information. A class or function does not need every
+section, and a short docstring is sufficient for straightforward behavior.
+
+Document useful public attributes either in an `Attributes` section or beside
+their declarations. For interactive examples, start a new statement with
+`>>>` and use `...` for continuation lines, including decorated definitions,
+loops, and class bodies.
+
+For example:
 
 ```python
-class Name:
-    """
-    Description of the class
+from dataclasses import dataclass
 
-    Notes
-    -----
-    Any special/not obvious behavior the user should be aware of
 
-    Example
-    -------
-    Instantiation and/or usage example. To write code snippets, use >>> at the beginning of each line:
+@dataclass
+class Scale:
+    """Multiply values by a configured factor.
 
-    >>> @Foo.register("bar") 
-    >>> class bar:
-    >>>     ...
-    """
-
-    class_atribute
-    """
-    Description
+    Examples
+    --------
+    >>> scale = Scale(factor=2.0)
+    >>> for value in (1.0, 2.0):
+    ...     print(scale.apply(value))
+    2.0
+    4.0
     """
 
-    def method(param1: Type) -> ReturnType:
-        """
-        Method description.
+    factor: float
+    """Multiplier applied to each input."""
 
+    def apply(self, value: float) -> float:
+        """Scale one value.
 
         Parameters
         ----------
-        param1 : Type or None (if applicable), (optional if the parameter is optional or nothing)
-            Description
-        
+        value : float
+            Input to multiply by the configured factor.
+
         Returns
         -------
-        ReturnType
-            Description
-
-        Raises
-        ------
-        ErrorCode
-            When does it error
-
-        Example
-        -------
-        Usage example/s
+        float
+            Scaled input.
         """
-        ...
+        return self.factor * value
 ```
 
 ## Functions
 
-When writing documentation of a function, everyone should follow the same structure as the method documentation above.
+Use the same conventions for functions and methods. Include only the sections
+that explain their inputs, results, errors, or non-obvious behavior.

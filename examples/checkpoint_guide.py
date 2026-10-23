@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Checkpoint Save and Load
 ----------------------------
 
@@ -13,10 +15,13 @@ The walkthrough writes only three tiny dynamic snapshots and one small bonded
 model; all output lives in an isolated temporary directory.
 """
 
+import jax.numpy as jnp
+
 import tempfile
 from pathlib import Path
+
 import numpy as np
-import jax.numpy as jnp
+
 import jaxdem as jdem
 
 # %%

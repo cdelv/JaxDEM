@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Save selected quantities on a pseudo-logarithmic schedule
 ============================================================
 
@@ -11,10 +13,11 @@ its timings depend on the device and should not be read as a general benchmark.
 """
 
 # %%
-import time
-
 import jax
 import jax.numpy as jnp
+
+import time
+
 import numpy as np
 
 import jaxdem as jdem

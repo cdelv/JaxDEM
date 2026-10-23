@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Matched occupied-goal masking ablations using the current action mapping.
 
 Examples::
@@ -18,6 +20,8 @@ new frozen runtime so every configuration uses the same current action map.
 
 from __future__ import annotations
 
+import jax
+
 import argparse
 from contextlib import contextmanager
 import hashlib
@@ -29,13 +33,12 @@ import pickle
 import sys
 from typing import Any, Iterator
 
-import jax
-
 from benchmarks.swarm_mean_shift import run
 from benchmarks.swarm_mean_shift.unmasked_variants import (
-    VARIANT_NAMES, TypedUnmaskedSwarmNavigator, make_environment,
+    VARIANT_NAMES,
+    TypedUnmaskedSwarmNavigator,
+    make_environment,
 )
-
 
 CLI_DEFAULTS = {
     "--variants": tuple(name for name in VARIANT_NAMES if name.endswith("_s1")),
@@ -56,7 +59,9 @@ def variant_metadata(variant: str) -> dict[str, Any]:
         "vacancy_aware_lidar": False,
         "approach_mode": "cosine" if cosine else "baseline",
         "attraction_coeff": 0.111 if cosine else 0.1,
-        "peer_wall_encoding": "signed" if variant.startswith("raw_typed_") else "unsigned",
+        "peer_wall_encoding": (
+            "signed" if variant.startswith("raw_typed_") else "unsigned"
+        ),
         "ppo_entropy_coeff": 1e-4 if variant.startswith("raw_low_entropy_") else 1e-3,
     }
 
@@ -65,15 +70,26 @@ def checked_environment(variant: str, **kwargs: Any) -> Any:
     """Verify the no-mask contract before constructing a trainer or rollout."""
     env = make_environment(variant, **kwargs)
     metadata = variant_metadata(variant)
-    if bool(jax.device_get(env.env_params["hide_occupied_objectives"])) != metadata["observation_occupancy_mask"]:
-        raise ValueError(f"Occupied-goal mask differs from declared {variant} condition")
+    if (
+        bool(jax.device_get(env.env_params["hide_occupied_objectives"]))
+        != metadata["observation_occupancy_mask"]
+    ):
+        raise ValueError(
+            f"Occupied-goal mask differs from declared {variant} condition"
+        )
     if bool(env.vacancy_aware_lidar):
         raise ValueError("Unmasked comparisons must not use the richer vacancy sensor")
     if env.reward_mode != metadata["approach_mode"]:
         raise ValueError("Approach mode differs from declared variant")
-    if not isclose(float(jax.device_get(env.env_params["attraction_coeff"])), metadata["attraction_coeff"], rel_tol=1e-6):
+    if not isclose(
+        float(jax.device_get(env.env_params["attraction_coeff"])),
+        metadata["attraction_coeff"],
+        rel_tol=1e-6,
+    ):
         raise ValueError("Attraction amplitude differs from declared variant")
-    if isinstance(env, TypedUnmaskedSwarmNavigator) != (metadata["peer_wall_encoding"] == "signed"):
+    if isinstance(env, TypedUnmaskedSwarmNavigator) != (
+        metadata["peer_wall_encoding"] == "signed"
+    ):
         raise ValueError("Peer/wall return encoding differs from declared variant")
     return env
 
@@ -81,13 +97,17 @@ def checked_environment(variant: str, **kwargs: Any) -> Any:
 def validate_mask_config(config: dict[str, Any], variant: str) -> None:
     for key, expected in variant_metadata(variant).items():
         if config.get(key) != expected:
-            raise ValueError(f"Checkpoint {variant} lacks matching {key}: {config.get(key)!r} != {expected!r}")
+            raise ValueError(
+                f"Checkpoint {variant} lacks matching {key}: {config.get(key)!r} != {expected!r}"
+            )
 
 
 def checked_trainer_entropy(trainer: Any, expected: float) -> float:
     actual = float(jax.device_get(trainer.ppo_entropy_coeff))
     if not isclose(actual, expected, rel_tol=1e-6, abs_tol=1e-10):
-        raise ValueError(f"Trainer entropy coefficient differs from declared variant: {actual} != {expected}")
+        raise ValueError(
+            f"Trainer entropy coefficient differs from declared variant: {actual} != {expected}"
+        )
     return actual
 
 
@@ -105,9 +125,14 @@ def matched_trainer_entropy(coefficient: float) -> Iterator[None]:
 
     def create_with_entropy(*args: Any, **kwargs: Any) -> Any:
         if "ppo_entropy_coeff" in kwargs and not isclose(
-            float(kwargs["ppo_entropy_coeff"]), coefficient, rel_tol=1e-6, abs_tol=1e-10,
+            float(kwargs["ppo_entropy_coeff"]),
+            coefficient,
+            rel_tol=1e-6,
+            abs_tol=1e-10,
         ):
-            raise ValueError("Explicit entropy coefficient conflicts with the declared variant")
+            raise ValueError(
+                "Explicit entropy coefficient conflicts with the declared variant"
+            )
         kwargs["ppo_entropy_coeff"] = coefficient
         trainer = original_bound(*args, **kwargs)
         checked_trainer_entropy(trainer, coefficient)
@@ -132,9 +157,15 @@ def matched_unmasked_runner(*, checkpoint_at: tuple[int, ...] = ()) -> Iterator[
     def hashes(source_experiment: Path) -> dict[str, str | None]:
         result = old_hashes(source_experiment)
         for name in (
-            "unmasked_compare.py", "unmasked_evaluate.py", "unmasked_variants.py",
-            "unmasked_long_evaluate.py", "conservative_variants.py", "variants.py",
-            "spacing_evaluate.py", "spacing_long_evaluate.py", "evaluate_checkpoints.py",
+            "unmasked_compare.py",
+            "unmasked_evaluate.py",
+            "unmasked_variants.py",
+            "unmasked_long_evaluate.py",
+            "conservative_variants.py",
+            "variants.py",
+            "spacing_evaluate.py",
+            "spacing_long_evaluate.py",
+            "evaluate_checkpoints.py",
         ):
             path = Path(__file__).with_name(name).resolve()
             result[str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -151,15 +182,19 @@ def matched_unmasked_runner(*, checkpoint_at: tuple[int, ...] = ()) -> Iterator[
         actual_entropy = checked_trainer_entropy(trainer, args.ppo_entropy_coeff)
         config_path = directory / "config.json"
         config = json.loads(config_path.read_text())
-        config.update({
-            "actual_ppo_entropy_coeff": actual_entropy,
-            "entropy_coefficient_matches_config": True,
-        })
+        config.update(
+            {
+                "actual_ppo_entropy_coeff": actual_entropy,
+                "entropy_coefficient_matches_config": True,
+            }
+        )
         temporary = config_path.with_suffix(".json.tmp")
         temporary.write_text(json.dumps(config, indent=2, allow_nan=False) + "\n")
         temporary.replace(config_path)
         result = add_spacing_metrics(
-            old_evaluate(trainer, base_env, args, directory, epoch), directory, epoch,
+            old_evaluate(trainer, base_env, args, directory, epoch),
+            directory,
+            epoch,
         )
         if epoch in checkpoint_at:
             for filename, value in (
@@ -170,7 +205,9 @@ def matched_unmasked_runner(*, checkpoint_at: tuple[int, ...] = ()) -> Iterator[
                     pickle.dump(jax.device_get(value), stream)
         return result
 
-    def run_with_metadata(args: Any, variant: str, seed: int, graphdefs: dict[str, Any]) -> dict[str, Any]:
+    def run_with_metadata(
+        args: Any, variant: str, seed: int, graphdefs: dict[str, Any]
+    ) -> dict[str, Any]:
         # Install before run_one's first config write, so a completed-run signal
         # can never race a later metadata update from a queued evaluator.
         metadata = variant_metadata(variant)
@@ -214,13 +251,22 @@ def main() -> None:
     original_argv = sys.argv
     sys.argv = [original_argv[0], *defaults, *arguments]
     try:
-        with matched_unmasked_runner(checkpoint_at=tuple(extra.checkpoint_at)) as runner:
+        with matched_unmasked_runner(
+            checkpoint_at=tuple(extra.checkpoint_at)
+        ) as runner:
             parsed = runner.parse_args()
             if len({name.rsplit("_s", 1)[1] for name in parsed.variants}) != 1:
-                parser.error("Train each spacing separately so its episode and training budgets are explicit")
+                parser.error(
+                    "Train each spacing separately so its episode and training budgets are explicit"
+                )
             available = set(parsed.eval_at) | {parsed.epochs}
-            if any(epoch not in available or epoch > parsed.epochs for epoch in extra.checkpoint_at):
-                parser.error("Checkpoint epochs must be evaluation epochs within the training budget")
+            if any(
+                epoch not in available or epoch > parsed.epochs
+                for epoch in extra.checkpoint_at
+            ):
+                parser.error(
+                    "Checkpoint epochs must be evaluation epochs within the training budget"
+                )
             runner.main()
     finally:
         sys.argv = original_argv

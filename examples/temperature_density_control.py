@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Temperature and density control
 ==================================
 
@@ -32,6 +34,7 @@ Lengths, masses, stiffness and Boltzmann's constant use reduced units.
 # Imports
 import jax
 import jax.numpy as jnp
+
 import numpy as np
 
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]

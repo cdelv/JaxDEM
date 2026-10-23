@@ -1,10 +1,13 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Public PPO argument and resume-boundary validation."""
 
 from __future__ import annotations
 
+import jax.numpy as jnp
+
 from types import SimpleNamespace
 
-import jax.numpy as jnp
 import pytest
 
 from jaxdem.rl.trainers.ppo_trainer import PPOTrainer

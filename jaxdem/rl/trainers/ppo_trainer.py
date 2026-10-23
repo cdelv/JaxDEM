@@ -4,11 +4,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
-
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
+
+from typing import TYPE_CHECKING, Any, cast
 
 try:
     # Python 3.11+

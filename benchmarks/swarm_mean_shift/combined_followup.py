@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Combine rational potential differences with vacancy-aware goal LiDAR.
 
 Run with the unchanged matched PPO settings::
@@ -19,17 +21,16 @@ outside the observing agent's range.  Dynamics and PPO settings are unchanged.
 
 from __future__ import annotations
 
+import jax
+
 from contextlib import contextmanager
 import hashlib
 from pathlib import Path
 import sys
 from typing import Any, Iterator
 
-import jax
-
 from benchmarks.swarm_mean_shift import reward_followups
 from benchmarks.swarm_mean_shift.reward_followups import RationalFollowupNavigator
-
 
 FOLLOWUP_NAMES = ("rational_delta_vacancy",)
 
@@ -45,7 +46,9 @@ def make_followup_environment(
 ) -> RationalFollowupNavigator:
     """Compose existing static modes before reset, vectorization, or tracing."""
     if variant not in FOLLOWUP_NAMES:
-        raise ValueError(f"Unknown follow-up {variant!r}; expected one of {FOLLOWUP_NAMES}")
+        raise ValueError(
+            f"Unknown follow-up {variant!r}; expected one of {FOLLOWUP_NAMES}"
+        )
     env = reward_followups.make_followup_environment(
         "rational_delta",
         N=N,
@@ -70,7 +73,10 @@ def matched_followup_runner() -> Iterator[Any]:
 
     def hashes_with_followup(source_experiment: Path) -> dict[str, str | None]:
         hashes = original_hashes(source_experiment)
-        for source in (Path(__file__).resolve(), Path(reward_followups.__file__).resolve()):
+        for source in (
+            Path(__file__).resolve(),
+            Path(reward_followups.__file__).resolve(),
+        ):
             hashes[str(source)] = hashlib.sha256(source.read_bytes()).hexdigest()
         return hashes
 
@@ -87,7 +93,9 @@ def matched_followup_runner() -> Iterator[Any]:
 
 def main() -> None:
     original_argv = sys.argv
-    if not any(arg == "--variants" or arg.startswith("--variants=") for arg in sys.argv[1:]):
+    if not any(
+        arg == "--variants" or arg.startswith("--variants=") for arg in sys.argv[1:]
+    ):
         sys.argv = [sys.argv[0], "--variants", *FOLLOWUP_NAMES, *sys.argv[1:]]
     try:
         with matched_followup_runner() as runner:

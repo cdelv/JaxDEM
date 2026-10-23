@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Purely repulsive Weeks-Chandler-Andersen pair interactions."""
 
 from __future__ import annotations
 
@@ -7,8 +8,8 @@ import jax
 import jax.numpy as jnp
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 from functools import partial
+from typing import TYPE_CHECKING
 
 from . import ForceModel
 from ..utils.linalg import norm2

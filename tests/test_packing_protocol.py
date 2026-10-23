@@ -2,10 +2,11 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Packing-fraction protocol validation and force-coherence regressions."""
 
-from dataclasses import dataclass, replace
-
 import jax
 import jax.numpy as jnp
+
+from dataclasses import dataclass, replace
+
 import numpy as np
 import pytest
 

@@ -4,12 +4,13 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import math
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Literal
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 
 from . import contacts as contact
@@ -250,9 +251,9 @@ def _packing_data(
         displacements=data.displacements,
         overlap=state.rad[data.pair_ids].sum(axis=1) - norm(data.displacements),
         mu=contact._pair_friction(data.forces, data.displacements),
-        pair_species=None
-        if species is None
-        else species[state.clump_id[data.pair_ids]],
+        pair_species=(
+            None if species is None else species[state.clump_id[data.pair_ids]]
+        ),
     )
     clump_network = ClumpContactNetwork(
         pair_ids=groups.pair_ids,

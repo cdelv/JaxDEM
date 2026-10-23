@@ -2,11 +2,12 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Identity bijector that applies no constraint."""
 
+import jax
+import jax.numpy as jnp
+
 from functools import partial
 
 import distrax  # type: ignore[import-untyped]
-import jax
-import jax.numpy as jnp
 from distrax._src.bijectors.bijector import Array  # type: ignore[import-untyped]
 
 from . import ActionSpace

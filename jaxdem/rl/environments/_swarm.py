@@ -4,10 +4,10 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import jax
 import jax.numpy as jnp
+
+from typing import Any
 
 from ...utils.environment import _bin_azimuth, _bin_min_dist_and_idx, _bin_spherical
 
@@ -130,8 +130,7 @@ def filter_objectives(
     radii = env.state.rad[:, None]
     occupancy_radii = env.env_params.get("occupancy_radius_scale", 1.0) * radii
     occupied = jnp.any(
-        valid_peer[:, None, :]
-        & (separation_sq <= occupancy_radii[:, :, None] ** 2),
+        valid_peer[:, None, :] & (separation_sq <= occupancy_radii[:, :, None] ** 2),
         axis=-1,
     )
     hide = (
@@ -154,9 +153,7 @@ def vacant_objective_lidar(env: Any) -> jax.Array:
     so an occupied near goal can reveal a farther vacant goal in the same bin.
     The output is proximity in the original objective LiDAR bins, in 2-D/3-D.
     """
-    bins = env.n_lidar_rays * (
-        env.n_lidar_elevation if env.state.dim == 3 else 1
-    )
+    bins = env.n_lidar_rays * (env.n_lidar_elevation if env.state.dim == 3 else 1)
     if env.num_objectives == 0:
         return jnp.zeros((env.max_num_agents, bins))
     displacement = env.env_params["objective"][None, :, :] - env.state.pos[:, None, :]

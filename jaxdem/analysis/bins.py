@@ -72,7 +72,7 @@ class BinSpec:
         raise NotImplementedError
 
 
-def _infer_timestep_and_T_from_source(source: Any) -> tuple[np.ndarray, int]:
+def _infer_timestep_and_length_from_source(source: Any) -> tuple[np.ndarray, int]:
     """Infer (timestep, T) from a simple in-memory source.
 
     Supported sources:
@@ -153,7 +153,7 @@ class TimeBins(BinSpec):
     def from_source(
         cls, source: Any, t_min: int | None = None, t_max: int | None = None
     ) -> TimeBins:
-        timestep, T = _infer_timestep_and_T_from_source(source)
+        timestep, T = _infer_timestep_and_length_from_source(source)
         return cls(T, t_min=t_min, t_max=t_max, timestep=timestep)
 
     def num_bins(self) -> int:
@@ -303,7 +303,7 @@ class LagBinsExact(BinSpec):
         if extra_args or kwargs:
             raise TypeError("from_source() received unexpected arguments")
 
-        timestep, T = _infer_timestep_and_T_from_source(source)
+        timestep, T = _infer_timestep_and_length_from_source(source)
         return cls(T, taus, cap=cap, sample=sample, seed=seed, timestep=timestep)
 
     def num_bins(self) -> int:
@@ -409,7 +409,7 @@ class LagBinsLinear(LagBinsExact):
         if len(args) > 2 or kwargs:
             raise TypeError("from_source() received unexpected arguments")
 
-        timestep, T = _infer_timestep_and_T_from_source(source)
+        timestep, T = _infer_timestep_and_length_from_source(source)
         return cls(
             T,
             dt_min=dt_min,
@@ -520,7 +520,7 @@ class LagBinsLog(LagBinsExact):
         if len(args) > 2 or kwargs:
             raise TypeError("from_source() received unexpected arguments")
 
-        timestep, T = _infer_timestep_and_T_from_source(source)
+        timestep, T = _infer_timestep_and_length_from_source(source)
         return cls(
             T,
             dt_min=dt_min,
@@ -617,7 +617,7 @@ class LagBinsPseudoLog(LagBinsExact):
         if len(args) > 2 or kwargs:
             raise TypeError("from_source() received unexpected arguments")
 
-        timestep, T = _infer_timestep_and_T_from_source(source)
+        timestep, T = _infer_timestep_and_length_from_source(source)
         return cls(
             T,
             dt_min=dt_min,

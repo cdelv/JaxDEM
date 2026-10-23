@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Reproducible pooled neighbor-cache GPU benchmark; run each case in a fresh process.
 
 PYTHONPATH=. JAX_PLATFORMS=cuda JAX_ENABLE_X64=0 python benchmarks/pooled_neighbors.py \
@@ -7,6 +9,9 @@ PYTHONPATH=. JAX_PLATFORMS=cuda JAX_ENABLE_X64=0 python benchmarks/pooled_neighb
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import argparse
 import json
 import statistics
@@ -14,8 +19,6 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 
 import jaxdem as jd

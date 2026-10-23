@@ -1,11 +1,14 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Checks for exact layout scaling and unchanged local reward/dynamics."""
+
+import jax
+import jax.numpy as jnp
 
 import hashlib
 from pathlib import Path
 import sys
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 
@@ -26,16 +29,25 @@ def test_reset_doubles_exact_original_n64_layout_and_domain(variant):
     np.testing.assert_array_equal(env.state.pos, 2 * original.state.pos)
     # Nested XLA fusion can change sample rounding by one float32 ULP.
     np.testing.assert_allclose(
-        env.env_params["objective"], 2 * original.env_params["objective"], rtol=2e-7, atol=1e-6
+        env.env_params["objective"],
+        2 * original.env_params["objective"],
+        rtol=2e-7,
+        atol=1e-6,
     )
     before = np.asarray(original.env_params["objective"])
     after = np.asarray(env.env_params["objective"])
     before_dist = np.linalg.norm(before[:, None] - before[None, :], axis=-1)
     after_dist = np.linalg.norm(after[:, None] - after[None, :], axis=-1)
     np.testing.assert_allclose(after_dist, 2 * before_dist, rtol=2e-7, atol=4e-6)
-    np.testing.assert_array_equal(env.system.domain.box_size, 2 * original.system.domain.box_size)
-    np.testing.assert_array_equal(env.system.domain.anchor, 2 * original.system.domain.anchor)
-    np.testing.assert_array_equal(env.system.domain.inv_box_size, 1 / env.system.domain.box_size)
+    np.testing.assert_array_equal(
+        env.system.domain.box_size, 2 * original.system.domain.box_size
+    )
+    np.testing.assert_array_equal(
+        env.system.domain.anchor, 2 * original.system.domain.anchor
+    )
+    np.testing.assert_array_equal(
+        env.system.domain.inv_box_size, 1 / env.system.domain.box_size
+    )
     assert float(env.env_params["box_size"]) == 40
     assert float(env.env_params["box_padding"]) == 20
     np.testing.assert_array_equal(env.state.rad, original.state.rad)
@@ -84,11 +96,15 @@ def test_spacing_baseline_matches_original_raw_reward_after_scaling_and_action()
     env = _controlled_env("spacing_baseline")
     action = jnp.asarray([[1.0, 0.0], [0.0, -1.0]])
     env = env.checkpoint(env, action)
-    np.testing.assert_array_equal(env.env_params["prev_potential"], SwarmNavigator._potential(env))
+    np.testing.assert_array_equal(
+        env.env_params["prev_potential"], SwarmNavigator._potential(env)
+    )
     env.state.pos_c = env.state.pos_c.at[0, 0].add(1)
     np.testing.assert_array_equal(env.reward(env), SwarmNavigator.reward(env))
     stepped, _, _ = advance_action(env, action, skip_frames=2)
-    np.testing.assert_array_equal(stepped.reward(stepped), SwarmNavigator.reward(stepped))
+    np.testing.assert_array_equal(
+        stepped.reward(stepped), SwarmNavigator.reward(stepped)
+    )
     assert float(stepped.system.dt) == float(env.system.dt)
 
 
@@ -104,7 +120,9 @@ def test_rational_delta_checkpoints_the_unscaled_1p5_radius_kernel():
     np.testing.assert_allclose(env.reward(env)[0], expected_after - expected_before)
     peers, objectives, ids = SwarmNavigator._sense(env)
     _, scores, _ = scan_goal_scores(objectives, peers, ids, env)
-    np.testing.assert_allclose(env.reward(env), scores.max(axis=-1) - env.env_params["prev_potential"])
+    np.testing.assert_allclose(
+        env.reward(env), scores.max(axis=-1) - env.env_params["prev_potential"]
+    )
     np.testing.assert_allclose(env.env_params["prev_potential"][0], expected_before)
     env = env.checkpoint(env, jnp.zeros((2, 2)))
     np.testing.assert_allclose(env.reward(env), 0, atol=1e-8)
@@ -117,7 +135,9 @@ def test_distant_goal_and_peer_do_not_affect_local_observation_or_score(variant)
     before_score = np.asarray(env._score(env))[0]
     before_obs = np.asarray(env.observation(env))[0]
     env.state.pos_c = env.state.pos_c.at[1].set(jnp.asarray([35.0, 35.0]))
-    env.env_params["objective"] = env.env_params["objective"].at[1].set(jnp.asarray([38.0, 38.0]))
+    env.env_params["objective"] = (
+        env.env_params["objective"].at[1].set(jnp.asarray([38.0, 38.0]))
+    )
     np.testing.assert_array_equal(env._score(env)[0], before_score)
     np.testing.assert_array_equal(env.observation(env)[0], before_obs)
 
@@ -142,14 +162,30 @@ def test_runner_factory_names_hashes_and_evaluation_are_restored():
         hashes = matched.source_hashes(Path("/tmp/missing_source_experiment.py"))
         for module in (spacing_followup, spacing_followup.variants):
             source = Path(module.__file__).resolve()
-            assert hashes[str(source)] == hashlib.sha256(source.read_bytes()).hexdigest()
-    assert (run.make_environment, run.VARIANT_NAMES, run.source_hashes, run.evaluate) == before
+            assert (
+                hashes[str(source)] == hashlib.sha256(source.read_bytes()).hexdigest()
+            )
+    assert (
+        run.make_environment,
+        run.VARIANT_NAMES,
+        run.source_hashes,
+        run.evaluate,
+    ) == before
 
 
-def test_cli_applies_double_time_defaults_without_overriding_explicit_values(monkeypatch):
+def test_cli_applies_double_time_defaults_without_overriding_explicit_values(
+    monkeypatch,
+):
     from benchmarks.swarm_mean_shift import run
 
-    argv = ["spacing_followup", "--epochs", "4", "--checkpoint-at-120", "--eval-at", "4"]
+    argv = [
+        "spacing_followup",
+        "--epochs",
+        "4",
+        "--checkpoint-at-120",
+        "--eval-at",
+        "4",
+    ]
     monkeypatch.setattr(sys, "argv", argv)
     captured = {}
 

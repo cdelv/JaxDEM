@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Isolated local-sensing ablations inspired by vacancy-aware swarm control.
 
 These environments intentionally live outside the production environment.  They
@@ -9,16 +11,15 @@ All training variants remain decentralized at execution time.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any
-
 import jax
 import jax.numpy as jnp
+
+from dataclasses import dataclass
+from typing import Any
 
 from jaxdem.rl.environments import SwarmNavigator
 from jaxdem.rl.environments._swarm import _peer_geometry, bin_directions
 from jaxdem.utils.environment import _bin_azimuth, _bin_min_dist_and_idx, _bin_spherical
-
 
 VARIANTS: dict[str, dict[str, str]] = {
     "baseline": {},
@@ -152,9 +153,7 @@ def vacant_objective_lidar(env: Any) -> jax.Array:
     mask, this exposes farther vacant goals behind an occupied goal in a bin.
     It requires the same richer all-local sensing as ``exact_local``.
     """
-    bins = env.n_lidar_rays * (
-        env.n_lidar_elevation if env.state.dim == 3 else 1
-    )
+    bins = env.n_lidar_rays * (env.n_lidar_elevation if env.state.dim == 3 else 1)
     if env.num_objectives == 0:
         return jnp.zeros((env.max_num_agents, bins))
     displacement = env.env_params["objective"][None, :, :] - env.state.pos[:, None, :]
@@ -203,9 +202,7 @@ def paper_vacancy_features(env: Any) -> jax.Array:
     # Self is deliberately included in the occupancy test here.
     visible_agents = peer_distance_sq < lr**2
     covers_goal = distance_sq <= env.state.rad[:, None] ** 2
-    occupied = (
-        visible_agents.astype(jnp.int32) @ covers_goal.astype(jnp.int32)
-    ) > 0
+    occupied = (visible_agents.astype(jnp.int32) @ covers_goal.astype(jnp.int32)) > 0
     visible_goals = distance_sq < lr**2
     weights = jnp.where(
         visible_goals & ~occupied, 0.5 * (1 + jnp.cos(jnp.pi * distance / lr)), 0
@@ -241,7 +238,11 @@ class ExperimentalSwarmNavigator(SwarmNavigator):
         if reward_mode not in {"baseline", "rational"}:
             raise ValueError(f"Unknown reward_mode: {reward_mode}")
         if observation_mode not in {
-            "baseline", "compact", "exact_local", "vacant_lidar", "paper"
+            "baseline",
+            "compact",
+            "exact_local",
+            "vacant_lidar",
+            "paper",
         }:
             raise ValueError(f"Unknown observation_mode: {observation_mode}")
         # The base constructor instantiates cls and retains the subclass
@@ -309,7 +310,9 @@ def make_environment(
 ) -> SwarmNavigator:
     """Construct an unbatched baseline or isolated experimental environment."""
     if variant not in VARIANTS:
-        raise ValueError(f"Unknown variant {variant!r}; expected one of {tuple(VARIANTS)}")
+        raise ValueError(
+            f"Unknown variant {variant!r}; expected one of {tuple(VARIANTS)}"
+        )
     options = dict(N=N, num_objectives=num_objectives, max_steps=max_steps, **kwargs)
     if variant == "baseline":
         env = SwarmNavigator.Create(**options)

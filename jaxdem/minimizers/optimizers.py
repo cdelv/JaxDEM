@@ -4,12 +4,13 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Any, NamedTuple
 
-import jax
-import jax.numpy as jnp
 import optax  # type: ignore[import-untyped]
 
 

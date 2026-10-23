@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""The Simulation Domain
 ----------------------------------------
 
@@ -31,8 +33,10 @@ This guide covers each one.
 # :py:meth:`~jaxdem.system.System.create`. Pass ``domain_type`` and,
 # optionally, ``domain_kw``:
 
-import numpy as np
 import jax.numpy as jnp
+
+import numpy as np
+
 import jaxdem as jdem
 
 state = jdem.State.create(pos=jnp.zeros((1, 2)))

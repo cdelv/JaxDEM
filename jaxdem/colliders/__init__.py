@@ -4,13 +4,13 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from abc import ABC
 import dataclasses
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, cast
-
-import jax
-import jax.numpy as jnp
 
 from ..domains import Domain, SearchGeometry
 from ..factory import Factory
@@ -28,20 +28,20 @@ class Collider(Factory, ABC):
 
     Concrete subclasses of `Collider` implement the interaction algorithms.
 
-    Notes:
+    Notes
     ------
     Self-interaction (calling the force/energy computation for `i=j`) is allowed.
     The `force_model` must handle or ignore this case correctly.
 
-    Example:
+    Example
     --------
     To define a custom collider, inherit from `Collider`, register it, and implement its abstract methods:
 
     >>> @Collider.register("CustomCollider")
-    >>> @jax.tree_util.register_dataclass
-    >>> @dataclass(slots=True)
-    >>> class CustomCollider(Collider):
-            ...
+    ... @jax.tree_util.register_dataclass
+    ... @dataclass(slots=True)
+    ... class CustomCollider(Collider):
+    ...     ...
 
     Then, instantiate it:
 

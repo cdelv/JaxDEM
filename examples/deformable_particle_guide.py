@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""Deformable Particles
 ----------------------------------------
 
@@ -72,7 +74,9 @@ isolate the response to a prescribed small stretch.
 
 import jax
 import jax.numpy as jnp
+
 import numpy as np
+
 import jaxdem as jdem
 
 # A simple square boundary in 2D: 4 vertices connected by 4 segments.

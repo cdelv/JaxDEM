@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import jax
+
 import os
 import tempfile
 import threading
@@ -12,7 +14,6 @@ from importlib import import_module
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import jax
 import numpy as np
 
 from .async_base import BaseAsyncWriter

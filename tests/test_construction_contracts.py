@@ -2,10 +2,11 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Focused contracts for low-level rigid/contact construction."""
 
+import jax.numpy as jnp
+
 from dataclasses import replace
 import importlib
 
-import jax.numpy as jnp
 import pytest
 import numpy as np
 
@@ -46,8 +47,9 @@ def test_contact_facets_allow_shared_vertices():
 @pytest.mark.parametrize("dim", [2, 3])
 @pytest.mark.parametrize("rigid", [False, True])
 def test_distribution_rotates_a_whole_body_and_uses_its_bounding_volume(dim, rigid):
-    from jaxdem.utils.particle_creation import distribute_bodies
     from scipy.spatial.transform import Rotation
+
+    from jaxdem.utils.particle_creation import distribute_bodies
 
     points = np.pad(
         np.array([[-1.0, 0.0], [0.5, 0.6], [0.5, -0.6]]), ((0, 0), (0, dim - 2))

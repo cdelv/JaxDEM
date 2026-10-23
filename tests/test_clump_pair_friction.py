@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Analytical tests for :func:`get_group_contacts` and rattler analysis.
 
 The tests check two configurations where geometry alone gives the friction
@@ -18,6 +20,7 @@ coefficient:
 from __future__ import annotations
 
 import jax.numpy as jnp
+
 import numpy as np
 import pytest
 

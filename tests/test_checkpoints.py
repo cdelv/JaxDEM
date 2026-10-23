@@ -8,13 +8,14 @@ selection, retention, and errors are checked with portable importable fixtures.
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import os
 import tempfile
 from dataclasses import fields, is_dataclass
 from collections.abc import Mapping
 
-import jax
-import jax.numpy as jnp
 import pytest
 import numpy as np
 
@@ -88,16 +89,16 @@ def _assert_leaves_equal(
     static_config(original, restored)
     leaves_orig = jax.tree.leaves(original)
     leaves_rest = jax.tree.leaves(restored)
-    assert len(leaves_orig) == len(leaves_rest), (
-        f"{label}: leaf count mismatch {len(leaves_orig)} vs {len(leaves_rest)}"
-    )
+    assert len(leaves_orig) == len(
+        leaves_rest
+    ), f"{label}: leaf count mismatch {len(leaves_orig)} vs {len(leaves_rest)}"
     for i, (lo, lr) in enumerate(zip(leaves_orig, leaves_rest, strict=False)):
         lo, lr = jnp.asarray(lo), jnp.asarray(lr)
         assert lo.shape == lr.shape and lo.dtype == lr.dtype, label
         if rtol or atol:
-            assert jnp.allclose(lo, lr, rtol=rtol, atol=atol), (
-                f"{label} leaf {i}: {lo} != {lr}"
-            )
+            assert jnp.allclose(
+                lo, lr, rtol=rtol, atol=atol
+            ), f"{label} leaf {i}: {lo} != {lr}"
         else:
             assert jnp.array_equal(lo, lr), f"{label} leaf {i}: {lo} != {lr}"
 

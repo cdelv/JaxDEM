@@ -32,19 +32,38 @@ use the registry root's `create(type_name, **kwargs)`. `Factory` is not generic.
 For example:
 
 ```python
+import jax
+
+from dataclasses import dataclass
+
+import jaxdem as jdem
+
+
+@jdem.Collider.register("no_contact")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
-class Collider(Factory, ABC):
-    """
-    ...
-
-    """
+class NoContactCollider(jdem.Collider):
+    """Disable pair forces while following the collider interface."""
 
     @staticmethod
-    @abstractmethod
-    @jax.jit
-    def compute_force(state: "State", system: "System") -> Tuple["State", "System"]:
+    @jax.jit(inline=True, static_argnames=("advance_history", "quasistatic"))
+    def compute_force(
+        state: jdem.State,
+        system: jdem.System,
+        *,
+        advance_history: bool = True,
+        quasistatic: bool = False,
+    ) -> tuple[jdem.State, jdem.System]:
+        """Return zero pair forces; this collider has no contact history."""
+        del advance_history, quasistatic
+        state.force *= 0
+        state.torque *= 0
+        return state, system
 ```
+
+Collider overrides accept both keyword arguments even when they do not use
+contact history or quasistatic evaluation. Initialization and force inspection
+call this interface with `advance_history=False`.
 
 ## Variables
 
@@ -56,3 +75,8 @@ ang_vel: jax.Array
 clump_id: jax.Array
 bond_id: jax.Array
 ```
+
+Keep Python's special method names, uppercase constants, and type-variable
+names in their conventional forms. Established public names and scientific
+symbols, such as `State.N` and `k_B`, retain their spelling for compatibility;
+prefer descriptive snake_case names for new identifiers.

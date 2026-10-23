@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Hessian candidates and assembly agree with the configured pair energy."""
-
-from dataclasses import dataclass, field, replace
 
 import jax
 import jax.numpy as jnp
+
+from dataclasses import dataclass, field, replace
+
 import numpy as np
 import pytest
 
@@ -16,7 +18,6 @@ from jaxdem.utils import (
     pair_non_bonded_hessian,
 )
 from jaxdem.utils.quaternion import Quaternion
-
 
 BACKENDS = ("naive", "CellList", "MultiCellList", "neighbor-cell", "neighbor-multi")
 
@@ -30,9 +31,9 @@ def make_system(
             "max_neighbors": state.N if capacity is None else capacity,
             "cutoff": 2 * float(jnp.max(state.rad, initial=0.0)),
             "skin": 0.1,
-            "secondary_collider_type": "CellList"
-            if backend == "neighbor-cell"
-            else "MultiCellList",
+            "secondary_collider_type": (
+                "CellList" if backend == "neighbor-cell" else "MultiCellList"
+            ),
         }
         backend = "NeighborList"
     if material is None:

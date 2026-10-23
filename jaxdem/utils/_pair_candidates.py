@@ -4,12 +4,13 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import replace
 from functools import partial
 from typing import TYPE_CHECKING, cast
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 
 if TYPE_CHECKING:

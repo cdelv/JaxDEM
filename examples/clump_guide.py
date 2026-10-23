@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""Clumps (Rigid Bodies)
 ----------------------------------------
 
@@ -99,6 +101,7 @@ This guide covers:
 # For a lone sphere ``pos_p = 0``, so ``pos == pos_c``.
 
 import jax.numpy as jnp
+
 import numpy as np
 
 import jaxdem as jdem

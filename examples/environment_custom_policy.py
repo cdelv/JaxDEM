@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Drive vectorized environments with a custom policy
 =====================================================
 
@@ -15,11 +17,12 @@ the controller gains are heuristic and do not establish optimal navigation.
 # %%
 # A policy with no learned or recurrent state
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+import jax
+import jax.numpy as jnp
+
 import tempfile
 from pathlib import Path
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 
 import jaxdem as jdem

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Matched conservative swarm changes using the current action mapping.
 
 Examples::
@@ -18,6 +20,8 @@ new frozen runtime so every configuration uses the same current action map.
 
 from __future__ import annotations
 
+import jax
+
 import argparse
 from contextlib import contextmanager
 import hashlib
@@ -26,11 +30,8 @@ import pickle
 import sys
 from typing import Any, Iterator
 
-import jax
-
 from benchmarks.swarm_mean_shift import run
 from benchmarks.swarm_mean_shift.conservative_variants import make_environment
-
 
 VARIANT_NAMES = tuple(
     f"{variant}_s{spacing}"
@@ -47,15 +48,21 @@ CLI_DEFAULTS = {
 
 
 @contextmanager
-def matched_conservative_runner(*, checkpoint_at: tuple[int, ...] = ()) -> Iterator[Any]:
+def matched_conservative_runner(
+    *, checkpoint_at: tuple[int, ...] = ()
+) -> Iterator[Any]:
     old_factory, old_names = run.make_environment, run.VARIANT_NAMES
     old_hashes, old_evaluate = run.source_hashes, run.evaluate
 
     def hashes(source_experiment: Path) -> dict[str, str | None]:
         result = old_hashes(source_experiment)
         for name in (
-            "conservative_compare.py", "conservative_evaluate.py", "conservative_variants.py",
-            "variants.py", "spacing_evaluate.py", "evaluate_checkpoints.py",
+            "conservative_compare.py",
+            "conservative_evaluate.py",
+            "conservative_variants.py",
+            "variants.py",
+            "spacing_evaluate.py",
+            "evaluate_checkpoints.py",
         ):
             path = Path(__file__).with_name(name).resolve()
             result[str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -67,7 +74,9 @@ def matched_conservative_runner(*, checkpoint_at: tuple[int, ...] = ()) -> Itera
         from benchmarks.swarm_mean_shift.spacing_evaluate import add_spacing_metrics
 
         result = add_spacing_metrics(
-            old_evaluate(trainer, base_env, args, directory, epoch), directory, epoch,
+            old_evaluate(trainer, base_env, args, directory, epoch),
+            directory,
+            epoch,
         )
         if epoch in checkpoint_at:
             for filename, value in (
@@ -102,7 +111,9 @@ def main() -> None:
     original_argv = sys.argv
     sys.argv = [original_argv[0], *defaults, *arguments]
     try:
-        with matched_conservative_runner(checkpoint_at=tuple(extra.checkpoint_at)) as runner:
+        with matched_conservative_runner(
+            checkpoint_at=tuple(extra.checkpoint_at)
+        ) as runner:
             runner.main()
     finally:
         sys.argv = original_argv

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Rigid geometric-asperity clumps: step-by-step pipeline
 =========================================================
 
@@ -35,6 +37,7 @@ but does not establish a mechanically rigid packing.
 # %%
 # Imports
 import jax
+
 import numpy as np
 
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
@@ -197,8 +200,10 @@ print(f"box = {np.asarray(fire_system.domain.box_size)}")
 # ``verlet`` linear + ``verletspiral`` rotation for a standard Newtonian
 # rollout.
 
-import dataclasses
 import jax.numpy as jnp
+
+import dataclasses
+
 from jaxdem.integrators import LinearIntegrator, RotationIntegrator
 
 sim_system = dataclasses.replace(

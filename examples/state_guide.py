@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """The Simulation State
 ----------------------------------------
 
@@ -20,8 +22,9 @@ This guide shows how to create, modify, and extend the simulation state.
 # default values.
 
 import jax
-import jaxdem as jdem
 import jax.numpy as jnp
+
+import jaxdem as jdem
 
 state = jdem.State.create(pos=jnp.array([[0.0, 0.0]]))
 print(f"Dimension of state: {state.dim}")

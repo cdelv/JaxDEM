@@ -4,14 +4,14 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+from jax.typing import ArrayLike
+
 from abc import ABC
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, ClassVar
-
-import jax
-import jax.numpy as jnp
-from jax.typing import ArrayLike
 
 from ...factory import Factory
 
@@ -40,15 +40,15 @@ class Environment(Factory, ABC):
     - Truncated data field: per-agent termination flag
     - Render method
 
-    Example:
+    Example
     --------
     To define a custom environment, inherit from :class:`Environment`. Implement the abstract methods:
 
     >>> @Environment.register("MyCustomEnv")
-    >>> @jax.tree_util.register_dataclass
-    >>> @dataclass(slots=True)
-    >>> class MyCustomEnv(Environment):
-        ...
+    ... @jax.tree_util.register_dataclass
+    ... @dataclass(slots=True)
+    ... class MyCustomEnv(Environment):
+    ...     ...
 
     """
 

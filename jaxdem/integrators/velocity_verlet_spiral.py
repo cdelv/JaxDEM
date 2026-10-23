@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING
-
-import jax
-import jax.numpy as jnp
 
 from ..utils.quaternion import Quaternion
 from . import RotationIntegrator, free_mask

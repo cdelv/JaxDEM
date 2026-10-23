@@ -2,11 +2,12 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Shared contact surfaces retain physical nodes and survive state operations."""
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import fields, replace
 import json
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 

@@ -4,10 +4,11 @@
 
 from __future__ import annotations
 
+import jax
+
 from typing import Any
 
 import distrax  # type: ignore[import-untyped]
-import jax
 from distrax._src.bijectors.bijector import Array  # type: ignore[import-untyped]
 
 from ...factory import Factory
@@ -23,13 +24,13 @@ class ActionSpace(Factory):
     sampling and log-probabilities correctly. See the Distrax/TFP bijector
     interface for details on shape semantics and 'event_ndims_in/out'.
 
-    Example:
+    Example
     --------
     To define a custom action space, inherit from :class:`distrax.Bijector` and :class:`ActionSpace` and implement its abstract methods:
 
     >>> @ActionSpace.register("myCustomActionSpace")
-    >>> class MyCustomActionSpace(distrax.Bijector, ActionSpace):
-            ...
+    ... class MyCustomActionSpace(distrax.Bijector, ActionSpace):
+    ...     ...
 
     """
 

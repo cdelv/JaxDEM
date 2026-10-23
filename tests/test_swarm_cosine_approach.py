@@ -1,7 +1,10 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Opt-in cosine attraction matches the experiment and preserves defaults."""
 
 import jax
 import jax.numpy as jnp
+
 import numpy as np
 import pytest
 
@@ -17,9 +20,13 @@ from jaxdem.utils import advance_action
 
 def _reset(*, kernel="legacy", dim=2, goals=4, agents=4, **kwargs):
     env = SwarmNavigator.Create(
-        N=agents, num_objectives=goals, dim=dim,
-        n_lidar_rays=4, n_lidar_elevation=2,
-        approach_kernel=kernel, **kwargs,
+        N=agents,
+        num_objectives=goals,
+        dim=dim,
+        n_lidar_rays=4,
+        n_lidar_elevation=2,
+        approach_kernel=kernel,
+        **kwargs,
     )
     return env.reset(env, jax.random.key(12))
 
@@ -28,7 +35,10 @@ def _reset(*, kernel="legacy", dim=2, goals=4, agents=4, **kwargs):
 def _default_shared_score(env):
     peers, objectives, ids = SwarmNavigator._sense(env)
     return shared_potential(
-        objectives, peers, ids, env,
+        objectives,
+        peers,
+        ids,
+        env,
         n_elevation=env.n_lidar_elevation if env.state.dim == 3 else None,
     )
 
@@ -36,8 +46,11 @@ def _default_shared_score(env):
 @pytest.mark.parametrize("dim", [2, 3])
 def test_default_and_explicit_legacy_are_bit_exact(dim):
     default = SwarmNavigator.Create(
-        N=4, num_objectives=4, dim=dim,
-        n_lidar_rays=4, n_lidar_elevation=2,
+        N=4,
+        num_objectives=4,
+        dim=dim,
+        n_lidar_rays=4,
+        n_lidar_elevation=2,
     )
     assert default.approach_kernel == "legacy"
     default = default.reset(default, jax.random.key(12))
@@ -46,21 +59,30 @@ def test_default_and_explicit_legacy_are_bit_exact(dim):
         _default_shared_score(default),
         explicit._potential(explicit),
     )
-    np.testing.assert_array_equal(default.observation(default), explicit.observation(explicit))
+    np.testing.assert_array_equal(
+        default.observation(default), explicit.observation(explicit)
+    )
     action = jnp.full((4, dim), 0.2)
     default, _, _ = advance_action(default, action, skip_frames=2)
     explicit, _, _ = advance_action(explicit, action, skip_frames=2)
     np.testing.assert_array_equal(default.state.pos, explicit.state.pos)
     np.testing.assert_array_equal(default.reward(default), explicit.reward(explicit))
-    np.testing.assert_array_equal(default.observation(default), explicit.observation(explicit))
+    np.testing.assert_array_equal(
+        default.observation(default), explicit.observation(explicit)
+    )
 
 
 @pytest.mark.parametrize("dim", [2, 3])
 @pytest.mark.parametrize("scale", [1, 2])
 def test_cosine_exactly_matches_experimental_score_and_action_interval(dim, scale):
     reference = make_environment(
-        f"cosine_s{scale}", N=4, num_objectives=4, dim=dim,
-        n_lidar_rays=4, n_lidar_elevation=2, seed=15,
+        f"cosine_s{scale}",
+        N=4,
+        num_objectives=4,
+        dim=dim,
+        n_lidar_rays=4,
+        n_lidar_elevation=2,
+        seed=15,
     )
     env = _reset(kernel="cosine", dim=dim)
     env.state = jax.tree.map(jnp.array, reference.state)
@@ -71,13 +93,17 @@ def test_cosine_exactly_matches_experimental_score_and_action_interval(dim, scal
         env._potential(env), cosine_shared_potential(objectives, peers, ids, env)
     )
     np.testing.assert_array_equal(env.reward(env), reference.reward(reference))
-    np.testing.assert_array_equal(env.observation(env), reference.observation(reference))
+    np.testing.assert_array_equal(
+        env.observation(env), reference.observation(reference)
+    )
     action = jnp.full((4, dim), 0.2)
     env, _, _ = advance_action(env, action, skip_frames=2)
     reference, _, _ = advance_action(reference, action, skip_frames=2)
     np.testing.assert_array_equal(env.state.pos, reference.state.pos)
     np.testing.assert_array_equal(env.reward(env), reference.reward(reference))
-    np.testing.assert_array_equal(env.observation(env), reference.observation(reference))
+    np.testing.assert_array_equal(
+        env.observation(env), reference.observation(reference)
+    )
 
 
 def test_cosine_does_not_use_the_three_legacy_shape_controls():
@@ -101,7 +127,7 @@ def test_zero_attraction_retains_exact_settling_and_peer_sharing():
     env.approach_kernel = "legacy"
     np.testing.assert_array_equal(env._potential(env), cosine)
     assert np.all(cosine > 0)
-    assert np.all(cosine < np.exp(-(0.5 / 1.5) ** 4))
+    assert np.all(cosine < np.exp(-((0.5 / 1.5) ** 4)))
 
 
 @pytest.mark.parametrize("kernel", ["", "unknown", None])

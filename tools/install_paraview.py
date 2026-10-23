@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Install the pinned official ParaView binary into a disposable/cache directory."""
 
 from __future__ import annotations

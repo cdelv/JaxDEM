@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import dataclass, field, replace
 from functools import partial
 from typing import TYPE_CHECKING, Any
-
-import jax
-import jax.numpy as jnp
 
 from ..utils.linalg import cross, norm2
 from . import Collider, valid_interaction_mask

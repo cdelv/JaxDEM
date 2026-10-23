@@ -3,10 +3,11 @@
 """Correctness gates for benchmark fixtures and timing inputs."""
 
 import jax.numpy as jnp
+
 import numpy as np
 import pytest
-import jaxdem as jd
 
+import jaxdem as jd
 from benchmarks.base import (
     create_clumps_state,
     create_deformable_state,

@@ -4,13 +4,13 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from collections.abc import Callable
 from functools import partial
 from numbers import Integral
 from typing import TYPE_CHECKING, Any
-
-import jax
-import jax.numpy as jnp
 
 from .linalg import norm
 

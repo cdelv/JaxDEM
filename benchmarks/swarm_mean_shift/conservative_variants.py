@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Conservative swarm ablations preserving settling and broad attraction.
 
 The cosine candidate replaces only the baseline's polynomial/exponential
@@ -14,17 +16,15 @@ stay fixed. The caller supplies each condition's episode duration explicitly.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any
-
 import jax
 import jax.numpy as jnp
 
+from dataclasses import dataclass
+from typing import Any
+
 from jaxdem.rl.environments import SwarmNavigator
 from jaxdem.rl.environments._swarm import _peer_geometry
-
 from benchmarks.swarm_mean_shift.variants import vacant_objective_lidar
-
 
 VARIANTS = {
     f"{name}_s{scale}": (float(scale), reward, observation)
@@ -52,7 +52,10 @@ def cosine_shared_potential(
     The baseline's attraction_constant/quadratic/decay have no effect here.
     """
     distance, separation_sq, valid_peer = _peer_geometry(
-        lidar_obj, lidar, peer_ids, env,
+        lidar_obj,
+        lidar,
+        peer_ids,
+        env,
         env.n_lidar_elevation if env.state.dim == 3 else None,
     )
     valid_objective = lidar_obj > 0
@@ -101,7 +104,10 @@ class ConservativeSwarmNavigator(SwarmNavigator):
         if spacing_scale not in (1.0, 2.0):
             raise ValueError("spacing_scale must be 1 or 2")
         env = SwarmNavigator.Create.__func__(
-            cls, box_size=box_size, box_padding=box_padding, **kwargs,
+            cls,
+            box_size=box_size,
+            box_padding=box_padding,
+            **kwargs,
         )
         env.reward_mode = reward_mode
         env.observation_mode = observation_mode
@@ -149,7 +155,10 @@ class ConservativeSwarmNavigator(SwarmNavigator):
     @staticmethod
     @jax.jit(inline=True)
     def reward(env: ConservativeSwarmNavigator) -> jax.Array:
-        return ConservativeSwarmNavigator._potential(env) - env.env_params["prev_potential"]
+        return (
+            ConservativeSwarmNavigator._potential(env)
+            - env.env_params["prev_potential"]
+        )
 
     @staticmethod
     @jax.jit
@@ -159,7 +168,8 @@ class ConservativeSwarmNavigator(SwarmNavigator):
         peers, _, _ = SwarmNavigator._sense(env)
         lr = env.env_params["lidar_range"]
         return jnp.concatenate(
-            [env.state.vel, vacant_objective_lidar(env) / lr, peers / lr], axis=-1,
+            [env.state.vel, vacant_objective_lidar(env) / lr, peers / lr],
+            axis=-1,
         )
 
 
@@ -176,8 +186,13 @@ def make_environment(
         raise ValueError(f"Unknown variant {variant!r}; expected {VARIANT_NAMES}")
     spacing, reward, observation = VARIANTS[variant]
     env = ConservativeSwarmNavigator.Create(
-        spacing_scale=spacing, reward_mode=reward, observation_mode=observation,
-        N=N, num_objectives=num_objectives, max_steps=max_steps, **kwargs,
+        spacing_scale=spacing,
+        reward_mode=reward,
+        observation_mode=observation,
+        N=N,
+        num_objectives=num_objectives,
+        max_steps=max_steps,
+        **kwargs,
     )
     if seed is not None:
         env = env.reset(env, jax.random.key(seed))

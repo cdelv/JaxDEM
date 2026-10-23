@@ -4,21 +4,15 @@
 
 from __future__ import annotations
 
+import jax
+
 import warnings
 from abc import ABC
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
 from inspect import signature
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    ClassVar,
-    TypeVar,
-    cast,
-)
-
-import jax
+from typing import TYPE_CHECKING, Any, ClassVar, TypeVar, cast
 
 # TypeVars for type-preserving decorators & methods
 RootT = TypeVar("RootT", bound="Factory")
@@ -43,29 +37,29 @@ def _normalize_key(key: str) -> str:
 class Factory(ABC):
     """Base class for components that register and create subclasses by a string key.
 
-    Notes:
+    Notes
     ------
     Each concrete subclass gets its own private registry. The factory
     normalizes keys before use: lookup is case-insensitive and ignores spaces,
     underscores, and hyphens (``"CellList"``, ``"cell_list"``, and
     ``"celllist"`` are the same key).
 
-    Example:
+    Example
     --------
     Use Factory as a base class for a specific component type (e.g., `Foo`):
 
     >>> class Foo(Factory, ABC):
-    >>>   ...
+    ...     ...
 
     Register a concrete subclass of `Foo`:
 
     >>> @Foo.register("bar")
-    >>> class bar:
-    >>>     ...
+    ... class Bar(Foo):
+    ...     ...
 
     To create an instance of the subclass:
 
-    >>> Foo.create("bar", **bar_kw)
+    >>> component = Foo.create("bar")
 
     """
 
@@ -275,14 +269,14 @@ class Factory(ABC):
         Register a class named "MyComponent" under the key "mycomp":
 
         >>> @MyFactory.register("mycomp")
-        >>> class MyComponent:
-        >>>     ...
+        ... class MyComponent(MyFactory):
+        ...     ...
 
         Register a class named "DefaultComponent" using its own name as the key:
 
         >>> @MyFactory.register()
-        >>> class DefaultComponent:
-        >>>     ...
+        ... class DefaultComponent(MyFactory):
+        ...     ...
 
         """
 

@@ -4,12 +4,13 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import math
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 from numpy.typing import NDArray
 

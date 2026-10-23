@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Packing-fraction protocol: integrate with a scheduled box rescale
 ======================================================================
 
@@ -29,6 +31,7 @@ import jax
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
 import jax.numpy as jnp
+
 import matplotlib.pyplot as plt
 import numpy as np
 

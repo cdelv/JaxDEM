@@ -4,10 +4,10 @@
 
 from __future__ import annotations
 
+import jax
+
 import dataclasses
 from typing import TYPE_CHECKING, Any
-
-import jax
 
 if not hasattr(jax.tree, "static"):
 

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Matched N=64 comparisons of the original and 20% wider objective mask.
 
 Run each spacing separately inside a frozen runtime. Original spacing defaults
@@ -7,6 +9,9 @@ checkpoint is also evaluated with twice its ordinary episode time.
 """
 
 from __future__ import annotations
+
+import jax
+import jax.numpy as jnp
 
 import argparse
 from contextlib import contextmanager
@@ -18,13 +23,9 @@ from pathlib import Path
 import sys
 from typing import Any, Iterator
 
-import jax
-import jax.numpy as jnp
-
 from benchmarks.swarm_mean_shift import run
 from benchmarks.swarm_mean_shift.conservative_variants import ConservativeSwarmNavigator
 from benchmarks.swarm_mean_shift.spacing_evaluate import add_spacing_metrics
-
 
 VARIANTS = {
     f"{family}_s{spacing}": (spacing, radius)
@@ -71,10 +72,18 @@ def checked_environment(variant: str, **kwargs: Any) -> ConservativeSwarmNavigat
     if variant not in VARIANTS:
         raise ValueError(f"Unknown masking-radius variant: {variant!r}")
     metadata = variant_metadata(variant)
-    controls = {name: metadata[name] for name in (
-        "occupancy_radius_scale", "spacing_scale", "hide_occupied_objectives",
-        "vacancy_aware_lidar", "approach_kernel", "reward_mode", "observation_mode",
-    )}
+    controls = {
+        name: metadata[name]
+        for name in (
+            "occupancy_radius_scale",
+            "spacing_scale",
+            "hide_occupied_objectives",
+            "vacancy_aware_lidar",
+            "approach_kernel",
+            "reward_mode",
+            "observation_mode",
+        )
+    }
     for name, expected in controls.items():
         if name in kwargs and kwargs.pop(name) != expected:
             raise ValueError(f"{name} is fixed at {expected!r} for {variant}")
@@ -90,8 +99,11 @@ def verify_environment(env: Any, variant: str) -> None:
         if not isclose(actual, float(expected[name]), rel_tol=1e-6, abs_tol=1e-8):
             raise ValueError(f"Actual {variant} {name} differs: {actual}")
     for name in (
-        "spacing_scale", "vacancy_aware_lidar", "approach_kernel",
-        "reward_mode", "observation_mode",
+        "spacing_scale",
+        "vacancy_aware_lidar",
+        "approach_kernel",
+        "reward_mode",
+        "observation_mode",
     ):
         if getattr(env, name) != expected[name]:
             raise ValueError(f"Actual {variant} {name} differs")
@@ -120,15 +132,21 @@ def matched_radius_runner(*, skip_completed: bool = False) -> Iterator[Any]:
                 f"Evaluation stopped before its requested horizon: "
                 f"steps={minimum}..{maximum}, expected={expected}"
             )
-        observed_endpoints.append({
-            "endpoint_physics_step_count_min": minimum,
-            "endpoint_physics_step_count_max": maximum,
-            "requested_endpoint_physics_steps": expected,
-        })
+        observed_endpoints.append(
+            {
+                "endpoint_physics_step_count_min": minimum,
+                "endpoint_physics_step_count_max": maximum,
+                "requested_endpoint_physics_steps": expected,
+            }
+        )
         return endpoint, model_state, metrics
 
     def evaluate_once(
-        trainer: Any, env: Any, args: Any, directory: Path, epoch: int,
+        trainer: Any,
+        env: Any,
+        args: Any,
+        directory: Path,
+        epoch: int,
     ) -> dict[str, Any]:
         observed_endpoints.clear()
         result = old_evaluate(trainer, env, args, directory, epoch)
@@ -140,28 +158,40 @@ def matched_radius_runner(*, skip_completed: bool = False) -> Iterator[Any]:
     def hashes(source_experiment: Path) -> dict[str, str | None]:
         result = old_hashes(source_experiment)
         for name in (
-            "mask_radius_compare.py", "conservative_variants.py", "spacing_evaluate.py",
+            "mask_radius_compare.py",
+            "conservative_variants.py",
+            "spacing_evaluate.py",
         ):
             path = Path(__file__).with_name(name).resolve()
             result[str(path)] = hashlib.sha256(path.read_bytes()).hexdigest()
         return result
 
     def evaluate_with_extended_time(
-        trainer: Any, base_env: Any, args: Any, directory: Path, epoch: int,
+        trainer: Any,
+        base_env: Any,
+        args: Any,
+        directory: Path,
+        epoch: int,
     ) -> dict[str, Any]:
         verify_environment(base_env, args.variant)
         actual_entropy = float(jax.device_get(trainer.ppo_entropy_coeff))
-        if not isclose(actual_entropy, args.ppo_entropy_coeff, rel_tol=1e-6, abs_tol=1e-10):
-            raise ValueError(f"Unexpected actual PPO entropy coefficient: {actual_entropy}")
+        if not isclose(
+            actual_entropy, args.ppo_entropy_coeff, rel_tol=1e-6, abs_tol=1e-10
+        ):
+            raise ValueError(
+                f"Unexpected actual PPO entropy coefficient: {actual_entropy}"
+            )
         config_path = directory / "config.json"
         config = json.loads(config_path.read_text())
-        config.update({
-            "actual_occupancy_radius_scale": float(jax.device_get(
-                base_env.env_params["occupancy_radius_scale"]
-            )),
-            "actual_ppo_entropy_coeff": actual_entropy,
-            "actual_environment_controls_verified": True,
-        })
+        config.update(
+            {
+                "actual_occupancy_radius_scale": float(
+                    jax.device_get(base_env.env_params["occupancy_radius_scale"])
+                ),
+                "actual_ppo_entropy_coeff": actual_entropy,
+                "actual_environment_controls_verified": True,
+            }
+        )
         _write_json(config_path, config)
         result = evaluate_once(trainer, base_env, args, directory, epoch)
         if epoch == args.epochs:
@@ -170,7 +200,8 @@ def matched_radius_runner(*, skip_completed: bool = False) -> Iterator[Any]:
             extended_args.max_physics_steps = 2 * args.max_physics_steps
             extended_env = jax.tree.map(lambda leaf: leaf, base_env)
             extended_env.env_params["max_steps"] = jnp.asarray(
-                extended_args.max_physics_steps, dtype=base_env.env_params["max_steps"].dtype,
+                extended_args.max_physics_steps,
+                dtype=base_env.env_params["max_steps"].dtype,
             )
             extended_dir = directory / "extended"
             extended_dir.mkdir()
@@ -183,7 +214,9 @@ def matched_radius_runner(*, skip_completed: bool = False) -> Iterator[Any]:
                 "checkpoint_run": str(directory),
             }
             _write_json(extended_dir / "config.json", extended_config)
-            extended = evaluate_once(trainer, extended_env, extended_args, extended_dir, epoch)
+            extended = evaluate_once(
+                trainer, extended_env, extended_args, extended_dir, epoch
+            )
             if extended["layout_sha256"] != result["layout_sha256"]:
                 raise ValueError("Extended evaluation changed the initial layouts")
             _write_json(extended_dir / "result.json", extended)
@@ -197,7 +230,10 @@ def matched_radius_runner(*, skip_completed: bool = False) -> Iterator[Any]:
         return result
 
     def run_with_metadata(
-        args: Any, variant: str, seed: int, graphdefs: dict[str, Any],
+        args: Any,
+        variant: str,
+        seed: int,
+        graphdefs: dict[str, Any],
     ) -> dict[str, Any]:
         metadata = {**variant_metadata(variant), "variant": variant}
         missing = object()
@@ -209,11 +245,14 @@ def matched_radius_runner(*, skip_completed: bool = False) -> Iterator[Any]:
             if skip_completed and (directory / "result.json").exists():
                 config = json.loads((directory / "config.json").read_text())
                 expected_config = vars(args).copy()
-                expected_config.update({
-                    "seed": seed, "output": str(args.output),
-                    "source_experiment": str(args.source_experiment),
-                    "source_hashes": hashes(args.source_experiment),
-                })
+                expected_config.update(
+                    {
+                        "seed": seed,
+                        "output": str(args.output),
+                        "source_experiment": str(args.source_experiment),
+                        "source_hashes": hashes(args.source_experiment),
+                    }
+                )
                 for key, expected in expected_config.items():
                     if config.get(key) != expected:
                         raise ValueError(f"Cannot resume {directory}: mismatched {key}")
@@ -224,18 +263,31 @@ def matched_radius_runner(*, skip_completed: bool = False) -> Iterator[Any]:
                     directory / "extended" / f"evaluation_epoch_{args.epochs:04d}.npz",
                 ]
                 if args.checkpoint:
-                    required.extend(directory / name for name in (
-                        "graphstate.pkl", "trainer_leaves.pkl",
-                    ))
+                    required.extend(
+                        directory / name
+                        for name in (
+                            "graphstate.pkl",
+                            "trainer_leaves.pkl",
+                        )
+                    )
                 if not all(path.exists() for path in required):
-                    raise ValueError(f"Cannot resume {directory}: missing completed-run artifacts")
+                    raise ValueError(
+                        f"Cannot resume {directory}: missing completed-run artifacts"
+                    )
                 if not (
-                    result["epochs"] == args.epochs and result["parameters_finite"]
-                    and result["physical_state_finite"] and not result["collider_overflow"]
+                    result["epochs"] == args.epochs
+                    and result["parameters_finite"]
+                    and result["physical_state_finite"]
+                    and not result["collider_overflow"]
                     and result["final_evaluation"]["extended_evaluation"]
                 ):
-                    raise ValueError(f"Cannot resume {directory}: incomplete or invalid result")
-                print(json.dumps({"event": "skip_completed", "run": directory.name}), flush=True)
+                    raise ValueError(
+                        f"Cannot resume {directory}: incomplete or invalid result"
+                    )
+                print(
+                    json.dumps({"event": "skip_completed", "run": directory.name}),
+                    flush=True,
+                )
                 return result
             return old_run_one(args, variant, seed, graphdefs)
         finally:
@@ -246,13 +298,21 @@ def matched_radius_runner(*, skip_completed: bool = False) -> Iterator[Any]:
                     setattr(args, key, value)
 
     run.make_environment, run.VARIANT_NAMES = checked_environment, VARIANT_NAMES
-    run.source_hashes, run.evaluate, run.run_one = hashes, evaluate_with_extended_time, run_with_metadata
+    run.source_hashes, run.evaluate, run.run_one = (
+        hashes,
+        evaluate_with_extended_time,
+        run_with_metadata,
+    )
     run.evaluation_rollout = observed_rollout
     try:
         yield run
     finally:
         run.make_environment, run.VARIANT_NAMES = old_factory, old_names
-        run.source_hashes, run.evaluate, run.run_one = old_hashes, old_evaluate, old_run_one
+        run.source_hashes, run.evaluate, run.run_one = (
+            old_hashes,
+            old_evaluate,
+            old_run_one,
+        )
         run.evaluation_rollout = old_rollout
 
 
@@ -270,7 +330,9 @@ def main() -> None:
         with matched_radius_runner(skip_completed=extra.skip_completed) as runner:
             args = runner.parse_args()
             if len({VARIANTS[name][0] for name in args.variants}) != 1:
-                parser.error("Train each spacing separately with its explicit duration and training budget")
+                parser.error(
+                    "Train each spacing separately with its explicit duration and training budget"
+                )
             args.output.mkdir(parents=True, exist_ok=True)
             graphdefs: dict[str, Any] = {}
             # Alternate conditions within each seed to reduce run-order drift.

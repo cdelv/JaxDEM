@@ -1,8 +1,11 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Incomplete neighbor lists must never certify mechanical equilibrium."""
+
+import jax.numpy as jnp
 
 from dataclasses import replace
 
-import jax.numpy as jnp
 import optax
 import pytest
 

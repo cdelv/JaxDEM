@@ -2,14 +2,15 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Apply action-space bijectors to contiguous parts of one action vector."""
 
+import jax
+import jax.numpy as jnp
+
 from collections.abc import Sequence
 from functools import partial
 from itertools import accumulate
 from typing import cast
 
 import distrax  # type: ignore[import-untyped]
-import jax
-import jax.numpy as jnp
 import numpy as np
 from distrax._src.bijectors.bijector import Array  # type: ignore[import-untyped]
 

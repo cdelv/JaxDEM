@@ -4,14 +4,14 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import math
 from collections.abc import Callable
 from dataclasses import dataclass, fields
 from functools import partial
 from typing import Any, cast
-
-import jax
-import jax.numpy as jnp
 
 from ..environments import Environment
 from ...utils.environment import _mask_agent_actions
@@ -52,8 +52,8 @@ def _wrap_env(
     """
     cls = env.__class__
     key = (cls, prefix, cache_key)
-    NewCls = _WRAP_CACHE.get(key)
-    if NewCls is None:
+    new_cls = _WRAP_CACHE.get(key)
+    if new_cls is None:
         name_space: dict[str, object] = {}
 
         # Walk the MRO so inherited staticmethods (e.g. ``reset_if_done``,
@@ -67,18 +67,18 @@ def _wrap_env(
                     name_space[name] = staticmethod(new_func)
 
         # Customizable name
-        NewCls = type(f"{prefix}{cls.__name__}", (cls,), name_space)
-        NewCls = dataclass(slots=True)(NewCls)
-        NewCls = jax.tree_util.register_dataclass(NewCls)
+        new_cls = type(f"{prefix}{cls.__name__}", (cls,), name_space)
+        new_cls = dataclass(slots=True)(new_cls)
+        new_cls = jax.tree_util.register_dataclass(new_cls)
 
         # Remember the scalar base class
         # Preserve the original base class if already wrapped
         base_cls = getattr(cls, "_base_env_cls", cls)
-        cast(Any, NewCls)._base_env_cls = base_cls
-        _WRAP_CACHE[key] = NewCls
+        cast(Any, new_cls)._base_env_cls = base_cls
+        _WRAP_CACHE[key] = new_cls
 
     field_vals = {f.name: getattr(env, f.name) for f in fields(env)}
-    return cast(Any, NewCls)(**field_vals)
+    return cast(Any, new_cls)(**field_vals)
 
 
 @partial(jax.named_call, name="env_wrappers.vectorise_env")
@@ -135,9 +135,13 @@ def clip_action_env(
         if name in {"step", "checkpoint"}:
 
             @jax.jit
-            def clipped_action_call(env_obj: Environment, action: jax.Array) -> Environment:
+            def clipped_action_call(
+                env_obj: Environment, action: jax.Array
+            ) -> Environment:
                 if not jnp.issubdtype(action.dtype, jnp.floating):
-                    raise TypeError("clip_action_env requires continuous floating-point actions")
+                    raise TypeError(
+                        "clip_action_env requires continuous floating-point actions"
+                    )
                 clipped_action = _mask_agent_actions(
                     jnp.clip(action, min_val, max_val), agent_mask_fn(env_obj)
                 )

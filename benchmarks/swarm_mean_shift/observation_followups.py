@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Test vacancy guidance without discarding the baseline's observation.
 
 Run with the unchanged matched PPO settings::
@@ -18,6 +20,9 @@ of the paper's controller.
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from contextlib import contextmanager
 from dataclasses import dataclass
 import hashlib
@@ -25,13 +30,8 @@ from pathlib import Path
 import sys
 from typing import Any, Iterator
 
-import jax
-import jax.numpy as jnp
-
 from jaxdem.rl.environments import SwarmNavigator
-
 from benchmarks.swarm_mean_shift.variants import paper_vacancy_features
-
 
 FOLLOWUP_NAMES = ("paper_augmented",)
 
@@ -66,7 +66,9 @@ def make_followup_environment(
 ) -> PaperAugmentedNavigator:
     """Match the frozen runner's factory signature without editing its files."""
     if variant not in FOLLOWUP_NAMES:
-        raise ValueError(f"Unknown follow-up {variant!r}; expected one of {FOLLOWUP_NAMES}")
+        raise ValueError(
+            f"Unknown follow-up {variant!r}; expected one of {FOLLOWUP_NAMES}"
+        )
     env = PaperAugmentedNavigator.Create(
         N=N, num_objectives=num_objectives, max_steps=max_steps, **kwargs
     )
@@ -103,7 +105,9 @@ def matched_followup_runner() -> Iterator[Any]:
 
 def main() -> None:
     original_argv = sys.argv
-    if not any(arg == "--variants" or arg.startswith("--variants=") for arg in sys.argv[1:]):
+    if not any(
+        arg == "--variants" or arg.startswith("--variants=") for arg in sys.argv[1:]
+    ):
         sys.argv = [sys.argv[0], "--variants", *FOLLOWUP_NAMES, *sys.argv[1:]]
     try:
         with matched_followup_runner() as runner:

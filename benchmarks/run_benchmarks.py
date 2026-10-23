@@ -1,5 +1,9 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Discover benchmark functions, validate outputs, and record timed results."""
+
+import jax
+
 import importlib
 import inspect
 import sys
@@ -7,7 +11,6 @@ import timeit
 from pathlib import Path
 from typing import Any, Callable
 
-import jax
 import numpy as np
 
 # Ensure current directory is in sys.path

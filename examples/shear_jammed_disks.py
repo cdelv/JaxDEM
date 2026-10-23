@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Quasistatic shear of a small jammed disk packing
 ===================================================
 
@@ -19,11 +21,13 @@ can be studied by extending the run and checking strain-step and force-tolerance
 convergence. A rearrangement is not promised for this short deterministic run.
 """
 
-from dataclasses import replace
-
 import jax
 import jax.numpy as jnp
+
+from dataclasses import replace
+
 import numpy as np
+
 import jaxdem as jdem
 from jaxdem.utils.contacts import compute_contact_stress_tensor
 from jaxdem.utils.packing_utils import scale_to_packing_fraction

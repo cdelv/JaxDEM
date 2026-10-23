@@ -1,10 +1,12 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Shared file-level serialization schema for Orbax and HDF5 payloads."""
 
 from __future__ import annotations
 
-from typing import Any
-
 import jax
+
+from typing import Any
 
 SCHEMA_NAME = "jaxdem.serialization"
 CURRENT_SCHEMA_VERSION = 3

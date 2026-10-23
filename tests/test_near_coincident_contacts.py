@@ -5,10 +5,10 @@
 from __future__ import annotations
 
 import jax.numpy as jnp
+
 import numpy as np
 
 import jaxdem as jd
-
 
 _SEPARATION = np.array([3.0e-10, 4.0e-10])
 _DISTANCE = 5.0e-10

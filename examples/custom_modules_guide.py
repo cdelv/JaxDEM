@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""Custom Module Registration and System Usage
 -------------------------------------------------
 
@@ -35,12 +37,14 @@ This guide shows how to:
 # - custom :py:class:`~jaxdem.integrators.LinearIntegrator` and
 #   :py:class:`~jaxdem.integrators.RotationIntegrator` implementations
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import dataclass
 from typing import cast
 
-import jax
-import jax.numpy as jnp
 import numpy as np
+
 import jaxdem as jdem
 
 # %%

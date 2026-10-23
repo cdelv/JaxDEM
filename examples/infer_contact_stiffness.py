@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Infer contact stiffness from observed trajectories
 ==================================================
 
@@ -50,10 +52,11 @@ the optimizer: ``python -m pip install matplotlib scipy``.
 # <https://docs.jax.dev/en/latest/automatic-differentiation.html>`_ for the
 # underlying ``value_and_grad`` transformation.
 
-from dataclasses import replace
-
 import jax
 import jax.numpy as jnp
+
+from dataclasses import replace
+
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import minimize

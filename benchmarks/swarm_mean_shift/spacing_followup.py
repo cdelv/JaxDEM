@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Matched N=64 follow-up with every initial distance doubled.
 
 The original seeded 20-unit objective box and 10-unit padding ring are sampled
@@ -19,6 +21,9 @@ also doubles to 4320 epochs, preserving its progress per completed episode.
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from contextlib import contextmanager
 from dataclasses import dataclass
 import hashlib
@@ -28,13 +33,8 @@ import pickle
 import sys
 from typing import Any, Iterator
 
-import jax
-import jax.numpy as jnp
-
 from jaxdem.rl.environments import SwarmNavigator
-
 from benchmarks.swarm_mean_shift import variants
-
 
 FOLLOWUP_NAMES = ("spacing_baseline", "spacing_rational_delta")
 CLI_DEFAULTS = {
@@ -136,7 +136,10 @@ def make_followup_environment(
         raise ValueError(f"Unknown follow-up {variant!r}; expected {FOLLOWUP_NAMES}")
     env = SpacingFollowupNavigator.Create(
         reward_mode="baseline" if variant == "spacing_baseline" else "rational_delta",
-        N=N, num_objectives=num_objectives, max_steps=max_steps, **kwargs,
+        N=N,
+        num_objectives=num_objectives,
+        max_steps=max_steps,
+        **kwargs,
     )
     if seed is not None:
         env = env.reset(env, jax.random.key(seed))
@@ -167,7 +170,9 @@ def matched_followup_runner(*, checkpoint_at_120: bool = False) -> Iterator[Any]
             hashes[str(source)] = hashlib.sha256(source.read_bytes()).hexdigest()
         return hashes
 
-    def evaluate_with_checkpoint(tr: Any, base_env: Any, args: Any, directory: Path, epoch: int):
+    def evaluate_with_checkpoint(
+        tr: Any, base_env: Any, args: Any, directory: Path, epoch: int
+    ):
         from benchmarks.swarm_mean_shift.spacing_evaluate import add_spacing_metrics
 
         result = original_evaluate(tr, base_env, args, directory, epoch)

@@ -4,11 +4,12 @@
 
 from __future__ import annotations
 
+import jax.numpy as jnp
+
 import threading
 from types import SimpleNamespace
 from typing import Any
 
-import jax.numpy as jnp
 import pytest
 
 import jaxdem as jdem

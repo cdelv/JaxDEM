@@ -4,14 +4,14 @@ r"""Cell List :math:`O(N \log N)` collider implementation."""
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+from jax.typing import ArrayLike
+
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, cast
-
-import jax
-import jax.numpy as jnp
-from jax.typing import ArrayLike
 
 try:  # Python 3.11+
     from typing import Self

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""Force Models
 ----------------------------------------
 
@@ -20,12 +22,14 @@ This guide covers:
 # You choose the force model with the ``force_model_type`` string when
 # creating a :py:class:`~jaxdem.system.System`:
 
-from dataclasses import dataclass
-
 import jax
 import jax.numpy as jnp
+
+from dataclasses import dataclass
+
 import matplotlib.pyplot as plt
 import numpy as np
+
 import jaxdem as jdem
 
 state = jdem.State.create(

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""Rigid, elastic and viscoplastic grains under the same load
 ==========================================================
 
@@ -53,12 +55,13 @@ This example additionally requires Matplotlib for plotting:
 # elastic reference history. A finite-time residual shape demonstrates
 # memory; its value also depends on the subsequent recovery time.
 
-from functools import partial
-
 import jax
 import jax.numpy as jnp
-import matplotlib.pyplot as plt
+
+from functools import partial
 import os
+
+import matplotlib.pyplot as plt
 import numpy as np
 
 import jaxdem as jdem

@@ -1,9 +1,12 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Shared swarm coverage semantics and navigator geometry."""
-
-from types import SimpleNamespace
 
 import jax
 import jax.numpy as jnp
+
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 

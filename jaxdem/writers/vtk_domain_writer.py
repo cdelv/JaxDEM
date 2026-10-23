@@ -7,9 +7,9 @@ from __future__ import annotations
 import jax
 
 from pathlib import Path
-from typing import TYPE_CHECKING
 from dataclasses import dataclass
 from functools import partial
+from typing import TYPE_CHECKING
 
 import numpy as np
 

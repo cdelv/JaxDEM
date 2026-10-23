@@ -4,6 +4,9 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import logging
 import warnings
 from dataclasses import dataclass, field
@@ -11,9 +14,6 @@ from functools import partial
 from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Literal
-
-import jax
-import jax.numpy as jnp
 
 try:  # Python 3.11+
     from typing import Self

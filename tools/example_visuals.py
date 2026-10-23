@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Generate documentation media from the just-executed Sphinx-Gallery example.
 
 ParaView reads actual VTKWriter collections. There is deliberately no media

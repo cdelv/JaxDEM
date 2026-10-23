@@ -1,10 +1,13 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Shared Orbax/HDF5 serialization schema contracts."""
+
+import jax
+import jax.numpy as jnp
 
 import json
 
 import h5py
-import jax
-import jax.numpy as jnp
 import orbax.checkpoint as ocp
 import pytest
 import numpy as np

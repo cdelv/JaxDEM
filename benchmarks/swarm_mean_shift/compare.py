@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """One entry point for the matched screen and isolated follow-up variants."""
 
 from __future__ import annotations

@@ -6,12 +6,13 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 from jax.typing import ArrayLike
 
-from typing import TYPE_CHECKING
 from collections.abc import Sequence
 from functools import partial
+from typing import TYPE_CHECKING
+
+import numpy as np
 
 if TYPE_CHECKING:
     from ..state import State

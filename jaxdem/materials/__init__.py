@@ -4,9 +4,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import jax
+
+from dataclasses import dataclass
 
 from ..factory import Factory
 
@@ -20,19 +20,19 @@ class Material(Factory):
     for the physical properties of a material. The :class:`MaterialTable <jaxdem.materials.material_table.MaterialTable>`
     collects and manages these fields.
 
-    Notes:
+    Notes
     ------
     - Each field of a concrete `Material` subclass becomes a named property in the :attr:`MaterialTable.props <jaxdem.materials.material_table.MaterialTable.props>` dictionary.
 
-    Example:
+    Example
     --------
     To define a custom material, inherit from `Material`
 
     >>> @Material.register("my_custom_material")
-    >>> @jax.tree_util.register_dataclass
-    >>> @dataclass(slots=True)
-    >>> class MyCustomMaterial(Material):
-            ...
+    ... @jax.tree_util.register_dataclass
+    ... @dataclass(slots=True)
+    ... class MyCustomMaterial(Material):
+    ...     ...
 
     """
 

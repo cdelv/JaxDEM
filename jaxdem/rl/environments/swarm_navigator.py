@@ -4,14 +4,14 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+from jax.typing import ArrayLike
+
 from dataclasses import dataclass
 from functools import partial
 from math import isfinite
 from numbers import Integral
-
-import jax
-import jax.numpy as jnp
-from jax.typing import ArrayLike
 
 from ...material_matchmakers import MaterialMatchmaker
 from ...materials import Material, MaterialTable

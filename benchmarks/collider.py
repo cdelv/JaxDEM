@@ -1,8 +1,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-from typing import Any, Callable
+"""Benchmark collider force accumulation and neighbor searches."""
 
 import jax
+
+from typing import Any, Callable
+
 import jaxdem as jdem
 from benchmarks.base import SkipBenchmark, get_state_factory
 

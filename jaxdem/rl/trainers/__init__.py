@@ -4,15 +4,16 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+from jax.typing import ArrayLike
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any
 
-import jax
-import jax.numpy as jnp
 from flax import nnx
-from jax.typing import ArrayLike
 
 from ...factory import Factory
 from ...utils.environment import _mask_agent_actions, advance_action
@@ -98,15 +99,15 @@ class Trainer(Factory, ABC):
     a general advantage method (:meth:`compute_advantages`).
     Subclasses must implement algorithm-specific training logic in :meth:`epoch`.
 
-    Example:
+    Example
     --------
     To define a custom trainer, inherit from :class:`Trainer` and implement its abstract methods:
 
     >>> @Trainer.register("myCustomTrainer")
-    >>> @jax.tree_util.register_dataclass
-    >>> @dataclass(slots=True)
-    >>> class MyCustomTrainer(Trainer):
-            ...
+    ... @jax.tree_util.register_dataclass
+    ... @dataclass(slots=True)
+    ... class MyCustomTrainer(Trainer):
+    ...     ...
 
     """
 
@@ -232,9 +233,7 @@ class Trainer(Factory, ABC):
         def evaluate_truncation(_: None) -> jax.Array:
             # Bootstrap evaluation must not mutate the live rollout carry.
             # Copy variables here so they belong to this conditional trace.
-            boot_model, *_ = nnx.merge(
-                graphdef, nnx.state((model, *rest)), copy=True
-            )
+            boot_model, *_ = nnx.merge(graphdef, nnx.state((model, *rest)), copy=True)
             boot_model.eval()
             _, bootstrap = boot_model(env.observation(env), sequence=False)
             return jnp.squeeze(bootstrap, -1)

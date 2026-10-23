@@ -1,8 +1,11 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Known geometry, sampling rules and reconstruction of asperity meshes."""
 
 from __future__ import annotations
 
 import jax.numpy as jnp
+
 import numpy as np
 import pytest
 
@@ -17,7 +20,6 @@ from jaxdem.utils import (
 )
 from jaxdem.utils.meshes import dimensionless_overlap_energy
 from jaxdem.utils.particle_creation import create_ga_state
-
 
 # ---------------------------------------------------------------- icosphere
 

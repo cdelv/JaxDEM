@@ -4,12 +4,11 @@
 
 from __future__ import annotations
 
-import dataclasses
-
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
+import dataclasses
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Self, cast
 

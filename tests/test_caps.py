@@ -2,11 +2,12 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """CAPS respects action transforms, recurrent history, and PPO boundaries."""
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import replace
 
 import distrax
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 from flax import nnx

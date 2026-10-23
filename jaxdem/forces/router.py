@@ -4,21 +4,21 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import dataclasses
 import math
 from dataclasses import dataclass, field
 from functools import partial
 from typing import TYPE_CHECKING, cast
 
-import jax
-import jax.numpy as jnp
+from . import ForceModel
+from .law_combiner import LawCombiner
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
-
-from . import ForceModel
-from .law_combiner import LawCombiner
 
 
 @ForceModel.register("forcerouter")

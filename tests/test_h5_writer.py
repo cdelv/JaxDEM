@@ -1,12 +1,15 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Asynchronous HDF5 snapshots preserve simulation data and restart behavior."""
+
+import jax
+import jax.numpy as jnp
 
 import hashlib
 import json
 import threading
 
 import h5py
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 

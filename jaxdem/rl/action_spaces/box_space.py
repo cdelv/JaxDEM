@@ -2,12 +2,13 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Bijector that constrains actions elementwise to a box."""
 
+import jax
+import jax.numpy as jnp
+
 from functools import partial
 import math
 
 import distrax  # type: ignore[import-untyped]
-import jax
-import jax.numpy as jnp
 import numpy as np
 from distrax._src.bijectors.bijector import Array  # type: ignore[import-untyped]
 

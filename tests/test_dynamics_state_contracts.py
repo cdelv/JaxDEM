@@ -1,13 +1,16 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Focused contracts for stepping, state validation, and thermal reductions."""
 
 from __future__ import annotations
+
+import jax
+import jax.numpy as jnp
 
 import dataclasses
 import subprocess
 import sys
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 

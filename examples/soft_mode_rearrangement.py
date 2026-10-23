@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""Watch a soft mode develop into a rearrangement
 ==============================================
 
@@ -62,12 +64,13 @@ event strain and alignment are not universal material constants.
 # energy drop. A continuously vanishing eigenvalue at every rearrangement
 # is not an assumption of the example.
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import replace
 import json
 from pathlib import Path
 
-import jax
-import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 

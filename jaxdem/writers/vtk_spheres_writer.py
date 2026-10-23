@@ -8,8 +8,8 @@ import jax
 
 from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import TYPE_CHECKING
 from functools import partial
+from typing import TYPE_CHECKING
 
 import numpy as np
 

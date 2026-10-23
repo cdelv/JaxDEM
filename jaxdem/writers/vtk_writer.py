@@ -6,12 +6,13 @@ from __future__ import annotations
 
 import jax
 
-import numpy as np
 import threading
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
 import xml.etree.ElementTree as ET
+
+import numpy as np
 
 from ..factory import _normalize_key
 from .async_base import BaseAsyncWriter

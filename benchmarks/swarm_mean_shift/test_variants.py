@@ -1,9 +1,12 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Semantic checks for the experimental reward/sensor changes."""
-
-from types import SimpleNamespace
 
 import jax
 import jax.numpy as jnp
+
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 
@@ -59,7 +62,13 @@ def test_variants_preserve_jax_tree_and_return_finite_features(variant, features
     stepped, _, _ = advance_action(env, action, skip_frames=1)
     assert jax.tree.structure(stepped) == structure
     assert np.isfinite(stepped.reward(stepped)).all()
-    if variant in {"baseline", "compact", "exact_compact", "vacancy_lidar", "paper_compact"}:
+    if variant in {
+        "baseline",
+        "compact",
+        "exact_compact",
+        "vacancy_lidar",
+        "paper_compact",
+    }:
         np.testing.assert_allclose(env.reward(env), 0, atol=1e-12)
         np.testing.assert_allclose(stepped.env_params["prev_potential"], start)
     else:
@@ -116,8 +125,8 @@ def test_exact_compact_features_ignore_all_unseen_goals_and_peers():
     )
     before = exact_local_features(env)[0]
     env.state.pos = env.state.pos.at[2].set(jnp.asarray([100.0, 100.0]))
-    env.env_params["objective"] = env.env_params["objective"].at[1].set(
-        jnp.asarray([100.0, -100.0])
+    env.env_params["objective"] = (
+        env.env_params["objective"].at[1].set(jnp.asarray([100.0, -100.0]))
     )
     np.testing.assert_array_equal(exact_local_features(env)[0], before)
     assert before[-2] > 0
@@ -126,8 +135,8 @@ def test_exact_compact_features_ignore_all_unseen_goals_and_peers():
 def test_exact_sensor_reveals_additional_goal_behind_same_bin_return():
     env = _sensor_env(objectives=[[3.0, 0.0], [6.0, 0.0]])
     both = exact_local_features(env)[0]
-    env.env_params["objective"] = env.env_params["objective"].at[1].set(
-        jnp.asarray([20.0, 0.0])
+    env.env_params["objective"] = (
+        env.env_params["objective"].at[1].set(jnp.asarray([20.0, 0.0]))
     )
     front_only = exact_local_features(env)[0]
     assert both[0] > front_only[0]
@@ -172,14 +181,22 @@ def test_paper_sensor_variants_ignore_unseen_geometry(feature_fn):
     )
     before = feature_fn(env)[0]
     env.state.pos = env.state.pos.at[2].set(jnp.asarray([100.0, 100.0]))
-    env.env_params["objective"] = env.env_params["objective"].at[1].set(
-        jnp.asarray([100.0, -100.0])
+    env.env_params["objective"] = (
+        env.env_params["objective"].at[1].set(jnp.asarray([100.0, -100.0]))
     )
     np.testing.assert_array_equal(feature_fn(env)[0], before)
 
 
 @pytest.mark.parametrize(
-    "variant", ["simple", "compact", "combined", "exact_combined", "vacancy_combined", "paper_combined"]
+    "variant",
+    [
+        "simple",
+        "compact",
+        "combined",
+        "exact_combined",
+        "vacancy_combined",
+        "paper_combined",
+    ],
 )
 def test_empty_goals_produce_zero_reward_and_finite_observations(variant):
     env = make_environment(variant, N=2, num_objectives=0, seed=4, n_lidar_rays=4)
@@ -192,8 +209,13 @@ def test_empty_goals_produce_zero_reward_and_finite_observations(variant):
 
 def test_compact_3d_feature_shape():
     env = make_environment(
-        "combined", N=2, num_objectives=2, dim=3,
-        n_lidar_rays=4, n_lidar_elevation=4, seed=2,
+        "combined",
+        N=2,
+        num_objectives=2,
+        dim=3,
+        n_lidar_rays=4,
+        n_lidar_elevation=4,
+        seed=2,
     )
     assert env.observation_space_size == 24  # 3 velocity + 5 compact + 16 LiDAR
     assert env.observation(env).shape == (2, 24)

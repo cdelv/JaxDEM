@@ -4,9 +4,10 @@
 ``refresh_collider``, ``trajectory_rollout``
 frame options, and VTK writer-name resolution."""
 
+import jax.numpy as jnp
+
 from pathlib import Path
 
-import jax.numpy as jnp
 import numpy as np
 import pytest
 

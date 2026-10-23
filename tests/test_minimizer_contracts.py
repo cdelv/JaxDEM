@@ -1,12 +1,15 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Check optimizer capabilities, minimizer options, and force-gradient contracts."""
+
+import jax
+import jax.numpy as jnp
+
 from dataclasses import replace
 from dataclasses import dataclass
 import json
 from types import SimpleNamespace
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 import optax

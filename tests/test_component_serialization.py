@@ -2,11 +2,12 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Built-in configuration and continuation survive HDF5, async HDF5, and Orbax."""
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import replace
 import json
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 

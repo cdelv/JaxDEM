@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""Jammed rigid clumps: contacts, rattlers, dynamical matrix, and friction
 ===========================================================================
 
@@ -40,6 +42,7 @@ jax.config.update("jax_enable_x64", True)
 
 import numpy as np
 import matplotlib.pyplot as plt
+
 import jaxdem as jdem
 from jaxdem.utils import (
     count_clump_contacts,

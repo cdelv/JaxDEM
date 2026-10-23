@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Geometric-asperity deformable particles: step-by-step pipeline
 ==================================================================
 
@@ -38,6 +40,7 @@ accepts 3D meshes.
 # %%
 # Imports
 import jax
+
 import numpy as np
 
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
@@ -222,8 +225,10 @@ print(
 # container, so no manual rebuild is needed. Passing ``""`` disables
 # the rotation integrator: DP nodes carry no rigid-body orientation.
 
-import dataclasses
 import jax.numpy as jnp
+
+import dataclasses
+
 from jaxdem.integrators import LinearIntegrator, RotationIntegrator
 
 sim_system = dataclasses.replace(

@@ -4,11 +4,13 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import warnings
 from collections.abc import Sequence
-import jax
+
 import numpy as np
-import jax.numpy as jnp
 
 
 def allocate_counts(

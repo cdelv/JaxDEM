@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Capacity measurements agree with geometric candidates and pooled builds."""
+
+import jax
+import jax.numpy as jnp
 
 import math
 from itertools import product
 from dataclasses import replace
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 

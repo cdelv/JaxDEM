@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Capture compiled sparse workloads with Nsight Systems or inspect their HLO."""
 
 from __future__ import annotations
+
+import jax
 
 import argparse
 import ctypes
@@ -11,9 +15,7 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-import jax
 from pooled_neighbors import make_case
-
 import jaxdem as jd
 
 

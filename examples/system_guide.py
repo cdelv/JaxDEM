@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""The Simulation System
 ----------------------------------------
 
@@ -22,6 +24,7 @@ a compiled specialization; change those during host-side setup.
 
 import jax
 import jax.numpy as jnp
+
 import jaxdem as jdem
 
 # %%
@@ -110,8 +113,10 @@ print("directly assigned collider:", type(system.collider).__name__)
 # the integrators
 # and keep everything else, including the domain's *current* box.
 
-import dataclasses
 import jax.numpy as jnp
+
+import dataclasses
+
 from jaxdem.integrators import LinearIntegrator
 
 system_dyn = dataclasses.replace(

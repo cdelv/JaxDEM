@@ -1,10 +1,13 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """PPO action collection and latent ratios using a synthetic training fixture."""
+
+import jax
+import jax.numpy as jnp
 
 from dataclasses import dataclass, replace
 
 import distrax
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 from flax import nnx

@@ -28,10 +28,11 @@ Available meshes
 
 from __future__ import annotations
 
-from typing import Any
-
 import jax
 import jax.numpy as jnp
+
+from typing import Any
+
 import numpy as np
 
 from .linalg import dot, norm, norm2, unit

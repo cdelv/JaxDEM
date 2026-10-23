@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Matched local-sensing ablations that preserve occupied-goal returns.
 
 ``raw`` changes only the baseline's observation mask. ``raw_cosine_matched``
@@ -17,20 +19,18 @@ from ``conservative_variants``; callers supply the appropriate time budget.
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import dataclass
 from math import isclose
 from typing import Any
 
-import jax
-import jax.numpy as jnp
-
 from jaxdem.rl.environments import SwarmNavigator
-
 from benchmarks.swarm_mean_shift.conservative_variants import (
     ConservativeSwarmNavigator,
     make_environment as make_conservative_environment,
 )
-
 
 MATCHED_COSINE_COEFF = 0.111
 VARIANTS = {
@@ -48,12 +48,16 @@ VARIANT_NAMES = tuple(VARIANTS)
 
 
 def signed_peer_wall_lidar(
-    lidar: jax.Array, ids: jax.Array, env: Any,
+    lidar: jax.Array,
+    ids: jax.Array,
+    env: Any,
 ) -> jax.Array:
     """Expose existing local return types: walls negative, peers positive."""
     observer_ids = jnp.arange(env.max_num_agents)[:, None]
     peers = (ids >= 0) & (ids < env.max_num_agents) & (ids != observer_ids)
-    return jnp.where(lidar > 0, jnp.where(ids < 0, -lidar, jnp.where(peers, lidar, 0)), 0)
+    return jnp.where(
+        lidar > 0, jnp.where(ids < 0, -lidar, jnp.where(peers, lidar, 0)), 0
+    )
 
 
 @jax.tree_util.register_dataclass
@@ -121,10 +125,17 @@ def make_environment(
             raise ValueError(f"{name} is selected by the ablation variant")
     if variant.startswith("raw_typed_"):
         env = TypedUnmaskedSwarmNavigator.Create(
-            spacing_scale=float(scale), reward_mode=reward, observation_mode="baseline",
-            N=N, num_objectives=num_objectives, max_steps=max_steps,
-            hide_occupied_objectives=False, vacancy_aware_lidar=False,
-            approach_kernel="legacy", attraction_coeff=coefficient, **kwargs,
+            spacing_scale=float(scale),
+            reward_mode=reward,
+            observation_mode="baseline",
+            N=N,
+            num_objectives=num_objectives,
+            max_steps=max_steps,
+            hide_occupied_objectives=False,
+            vacancy_aware_lidar=False,
+            approach_kernel="legacy",
+            attraction_coeff=coefficient,
+            **kwargs,
         )
         if seed is not None:
             env = env.reset(env, jax.random.key(seed))

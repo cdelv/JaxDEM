@@ -24,6 +24,9 @@ count, and the budgets needed for comparable accuracy can differ.
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import argparse
 import json
 import statistics
@@ -31,8 +34,6 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 
 import jaxdem as jd

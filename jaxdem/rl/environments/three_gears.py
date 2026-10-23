@@ -4,11 +4,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from functools import partial
-
 import jax
 import jax.numpy as jnp
+
+from dataclasses import dataclass
+from functools import partial
 
 from ...materials import Material, MaterialTable
 from ...state import State

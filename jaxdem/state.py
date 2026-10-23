@@ -4,15 +4,15 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+from jax.typing import ArrayLike
+
 import dataclasses
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from functools import partial
 from typing import TYPE_CHECKING, Any, cast, final
-
-import jax
-import jax.numpy as jnp
-from jax.typing import ArrayLike
 
 from .utils import linalg
 from .utils.quaternion import Quaternion
@@ -47,7 +47,7 @@ def _hypersphere_volume(rad: jax.Array, dim: int) -> jax.Array:
 class State:
     r"""The complete simulation state for a system of N particles in 2D or 3D.
 
-    Notes:
+    Notes
     ------
     `State` supports these data layouts:
 
@@ -77,7 +77,7 @@ class State:
 
     The class is `final` and cannot be subclassed.
 
-    Example:
+    Example
     --------
     Creating a simple 2D state for 4 particles:
 

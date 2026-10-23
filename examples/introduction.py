@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Introduction
 ---------------------
 
@@ -8,7 +10,9 @@ The dynamics use only the core installation; the final VTK section requires
 
 import tempfile
 from pathlib import Path
+
 import numpy as np
+
 import jaxdem as jdem
 
 # %%

@@ -4,14 +4,14 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import dataclasses
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any, cast, final
-
-import jax
-import jax.numpy as jnp
 
 from .bonded_forces import BondedForceModel
 from .colliders import Collider
@@ -143,13 +143,13 @@ def _trajectory_rollout(
 class System:
     """The full simulation configuration.
 
-    Notes:
+    Notes
     ------
     - The `System` object supports JIT compilation for efficient execution.
     - Dynamic numeric leaves are JAX arrays. Callbacks, optimizers, targets,
       and component configuration can carry explicit static metadata.
 
-    Example:
+    Example
     --------
     Creating a basic 2D simulation system:
 
@@ -158,16 +158,16 @@ class System:
     >>>
     >>> # Create a System instance
     >>> sim_system = jdem.System.create(
-    >>>     state_shape=state.shape,
-    >>>     dt=0.001,
-    >>>     linear_integrator_type="euler",
-    >>>     rotation_integrator_type="spiral",
-    >>>     collider_type="naive",
-    >>>     domain_type="free",
-    >>>     force_model_type="spring",
-    >>>     # You can pass keyword arguments to component constructors via '_kw' dicts
-    >>>     domain_kw=dict(box_size=jnp.array([5.0, 5.0]), anchor=jnp.array([0.0, 0.0]))
-    >>> )
+    ...     state_shape=state.shape,
+    ...     dt=0.001,
+    ...     linear_integrator_type="euler",
+    ...     rotation_integrator_type="spiral",
+    ...     collider_type="naive",
+    ...     domain_type="free",
+    ...     force_model_type="spring",
+    ...     # You can pass keyword arguments to component constructors via '_kw' dicts
+    ...     domain_kw=dict(box_size=jnp.array([5.0, 5.0]), anchor=jnp.array([0.0, 0.0]))
+    ... )
     >>>
     >>> print(f"System integrator: {sim_system.linear_integrator.__class__.__name__}")
     >>> print(f"System force model: {sim_system.force_model.__class__.__name__}")
@@ -433,12 +433,12 @@ class System:
         >>> import jax.numpy as jnp
         >>>
         >>> system_reflect = jdem.System.create(
-        >>>     state_shape=(N, 3),
-        >>>     dt=0.0005,
-        >>>     domain_type="reflect",
-        >>>     domain_kw=dict(box_size=jnp.array([20.0, 20.0, 20.0]), anchor=jnp.array([-10.0, -10.0, -10.0])),
-        >>>     force_model_type="spring",
-        >>> )
+        ...     state_shape=(N, 3),
+        ...     dt=0.0005,
+        ...     domain_type="reflect",
+        ...     domain_kw=dict(box_size=jnp.array([20.0, 20.0, 20.0]), anchor=jnp.array([-10.0, -10.0, -10.0])),
+        ...     force_model_type="spring",
+        ... )
         >>> print(f"System dt: {system_reflect.dt}")
         >>> print(f"Domain type: {system_reflect.domain.__class__.__name__}")
 

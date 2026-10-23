@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Callable, Literal, NamedTuple, cast
-
-import jax
-import jax.numpy as jnp
 
 from ..utils.linalg import cross, dot, norm, norm2, unit, unit_and_norm
 from ..utils.linalg import harmonic_mean as _harmonic_mean

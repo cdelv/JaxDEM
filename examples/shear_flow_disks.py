@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Constant-rate shear below a finite packing's jamming threshold
 =================================================================
 
@@ -19,11 +21,13 @@ streaming profile; total kinetic energy includes that profile. Neither a
 steady state nor a monotonic heating curve is guaranteed in this short run.
 """
 
-from dataclasses import replace
-
 import jax
 import jax.numpy as jnp
+
+from dataclasses import replace
+
 import numpy as np
+
 import jaxdem as jdem
 from jaxdem.utils.contacts import compute_contact_stress_tensor
 from jaxdem.utils.packing_utils import scale_to_packing_fraction

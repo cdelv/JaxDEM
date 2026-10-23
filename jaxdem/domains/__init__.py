@@ -4,21 +4,21 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from abc import ABC
 from dataclasses import dataclass, replace
 from enum import Enum
 from functools import partial
 from typing import TYPE_CHECKING, Any, ClassVar
 
-import jax
-import jax.numpy as jnp
-
-from ..factory import Factory
-
 try:  # Python 3.11+
     from typing import Self
 except ImportError:  # pragma: no cover
     from typing_extensions import Self
+
+from ..factory import Factory
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -42,15 +42,15 @@ class Domain(Factory, ABC):
         - How to "shift" or constrain particle positions so they stay within
           the simulation boundaries.
 
-    Example:
+    Example
     --------
     To define a custom domain, inherit from `Domain` and implement its abstract methods:
 
     >>> @Domain.register("my_custom_domain")
-    >>> @jax.tree_util.register_dataclass
-    >>> @dataclass(slots=True)
-    >>> class MyCustomDomain(Domain):
-            ...
+    ... @jax.tree_util.register_dataclass
+    ... @dataclass(slots=True)
+    ... class MyCustomDomain(Domain):
+    ...     ...
 
     """
 

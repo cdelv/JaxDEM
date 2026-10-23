@@ -1,12 +1,17 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Opt-in vacancy sensing preserves defaults, reward, and local information."""
 
 import jax
 import jax.numpy as jnp
+
 import numpy as np
 import pytest
 
 from benchmarks.swarm_mean_shift.conservative_variants import make_environment
-from benchmarks.swarm_mean_shift.variants import vacant_objective_lidar as experimental_lidar
+from benchmarks.swarm_mean_shift.variants import (
+    vacant_objective_lidar as experimental_lidar,
+)
 from jaxdem.rl.environments import SwarmNavigator
 from jaxdem.rl.environments._swarm import filter_objectives, vacant_objective_lidar
 from jaxdem.rl.env_wrappers import vectorise_env
@@ -17,7 +22,10 @@ from jaxdem.utils import advance_action
 def _original_observation(env):
     peers, goals, ids = SwarmNavigator._sense(env)
     goals = filter_objectives(
-        goals, peers, ids, env,
+        goals,
+        peers,
+        ids,
+        env,
         n_elevation=env.n_lidar_elevation if env.state.dim == 3 else None,
     )
     lr = env.env_params["lidar_range"]
@@ -26,8 +34,11 @@ def _original_observation(env):
 
 def _reset(*, enabled=False, dim=2, goals=2, agents=2, **kwargs):
     env = SwarmNavigator.Create(
-        N=agents, num_objectives=goals, dim=dim,
-        vacancy_aware_lidar=enabled, **kwargs,
+        N=agents,
+        num_objectives=goals,
+        dim=dim,
+        vacancy_aware_lidar=enabled,
+        **kwargs,
     )
     return env.reset(env, jax.random.key(12))
 
@@ -39,12 +50,18 @@ def test_default_and_explicit_false_are_bit_exact_original_observations(dim):
     default = default.reset(default, jax.random.key(9))
     explicit = _reset(enabled=False, dim=dim, agents=4, goals=4)
     explicit = explicit.reset(explicit, jax.random.key(9))
-    np.testing.assert_array_equal(default.observation(default), _original_observation(default))
-    np.testing.assert_array_equal(default.observation(default), explicit.observation(explicit))
+    np.testing.assert_array_equal(
+        default.observation(default), _original_observation(default)
+    )
+    np.testing.assert_array_equal(
+        default.observation(default), explicit.observation(explicit)
+    )
     np.testing.assert_array_equal(default.reward(default), explicit.reward(explicit))
     action = jnp.full((4, dim), 0.2)
     default, _, _ = advance_action(default, action, skip_frames=2)
-    np.testing.assert_array_equal(default.observation(default), _original_observation(default))
+    np.testing.assert_array_equal(
+        default.observation(default), _original_observation(default)
+    )
 
 
 @pytest.mark.parametrize("scale", [1, 2])
@@ -56,15 +73,21 @@ def test_opt_in_matches_experimental_vacancy_observations_and_reward(scale):
     env.state = jax.tree.map(jnp.array, reference.state)
     env.system = jax.tree.map(jnp.array, reference.system)
     env.env_params = jax.tree.map(jnp.array, reference.env_params)
-    np.testing.assert_array_equal(vacant_objective_lidar(env), experimental_lidar(reference))
-    np.testing.assert_array_equal(env.observation(env), reference.observation(reference))
+    np.testing.assert_array_equal(
+        vacant_objective_lidar(env), experimental_lidar(reference)
+    )
+    np.testing.assert_array_equal(
+        env.observation(env), reference.observation(reference)
+    )
     np.testing.assert_array_equal(env.reward(env), reference.reward(reference))
     action = jnp.full((8, 2), 0.2)
     env, _, _ = advance_action(env, action, skip_frames=2)
     reference, _, _ = advance_action(reference, action, skip_frames=2)
     np.testing.assert_array_equal(env.state.pos, reference.state.pos)
     np.testing.assert_array_equal(env.reward(env), reference.reward(reference))
-    np.testing.assert_array_equal(env.observation(env), reference.observation(reference))
+    np.testing.assert_array_equal(
+        env.observation(env), reference.observation(reference)
+    )
     assert env.observation_space_size == 26
 
 
@@ -92,15 +115,23 @@ def test_hide_false_returns_exact_raw_observation_even_with_opt_in(dim):
     disabled = _reset(enabled=False, dim=dim, hide_occupied_objectives=False)
     # Include occupied and occluded goals rather than testing an empty mask.
     enabled.state.pos_c = jnp.asarray([[2.0] * dim, [5.0] + [2.0] * (dim - 1)])
-    enabled.env_params["objective"] = jnp.asarray([[5.0] + [2.0] * (dim - 1), [8.0] + [2.0] * (dim - 1)])
+    enabled.env_params["objective"] = jnp.asarray(
+        [[5.0] + [2.0] * (dim - 1), [8.0] + [2.0] * (dim - 1)]
+    )
     disabled.state = jax.tree.map(jnp.array, enabled.state)
     disabled.env_params = jax.tree.map(jnp.array, enabled.env_params)
-    np.testing.assert_array_equal(enabled.observation(enabled), disabled.observation(disabled))
-    np.testing.assert_array_equal(enabled.observation(enabled), _original_observation(enabled))
+    np.testing.assert_array_equal(
+        enabled.observation(enabled), disabled.observation(disabled)
+    )
+    np.testing.assert_array_equal(
+        enabled.observation(enabled), _original_observation(enabled)
+    )
     np.testing.assert_array_equal(enabled.reward(enabled), disabled.reward(disabled))
     # Existing runtime switches still work without reconstructing the env.
     enabled.env_params["hide_occupied_objectives"] = jnp.asarray(True)
-    assert not np.array_equal(enabled.observation(enabled), disabled.observation(disabled))
+    assert not np.array_equal(
+        enabled.observation(enabled), disabled.observation(disabled)
+    )
 
 
 @pytest.mark.parametrize("peer_distance", [16.0, 16.2, 35.0])
@@ -122,7 +153,9 @@ def test_nonlocal_goal_and_peer_positions_do_not_influence_observer():
     env.env_params["objective"] = jnp.asarray([[6.0, 2.0], [10.0, 2.0], [33.0, 32.0]])
     before = np.asarray(env.observation(env)[0])
     env.state.pos_c = env.state.pos_c.at[2].set(jnp.asarray([42.0, 42.0]))
-    env.env_params["objective"] = env.env_params["objective"].at[2].set(jnp.asarray([46.0, 43.0]))
+    env.env_params["objective"] = (
+        env.env_params["objective"].at[2].set(jnp.asarray([46.0, 43.0]))
+    )
     np.testing.assert_array_equal(env.observation(env)[0], before)
 
 
@@ -146,7 +179,12 @@ def test_shapes_empty_goals_and_vectorized_reset_are_finite(dim, goals):
     assert np.isfinite(env.observation(env)).all()
     if goals == 0:
         np.testing.assert_array_equal(env.reward(env), 0)
-        np.testing.assert_array_equal(env.observation(env)[:, dim:dim + (env.observation_space_size - dim) // 2], 0)
+        np.testing.assert_array_equal(
+            env.observation(env)[
+                :, dim : dim + (env.observation_space_size - dim) // 2
+            ],
+            0,
+        )
     batch = vectorise_env(env, n=2)
     batch = batch.reset(batch, jax.random.split(jax.random.key(3), 2))
     assert batch.observation(batch).shape == (2, 2, env.observation_space_size)

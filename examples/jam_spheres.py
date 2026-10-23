@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""Jamming of bidisperse spheres (or disks).
 ---------------------------------------------
 
@@ -33,6 +35,7 @@ effects: their jamming fractions are not estimates of the bulk value.
 # ~~~~~~~~~~~~~~~~~~~~~
 import jax
 import jax.numpy as jnp
+
 import jaxdem as jdem
 
 # Double precision keeps the small energy threshold resolved.

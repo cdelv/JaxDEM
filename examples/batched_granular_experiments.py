@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Run an ensemble of granular compaction experiments
 ==================================================
 
@@ -45,6 +47,7 @@ jamming threshold or a precise confidence interval.
 
 import jax
 import jax.numpy as jnp
+
 import matplotlib.pyplot as plt
 import numpy as np
 

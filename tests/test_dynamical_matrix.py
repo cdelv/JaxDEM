@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Analytical tests for :mod:`jaxdem.utils.dynamical_matrix`.
 
 For a linear-spring contact potential between two spheres at positions
@@ -26,6 +28,7 @@ These are the four facts we assert.
 from __future__ import annotations
 
 import jax.numpy as jnp
+
 import numpy as np
 import pytest
 

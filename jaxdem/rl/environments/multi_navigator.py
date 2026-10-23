@@ -4,13 +4,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from functools import partial
-from math import isfinite
-
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
+
+from dataclasses import dataclass
+from functools import partial
+from math import isfinite
 
 from ...material_matchmakers import MaterialMatchmaker
 from ...materials import Material, MaterialTable
@@ -440,12 +440,20 @@ class MultiNavigator(Environment):
         lr = env.env_params["lidar_range"]
         if env.state.dim == 3:
             _, _, lidar, _, _ = lidar_3d(
-                env.state, env.system, lr,
-                env.n_lidar_rays, env.n_lidar_elevation, sense_edges=True,
+                env.state,
+                env.system,
+                lr,
+                env.n_lidar_rays,
+                env.n_lidar_elevation,
+                sense_edges=True,
             )
         else:
             _, _, lidar, _, _ = lidar_2d(
-                env.state, env.system, lr, env.n_lidar_rays, sense_edges=True,
+                env.state,
+                env.system,
+                lr,
+                env.n_lidar_rays,
+                sense_edges=True,
             )
         return jnp.concatenate(
             [

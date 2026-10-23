@@ -4,13 +4,12 @@
 
 from __future__ import annotations
 
-import dataclasses
-
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Self, cast
-
 import jax
 from jax.typing import ArrayLike
+
+import dataclasses
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Self, cast
 
 from . import BondedForceModel
 from .deformable_particle import (

@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Import-path encoding and restoration of checkpoint callables."""
+
 import importlib
 from typing import Any
 from collections.abc import Callable

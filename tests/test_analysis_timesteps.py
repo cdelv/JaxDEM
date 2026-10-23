@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Contracts for physical timestep labels used by analysis bins."""
 
 from __future__ import annotations

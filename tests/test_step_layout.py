@@ -4,10 +4,11 @@
 
 from __future__ import annotations
 
-import dataclasses
-
 import jax
 import jax.numpy as jnp
+
+import dataclasses
+
 import numpy as np
 import pytest
 

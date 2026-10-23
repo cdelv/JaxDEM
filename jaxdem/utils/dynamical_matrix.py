@@ -9,11 +9,12 @@ model's total energy. Their sum gives the total potential-energy Hessian.
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from functools import partial
 from typing import TYPE_CHECKING
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 
 from ._pair_candidates import _analysis_search_radii, _collect_pair_candidates

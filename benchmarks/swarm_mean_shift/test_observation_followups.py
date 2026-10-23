@@ -1,10 +1,13 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Check that appended vacancy guidance preserves the baseline exactly."""
+
+import jax
+import jax.numpy as jnp
 
 import hashlib
 from pathlib import Path
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 
@@ -34,7 +37,9 @@ def test_reward_dynamics_and_baseline_features_equal_production_after_action():
     baseline, _, _ = advance_action(baseline, action, skip_frames=2)
     np.testing.assert_array_equal(augmented.state.pos, baseline.state.pos)
     np.testing.assert_array_equal(augmented.state.vel, baseline.state.vel)
-    np.testing.assert_array_equal(augmented.reward(augmented), baseline.reward(baseline))
+    np.testing.assert_array_equal(
+        augmented.reward(augmented), baseline.reward(baseline)
+    )
     np.testing.assert_array_equal(
         augmented.env_params["prev_potential"], baseline.env_params["prev_potential"]
     )
@@ -52,15 +57,17 @@ def test_appended_guidance_ignores_geometry_outside_observers_range():
     before = env.observation(env)[0]
     assert before[-1] > 0
     env.state.pos_c = env.state.pos_c.at[2].set(jnp.asarray([100.0, 100.0]))
-    env.env_params["objective"] = env.env_params["objective"].at[1].set(
-        jnp.asarray([100.0, -100.0])
+    env.env_params["objective"] = (
+        env.env_params["objective"].at[1].set(jnp.asarray([100.0, -100.0]))
     )
     np.testing.assert_array_equal(env.observation(env)[0], before)
 
 
 @pytest.mark.parametrize("num_objectives", [0, 2])
 def test_augmented_environment_supports_batched_resets(num_objectives):
-    env = make_followup_environment("paper_augmented", N=2, num_objectives=num_objectives)
+    env = make_followup_environment(
+        "paper_augmented", N=2, num_objectives=num_objectives
+    )
     batch = vectorise_env(env, n=2)
     batch = batch.reset(batch, jax.random.split(jax.random.key(6), 2))
     assert batch.observation(batch).shape == (2, 2, 29)

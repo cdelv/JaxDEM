@@ -1,8 +1,11 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """The exported cell follows the domain's physical periodic lattice."""
+
+import jax.numpy as jnp
 
 from itertools import permutations, product
 
-import jax.numpy as jnp
 import numpy as np
 import pytest
 import vtk

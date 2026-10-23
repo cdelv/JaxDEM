@@ -4,6 +4,9 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import dataclass, field, replace
 from functools import partial
 from typing import TYPE_CHECKING, Any, cast
@@ -12,9 +15,6 @@ try:  # Python 3.11+
     from typing import Self
 except ImportError:  # pragma: no cover
     from typing_extensions import Self
-
-import jax
-import jax.numpy as jnp
 
 from . import Domain, SearchGeometry
 

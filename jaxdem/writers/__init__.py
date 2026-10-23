@@ -30,14 +30,14 @@ class VTKBaseWriter(Factory, ABC):
     Concrete subclasses implement the `write` method to convert a snapshot
     (:class:`jaxdem.State <jaxdem.state.State>`, :class:`jaxdem.System <jaxdem.system.System>` pair) into a specific file format.
 
-    Example:
+    Example
     --------
     To define a custom VTK writer, inherit from `VTKBaseWriter` and implement its abstract methods:
 
     >>> @VTKBaseWriter.register("my_custom_vtk_writer")
-    >>> @dataclass(slots=True)
-    >>> class MyCustomVTKWriter(VTKBaseWriter):
-            ...
+    ... @dataclass(slots=True)
+    ... class MyCustomVTKWriter(VTKBaseWriter):
+    ...     ...
 
     """
 

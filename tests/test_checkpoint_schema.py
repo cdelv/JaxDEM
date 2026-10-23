@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Checkpoint metadata schema policy tests without filesystem I/O."""
 
 import pytest

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """A rotating drum loaded from an STL mesh
 ========================================
 
@@ -21,11 +23,12 @@ triangulated drum with comparable dimensions, centered at the origin and
 rotating about z.
 """
 
+import jax.numpy as jnp
+
 from dataclasses import replace
 import os
 from pathlib import Path
 
-import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 from vtkmodules.util.numpy_support import vtk_to_numpy

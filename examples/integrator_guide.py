@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""Integrators and Minimizers
 ----------------------------------------
 
@@ -36,11 +38,13 @@ Let's see how to choose, configure, and swap them.
 # :py:class:`~jaxdem.integrators.spiral.Spiral`, or disable rotation
 # entirely while keeping translation active.
 
+import jax.numpy as jnp
+
 from dataclasses import replace
 
 import matplotlib.pyplot as plt
 import numpy as np
-import jax.numpy as jnp
+
 import jaxdem as jdem
 
 state = jdem.State.create(pos=jnp.zeros((1, 3)))

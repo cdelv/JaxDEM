@@ -4,6 +4,7 @@
 
 import jax
 import jax.numpy as jnp
+
 import numpy as np
 import pytest
 
@@ -102,18 +103,20 @@ def test_elastic_collision_matches_reduced_mass_solution(
         dt=dt,
         mat_table=table,
         collider_type=backend,
-        collider_kw={
-            "cutoff": diameter,
-            "skin": 0.05 * diameter,
-            "max_neighbors": 1,
-            "secondary_collider_type": "CellList",
-        }
-        if backend == "NeighborList"
-        else {},
+        collider_kw=(
+            {
+                "cutoff": diameter,
+                "skin": 0.05 * diameter,
+                "max_neighbors": 1,
+                "secondary_collider_type": "CellList",
+            }
+            if backend == "NeighborList"
+            else {}
+        ),
         domain_type=domain,
-        domain_kw={"box_size": jnp.full(dim, 6.0 * diameter)}
-        if domain != "free"
-        else {},
+        domain_kw=(
+            {"box_size": jnp.full(dim, 6.0 * diameter)} if domain != "free" else {}
+        ),
         rotation_integrator_type="",
         linear_integrator_type="verlet",
     )

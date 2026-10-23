@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Independent confirmation of the doubled-spacing N=64 comparison.
 
 Run from the isolated, frozen experiment runtime::
@@ -26,7 +28,6 @@ import numpy as np
 from benchmarks.swarm_mean_shift import evaluate_checkpoints as original
 from benchmarks.swarm_mean_shift import run
 
-
 VARIANTS = ("spacing_baseline", "spacing_rational_delta")
 PRIMARY_METRIC = "coverage_final_10_percent_mean"
 
@@ -45,7 +46,8 @@ def add_spacing_metrics(
     with np.load(archive) as arrays:
         coverage = np.asarray(arrays["coverage"])
     if coverage.ndim != 2 or coverage.shape != (
-        evaluation["actions"], evaluation["num_envs"]
+        evaluation["actions"],
+        evaluation["num_envs"],
     ):
         raise ValueError(f"Unexpected coverage archive shape: {coverage.shape}")
     if not np.isfinite(coverage).all():
@@ -53,23 +55,27 @@ def add_spacing_metrics(
     actions = coverage.shape[0]
     window = max(1, (actions + 9) // 10)
     tail = coverage[-window:].mean(axis=0)
-    evaluation.update({
-        "primary_metric": PRIMARY_METRIC,
-        "coverage_final_10_percent_actions": window,
-        "coverage_final_10_percent_start_action": actions - window + 1,
-        PRIMARY_METRIC: float(tail.mean()),
-        "coverage_final_10_percent_std": float(tail.std()),
-        "coverage_final_10_percent_per_episode": tail.tolist(),
-    })
+    evaluation.update(
+        {
+            "primary_metric": PRIMARY_METRIC,
+            "coverage_final_10_percent_actions": window,
+            "coverage_final_10_percent_start_action": actions - window + 1,
+            PRIMARY_METRIC: float(tail.mean()),
+            "coverage_final_10_percent_std": float(tail.std()),
+            "coverage_final_10_percent_per_episode": tail.tolist(),
+        }
+    )
     for action in (2000, 4000, 8000):
         if action <= actions:
             values = coverage[action - 1]
             prefix = f"coverage_action_{action}"
-            evaluation.update({
-                f"{prefix}_mean": float(values.mean()),
-                f"{prefix}_std": float(values.std()),
-                f"{prefix}_per_episode": values.tolist(),
-            })
+            evaluation.update(
+                {
+                    f"{prefix}_mean": float(values.mean()),
+                    f"{prefix}_std": float(values.std()),
+                    f"{prefix}_per_episode": values.tolist(),
+                }
+            )
     log_path = directory / "evaluation.jsonl"
     lines = log_path.read_text().splitlines()
     if not lines or json.loads(lines[-1]).get("epoch") != epoch:
@@ -108,7 +114,9 @@ def parse_args() -> Any:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--runtime-root", type=Path, required=True)
     parser.add_argument("--original-root", type=Path)
-    parser.add_argument("--variants", nargs="+", choices=VARIANTS, default=list(VARIANTS))
+    parser.add_argument(
+        "--variants", nargs="+", choices=VARIANTS, default=list(VARIANTS)
+    )
     parser.add_argument("--seeds", nargs="+", type=int, default=list(range(5)))
     parser.add_argument("--eval-envs", type=int, default=64)
     parser.add_argument("--eval-actions", type=int)
@@ -118,18 +126,26 @@ def parse_args() -> Any:
     parser.add_argument("--action-mode", choices=("stochastic", "deterministic"))
     parser.add_argument("--skip-missing", action="store_true")
     args = parser.parse_args()
-    if args.eval_envs < 1 or args.eval_curve_stride < 1 or (
-        args.eval_actions is not None and args.eval_actions < 1
+    if (
+        args.eval_envs < 1
+        or args.eval_curve_stride < 1
+        or (args.eval_actions is not None and args.eval_actions < 1)
     ):
-        parser.error("Evaluation environments, actions, and curve stride must be positive")
-    if any(seed < 0 for seed in (*args.seeds, args.eval_reset_seed, args.eval_action_seed)):
+        parser.error(
+            "Evaluation environments, actions, and curve stride must be positive"
+        )
+    if any(
+        seed < 0 for seed in (*args.seeds, args.eval_reset_seed, args.eval_action_seed)
+    ):
         parser.error("Seeds must be nonnegative")
     for attribute in ("input", "output", "runtime_root", "original_root"):
         value = getattr(args, attribute)
         if value is not None:
             setattr(args, attribute, value.resolve())
     if args.input == args.output:
-        parser.error("Confirmation output must differ from the training results directory")
+        parser.error(
+            "Confirmation output must differ from the training results directory"
+        )
     return args
 
 
@@ -138,13 +154,20 @@ def confirmation_protocol(args: Any) -> dict[str, Any]:
     from benchmarks.swarm_mean_shift import spacing_followup
 
     original.validate_runtime_imports(args.runtime_root)
-    sources = [Path(module.__file__).resolve() for module in (
-        original, run, spacing_followup,
-    )]
+    sources = [
+        Path(module.__file__).resolve()
+        for module in (
+            original,
+            run,
+            spacing_followup,
+        )
+    ]
     sources.append(Path(__file__).resolve())
     for source in sources:
         if not source.is_relative_to(args.runtime_root):
-            raise ValueError(f"Confirmation helper must come from the frozen runtime: {source}")
+            raise ValueError(
+                f"Confirmation helper must come from the frozen runtime: {source}"
+            )
     return {
         "experiment": "doubled-spacing-independent-confirmation",
         "training_variants": args.variants,
@@ -172,7 +195,9 @@ def main() -> None:
     encoded = json.dumps(protocol, indent=2, allow_nan=False) + "\n"
     if protocol_path.exists():
         if protocol_path.read_text() != encoded:
-            raise ValueError("Existing spacing confirmation protocol differs from this invocation")
+            raise ValueError(
+                "Existing spacing confirmation protocol differs from this invocation"
+            )
     else:
         protocol_path.write_text(encoded)
     protocol_hash = hashlib.sha256(encoded.encode()).hexdigest()
@@ -182,16 +207,25 @@ def main() -> None:
                 source_config = args.input / f"{variant}_seed_{seed}" / "config.json"
                 if source_config.exists():
                     config = json.loads(source_config.read_text())
-                    if not any(path.endswith("/spacing_followup.py") for path in config["source_hashes"]):
-                        raise ValueError("Spacing checkpoint lacks its factory source hash")
+                    if not any(
+                        path.endswith("/spacing_followup.py")
+                        for path in config["source_hashes"]
+                    ):
+                        raise ValueError(
+                            "Spacing checkpoint lacks its factory source hash"
+                        )
                 original.evaluate_one(args, variant, seed)
                 config_path = args.output / f"{variant}_seed_{seed}" / "config.json"
                 if config_path.exists():
                     config = json.loads(config_path.read_text())
-                    config["confirmation_source_hashes"].update(protocol["source_hashes"])
+                    config["confirmation_source_hashes"].update(
+                        protocol["source_hashes"]
+                    )
                     config["spacing_confirmation_protocol_sha256"] = protocol_hash
                     config["primary_metric"] = PRIMARY_METRIC
-                    config_path.write_text(json.dumps(config, indent=2, allow_nan=False) + "\n")
+                    config_path.write_text(
+                        json.dumps(config, indent=2, allow_nan=False) + "\n"
+                    )
 
 
 if __name__ == "__main__":

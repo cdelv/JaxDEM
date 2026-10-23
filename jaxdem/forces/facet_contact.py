@@ -4,11 +4,11 @@
 
 from __future__ import annotations
 
-from functools import partial
-from typing import TYPE_CHECKING
-
 import jax
 import jax.numpy as jnp
+
+from functools import partial
+from typing import TYPE_CHECKING
 
 from ..utils.linalg import dot, norm, unit
 

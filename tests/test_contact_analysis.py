@@ -1,10 +1,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Contact analysis follows simulation searches without diagnostic capacities."""
-
-from dataclasses import replace
 
 import jax
 import jax.numpy as jnp
+
+from dataclasses import replace
+
 import numpy as np
 import pytest
 
@@ -12,7 +14,6 @@ import jaxdem as jd
 from jaxdem.colliders._neighbor_cache import pair_sources
 from jaxdem.utils import contacts as contact
 from jaxdem.utils.linalg import cross
-
 
 BACKENDS = ("naive", "CellList", "MultiCellList", "neighbor-cell", "neighbor-multi")
 
@@ -24,9 +25,9 @@ def make_system(state, backend="naive", *, capacity=None, domain="periodic"):
             "max_neighbors": state.N if capacity is None else capacity,
             "cutoff": 2 * float(jnp.max(state.rad, initial=0.0)),
             "skin": 0.05,
-            "secondary_collider_type": "CellList"
-            if backend == "neighbor-cell"
-            else "MultiCellList",
+            "secondary_collider_type": (
+                "CellList" if backend == "neighbor-cell" else "MultiCellList"
+            ),
         }
         backend = "NeighborList"
     material = jd.Material.create("elastic", young=1.0, poisson=0.5, density=1.0)

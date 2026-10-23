@@ -10,12 +10,12 @@ row-loop launch overhead.
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import replace
 from functools import partial
 from typing import Any
-
-import jax
-import jax.numpy as jnp
 
 from ..utils.linalg import cross, norm2
 from . import valid_interaction_mask
@@ -534,9 +534,11 @@ def forces(
             jnp.zeros(state.torque.shape[1:], dtype=state.torque.dtype),
         ),
         evaluate_rows,
-        system.force_model.init_history((capacity,), state.dim)
-        if write_history
-        else None,
+        (
+            system.force_model.init_history((capacity,), state.dim)
+            if write_history
+            else None
+        ),
     )
     return (
         force,
@@ -594,9 +596,10 @@ def _forces_jvp(
     def fixed_pairs(state: Any, system: Any) -> Any:
         return _flat_forces(state, system, advance_history, quasistatic)
 
-    return forces(*primals, advance_history, quasistatic), jax.jvp(
-        fixed_pairs, primals, tangents
-    )[1]
+    return (
+        forces(*primals, advance_history, quasistatic),
+        jax.jvp(fixed_pairs, primals, tangents)[1],
+    )
 
 
 def refresh(

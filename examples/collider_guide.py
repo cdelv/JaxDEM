@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""Colliders
 ----------------------------------------
 
@@ -21,8 +23,9 @@ This guide covers:
 # You choose the collider via ``collider_type`` when creating a
 # :py:class:`~jaxdem.system.System`. The default is ``"naive"``.
 
-import numpy as np
 import jax.numpy as jnp
+
+import numpy as np
 
 import jaxdem as jdem
 

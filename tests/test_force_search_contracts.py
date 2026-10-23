@@ -2,9 +2,10 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Force reach, contact kinematics, and initial-force regressions."""
 
+import jax.numpy as jnp
+
 from dataclasses import replace
 
-import jax.numpy as jnp
 import numpy as np
 import pytest
 

@@ -2,13 +2,14 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Data containers retain their numerical contents through Python serialization."""
 
+import jax
+import jax.numpy as jnp
+
 import copy
 from dataclasses import replace
 import pickle
 import weakref
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 

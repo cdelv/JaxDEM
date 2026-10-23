@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Derived logical rigid-body topology.
 
 The simulation state keeps particle-shaped rigid-body fields for fast contact
@@ -8,10 +9,10 @@ serialized :class:`jaxdem.State <jaxdem.state.State>` pytree.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import jax
 import jax.numpy as jnp
+
+from dataclasses import dataclass
 
 
 @jax.tree_util.register_dataclass

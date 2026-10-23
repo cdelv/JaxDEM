@@ -1,9 +1,12 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Failure counterexamples for the optional checked simulation drivers."""
-
-from dataclasses import replace
 
 import jax.numpy as jnp
 import jax
+
+from dataclasses import replace
+
 import numpy as np
 import pytest
 

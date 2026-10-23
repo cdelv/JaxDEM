@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
+import jax
+
 from abc import ABC
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING
-
-import jax
 
 from ..factory import Factory
 
@@ -36,15 +36,15 @@ def free_mask(state: State) -> jax.Array:
 class Integrator(Factory, ABC):
     """Abstract base class that defines the interface for time-stepping.
 
-    Example:
+    Example
     --------
     To define a custom integrator, inherit from :class:`Integrator <jaxdem.integrators.Integrator>` and implement its abstract methods:
 
     >>> @Integrator.register("myCustomIntegrator")
-    >>> @jax.tree_util.register_dataclass
-    >>> @dataclass(slots=True)
-    >>> class MyCustomIntegrator(Integrator):
-            ...
+    ... @jax.tree_util.register_dataclass
+    ... @dataclass(slots=True)
+    ... class MyCustomIntegrator(Integrator):
+    ...     ...
 
     """
 

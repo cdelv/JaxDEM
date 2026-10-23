@@ -20,10 +20,13 @@ Install ``JaxDEM[io]``. This small 2D scene is also viewable in ParaView; the
 output directory is kept after execution so you can open the files.
 """
 
+import jax.numpy as jnp
+
 import tempfile
 from pathlib import Path
-import jax.numpy as jnp
+
 import numpy as np
+
 import jaxdem as jdem
 
 # %%

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Find rattlers and draw a contact network
 ========================================
 
@@ -11,8 +13,9 @@ running dynamics or minimizing it. Eight disks keep the calculation small.
 """
 
 # %%
-import matplotlib.pyplot as plt
 import jax.numpy as jnp
+
+import matplotlib.pyplot as plt
 import numpy as np
 
 import jaxdem as jd

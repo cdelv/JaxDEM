@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Check aspherical rotation and free-top angular momentum under refinement."""
 
 import jax
 import jax.numpy as jnp
+
 import pytest
 import numpy as np
 

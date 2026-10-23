@@ -4,11 +4,12 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import replace
 from typing import Any, Literal, Sequence
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 
 from ..factory import _normalize_key

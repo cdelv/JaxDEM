@@ -4,13 +4,13 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from collections.abc import Sequence
 from dataclasses import dataclass, fields
 from functools import partial
 from typing import TYPE_CHECKING, Any
-
-import jax
-import jax.numpy as jnp
 
 from ..material_matchmakers import MaterialMatchmaker
 
@@ -27,13 +27,13 @@ class MaterialTable:
     The table gives direct access to the scalar properties of each material
     and to the pre-computed effective properties for material pairs.
 
-    Notes:
+    Notes
     ------
     - Access scalar properties directly with dot notation (e.g., `material_table.young`).
     - Access effective pair properties directly with dot notation
       (e.g., `material_table.young_eff`).
 
-    Example:
+    Example
     --------
     Creating a `MaterialTable` from multiple material types:
 
@@ -47,9 +47,9 @@ class MaterialTable:
     >>> # Create a MaterialTable using a linear matcher
     >>> matcher_instance = jdem.MaterialMatchmaker.create("linear")
     >>> mat_table = jdem.MaterialTable.from_materials(
-    >>>     [mat1, mat2],
-    >>>     matcher=matcher_instance
-    >>> )
+    ...     [mat1, mat2],
+    ...     matcher=matcher_instance
+    ... )
 
     """
 

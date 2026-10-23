@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""The Force Manager
 ----------------------------------------
 
@@ -24,7 +26,9 @@ and how to set up species-wise interactions, see the
 
 import jax
 import jax.numpy as jnp
+
 import numpy as np
+
 import jaxdem as jdem
 
 # %%
@@ -232,6 +236,7 @@ print(f"Gravitational PE: {pe}")  # U = -m (g . r) = m * 9.81 * 1.0 = +19.62
 # as a custom force function:
 
 from collections.abc import Callable
+
 from jaxdem.utils.linalg import unit
 
 

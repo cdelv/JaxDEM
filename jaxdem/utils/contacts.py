@@ -9,14 +9,15 @@ directly. Individual contacts are collected only for analyses that need them.
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import math
 import warnings
 from dataclasses import replace
 from functools import partial
 from typing import TYPE_CHECKING, NamedTuple
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 
 from ..colliders import valid_interaction_mask

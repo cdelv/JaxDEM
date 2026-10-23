@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Check bounded neighbor construction and dense and sparse cell lookups."""
+
 from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+
 import numpy as np
 import pytest
 

@@ -4,13 +4,12 @@
 
 from __future__ import annotations
 
-import math
-
-from functools import partial
-from typing import TYPE_CHECKING, Any, Callable
-
 import jax
 import jax.numpy as jnp
+
+import math
+from functools import partial
+from typing import TYPE_CHECKING, Any, Callable
 
 from .linalg import dot, norm2
 

@@ -524,8 +524,10 @@ class DeformableParticleModel(BondedForceModel):
         if vertices is not None and vertex_count != vertices.shape[0]:
             raise ValueError("vertex_count must match the supplied vertices.")
         for indices in topology:
-            if indices is not None and indices.size and not bool(
-                jnp.all((indices >= 0) & (indices < vertex_count))
+            if (
+                indices is not None
+                and indices.size
+                and not bool(jnp.all((indices >= 0) & (indices < vertex_count)))
             ):
                 raise ValueError("Topology indices must lie within vertex_count.")
 
@@ -911,8 +913,8 @@ class DeformableParticleModel(BondedForceModel):
                 element_normal, element_adjacency, hinge_vertices, dim
             )
 
-            norm_bending_energy = eb * w_b * jnp.square(
-                _angle_difference(bending, initial_bendings)
+            norm_bending_energy = (
+                eb * w_b * jnp.square(_angle_difference(bending, initial_bendings))
             )
             e_bending = jnp.sum(norm_bending_energy) / 2
 

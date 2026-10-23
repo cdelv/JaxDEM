@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-from dataclasses import dataclass, replace
+"""Check neighbor-cache rebuilds, resizing, query isolation, and contact memory."""
 
 import jax
-import pytest
-
 import jax.numpy as jnp
+
+from dataclasses import dataclass, replace
+
+import pytest
 import numpy as np
 
 import jaxdem as jd

@@ -6,10 +6,11 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 
 from typing import Any
 from collections.abc import Sequence
+
+import numpy as np
 
 from ..factory import _normalize_key
 from ..materials import Material, MaterialTable
@@ -17,6 +18,7 @@ from ..material_matchmakers import MaterialMatchmaker
 from ..state import State
 from ..system import System
 from ..minimizers import TerminationReason, fire
+
 
 def _broadcast(arr: Any, is_scalar: bool) -> jax.Array:
     arr = jnp.asarray(arr)

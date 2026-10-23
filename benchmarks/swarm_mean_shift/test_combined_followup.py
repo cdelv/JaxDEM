@@ -1,15 +1,21 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Verify the combined ablation reuses both established mechanisms exactly."""
+
+import jax
+import jax.numpy as jnp
 
 import hashlib
 from pathlib import Path
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 
 from benchmarks.swarm_mean_shift import combined_followup, reward_followups
 from benchmarks.swarm_mean_shift.combined_followup import make_followup_environment
-from benchmarks.swarm_mean_shift.variants import ExperimentalSwarmNavigator, make_environment
+from benchmarks.swarm_mean_shift.variants import (
+    ExperimentalSwarmNavigator,
+    make_environment,
+)
 from jaxdem.utils import advance_action
 
 
@@ -57,11 +63,13 @@ def test_combined_observation_and_raw_score_ignore_unseen_geometry():
     before_observation = env.observation(env)[0]
     before_score = ExperimentalSwarmNavigator.reward(env)[0]
     env.state.pos_c = env.state.pos_c.at[2].set(jnp.asarray([100.0, 100.0]))
-    env.env_params["objective"] = env.env_params["objective"].at[1].set(
-        jnp.asarray([100.0, -100.0])
+    env.env_params["objective"] = (
+        env.env_params["objective"].at[1].set(jnp.asarray([100.0, -100.0]))
     )
     np.testing.assert_array_equal(env.observation(env)[0], before_observation)
-    np.testing.assert_array_equal(ExperimentalSwarmNavigator.reward(env)[0], before_score)
+    np.testing.assert_array_equal(
+        ExperimentalSwarmNavigator.reward(env)[0], before_score
+    )
 
 
 def test_combined_runner_wrapper_restores_globals_and_records_dependency_hash():
@@ -74,5 +82,7 @@ def test_combined_runner_wrapper_restores_globals_and_records_dependency_hash():
         hashes = matched.source_hashes(Path("/tmp/missing_source_experiment.py"))
         for module in (combined_followup, reward_followups):
             source = Path(module.__file__).resolve()
-            assert hashes[str(source)] == hashlib.sha256(source.read_bytes()).hexdigest()
+            assert (
+                hashes[str(source)] == hashlib.sha256(source.read_bytes()).hexdigest()
+            )
     assert (run.make_environment, run.VARIANT_NAMES, run.source_hashes) == before

@@ -17,16 +17,17 @@ readable through the schema-1 legacy path. Per-node tags (e.g. ``__kind__`` and
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import dataclasses
 import importlib
 import json
 import os
 import warnings
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import h5py  # type: ignore[import-untyped]
-import jax
-import jax.numpy as jnp
 import numpy as np
 
 from .quaternion import Quaternion
@@ -576,9 +577,7 @@ def save(obj: Any, path: str, *, overwrite: bool = True) -> None:
         payload = (
             "state"
             if type(obj).__name__ == "State"
-            else "system"
-            if type(obj).__name__ == "System"
-            else "object_tree"
+            else "system" if type(obj).__name__ == "System" else "object_tree"
         )
         f.attrs["jaxdem_serialization_manifest"] = json.dumps(
             make_serialization_manifest("hdf5", payload)

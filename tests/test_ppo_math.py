@@ -1,6 +1,12 @@
-from dataclasses import dataclass, replace
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Check PPO schedules, advantages, recurrent resets, and learning behavior."""
+
 import jax
 import jax.numpy as jnp
+
+from dataclasses import dataclass, replace
+
 import numpy as np
 import distrax
 import optax
@@ -747,7 +753,7 @@ def test_lstm_epoch_bootstrap_does_not_advance_saved_carry():
     )
     tr, trajectory, metrics = tr.epoch(tr, jnp.asarray(0))
     jax.block_until_ready(metrics)
-    (trained_model, _) = nnx.merge(tr.graphdef, tr.graphstate)
+    trained_model, _ = nnx.merge(tr.graphdef, tr.graphstate)
     assert jnp.all(trajectory.truncated)
     # Every transition truncates, so the rollout carry must stay reset.
     assert jnp.all(trained_model.c[...] == 0)

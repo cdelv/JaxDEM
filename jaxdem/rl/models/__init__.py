@@ -4,18 +4,21 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from abc import ABC, abstractmethod
 from typing import Any, cast
 
 import distrax  # type: ignore[import-untyped]
-import jax
-import jax.numpy as jnp
 from flax import nnx
 
 from ...factory import Factory
 
 
 class SigmaParam(nnx.Module):  # type: ignore[misc]
+    """Learn a state-independent positive standard deviation for each action."""
+
     def __init__(self, out_dim: int):
         self.log_std = nnx.Param(jnp.zeros((1, out_dim)))
 
@@ -24,6 +27,8 @@ class SigmaParam(nnx.Module):  # type: ignore[misc]
 
 
 class SigmaHead(nnx.Module):  # type: ignore[misc]
+    """Predict positive action standard deviations from learned features."""
+
     def __init__(
         self, in_features: int, out_dim: int, sigma_scale: float, key: nnx.Rngs
     ):
@@ -47,13 +52,13 @@ class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
 
     Models map observations to an action distribution and a value estimate.
 
-    Example:
+    Example
     --------
     To define a custom model, inherit from :class:`Model` and implement its abstract methods:
 
     >>> @Model.register("myCustomModel")
-    >>> class MyCustomModel(Model):
-            ...
+    ... class MyCustomModel(Model):
+    ...     ...
 
     """
 
