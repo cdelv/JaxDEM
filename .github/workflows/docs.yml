@@ -5,6 +5,9 @@ on:
     branches: [ main ]          # or any default branch
   pull_request:
 
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:          
   contents: write     
@@ -14,6 +17,7 @@ permissions:
 jobs:
   sphinx:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -23,15 +27,42 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgl1
+          sudo apt-get install -y libgl1 libegl1 libopengl0 ffmpeg
       - name: Install JaxDEM and Doc dependencies
         run: |
           python -m pip install --upgrade pip
           pip install .[docs]
+      - name: Cache ParaView installation
+        id: paraview-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/paraview
+          key: paraview-6.2.0-linux-x86_64-f05c9c7a
+      - name: Install pinned ParaView
+        if: steps.paraview-cache.outputs.cache-hit != 'true'
+        run: python tools/install_paraview.py --directory "${{ runner.temp }}/paraview"
       - name: Build HTML
+        env:
+          JAXDEM_DOCS_EXECUTE: "1"
+          JAXDEM_DOCS_VISUALS: "1"
+          JAXDEM_PVPYTHON: ${{ runner.temp }}/paraview/ParaView-6.2.0-MPI-Linux-Python3.12-x86_64/bin/pvpython
+          JAXDEM_PARAVIEW_BACKEND: EGL
+          OMP_NUM_THREADS: "1"
+          OPENBLAS_NUM_THREADS: "1"
+          MPLBACKEND: Agg
         run: |
           make -C docs clean
           make -C docs html SPHINXOPTS="-W --keep-going"
+      - name: Preserve visual regression evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: example-visuals-${{ github.sha }}
+          path: |
+            docs/source/_static/visuals/
+            docs/source/auto_examples/images/
+            docs/source/sg_execution_times.rst
+          if-no-files-found: warn
       - name: Deploy to GH Pages
         uses: peaceiris/actions-gh-pages@v3
         if: github.ref == 'refs/heads/main'

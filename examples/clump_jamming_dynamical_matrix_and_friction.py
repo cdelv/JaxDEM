@@ -39,6 +39,7 @@ import jax
 jax.config.update("jax_enable_x64", True)
 
 import numpy as np
+import matplotlib.pyplot as plt
 import jaxdem as jdem
 from jaxdem.utils import (
     count_clump_contacts,
@@ -251,7 +252,9 @@ zero_mask = np.asarray(zero_mode_mask(eigenvalues))
 scale = max(float(np.max(np.abs(eigenvalues))), 1.0)
 print("Lowest rigid-body Hessian eigenvalues:", eigenvalues[:8])
 print("Numerical zero modes:", int(zero_mask.sum()))
-print("Resolved negative modes:", int(np.sum((eigenvalues < -1e-7 * scale) & ~zero_mask)))
+print(
+    "Resolved negative modes:", int(np.sum((eigenvalues < -1e-7 * scale) & ~zero_mask))
+)
 
 # %%
 # Common translation of all bodies leaves every vertex separation unchanged,
@@ -293,10 +296,65 @@ state_nr, system_nr, H_nr = clump_non_bonded_hessian(state_nr, system_nr)
 H_nr_np = np.asarray(H_nr)
 eigenvalues_nr = np.linalg.eigvalsh(0.5 * (H_nr_np + H_nr_np.T))
 print("Remaining vertex spheres:", state_nr.N)
-print("Remaining numerical zero modes:", int(np.asarray(zero_mode_mask(eigenvalues_nr)).sum()))
+print(
+    "Remaining numerical zero modes:",
+    int(np.asarray(zero_mode_mask(eigenvalues_nr)).sum()),
+)
 # A rigid network has only the global translations. Extra rotational soft
 # modes or negative modes deserve inspection; graph pruning alone is not a
 # proof of stability, particularly for non-generic clump contacts.
+
+# %%
+# Compare the two contact counts and the resulting curvature
+# ----------------------------------------------------------
+# Several constituent contacts can connect the same neighboring bodies,
+# so the two bar heights answer different questions. The signed Hessian
+# spectra expose soft and negative directions without discarding their
+# signs. When pruning removes no bodies, the two spectra coincide; that
+# outcome is also useful evidence about this particular preparation.
+fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), layout="constrained")
+body_ids = np.arange(N_clumps)
+axes[0].bar(
+    body_ids - 0.18, np.asarray(vertex_counts), width=0.36, label="Constituent contacts"
+)
+axes[0].bar(
+    body_ids + 0.18, np.asarray(clump_counts), width=0.36, label="Neighboring clumps"
+)
+axes[0].set(
+    xticks=body_ids,
+    xlabel="Clump ID before pruning",
+    ylabel="Count per clump",
+    title="Contacts and neighbors differ",
+)
+axes[1].plot(
+    np.arange(len(eigenvalues)),
+    eigenvalues,
+    "o-",
+    markersize=4,
+    label=f"All bodies: {zero_mask.sum()} numerical zero modes",
+)
+axes[1].plot(
+    np.arange(len(eigenvalues_nr)),
+    eigenvalues_nr,
+    "s--",
+    markersize=4,
+    label=f"After pruning: {np.asarray(zero_mode_mask(eigenvalues_nr)).sum()} numerical zero modes",
+)
+axes[1].set_yscale("symlog", linthresh=1e-7 * scale)
+# Keep zero readable by omitting log ticks inside the linear neighborhood.
+axes[1].set_yticks(
+    [tick for tick in axes[1].get_yticks() if tick == 0 or abs(tick) >= 1e-7 * scale]
+)
+axes[1].axhline(0.0, color="0.5", linewidth=0.8)
+axes[1].set(
+    xlabel="Sorted mode index (each spectrum separately)",
+    ylabel="Generalized energy-Hessian eigenvalue",
+    title="Inspect the actual curvature",
+)
+for ax in axes:
+    ax.grid(alpha=0.2)
+    ax.legend(fontsize="small")
+plt.show()
 
 # %%
 # Geometric friction for each contacting clump pair
@@ -335,3 +393,36 @@ if len(mu_values):
     print(f"Mean geometric mu = {float(np.mean(mu_values)):.4f}")
 # Zero normal resultant can give infinite mu; coincident COMs make its axis
 # undefined. Inspect such geometry before interpreting a large ratio.
+
+# %%
+# Plot every unique body-pair ratio
+# ---------------------------------
+# The empirical cumulative distribution gives equal weight to each unique
+# contacting pair. A few pairs cannot establish a bulk friction law; the
+# individual markers show the full small sample. Any undefined or infinite
+# ratios are counted in the title rather than placed on a finite axis.
+finite_mu = np.sort(mu_values[np.isfinite(mu_values)])
+fig, ax = plt.subplots(figsize=(6.5, 3.4), layout="constrained")
+if len(finite_mu):
+    ax.step(
+        np.r_[0.0, finite_mu],
+        np.r_[0.0, np.arange(1, len(finite_mu) + 1) / len(finite_mu)],
+        where="post",
+        color="tab:purple",
+    )
+    ax.plot(
+        finite_mu,
+        np.arange(1, len(finite_mu) + 1) / len(finite_mu),
+        "o",
+        color="tab:purple",
+        label=f"{len(finite_mu)} unique finite pairs",
+    )
+    ax.legend(fontsize="small")
+ax.set(
+    xlabel=r"Geometric force ratio $\mu=|F_t|/|F_n|$",
+    ylabel="Fraction of finite pairs at or below ratio",
+    ylim=(0.0, 1.05),
+    title=f"Shape redirects contact forces ({len(mu_values) - len(finite_mu)} nonfinite ratios)",
+)
+ax.grid(alpha=0.2)
+plt.show()

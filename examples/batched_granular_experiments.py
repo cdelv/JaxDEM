@@ -46,8 +46,6 @@ jamming threshold or a precise confidence interval.
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-from matplotlib.collections import PatchCollection
-from matplotlib.patches import Circle
 import numpy as np
 
 import jaxdem as jdem
@@ -181,14 +179,15 @@ print("Independent dense-packing energy and pressure agree with the batch.")
 # %%
 # Show the spread, not only the mean
 # -----------------------------------
-# The snapshots use the same seed at each fraction. Disks crossing a periodic
-# boundary are drawn with their periodic copies and clipped to the box.
+# The ParaView snapshots use the same seed at each fraction and preserve the
+# physical disk radii as the box size changes.
 # Preparation dependence is visible in the pressure scatter, especially in
-# the middle row. These twelve packings do not establish an equation of state.
-
-fig = plt.figure(figsize=(11, 6), layout="constrained")
-grid = fig.add_gridspec(2, 3, height_ratios=(1.15, 1.0))
-pressure_axis = fig.add_subplot(grid[0, :2])
+# the middle fraction. These twelve packings do not establish an equation of
+# state.
+#
+fig, (pressure_axis, map_axis) = plt.subplots(
+    1, 2, figsize=(10, 3.8), width_ratios=(1.7, 1), layout="constrained"
+)
 for column, seed in enumerate(seeds):
     pressure_axis.scatter(
         packing_fractions + (column - 1.5) * 0.0025,
@@ -211,7 +210,6 @@ pressure_axis.set_title("Preparation changes the outcome")
 pressure_axis.legend(fontsize=8, ncols=3)
 pressure_axis.grid(alpha=0.2)
 
-map_axis = fig.add_subplot(grid[0, 2])
 pressure_map = map_axis.imshow(pressures, origin="lower", aspect="auto", cmap="magma")
 map_axis.set(
     xticks=list(seeds),
@@ -223,28 +221,6 @@ map_axis.set(
 )
 fig.colorbar(pressure_map, ax=map_axis, label="P", shrink=0.8)
 
-for row, phi in enumerate(packing_fractions):
-    axis = fig.add_subplot(grid[1, row])
-    index = row * len(seeds)
-    length = float(result.system.domain.box_size[index, 0])
-    centers = np.asarray(result.state.pos[index]) % length
-    patches, colors = [], []
-    for dx in (-length, 0.0, length):
-        for dy in (-length, 0.0, length):
-            for point, radius in zip(centers, np.asarray(radii), strict=True):
-                patches.append(Circle(point + [dx, dy], radius))
-                colors.append(radius)
-    collection = PatchCollection(patches, cmap="coolwarm", edgecolor="white", lw=0.6)
-    collection.set_array(np.asarray(colors))
-    axis.add_collection(collection)
-    axis.set(
-        xlim=(0, length),
-        ylim=(0, length),
-        aspect="equal",
-        title=f"φ={phi:.2f}, seed 0; P={pressures[row, 0]:.3f}",
-        xlabel="x",
-        ylabel="y",
-    )
 fig.suptitle("One vectorized call • twelve granular preparations", fontsize=14)
 plt.show()
 

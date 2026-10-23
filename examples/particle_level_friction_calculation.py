@@ -27,6 +27,7 @@ import jax
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 from jaxdem.utils.particle_creation import create_ga_state, create_sphere_state
 from jaxdem.utils.surface_properties import compute_surface_properties
@@ -109,8 +110,56 @@ print(f"mean friction = {mean_friction:.4f}")
 # A smooth sphere provides a useful baseline: radial normal forces give mu=0.
 smooth = create_sphere_state(radii=0.5, dim=3)
 baseline = compute_surface_properties(
-    smooth, tracer, target_overlap=1e-10, separation_tolerance=1e-12,
-    n_points=n_points, n_orientations=1, n_rolls=1,
+    smooth,
+    tracer,
+    target_overlap=1e-10,
+    separation_tolerance=1e-12,
+    n_points=n_points,
+    n_orientations=1,
+    n_rolls=1,
 )
 np.testing.assert_allclose(np.asarray(baseline["mu"]), 0.0, atol=1e-8)
 print("Smooth-sphere baseline: mu = 0 within numerical tolerance.")
+
+# %%
+# Examine the distribution behind the mean
+# ----------------------------------------
+# Both panels give equal weight to each approach direction. The histogram
+# shows how common low and high force ratios are; the cumulative curve
+# reveals the fraction below any chosen ratio without a bin-width choice.
+# Their difference from the zero-ratio smooth reference comes entirely
+# from shape, since the contact law itself has no tangential friction.
+sorted_mu = np.sort(mu)
+fractions = np.arange(1, n_points + 1) / n_points
+fig, axes = plt.subplots(1, 2, figsize=(9.5, 3.5), layout="constrained")
+axes[0].hist(mu, bins=14, color="tab:purple", alpha=0.8)
+axes[0].axvline(
+    mean_friction,
+    color="tab:orange",
+    linestyle="--",
+    label=f"Angular mean = {mean_friction:.3f}",
+)
+axes[0].set(
+    ylabel="Sampled approach directions", title="The mean hides directional variation"
+)
+axes[0].legend(fontsize="small")
+axes[1].step(
+    np.r_[0.0, sorted_mu],
+    np.r_[0.0, fractions],
+    where="post",
+    color="tab:purple",
+    label="Rough clump",
+)
+axes[1].plot(
+    [0.0, 0.0, sorted_mu[-1]], [0.0, 1.0, 1.0], "--", color="0.5", label="Smooth sphere"
+)
+axes[1].set(
+    ylabel="Fraction of directions at or below ratio",
+    ylim=(0.0, 1.05),
+    title="Compare the full angular distribution",
+)
+axes[1].legend(fontsize="small")
+for ax in axes:
+    ax.set_xlabel(r"Geometric force ratio $\mu=|F_t|/|F_n|$")
+    ax.grid(alpha=0.2)
+plt.show()

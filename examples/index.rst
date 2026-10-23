@@ -14,3 +14,10 @@ Defaults use small, reproducible configurations so readers can inspect a
 result quickly. Increase sizes and numerical budgets deliberately when
 moving to a research calculation, and check convergence before interpreting
 its output.
+
+The visual examples require Matplotlib; VTK exports require ``JaxDEM[io]``.
+The documentation runs the examples again on every build: Matplotlib draws
+measured diagnostics, and ParaView renders simulation geometry from
+:doc:`VTKWriter output <../auto_examples/vtk_writer_guide>`. Movies use actual
+saved frames. Selected scenes also have an optional browser viewer for rotating
+and inspecting the geometry.

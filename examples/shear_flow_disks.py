@@ -23,6 +23,7 @@ from dataclasses import replace
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import jaxdem as jdem
 from jaxdem.utils.contacts import compute_contact_stress_tensor
 from jaxdem.utils.packing_utils import scale_to_packing_fraction
@@ -151,6 +152,8 @@ state, system = system.initialize(state, system)
 # Positive diagonal contact stress means compression. sigma_xy below is only
 # the contact virial contribution; kinetic stress is a separate contribution.
 print("time  gamma  PE/N      total_KE/N  peculiar_KE/N  contact_sigma_xy")
+measurements = []
+scene_states, scene_systems = [], []
 for _ in range(4):
     state, system = system.step(state, system, n=100)
     system.check_overflow()
@@ -163,8 +166,42 @@ for _ in range(4):
         .set(shear_rate * (state.pos_c[:, 1] - jnp.mean(state.pos_c[:, 1])))
     )
     peculiar_ke = 0.5 * jnp.sum(state.mass[:, None] * (state.vel - streaming) ** 2) / N
+    measurements.append(
+        [
+            float(system.time),
+            float(pe),
+            float(ke),
+            float(peculiar_ke),
+            float(stress[0, 1]),
+        ]
+    )
+    scene_states.append(state)
+    scene_systems.append(system)
     print(
         f"{float(system.time):.2f}  {float(system.domain.gamma):.3f}  "
         f"{float(pe):.3e}  {float(ke):.3e}  {float(peculiar_ke):.3e}  "
         f"{float(stress[0, 1]):.3e}"
     )
+
+# %%
+# Compare contact stress with the energy in peculiar motion
+# ---------------------------------------------------------
+# These are the four measured endpoints above. Subtracting the prescribed
+# streaming profile isolates peculiar kinetic energy; it does not remove
+# the stress fluctuations of a small packing or establish a steady flow.
+import matplotlib.pyplot as plt
+
+measured = np.asarray(measurements)
+fig, axes = plt.subplots(1, 3, figsize=(10, 3), layout="constrained")
+axes[0].plot(measured[:, 0], measured[:, 1], "o-")
+axes[0].set(ylabel="Potential energy per disk", title="Contact deformation")
+axes[1].plot(measured[:, 0], measured[:, 2], "o-", label="Total")
+axes[1].plot(measured[:, 0], measured[:, 3], "s--", label="Peculiar")
+axes[1].set(ylabel="Kinetic energy per disk", title="Subtract the streaming profile")
+axes[1].legend()
+axes[2].plot(measured[:, 0], measured[:, 4], "o-")
+axes[2].set(ylabel="Contact shear stress", title="Finite-packing response")
+for axis in axes:
+    axis.set_xlabel("Physical time")
+    axis.grid(alpha=0.2)
+plt.show()

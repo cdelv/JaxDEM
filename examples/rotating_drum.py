@@ -27,9 +27,6 @@ from pathlib import Path
 
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-from matplotlib.collections import PatchCollection
-from matplotlib.patches import Circle
-from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import numpy as np
 from vtkmodules.util.numpy_support import vtk_to_numpy
 from vtkmodules.vtkIOGeometry import vtkSTLReader
@@ -241,19 +238,26 @@ state, system = system.initialize(state, system)
 # rotational response during this protocol. Gravity also exerts orbital
 # torque when the bed's center of mass is off-axis, so this diagnostic does
 # not separately measure the motor's torque or angular-momentum input.
-# Store only observations rather than the large contact-history buffers.
+# Ordinary runs store compact observations. Documentation rendering also
+# retains matching snapshots for :py:class:`~jaxdem.writers.vtk_writer.VTKWriter`,
+# so the movie comes from this same integration, including its contact history.
+
+capture_scene = os.environ.get("JAXDEM_DOCS_VISUALS") == "1"
 
 
 def observe(state, system):
     p, v = state.pos[:n_grains], state.vel[:n_grains]
     bed_omega = jnp.sum(p[:, 0] * v[:, 1] - p[:, 1] * v[:, 0]) / jnp.sum(p[:, :2] ** 2)
-    return system.time, state.pos, bed_omega
+    observations = system.time, state.pos, bed_omega
+    return (observations, state, system) if capture_scene else observations
 
 
 state, system, trajectory = jdem.System.trajectory_rollout(
     state, system, n=60, stride=25, save_fn=observe
 )
 system.check_overflow()
+if capture_scene:
+    trajectory, scene_states, scene_systems = trajectory
 times, frames, bed_omega = [np.asarray(a) for a in trajectory]
 assert np.isfinite(frames).all()
 assert np.max(np.linalg.norm(frames[:, :n_grains, :2], axis=-1)) < drum_radius
@@ -282,9 +286,10 @@ print(f"Mean orbital entrainment after startup: {mean_entrainment:.3f}")
 # %%
 # Interpret the short experiment
 # -------------------------------
-# The first view shows the imported shell and lifters; the second looks down
-# the rotation axis at the final grain configuration. Colors passively label
-# initial left/right positions, not different materials. This small thin drum
+# The ParaView view shows the imported shell, lifters and grain configuration.
+# Grain colors show instantaneous speed on a fixed scale throughout playback.
+# The short animation follows the actual saved frames through settling and
+# motor startup. This small thin drum
 # provides a quick geometry/contact example. Mixing rates and flow regimes
 # require larger beds, longer runs, statistical sampling and refinement of the
 # timestep and mesh. Also recheck neighbor capacity after changing the STL.
@@ -299,67 +304,8 @@ print(f"Mean orbital entrainment after startup: {mean_entrainment:.3f}")
 # The LAMMPS `STL mixer-drum example
 # <https://www.lammps.org/examples/mixer_drum/>`_ provides another illustration
 # of using imported triangulated geometry in a granular simulation.
-
-fig = plt.figure(figsize=(12.5, 4.1), constrained_layout=True)
-ax_mesh = fig.add_subplot(131, projection="3d")
-ax_bed = fig.add_subplot(132)
-ax_trace = fig.add_subplot(133)
-triangles = vertices[faces]
-cap = np.ptp(triangles[:, :, 2], axis=1) < 1e-5
-lifter = (~cap) & (np.min(np.linalg.norm(triangles[:, :, :2], axis=-1), axis=1) < 2.5)
-for mask, color, alpha in [
-    (cap, "#bfc8d4", 0.025),
-    (~cap & ~lifter, "#bfc8d4", 0.16),
-    (lifter, "#d49d42", 0.75),
-]:
-    ax_mesh.add_collection3d(
-        Poly3DCollection(
-            triangles[mask],
-            facecolor=color,
-            edgecolor="#737b89",
-            alpha=alpha,
-            linewidth=0.5,
-        )
-    )
-ax_mesh.set(
-    xlim=(-3.2, 3.2),
-    ylim=(-3.2, 3.2),
-    zlim=(-0.8, 0.8),
-    title="Imported STL: shell + lifters",
-)
-ax_mesh.set_box_aspect((6.0, 6.0, 1.4))
-ax_mesh.view_init(elev=65, azim=-65)
-ax_mesh.set_axis_off()
-
-final_triangles = frames[-1, n_grains:].reshape(-1, 3, 3)
-for triangle in final_triangles:
-    # Hide end-cap diagonals in this projection; retain the side wall/lifters.
-    if np.ptp(triangle[:, 2]) > 0.5:
-        is_lifter = np.min(np.linalg.norm(triangle[:, :2], axis=-1)) < 2.5
-        ax_bed.plot(
-            triangle[:, 0],
-            triangle[:, 1],
-            color="#d49d42" if is_lifter else "#737b89",
-            lw=2.0 if is_lifter else 1.0,
-            alpha=0.85,
-        )
-colors = np.where(grain_initial[:, 0] < 0.0, "#d96748", "#3b8ea5")
-ax_bed.add_collection(
-    PatchCollection(
-        [Circle(p[:2], grain_radius) for p in frames[-1, :n_grains]],
-        facecolor=colors,
-        edgecolor="white",
-        linewidth=0.5,
-        alpha=0.9,
-    )
-)
-ax_bed.set(
-    xlim=(-3.3, 3.3),
-    ylim=(-3.3, 3.3),
-    aspect="equal",
-    title=f"After rotation: t={times[-1]:.1f}",
-)
-ax_bed.set_axis_off()
+#
+fig, (ax_trace, ax_height) = plt.subplots(1, 2, figsize=(10, 3.6), layout="constrained")
 ax_trace.plot(times, bed_omega / omega, color="#3b8ea5", label="Orbital entrainment")
 ax_trace.axvline(settle_time, color="#737b89", ls="--", label="Motor starts")
 ax_trace.axhline(0.0, color="#d0d4dc", lw=0.8)
@@ -369,4 +315,14 @@ ax_trace.set(
     title="Orbital response to drum motion",
 )
 ax_trace.legend(frameon=False, fontsize=8)
+ax_height.plot(times, frames[:, :n_grains, 1].mean(axis=1), color="#d96748")
+ax_height.axvline(settle_time, color="#737b89", ls="--", label="Motor starts")
+ax_height.set(
+    xlabel="Time",
+    ylabel="Mean grain-center height",
+    title="Settling and lifting change the bed height",
+)
+ax_height.legend(frameon=False, fontsize=8)
+for ax in (ax_trace, ax_height):
+    ax.grid(alpha=0.18)
 plt.show()

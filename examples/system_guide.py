@@ -22,6 +22,7 @@ a compiled specialization; change those during host-side setup.
 
 import jax
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import jaxdem as jdem
 
 # %%
@@ -307,3 +308,77 @@ print("Integrator:", type(system_frozen.linear_integrator).__name__)
 
 system_rng = jdem.System.create(state.shape, seed=42)
 print("PRNG key:", system_rng.key)
+
+# %%
+# Follow the configured components through one step
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# These labels come from the existing swapped-integrator configuration.
+# The arrows show call order, rather than time spent in each component.
+# User pre/post-step callbacks surround these stages; a configured bonded
+# model updates its reference state before contact forces are evaluated.
+# Rotation finishes before translation so a linear thermostat can inspect
+# the completed rotational velocities.
+fig, ax = plt.subplots(figsize=(10, 4.4), layout="constrained")
+ax.set(xlim=(0, 1), ylim=(0, 1))
+ax.set_axis_off()
+component_nodes = [
+    (0.16, 0.72, f"1. Boundaries\n{type(system_dyn.domain).__name__}"),
+    (
+        0.5,
+        0.72,
+        f"2. Before force\n{type(system_dyn.linear_integrator).__name__}\n{type(system_dyn.rotation_integrator).__name__}",
+    ),
+    (
+        0.84,
+        0.72,
+        f"3. Pair forces\n{type(system_dyn.collider).__name__}\n{type(system_dyn.force_model).__name__}",
+    ),
+    (
+        0.84,
+        0.27,
+        f"4. Extra and body forces\n{type(system_dyn.force_manager).__name__}",
+    ),
+    (0.5, 0.27, f"5. Finish rotation\n{type(system_dyn.rotation_integrator).__name__}"),
+    (
+        0.16,
+        0.27,
+        f"6. Finish translation\n{type(system_dyn.linear_integrator).__name__}",
+    ),
+]
+for x, y, label in component_nodes:
+    ax.text(
+        x,
+        y,
+        label,
+        ha="center",
+        va="center",
+        fontsize=10,
+        bbox={
+            "boxstyle": "round,pad=0.7",
+            "facecolor": "#e7f2ef",
+            "edgecolor": "#8795a1",
+        },
+    )
+for start, end in [
+    ((0.29, 0.72), (0.36, 0.72)),
+    ((0.64, 0.72), (0.71, 0.72)),
+    ((0.84, 0.58), (0.84, 0.39)),
+    ((0.7, 0.27), (0.64, 0.27)),
+    ((0.36, 0.27), (0.3, 0.27)),
+]:
+    ax.annotate(
+        "",
+        xy=end,
+        xytext=start,
+        arrowprops={"arrowstyle": "->", "color": "#52657c", "lw": 1.4},
+    )
+ax.text(
+    0.5,
+    0.04,
+    f"Configured dt = {float(system_dyn.dt):g}; user callbacks surround these stages",
+    ha="center",
+    fontsize=10,
+    color="#52657c",
+)
+ax.set_title("One physical step through the configured System", pad=12)
+plt.show()

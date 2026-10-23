@@ -33,6 +33,8 @@ effects: their jamming fractions are not estimates of the bulk value.
 # ~~~~~~~~~~~~~~~~~~~~~
 import jax
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
+import numpy as np
 import jaxdem as jdem
 
 # Double precision keeps the small energy threshold resolved.
@@ -158,6 +160,46 @@ print("Finite-system jamming fractions:", result.packing_fraction)
 print("Trial minimizations:", result.steps)
 assert bool(jnp.all(result.potential_energy > pe_tol))
 assert bool(jnp.all(result.potential_energy <= 4.0 * pe_tol))
+
+# %%
+# Inspect the accepted bounds and search cost
+# -------------------------------------------
+# Each marker represents one independent preparation. The lower error-bar
+# endpoint is the stored unjammed fraction; its small span is the numerical
+# bracket width. The shaded energy band shows the acceptance criterion.
+# Different fractions across these two seeds reflect finite-system
+# preparation dependence, not an uncertainty estimate for bulk jamming.
+seeds = np.arange(N_systems)
+phi_hi = np.asarray(result.packing_fraction)
+phi_lo = np.asarray(result.unjammed_state.volume).sum(axis=-1) / np.prod(
+    np.asarray(result.unjammed_system.domain.box_size), axis=-1
+)
+fig, axes = plt.subplots(1, 3, figsize=(10, 3.4), layout="constrained")
+axes[0].errorbar(
+    seeds,
+    phi_hi,
+    yerr=np.stack((phi_hi - phi_lo, np.zeros_like(phi_hi))),
+    fmt="o",
+    capsize=5,
+)
+axes[0].set(ylabel=r"Packing fraction $\phi_J$", title="Accepted upper bounds")
+axes[1].axhspan(1.0, 4.0, color="tab:green", alpha=0.12, label="Acceptance band")
+axes[1].plot(
+    seeds, np.asarray(result.potential_energy) / pe_tol, "o", color="tab:green"
+)
+axes[1].set(
+    ylabel=r"Energy per sphere / $e_{\mathrm{tol}}$",
+    title="Energy threshold is resolved",
+    ylim=(0.0, 4.5),
+)
+axes[1].legend(fontsize="small")
+axes[2].bar(seeds, np.asarray(result.steps), width=0.5, color="tab:orange")
+axes[2].set(ylabel="Trial minimizations", title="Work to resolve each bracket")
+for ax in axes:
+    ax.set_xticks(seeds)
+    ax.set_xlabel("Preparation seed")
+    ax.grid(axis="y", alpha=0.2)
+plt.show()
 
 # %%
 # Run the Jamming Algorithm for a Single System

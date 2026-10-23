@@ -29,6 +29,7 @@ import jax
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import numpy as np
 
 from jaxdem.utils.particle_creation import build_sphere_system
@@ -141,6 +142,35 @@ assert np.all(np.isfinite(ke_trace))
 print("idx  step      phi       KE")
 for i in (0, 1, n_frames // 4, n_frames // 2, 3 * n_frames // 4, n_frames - 1):
     print(f"{i:3d}  {save_steps[i]:6d}    {phi_trace[i]:.4f}    {ke_trace[i]:.3e}")
+
+
+# %%
+# Check both the imposed schedule and the mechanical response
+# -----------------------------------------------------------
+# The saved markers should follow the requested fraction exactly. The
+# kinetic energy is a response of this short, unthermostatted run; holding
+# the box fixed after the ramp does not impose zero kinetic energy or
+# establish that the packing has equilibrated. Marker spacing also shows
+# the nonuniform recording cadence.
+times = np.asarray(traj_system.time)
+fig, axes = plt.subplots(2, 1, figsize=(8, 5), sharex=True, layout="constrained")
+axes[0].plot(times, phi_at_frames, "--", color="0.4", label="Requested fraction")
+axes[0].plot(times, phi_trace, "o", markersize=3, label="Saved fraction")
+axes[0].set(
+    ylabel=r"Packing fraction $\phi$",
+    title="Ramp the packing fraction, then hold the box",
+)
+axes[0].legend(fontsize="small")
+axes[1].plot(times, ke_trace, "o-", color="tab:orange", markersize=3)
+axes[1].set(
+    xlabel="Physical time (reduced units)", ylabel="Total translational kinetic energy"
+)
+for ax in axes:
+    ax.axvspan(
+        ramp_end * num_steps * float(system.dt), times[-1], color="0.5", alpha=0.1
+    )
+    ax.grid(alpha=0.2)
+plt.show()
 
 
 # %%

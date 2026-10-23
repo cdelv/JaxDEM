@@ -110,3 +110,56 @@ with jdem.VTKWriter(directory=tmp_dir / "trajectory", clean=True) as writer:
 # The directory is intentionally retained. Remove it once you finish
 # inspecting the PVD collections and their associated frame files.
 print("Output retained at:", tmp_dir)
+
+# %%
+# Render the saved output with ParaView
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# The ``spheres`` collection contains particle centers and a ``rad`` field,
+# not triangulated spheres. In ParaView, apply a **Glyph** filter with a sphere
+# source, select ``rad`` for scaling, set the scale factor to **2**, and show
+# all points. The default glyph sphere has radius 0.5, so this reproduces each
+# particle's physical radius. Load the other collections to display the domain,
+# facets and deformable elements alongside the grains.
+# Bonded deformable meshes retain their coherent, unwrapped coordinates;
+# they can extend beyond a periodic cell without their bonds being torn by
+# independently wrapping each node. Ordinary grains are wrapped for display.
+#
+# The same operations can run headlessly in ParaView's ``pvpython`` interpreter.
+# This is a separate program from the Python interpreter running JaxDEM.
+# Run it from the saved output directory, or use an absolute PVD filename:
+#
+# .. code-block:: python
+#
+#    from paraview.simple import (
+#        PVDReader, Glyph, CreateRenderView, Show, ColorBy,
+#        Render, SaveScreenshot, ExportView,
+#    )
+#
+#    particles = PVDReader(FileName="batch_00000000_spheres.pvd")
+#    spheres = Glyph(Input=particles, GlyphType="Sphere")
+#    spheres.ScaleArray = ["POINTS", "rad"]
+#    spheres.ScaleFactor = 2.0
+#    spheres.GlyphMode = "All Points"
+#    view = CreateRenderView()
+#    display = Show(spheres, view)
+#    ColorBy(display, ("POINTS", "vel", "Magnitude"))
+#    view.ResetCamera()
+#    Render(view)
+#    SaveScreenshot("particles.png", view, ImageResolution=[960, 600])
+#    ExportView(
+#        "particles.vtkjs", view=view,
+#        ExportToGlance=1, AutomaticGlanceHTML=1, DisableNetwork=1,
+#    )
+#
+# ParaView can save a sequence of rendered frames for a short movie. The
+# documentation's media pipeline reads this run's PVD collections and selects
+# saved timesteps; it does not redraw particles with Matplotlib or invent
+# intermediate configurations. Matplotlib remains useful for diagnostics such
+# as energy, pressure and convergence.
+#
+# `ParaView Glance <https://kitware.github.io/glance/doc/loading_files.html>`_
+# embeds the exported snapshot in a browser viewer, so readers can rotate,
+# zoom, inspect fields and change representations without a ParaView server.
+# A movie shows the time evolution, while an interactive snapshot supports
+# examining the geometry. See ParaView's `saving results documentation
+# <https://docs.paraview.org/en/v6.2.0/UsersGuide/savingResults.html>`_.

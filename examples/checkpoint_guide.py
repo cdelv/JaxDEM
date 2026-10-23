@@ -17,6 +17,7 @@ import tempfile
 from pathlib import Path
 import numpy as np
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import jaxdem as jdem
 
 # %%
@@ -36,17 +37,21 @@ state, system = jdem.System.initialize(state, system)
 
 tmp_root = tempfile.TemporaryDirectory(prefix="jaxdem-checkpoint-guide-")
 tmp_dir = Path(tmp_root.name) / "simulation"
+checkpoint_steps = []
 with jdem.CheckpointWriter(directory=tmp_dir, max_to_keep=2) as writer:
     # By default (clean=False) the writer preserves any checkpoints already
     # present in the directory, so re-opening a writer on the same directory
     # is safe. Pass clean=True to erase the directory and start fresh.
     writer.save(state, system)  # step 0
+    checkpoint_steps.append(int(system.step_count))
 
     state, system = system.step(state, system, n=5)
     writer.save(state, system)  # step 5
+    checkpoint_steps.append(int(system.step_count))
 
     state, system = system.step(state, system, n=5)
     writer.save(state, system)  # step 10
+    checkpoint_steps.append(int(system.step_count))
 
 
 # %%
@@ -60,6 +65,7 @@ with jdem.CheckpointLoader(directory=tmp_dir) as loader:
     # ``loader.checkpointer`` is the underlying Orbax CheckpointManager.
     # ``all_steps()`` has no public CheckpointLoader equivalent yet.
     print("Available steps:", loader.checkpointer.all_steps())
+    retained_steps = tuple(loader.checkpointer.all_steps())
     print("Latest step:", loader.latest_step())
 
     state_latest, system_latest = loader.load()
@@ -240,5 +246,73 @@ reference_state, reference_system = jdem.System.step(state, system)
 np.testing.assert_array_equal(state_h5.pos, reference_state.pos)
 assert int(system_h5.step_count) == int(reference_system.step_count)
 print("HDF5 continuation step:", int(system_h5.step_count))
+
+# %%
+# Follow the saved and resumed step counts
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# The three lanes use actual step counts from the saved, reloaded and
+# continued systems above. Retention leaves the last two checkpoints on disk.
+# The restarted state at step ten matches the uninterrupted state exactly;
+# the HDF5 continuation then matches its independent one-step reference.
+# These are integration-step indices, rather than checkpoint file numbers or
+# the wall-clock time taken to save a snapshot.
+fig, ax = plt.subplots(figsize=(9, 4), layout="constrained")
+loaded_step = int(system_step_5.step_count)
+resumed_step = int(resumed_system.step_count)
+original_step = int(system_latest.step_count)
+h5_step = int(system_h5.step_count)
+ax.plot(checkpoint_steps, [2] * len(checkpoint_steps), "o-", color="#275e94", ms=7)
+ax.plot([loaded_step, resumed_step], [1, 1], "o-", color="#258685", ms=7)
+ax.plot([original_step, h5_step], [0, 0], "o-", color="#d07a28", ms=7)
+ax.annotate(
+    "load checkpoint",
+    xy=(loaded_step, 1.1),
+    xytext=(loaded_step, 1.65),
+    ha="center",
+    fontsize=9,
+    arrowprops={"arrowstyle": "->", "color": "#52657c"},
+)
+ax.annotate(
+    "",
+    xy=(original_step, 0.15),
+    xytext=(original_step, 1.9),
+    arrowprops={
+        "arrowstyle": "->",
+        "color": "#52657c",
+        "connectionstyle": "arc3,rad=-0.4",
+    },
+)
+ax.text(original_step - 0.3, 0.65, "load HDF5", fontsize=9, ha="right")
+for step in checkpoint_steps:
+    ax.text(
+        step,
+        2.18,
+        f"save {step}" + ("\npruned" if step not in retained_steps else "\nretained"),
+        ha="center",
+        va="bottom",
+        fontsize=9,
+    )
+restart_position_error = float(
+    np.max(np.abs(np.asarray(resumed.pos) - np.asarray(state.pos)))
+)
+ax.text(
+    0.5 * (loaded_step + resumed_step),
+    1.15,
+    f"matches original\nmax |Δposition| = {restart_position_error:g}",
+    ha="center",
+    va="bottom",
+    fontsize=9,
+)
+ax.set(
+    title="Saved checkpoints reproduce the continuation",
+    xlabel="Accepted integration step count",
+    yticks=[0, 1, 2],
+    yticklabels=["HDF5 continuation", "Restart from checkpoint", "Original run"],
+    xticks=sorted(set(checkpoint_steps + [h5_step])),
+    xlim=(-0.7, h5_step + 1.0),
+    ylim=(-0.45, 2.85),
+)
+ax.grid(axis="x", alpha=0.18)
+plt.show()
 
 tmp_root.cleanup()

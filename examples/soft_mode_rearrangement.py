@@ -69,8 +69,6 @@ from pathlib import Path
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-from matplotlib.collections import PatchCollection
-from matplotlib.patches import Circle, Polygon
 import numpy as np
 
 import jaxdem as jdem
@@ -218,6 +216,10 @@ energies_per_disk = [float(initial.energy)]
 released_per_disk = [0.0]
 lowest_values = [eigenvalues[:2]]
 overlaps = [0.0]
+# Retain the accepted equilibria for VTK export without repeating the search.
+# These are strain-indexed AQS states, not samples of physical-time dynamics.
+scene_states = [state]
+scene_systems = [system]
 event = None
 contact_change_softening = False
 for step in range(MAX_STRAIN_STEPS):
@@ -243,6 +245,8 @@ for step in range(MAX_STRAIN_STEPS):
     released_per_disk.append(affine_energy / N - float(result.energy))
     lowest_values.append(eigenvalues[:2])
     overlaps.append(overlap)
+    scene_states.append(state)
+    scene_systems.append(system)
     if displacement_norm > 0.15 and energy_drop > 1e-4:
         event = (
             previous_state,
@@ -278,89 +282,20 @@ print(
 # Inspect the event in the sheared periodic cell
 # ----------------------------------------------
 # The cell vectors are :math:`(L_x,0)` and :math:`(\gamma L_y,L_y)`.
-# Wrapping in fractional coordinates and drawing periodic copies preserves
-# that geometry; treating this cell as a rectangular box would misrepresent
-# boundary contacts. Both arrow fields are anchored to the preceding
-# equilibrium. Their largest displayed arrows have equal lengths, with the
-# separate display multipliers reported explicitly. The actual displacement
-# norm and normalized overlap above carry the quantitative comparison.
-
-
-def draw_field(axis, state, system, field, color, title, description):
-    length = np.asarray(system.domain.box_size)
-    gamma = float(system.domain.gamma)
-    lattice = np.array([[length[0], gamma * length[1]], [0.0, length[1]]])
-    fractional = np.linalg.solve(lattice, np.asarray(state.pos).T).T % 1.0
-    centers = fractional @ lattice.T
-    corners = np.array([[0, 0], [1, 0], [1, 1], [0, 1]]) @ lattice.T
-    cell = Polygon(corners, fill=False, edgecolor="0.25", lw=1.5)
-    axis.add_patch(cell)
-    patches, sizes, arrow_positions, arrow_vectors = [], [], [], []
-    display_scale = 0.6 / np.linalg.norm(field, axis=1).max()
-    for ix in (-1, 0, 1):
-        for iy in (-1, 0, 1):
-            image_centers = centers + lattice @ [ix, iy]
-            for center, radius in zip(
-                image_centers, np.asarray(state.rad), strict=True
-            ):
-                patches.append(Circle(center, radius))
-                sizes.append(radius)
-            arrow_positions.extend(image_centers)
-            arrow_vectors.extend(display_scale * field)
-    disks = PatchCollection(
-        patches, cmap="coolwarm", alpha=0.30, edgecolor="0.4", lw=0.6
-    )
-    disks.set_array(np.asarray(sizes))
-    disks.set_clip_path(cell)
-    axis.add_collection(disks)
-    arrow_positions, arrow_vectors = np.asarray(arrow_positions), np.asarray(
-        arrow_vectors
-    )
-    arrows = axis.quiver(
-        *arrow_positions.T,
-        *arrow_vectors.T,
-        angles="xy",
-        scale_units="xy",
-        scale=1,
-        color=color,
-        width=0.006,
-    )
-    arrows.set_clip_path(cell)
-    axis.set(
-        xlim=(-0.15, length[0] + gamma * length[1] + 0.15),
-        ylim=(-0.15, length[1] + 0.15),
-        aspect="equal",
-        xlabel="x",
-        ylabel="y",
-        title=title,
-    )
-    axis.text(
-        0.02,
-        0.02,
-        f"{description}; display ×{display_scale:.2f}",
-        transform=axis.transAxes,
-        fontsize=8,
-        bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "none"},
-    )
-
-
-# Choose the mode's arbitrary sign to point along the event for visualization.
-pre_mode = pre_mode * np.sign(pre_mode @ event_displacement.reshape(-1))
+# Preserving the shear offset in the ParaView export represents that geometry;
+# treating this cell as a rectangular box would misrepresent boundary contacts.
+# Each saved equilibrium carries its current unit-normalized soft mode as
+# arrows and its nonaffine displacement from the preceding equilibrium as
+# particle colors. The arrows are projected above the disks for visibility.
+# The quantitative event comparison uses the preceding mode, actual event
+# displacement norm and normalized overlap reported above.
+#
 strain_offset = 1_000 * (np.asarray(strain_values) - strain_values[0])
 fig, axes = plt.subplots(2, 2, figsize=(11, 8.5), layout="constrained")
 axes[0, 0].plot(
     strain_offset, energies_per_disk, "o-", ms=3, color="#275e94", label="relaxed U/N"
 )
-axes[0, 0].plot(
-    strain_offset,
-    released_per_disk,
-    ".--",
-    color="#d07a28",
-    label="released in relaxation / N",
-)
-axes[0, 0].set(
-    ylabel="energy per disk", title="Energy released during the rearrangement"
-)
+axes[0, 0].set(ylabel="energy per disk", title="Energy of the relaxed minima")
 axes[0, 0].legend(fontsize=8)
 axes[0, 1].semilogy(
     strain_offset,
@@ -377,28 +312,22 @@ axes[0, 1].set(
     ylabel="stiffness eigenvalue", title="A contact change creates a soft direction"
 )
 axes[0, 1].legend(fontsize=8)
-for axis in axes[0]:
+axes[1, 0].plot(strain_offset[1:], overlaps[1:], "o-", ms=3, color="#275e94")
+axes[1, 0].axhline(alignment, color="0.5", ls="--", lw=1)
+axes[1, 0].set(
+    ylim=(0, 1.05),
+    ylabel="Absolute normalized overlap C",
+    title=f"Mode–event alignment: {alignment:.3f}",
+)
+axes[1, 1].plot(strain_offset, released_per_disk, "o-", ms=3, color="#d07a28")
+axes[1, 1].set(
+    ylabel="Released energy per disk",
+    title="Relaxation releases energy at fixed strain",
+)
+for axis in axes.flat:
     axis.axvline(strain_offset[-1], color="0.45", ls=":", lw=1)
     axis.set_xlabel("strain increment from checkpoint, 1000 Δγ")
     axis.grid(alpha=0.2)
-draw_field(
-    axes[1, 0],
-    pre_state,
-    pre_system,
-    pre_mode.reshape(N, 2),
-    "#275e94",
-    "Soft mode immediately before the event",
-    "unit-norm mode",
-)
-draw_field(
-    axes[1, 1],
-    pre_state,
-    pre_system,
-    event_displacement,
-    "#d07a28",
-    f"Actual nonaffine rearrangement; overlap {alignment:.3f}",
-    f"displacement norm {event_norm:.3f}",
-)
 fig.suptitle(
     "A soft collective direction becomes a granular rearrangement", fontsize=14
 )

@@ -12,9 +12,6 @@ running dynamics or minimizing it. Eight disks keep the calculation small.
 
 # %%
 import matplotlib.pyplot as plt
-from matplotlib.collections import LineCollection
-from matplotlib.lines import Line2D
-from matplotlib.patches import Circle
 import jax.numpy as jnp
 import numpy as np
 
@@ -139,7 +136,9 @@ assert remaining.negative_mode_count > 0
 # :py:attr:`~jaxdem.utils.post_processing.PackingData.original_clump_ids`
 # when mapping them back to the input. Line width below represents net contact
 # :py:attr:`force <jaxdem.utils.post_processing.ClumpContactNetwork.forces>`
-# magnitude, while color distinguishes the two species comparisons.
+# magnitude in the ParaView view, while color distinguishes the two species
+# comparisons. The isolated fourth clump remains visible for context.
+#
 starts = np.asarray(remaining.clump_positions)[pairs[unique, 0]]
 ends = starts - np.asarray(network.displacements)[unique]
 segments = np.stack((starts, ends), axis=1)
@@ -147,32 +146,54 @@ strength = np.linalg.norm(np.asarray(network.forces)[unique], axis=1)
 widths = 1.0 + 3.0 * strength / max(float(strength.max(initial=0.0)), 1e-12)
 colors = np.where(same_species[unique], "tab:blue", "tab:orange")
 
-fig, ax = plt.subplots(figsize=(6, 5))
-for position, radius in zip(
-    np.asarray(full.state.pos), np.asarray(full.state.rad), strict=True
+# %%
+# Compare geometry, force transmission and stability
+# ---------------------------------------------------
+# Separate axes keep packing fraction and pressure in their own units.
+# The signed spectrum makes the negative curvature visible: pruning an
+# isolated clump removes its free coordinates, but does not stabilize the
+# contacting cluster. Indices in the two spectra belong to their respective
+# coordinate spaces, rather than matched eigenmodes.
+fig, axes = plt.subplots(2, 2, figsize=(9, 6.5), layout="constrained")
+labels = ["Full packing", "Rattler removed"]
+comparison_colors = ["#7b8794", "#258685"]
+axes[0, 0].bar(
+    labels,
+    [float(full.packing_fraction), float(remaining.packing_fraction)],
+    color=comparison_colors,
+)
+axes[0, 0].set(ylabel="Nominal packing fraction", title="Volume decreases by 25%")
+axes[0, 1].bar(
+    labels, [float(full.pressure), float(remaining.pressure)], color=comparison_colors
+)
+axes[0, 1].set(
+    ylabel="Contact virial pressure", title="Force transmission is unchanged"
+)
+axes[1, 0].bar(
+    ["Within species", "Between species"],
+    [within, between],
+    color=["tab:blue", "tab:orange"],
+)
+axes[1, 0].set(
+    ylabel="Distinct body-pair edges",
+    title=f"Mean body coordination = {mean_coordination:g}",
+    yticks=range(max(within, between) + 1),
+)
+for data, label, color in zip(
+    (full, remaining), labels, comparison_colors, strict=True
 ):
-    ax.add_patch(
-        Circle(position, radius, facecolor="lightgray", edgecolor="gray", alpha=0.4)
+    eigenvalues = np.asarray(data.eigenvalues)
+    axes[1, 1].plot(
+        np.arange(eigenvalues.size), eigenvalues, "o-", ms=3, label=label, color=color
     )
-ax.add_collection(LineCollection(segments, linewidths=widths, colors=colors))
-ax.scatter(centers[:3, 0], centers[:3, 1], c="black", s=15, zorder=3)
-ax.scatter(*centers[3], c="tab:red", s=30, zorder=3)
-for index, center in enumerate(centers):
-    ax.annotate(str(index), center, xytext=(5, 6), textcoords="offset points")
-ax.legend(
-    handles=[
-        Line2D([], [], color="tab:blue", label="Within species"),
-        Line2D([], [], color="tab:orange", label="Between species"),
-        Line2D([], [], marker="o", color="tab:red", linestyle="", label="Rattler"),
-    ],
-    loc="lower right",
+axes[1, 1].axhline(0, color="0.4", lw=0.8)
+axes[1, 1].set(
+    xlabel="Ordered eigenvalue index",
+    ylabel="Signed energy curvature",
+    yscale="symlog",
+    title="Rattler pruning does not prove stability",
 )
-ax.set(
-    xlim=(0, 5),
-    ylim=(0, 5),
-    xlabel="x",
-    ylabel="y",
-    title="Removing clump 3 leaves the contact forces unchanged",
-    aspect="equal",
-)
-fig.tight_layout()
+axes[1, 1].legend(fontsize=8)
+for ax in axes.flat:
+    ax.grid(axis="y", alpha=0.18)
+plt.show()

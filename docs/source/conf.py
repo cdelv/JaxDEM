@@ -3,6 +3,7 @@ import importlib
 import inspect
 import os
 import pathlib
+import shutil
 import sys
 import types
 
@@ -102,16 +103,40 @@ source_suffix = {
 }
 
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
+os.environ.setdefault("JAXDEM_DOCS_VISUALS", "1")
+render_example_scenes = os.environ["JAXDEM_DOCS_VISUALS"] == "1"
+if (
+    render_example_scenes
+    and os.environ.get("JAXDEM_DOCS_EXECUTE", "1") == "1"
+    and shutil.which(os.environ.get("JAXDEM_PVPYTHON", "pvpython")) is None
+):
+    raise RuntimeError(
+        "Visual documentation requires ParaView's pvpython. Set JAXDEM_PVPYTHON "
+        "to its executable, or use JAXDEM_DOCS_VISUALS=0 for a text/plot-only build. "
+        "See the documentation contribution guide."
+    )
+from tools.example_visuals import start_visual_build
+
+if render_example_scenes and os.environ.get("JAXDEM_DOCS_EXECUTE", "1") == "1":
+    start_visual_build(
+        root / "examples", pathlib.Path(__file__).parent / "_static" / "visuals"
+    )
 
 sphinx_gallery_conf = {
     "examples_dirs": "../../examples",
     "gallery_dirs": "auto_examples",
-    # Generate every page and execute guides plus the small application
-    # examples whose figures form part of the documentation.
-    "filename_pattern": (
-        r"/(introduction|[^/]+_guide|rotating_drum|infer_contact_stiffness|"
-        r"rigid_elastic_viscoplastic_loading|soft_mode_rearrangement|"
-        r"batched_granular_experiments|packing_analysis)\.py$"
+    # Every published figure must come from the current example and library.
+    "filename_pattern": r"\.py$",
+    "run_stale_examples": True,
+    "reset_modules": (
+        "matplotlib",
+        "seaborn",
+        "tools.example_visuals.reset_jax_compilation_cache",
+    ),
+    "image_scrapers": (
+        ("matplotlib", "tools.example_visuals.paraview_scraper")
+        if render_example_scenes
+        else ("matplotlib",)
     ),
     # Keep the hand-written gallery index while publishing input assets.
     "copyfile_regex": r".*\.(rst|stl|json)$",

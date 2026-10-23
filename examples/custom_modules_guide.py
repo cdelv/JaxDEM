@@ -40,6 +40,7 @@ from typing import cast
 
 import jax
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import numpy as np
 import jaxdem as jdem
 
@@ -127,6 +128,48 @@ state, system = jdem.System.initialize(state, system)
 state, system = system.step(state, system, n=5)
 print("Custom force model:", type(system.force_model).__name__)
 print("Positions after 5 steps:\n", state.pos)
+
+
+# %%
+# Check the custom law's force and energy
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Sample the registered law itself at signed pair separations along x.
+# Each energy value is for one distinct pair, so it is not doubled by a
+# directed-pair sum. The attraction restores either sign of separation and
+# vanishes when the pair coincides. These curves need no additional dynamics.
+pair_separations = jnp.linspace(-3.0, 3.0, 65)
+pair_history = jnp.zeros(system.force_model.history_shape(state.dim))
+
+
+def sample_custom_pair(separation):
+    positions = jnp.zeros_like(state.pos).at[0, 0].set(separation)
+    force, _, _ = PairAttractor.force(0, 1, positions, state, system, pair_history)
+    energy = PairAttractor.energy(0, 1, positions, state, system, pair_history)
+    return force[0], energy
+
+
+custom_force_values, custom_energy_values = jax.vmap(sample_custom_pair)(
+    pair_separations
+)
+fig, axes = plt.subplots(1, 2, figsize=(8.5, 3.5), layout="constrained")
+axes[0].plot(pair_separations, custom_force_values, color="#258685")
+axes[0].set(
+    xlabel="Signed pair separation along x",
+    ylabel="Force on particle 0 along x",
+    title="Registered attraction restores separation",
+)
+axes[1].plot(pair_separations, custom_energy_values, color="#275e94")
+axes[1].set(
+    xlabel="Signed pair separation along x",
+    ylabel="Energy of one distinct pair",
+    title="Its energy has the matching minimum",
+)
+for ax in axes:
+    ax.axhline(0, color="0.4", lw=0.8)
+    ax.axvline(0, color="0.4", lw=0.8)
+    ax.grid(alpha=0.18)
+fig.suptitle(f"PairAttractor configured with k = {system.force_model.k:g}", fontsize=13)
+plt.show()
 
 
 # %%

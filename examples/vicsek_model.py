@@ -429,3 +429,23 @@ np.testing.assert_allclose(speeds, v0, rtol=1e-10, atol=1e-10)
 print("Polarization (0 = disordered, 1 = aligned):", np.asarray(polarization))
 print(f"Body-speed range: {speeds.min():.3f} to {speeds.max():.3f}")
 # %%
+# Alignment and prescribed speed
+# --------------------------------
+# Plot the measured polarization beside the speed invariant. The short
+# trajectory may remain disordered; the second panel checks the active
+# update's prescribed speed independently of that collective behavior.
+import matplotlib.pyplot as plt
+
+fig, axes = plt.subplots(1, 2, figsize=(8, 3), layout="constrained")
+time = np.asarray(traj_system.time)
+axes[0].plot(time, np.asarray(polarization), "o-")
+axes[0].set(ylabel="Polarization", ylim=(0, 1), title="Collective alignment")
+axes[1].plot(time, speeds.min(axis=-1), label="Minimum body speed")
+axes[1].plot(time, speeds.max(axis=-1), "--", label="Maximum body speed")
+axes[1].axhline(v0, color="0.4", ls=":", label="Prescribed speed")
+axes[1].set(ylabel="Speed", title="The active constraint remains satisfied")
+axes[1].legend(fontsize=8)
+for axis in axes:
+    axis.set_xlabel("Physical time")
+    axis.grid(alpha=0.2)
+plt.show()

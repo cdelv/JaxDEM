@@ -23,6 +23,7 @@ from dataclasses import replace
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 import jaxdem as jdem
 from jaxdem.utils.contacts import compute_contact_stress_tensor
 from jaxdem.utils.packing_utils import scale_to_packing_fraction
@@ -135,6 +136,8 @@ system = replace(
 # affine shear followed by relaxation. Every accepted point satisfies the
 # same force/torque criterion; reaching the iteration cap is a failure.
 print("gamma   E/N        contact_sigma_xy  relaxation_steps")
+measurements = []
+scene_states, scene_systems = [], []
 for step in range(13):
     if step:
         state, system = system.domain.shear(state, system, 0.002)
@@ -147,7 +150,34 @@ for step in range(13):
         )
     state, system, steps, pe = result
     state, system, stress = compute_contact_stress_tensor(state, system)
+    measurements.append(
+        [float(system.domain.gamma), float(pe), float(stress[0, 1]), int(steps)]
+    )
+    scene_states.append(state)
+    scene_systems.append(system)
     print(
         f"{float(system.domain.gamma):.4f}  {float(pe):.3e}  "
         f"{float(stress[0, 1]):.3e}  {int(steps)}"
     )
+
+# %%
+# Read a quasistatic loading curve
+# --------------------------------
+# Each point is an accepted equilibrium. The horizontal axis is strain;
+# relaxation iterations measure numerical work, not elapsed physical time.
+# Smooth energy and stress branches do not guarantee a rearrangement within
+# this short strain interval.
+import matplotlib.pyplot as plt
+
+measured = np.asarray(measurements)
+fig, axes = plt.subplots(1, 3, figsize=(10, 3), layout="constrained")
+axes[0].plot(measured[:, 0], measured[:, 1], "o-", ms=3)
+axes[0].set(ylabel="Potential energy per disk", title="Relaxed energy")
+axes[1].plot(measured[:, 0], measured[:, 2], "o-", ms=3)
+axes[1].set(ylabel="Contact shear stress", title="Mechanical response")
+axes[2].step(measured[:, 0], measured[:, 3], where="mid")
+axes[2].set(ylabel="FIRE iterations", title="Cost of each equilibrium")
+for axis in axes:
+    axis.set_xlabel("Shear strain γ")
+    axis.grid(alpha=0.2)
+plt.show()

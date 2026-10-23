@@ -27,6 +27,7 @@ import jax
 jax.config.update("jax_enable_x64", True)
 
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import numpy as np
 import jaxdem as jdem
 from jaxdem.utils import (
@@ -143,13 +144,19 @@ tracer_radius = min(0.03, 0.5 * float(clearance[void_index]))
 if tracer_radius <= 0:
     raise RuntimeError("No noncontacting tracer position was resolved.")
 state = jdem.State.add(
-    state, pos=candidates[void_index : void_index + 1], rad=[tracer_radius],
-    mass=[1.0], volume=[np.pi * tracer_radius**2],
+    state,
+    pos=candidates[void_index : void_index + 1],
+    rad=[tracer_radius],
+    mass=[1.0],
+    volume=[np.pi * tracer_radius**2],
 )
 N = state.N
 system = jdem.System.create(
-    state=state, domain=system.domain, mat_table=mat_table,
-    rotation_integrator_type=None, collider_type="naive",
+    state=state,
+    domain=system.domain,
+    mat_table=mat_table,
+    rotation_integrator_type=None,
+    collider_type="naive",
 )
 state, system = jdem.System.initialize(state, system)
 
@@ -335,3 +342,63 @@ print("Global translations required by symmetry:", dim)
 # An equilibrated, rigid remaining network has only the translational null
 # space. Extra soft or negative modes require investigation; deleting graph
 # rattlers alone does not certify rigidity.
+
+# %%
+# Connect contact screening to the measured spectrum
+# --------------------------------------------------
+# The isolated tracer has no force-bearing contacts and adds two free
+# translations to the full Hessian. Its removal reduces the number of
+# numerical zero modes while retaining the load-bearing network's finite
+# curvatures. Each spectrum has its own ascending mode index because its
+# coordinate space has a different dimension. The signed scale preserves
+# negative curvature and uses a linear neighborhood around zero.
+fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), layout="constrained")
+disk_ids = np.arange(len(counts))
+axes[0].bar(
+    disk_ids, np.asarray(counts), color="tab:blue", label="Force-bearing contacts"
+)
+axes[0].scatter(
+    np.asarray(rattler_ids),
+    np.asarray(counts)[np.asarray(rattler_ids)],
+    marker="x",
+    color="tab:orange",
+    s=65,
+    label="Removed rattler",
+    zorder=3,
+)
+axes[0].axhline(dim + 1, color="0.4", linestyle=":", label="Local screening threshold")
+axes[0].set(
+    xticks=disk_ids,
+    xlabel="Disk ID before pruning",
+    ylabel="Contacts per disk",
+    title="The tracer is disconnected",
+)
+axes[1].plot(
+    np.arange(len(eigenvalues)),
+    eigenvalues,
+    "o-",
+    markersize=4,
+    label=f"All disks: {zero_mask.sum()} numerical zero modes",
+)
+axes[1].plot(
+    np.arange(len(eigenvalues_nr)),
+    eigenvalues_nr,
+    "s--",
+    markersize=4,
+    label=f"After pruning: {zero_mask_nr.sum()} numerical zero modes",
+)
+axes[1].set_yscale("symlog", linthresh=1e-7 * scale)
+# Keep zero readable by omitting log ticks inside the linear neighborhood.
+axes[1].set_yticks(
+    [tick for tick in axes[1].get_yticks() if tick == 0 or abs(tick) >= 1e-7 * scale]
+)
+axes[1].axhline(0.0, color="0.5", linewidth=0.8)
+axes[1].set(
+    xlabel="Sorted mode index (each spectrum separately)",
+    ylabel="Energy-Hessian eigenvalue",
+    title="Remove free motion, retain finite curvature",
+)
+for ax in axes:
+    ax.grid(alpha=0.2)
+    ax.legend(fontsize="small")
+plt.show()

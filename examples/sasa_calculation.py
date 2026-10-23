@@ -44,6 +44,7 @@ import jax
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 from jaxdem.utils.particle_creation import create_ga_state, create_sphere_state
 from jaxdem.utils.surface_properties import compute_surface_properties
@@ -190,3 +191,54 @@ relative_error = abs(sphere_area / exact_area - 1)
 assert relative_error < 0.04
 print(f"smooth-sphere area: estimated={sphere_area:.4f}, exact={exact_area:.4f}")
 print(f"angular discretization relative error = {relative_error:.2%}")
+
+# %%
+# Inspect roughness and the angular discretization error
+# ------------------------------------------------------
+# The distance histogram summarizes the already measured approach rays;
+# its spread reflects the clump's directional roughness. The dashed line
+# is the smooth-sphere contact distance with the same probe radius.
+# For the right panel, reuse subsets of the measured sphere directions
+# and compute their convex polyhedron's area. This reference sphere is
+# convex, so the hull gives the same triangular area construction above.
+# No additional contact probes or geometry optimization are required.
+angular_counts = np.array([24, 48, 96, n_points])
+reference_errors = []
+for count in angular_counts:
+    indices = np.arange(0, n_points, n_points // count)
+    reference_vertices = sphere_separation[indices, None] * directions[indices]
+    reference_errors.append(abs(ConvexHull(reference_vertices).area / exact_area - 1.0))
+
+fig, axes = plt.subplots(1, 2, figsize=(10, 3.6), layout="constrained")
+axes[0].hist(separation, bins=14, color="tab:blue", alpha=0.8, label="Rough clump")
+axes[0].axvline(
+    sphere_radius + tracer_radius,
+    color="tab:orange",
+    linestyle="--",
+    label="Smooth-sphere reference",
+)
+axes[0].set(
+    xlabel=r"Tracer-center contact distance $\rho$",
+    ylabel="Sampled approach directions",
+    title="Contact distance varies with approach",
+)
+axes[0].legend(fontsize="small")
+axes[1].loglog(angular_counts, reference_errors, "o-", color="tab:orange")
+axes[1].set(
+    xticks=angular_counts,
+    xticklabels=[str(n) for n in angular_counts],
+    xlabel="Retained angular directions",
+    ylabel="Relative sphere-area error",
+    title="Angular resolution controls area bias",
+)
+axes[1].minorticks_off()
+for ax in axes:
+    ax.grid(alpha=0.2)
+plt.show()
+
+# %%
+# The smooth-sphere error measures angular triangulation bias even though
+# its contact distances are already accurate. It does not bound the rough
+# clump's SASA error: sharp surface features can demand finer directional
+# sampling. The histogram also uses equal solid-angle weights rather than
+# surface-area weights.

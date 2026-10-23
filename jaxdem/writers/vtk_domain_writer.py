@@ -26,9 +26,11 @@ class VTKDomainWriter(VTKBaseWriter):
     """A :class:`VTKBaseWriter <jaxdem.writers.VTKBaseWriter>` that writes the simulation domain as a VTK geometric
     primitive.
 
-    The writer draws the domain as an axis-aligned cuboid (3D) or rectangle
-    (2D) with a ``vtkCubeSource``. It pads 2D input arrays to 3D as VTK
-    requires.
+    Orthogonal domains are axis-aligned cuboids (3D) or rectangles (2D).
+    A :class:`LeesEdwardsDomain <jaxdem.domains.lees_edwards.LeesEdwardsDomain>`
+    uses its current shear strain and flow/gradient axes to draw the sheared
+    periodic cell, with its anchor fixed. Two-dimensional input is padded to
+    3D as VTK requires.
     """
 
     @classmethod
@@ -41,6 +43,8 @@ class VTKDomainWriter(VTKBaseWriter):
         binary: bool,
     ) -> None:
         import vtk  # type: ignore[import-untyped]
+
+        from ..domains.lees_edwards import LeesEdwardsDomain
 
         box = np.asarray(system.domain.box_size)
         anch = np.asarray(system.domain.anchor)
@@ -58,9 +62,28 @@ class VTKDomainWriter(VTKBaseWriter):
         cube.SetCenter(*(anch + 0.5 * box))
         cube.Update()
 
-        cls._write_polydata(
-            cube.GetOutput(), filename, binary, label="VTK domain writer"
-        )
+        poly = cube.GetOutput()
+        if isinstance(system.domain, LeesEdwardsDomain):
+            domain = system.domain
+            # Shear about the anchor, matching LeesEdwardsDomain.shear:
+            # r_alpha -> r_alpha + gamma * (r_beta - anchor_beta).
+            # Transform the normals as well as the points so oblique faces
+            # have the correct lighting in ParaView.
+            matrix = vtk.vtkMatrix4x4()
+            matrix.Identity()
+            matrix.SetElement(domain.alpha, domain.beta, float(domain.gamma))
+            matrix.SetElement(
+                domain.alpha, 3, -float(domain.gamma) * float(anch[domain.beta])
+            )
+            transform = vtk.vtkTransform()
+            transform.SetMatrix(matrix)
+            shear = vtk.vtkTransformPolyDataFilter()
+            shear.SetInputData(poly)
+            shear.SetTransform(transform)
+            shear.Update()
+            poly = shear.GetOutput()
+
+        cls._write_polydata(poly, filename, binary, label="VTK domain writer")
 
 
 __all__ = ["VTKDomainWriter"]

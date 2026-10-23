@@ -32,6 +32,8 @@ Lengths, masses, and stiffnesses use a consistent set of reduced units.
 # ~~~~~~~~~~~~~~~~~~~~~
 import jax
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
+import numpy as np
 import jaxdem as jdem
 
 # We enable double precision to reach the accuracy that our tolerances need.
@@ -155,6 +157,48 @@ print(f"Maximum residual force: {result.info.force_max}")
 print(f"Converged: {result.converged}")
 print(f"Final potential energy: {final_pe}")
 print(f"Number of steps taken: {steps}")
+
+# %%
+# Separate energy reduction from convergence cost
+# -----------------------------------------------
+# At this dilute fraction both preparations remove their initial overlaps.
+# The left panel retains zero final energies on a symmetric logarithmic
+# scale. The right panel compares optimization work; force-residual labels
+# are normalized by the requested tolerance, so values at or below one
+# satisfy that criterion. These iterations are FIRE steps, not physical time.
+seeds = np.arange(N_systems)
+fig, axes = plt.subplots(1, 2, figsize=(9, 3.6), layout="constrained")
+for seed, initial, final in zip(
+    seeds, np.asarray(initial_pe), np.asarray(final_pe), strict=True
+):
+    axes[0].plot([0, 1], [initial, final], "o-", label=f"Seed {seed}")
+axes[0].set(
+    xticks=[0, 1],
+    xticklabels=["Initial", "Relaxed"],
+    ylabel="Potential energy per sphere",
+    title="FIRE removes the overlaps",
+)
+axes[0].set_yscale("symlog", linthresh=1e-10)
+axes[0].set_ylim(-5e-11, 1.7 * max(float(jnp.max(initial_pe)), 1e-10))
+axes[0].legend(fontsize="small")
+bars = axes[1].bar(seeds, np.asarray(steps), width=0.5, color="tab:blue")
+residual_ratio = np.asarray(result.info.force_max) / force_tol
+axes[1].bar_label(
+    bars,
+    labels=[f"F/tol = {value:.2g}" for value in residual_ratio],
+    padding=3,
+    fontsize="small",
+)
+axes[1].set(
+    xticks=seeds,
+    xlabel="Preparation seed",
+    ylabel="FIRE iterations",
+    title="Cost and final force residual",
+)
+axes[1].margins(y=0.2)
+for ax in axes:
+    ax.grid(axis="y", alpha=0.2)
+plt.show()
 
 # %%
 # Run the Minimization for a Single System

@@ -15,6 +15,7 @@ import time
 
 import jax
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import numpy as np
 
 import jaxdem as jdem
@@ -89,6 +90,7 @@ deltas = jnp.asarray(np.diff(save_steps, prepend=0))
 # bytes, with ``b`` bytes per scalar (and another factor ``B`` for a batch).
 # This measures the saved array, not peak compiler or integration memory.
 
+
 def save_positions(state, system):
     return state.pos_c
 
@@ -143,3 +145,57 @@ for label, run in (("pseudo-log", run_sparse), ("constant stride", run_dense)):
         f"{label}: {positions.shape[0]} frames, {positions.nbytes} bytes, "
         f"{time.perf_counter() - start:.4f} seconds after compilation"
     )
+
+
+# %%
+# Make sampling cadence and storage visible
+# -----------------------------------------
+# Both recordings cover the same final integration step. The first panel
+# shows the actual saved steps; the second exposes the stride reset at the
+# start of the next window. The last panel counts only the position payload,
+# excluding compiler, solver, and Python overhead. Uniform recording starts
+# after its first stride, whereas this pseudo-log recording includes step 0.
+dense_steps = min_stride * np.arange(1, n_dense + 1)
+bytes_per_frame = int(pos_traj[0].nbytes)
+fig, axes = plt.subplots(1, 3, figsize=(11, 3.4), layout="constrained")
+axes[0].eventplot(
+    [dense_steps, save_steps],
+    lineoffsets=[0, 1],
+    linelengths=0.6,
+    colors=["0.65", "tab:blue"],
+)
+axes[0].set(
+    yticks=[0, 1],
+    yticklabels=["Uniform", "Pseudo-log"],
+    ylim=(-0.6, 1.6),
+    title="When frames are recorded",
+    xlabel="Integration step",
+)
+axes[1].step(save_steps[1:], np.diff(save_steps), where="mid", color="tab:blue")
+axes[1].set(
+    xlabel="Integration step",
+    ylabel="Steps since previous frame",
+    title="Cadence resets for a new window",
+)
+axes[1].set_yscale("log")
+axes[2].step(
+    dense_steps,
+    bytes_per_frame * np.arange(1, n_dense + 1) / 1024,
+    label="Uniform",
+    color="0.5",
+)
+axes[2].step(
+    save_steps,
+    bytes_per_frame * np.arange(1, len(save_steps) + 1) / 1024,
+    label="Pseudo-log",
+    color="tab:blue",
+)
+axes[2].set(
+    xlabel="Integration step",
+    ylabel="Saved position arrays (KiB)",
+    title="Same dynamics, less recorded data",
+)
+axes[2].legend(fontsize="small")
+for ax in axes:
+    ax.grid(alpha=0.2)
+plt.show()

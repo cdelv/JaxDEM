@@ -72,6 +72,7 @@ isolate the response to a prescribed small stretch.
 
 import jax
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import numpy as np
 import jaxdem as jdem
 
@@ -478,6 +479,7 @@ print("Batched pos shape (B, N, dim):", states.pos.shape)
 # The stretched right-hand vertices feel restoring forces to the left.
 assert bool(jnp.all(states.force[:, 1, 0] < 0))
 initial_widths = states.pos[:, 1, 0] - states.pos[:, 0, 0]
+initial_restoring_forces = -np.asarray(states.force[:, 1, 0])
 # Advance all simulations by ten steps in parallel.
 states, systems = systems.step(states, systems, n=10)
 widths = states.pos[:, 1, 0] - states.pos[:, 0, 0]
@@ -485,6 +487,38 @@ assert bool(jnp.all(widths < initial_widths))
 print("Initial widths:", initial_widths)
 print("Widths after elastic response:", widths)
 print("After stepping:", states.pos.shape)
+
+
+# %%
+# Measure the elastic response of each replica
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# All three replicas have the same material coefficients and stress-free
+# reference square. Only the initial horizontal stretch differs. The first
+# panel reports the inward force on the lower-right vertex at initialization;
+# the second reports the measured width reduction during the same ten steps
+# already taken above. This is an early inertial response, not the final
+# equilibrium compliance or a stiffness sweep.
+reference_width = float(vertices_2d[1, 0] - vertices_2d[0, 0])
+initial_stretch_percent = 100 * (np.asarray(initial_widths) / reference_width - 1)
+width_reduction = np.asarray(initial_widths - widths)
+fig, axes = plt.subplots(1, 2, figsize=(9, 3.5), layout="constrained")
+axes[0].plot(initial_stretch_percent, initial_restoring_forces, "o-", color="#258685")
+axes[0].set(
+    xlabel="Initial horizontal stretch (%)",
+    ylabel="Inward vertex force",
+    title="More stretch gives a larger restoring force",
+)
+axes[1].plot(initial_stretch_percent, width_reduction, "o-", color="#d07a28")
+axes[1].set(
+    xlabel="Initial horizontal stretch (%)",
+    ylabel="Width decrease after ten steps",
+    title="All three replicas start to recover",
+)
+axes[1].ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
+for ax in axes:
+    ax.set_xticks(initial_stretch_percent)
+    ax.grid(alpha=0.18)
+plt.show()
 
 
 # %%

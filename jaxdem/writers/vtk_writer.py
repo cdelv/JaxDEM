@@ -141,9 +141,13 @@ class VTKWriter(BaseAsyncWriter):
         """
         Schedule writing of a :class:`jaxdem.State <jaxdem.state.State>` / :class:`jaxdem.System <jaxdem.system.System>` pair to VTK files.
 
-        This public entry point interprets leading batch or trajectory axes,
-        wraps each configuration with its domain, and queues the frames for
-        background output.
+        This public entry point interprets leading batch or trajectory axes
+        and queues frames for background output. Independent grains are wrapped
+        with their domain. A :class:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel`
+        (including plastic variants) retains its actual unwrapped coordinates:
+        wrapping nodes independently would tear a boundary-crossing mesh and
+        change its exported element measures and edge lengths. Such coherent
+        meshes may extend beyond the primary cell.
 
         Parameters
         ----------
@@ -168,14 +172,17 @@ class VTKWriter(BaseAsyncWriter):
             raise ValueError(
                 "VTK output requires matching State and System leading axes; batch snapshots may share one System."
             )
-        shift = system.domain.shift
-        for _ in leading:
-            shift = jax.vmap(
-                shift,
-                in_axes=(0, None if shared else 0),
-                out_axes=(0, None if shared else 0),
-            )
-        state, system = shift(state, system)
+        from ..bonded_forces import DeformableParticleModel
+
+        if not isinstance(system.bonded_force_model, DeformableParticleModel):
+            shift = system.domain.shift
+            for _ in leading:
+                shift = jax.vmap(
+                    shift,
+                    in_axes=(0, None if shared else 0),
+                    out_axes=(0, None if shared else 0),
+                )
+            state, system = shift(state, system)
 
         # Kick off non-blocking device->host transfers; the blocking
         # `jax.device_get` happens later inside a background worker thread.

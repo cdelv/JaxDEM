@@ -23,6 +23,7 @@ This guide covers:
 
 import numpy as np
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 
 import jaxdem as jdem
 
@@ -311,3 +312,59 @@ np.testing.assert_allclose(pe, 0.5 * stiffness * 0.5**2, rtol=2e-6)
 #
 # The collider only writes the *pairwise contact* contributions and
 # resets forces. The force manager then adds everything else on top.
+
+# %%
+# Neighbors, contacts and a known pair energy
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# The cell-list query above includes the first two particles within cutoff 2,
+# although they do not overlap. Counting candidates and counting contacts
+# answer different questions. The second panel compares the already computed
+# spring energy with its analytical single-pair value. These are correctness
+# diagnostics for the small examples, rather than a hardware performance test.
+neighbor_ids = np.asarray(nl_cl)
+neighbor_counts = np.sum(
+    (neighbor_ids >= 0) & (neighbor_ids != np.arange(state_p.N)[:, None]), axis=1
+)
+pair_displacements = (
+    np.asarray(state_p.pos)[:, None, :] - np.asarray(state_p.pos)[None, :, :]
+)
+pair_distances = np.linalg.norm(pair_displacements, axis=-1)
+radius_sums = np.asarray(state_p.rad)[:, None] + np.asarray(state_p.rad)[None, :]
+contact_counts = np.sum(
+    (pair_distances < radius_sums) & ~np.eye(state_p.N, dtype=bool), axis=1
+)
+fig, axes = plt.subplots(1, 2, figsize=(9, 3.5), layout="constrained")
+particle_indices = np.arange(state_p.N)
+query_bars = axes[0].bar(
+    particle_indices - 0.18,
+    neighbor_counts,
+    width=0.36,
+    color="#7b8794",
+    label="Within query cutoff",
+)
+contact_bars = axes[0].bar(
+    particle_indices + 0.18,
+    contact_counts,
+    width=0.36,
+    color="#258685",
+    label="Overlapping",
+)
+axes[0].bar_label(query_bars, padding=2, fontsize=8)
+axes[0].bar_label(contact_bars, padding=2, fontsize=8)
+axes[0].set(
+    xticks=particle_indices,
+    xlabel="Particle index",
+    ylabel="Other particles",
+    yticks=range(int(neighbor_counts.max()) + 1),
+    title="A neighbor need not carry force",
+)
+axes[0].legend(fontsize=8)
+axes[1].bar(
+    ["Collider result", "½ k δ²"],
+    [float(pe), float(0.5 * stiffness * 0.5**2)],
+    color=["#258685", "#d07a28"],
+)
+axes[1].set(ylabel="Total pair potential energy", title="One overlapping spring pair")
+for ax in axes:
+    ax.grid(axis="y", alpha=0.18)
+plt.show()

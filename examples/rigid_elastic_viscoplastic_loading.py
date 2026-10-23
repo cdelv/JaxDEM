@@ -58,6 +58,7 @@ from functools import partial
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
+import os
 import numpy as np
 
 import jaxdem as jdem
@@ -200,8 +201,8 @@ def make_experiment(kind, dt=DT):
 # reference flow from a temporarily deformed elastic shape.
 
 
-@partial(jax.jit, static_argnames=("substeps",))
-def run_experiment(state, system, *, substeps):
+@partial(jax.jit, static_argnames=("substeps", "capture_scene"))
+def run_experiment(state, system, *, substeps, capture_scene=False):
     def frame(carry, _):
         state, system = jdem.System.step(*carry, n=substeps)
         width = jnp.max(state.pos[:, 0]) - jnp.min(state.pos[:, 0])
@@ -220,16 +221,23 @@ def run_experiment(state, system, *, substeps):
             reference_change,
             jnp.max(jnp.abs(state.vel)),
         )
-        return (state, system), diagnostics
+        output = (diagnostics, state, system) if capture_scene else diagnostics
+        return (state, system), output
 
     return jax.lax.scan(frame, (state, system), None, length=N_FRAMES)
 
 
 kinds = ("rigid", "elastic", "viscoplastic")
 histories = {}
+scene_states, scene_systems = {}, {}
+capture_scene = os.environ.get("JAXDEM_DOCS_VISUALS") == "1"
 for kind in kinds:
     state, system = make_experiment(kind)
-    _, history = run_experiment(state, system, substeps=round(FRAME_DT / DT))
+    _, history = run_experiment(
+        state, system, substeps=round(FRAME_DT / DT), capture_scene=capture_scene
+    )
+    if capture_scene:
+        history, scene_states[kind], scene_systems[kind] = history
     histories[kind] = jax.device_get(history)
 
 
@@ -277,60 +285,40 @@ print(f"Final viscoplastic compression at dt/2: {refined_strain:.5f}")
 # %%
 # Shape, creep and recovery
 # -------------------------
-# The solid outlines below are sampled at the end of the load hold
-# (:math:`t=3`); dashed colored outlines are sampled after unloaded recovery
-# (:math:`t=8`). The rigid load--compression curve is vertical because its
+# The ParaView poster compares the three outlines after unloaded recovery
+# (:math:`t=8`). The short animation follows the computed trajectories through
+# loading, the hold ending at :math:`t=3`, and recovery.
+# The rigid load--compression curve is vertical because its
 # compliance is zero. The viscoplastic reference continues to relax during
 # recovery; the reported residual is at the stated observation time.
 # Increase the recovery time, change :math:`\tau_s`, or vary the loading rate
 # to distinguish delayed response from an ideal rate-independent plastic law.
-
+#
 colors = {"rigid": "#52657c", "elastic": "#258685", "viscoplastic": "#d07a28"}
-fig, axes = plt.subplots(2, 3, figsize=(12, 7.3), layout="constrained")
-closed_initial = np.vstack((vertices, vertices[0]))
-hold_index = round(3.0 / FRAME_DT) - 1
-for ax, kind in zip(axes[0], kinds):
-    positions, times, strain, reference_change, speed = histories[kind]
-    loaded = np.vstack((positions[hold_index], positions[hold_index, 0]))
-    recovered = np.vstack((positions[-1], positions[-1, 0]))
-    ax.plot(*closed_initial.T, ":", color="0.65", lw=2, label="initial")
-    ax.fill(*loaded.T, color=colors[kind], alpha=0.13)
-    ax.plot(*loaded.T, "o-", color=colors[kind], ms=3, label="loaded, t=3")
-    ax.plot(*recovered.T, "--", color=colors[kind], lw=2, label="recovered, t=8")
-    ax.set(
-        title=kind.capitalize(),
-        aspect="equal",
-        xlim=(-1.25, 1.25),
-        ylim=(-1.3, 1.3),
-    )
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
-    ax.grid(alpha=0.18)
-axes[0, 0].legend(fontsize=8, loc="upper right")
-
+fig, axes = plt.subplots(1, 3, figsize=(12, 3.6), layout="constrained")
 for kind in kinds:
     _, times, strain, reference_change, _ = histories[kind]
-    axes[1, 0].plot(times, 100 * strain, color=colors[kind], label=kind)
-    axes[1, 1].plot(100 * strain, applied_load(times), color=colors[kind], label=kind)
-    axes[1, 2].plot(times, reference_change, color=colors[kind], label=kind)
-axes[1, 0].axvspan(0, 4, color="0.5", alpha=0.08, label="load applied")
-axes[1, 0].set(
+    axes[0].plot(times, 100 * strain, color=colors[kind], label=kind)
+    axes[1].plot(100 * strain, applied_load(times), color=colors[kind], label=kind)
+    axes[2].plot(times, reference_change, color=colors[kind], label=kind)
+axes[0].axvspan(0, 4, color="0.5", alpha=0.08, label="load applied")
+axes[0].set(
     xlabel="time",
     ylabel="horizontal compression (%)",
     title="Creep and unloaded recovery",
 )
-axes[1, 0].legend(fontsize=8)
-axes[1, 1].set(
+axes[0].legend(fontsize=8)
+axes[1].set(
     xlabel="horizontal compression (%)",
     ylabel="load on each half, P",
     title="Force-controlled response",
 )
-axes[1, 2].set(
+axes[2].set(
     xlabel="time",
     ylabel="RMS reference-length change",
     title="Internal state remembers loading",
 )
-for ax in axes[1]:
+for ax in axes:
     ax.grid(alpha=0.2)
 fig.suptitle(
     "Same outline, mass and applied load; different internal mechanics", fontsize=14

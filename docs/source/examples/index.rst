@@ -11,6 +11,11 @@ Their particle counts and iteration limits are teaching defaults, not
 production settings or evidence of bulk behavior. Each recipe explains its
 observables and any checks needed before interpreting the result.
 
+The figures are regenerated from each run. ParaView renders particles, meshes,
+contact networks and saved simulation frames; Matplotlib shows diagnostics
+such as energy, contact pressure, spectra and convergence. Short movies have
+playback controls, and selected scenes can be explored interactively in 3D.
+
 Construction & packing pipelines
 --------------------------------
 

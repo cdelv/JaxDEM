@@ -36,6 +36,9 @@ Let's see how to choose, configure, and swap them.
 # :py:class:`~jaxdem.integrators.spiral.Spiral`, or disable rotation
 # entirely while keeping translation active.
 
+from dataclasses import replace
+
+import matplotlib.pyplot as plt
 import numpy as np
 import jax.numpy as jnp
 import jaxdem as jdem
@@ -108,6 +111,130 @@ print("Rotation integrator:", type(system.rotation_integrator).__name__)
 # stability bound. Timestep refinement tests the accuracy of the observable
 # being measured. Minimization, described below, instead seeks force and
 # torque balance and does not represent this physical time evolution.
+
+
+# %%
+# Measure the timestep error
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~
+# An initially compressed, stationary pair supplies a small accuracy test
+# with an exact solution. Before separation, the overlap obeys
+#
+# .. math::
+#
+#    \delta(t)=\delta_0\cos(\omega t),\qquad
+#    E(t)=\tfrac12 k_{\mathrm{eff}}\delta_0^2.
+#
+# Stop at :math:`\omega T=1.3`, before the contact opens at
+# :math:`\omega T=\pi/2`. Every refinement reaches this same physical time.
+# Explicit unit masses make the reduced mass :math:`1/2`; the stiffness
+# below is read from the material table actually used by the force law.
+
+contact_state = jdem.State.create(
+    pos=jnp.array([[-0.45, 0.0], [0.45, 0.0]]),
+    rad=jnp.full(2, 0.5),
+    mass=jnp.ones(2),
+)
+contact_materials = jdem.MaterialTable.from_materials(
+    [jdem.Material.create("elastic", young=1.0, poisson=0.25, density=1.0)]
+)
+stiffness = float(contact_materials.young_eff[0, 0])
+omega = np.sqrt(stiffness / 0.5)
+initial_overlap = float(contact_state.rad.sum() - jnp.diff(contact_state.pos[:, 0])[0])
+initial_energy = 0.5 * stiffness * initial_overlap**2
+duration = 1.3 / omega
+step_counts = np.array([8, 16, 32, 64])
+
+
+def contact_observables(state, system):
+    separation = jnp.linalg.norm(state.pos[1] - state.pos[0])
+    overlap = jnp.maximum(0.0, state.rad.sum() - separation)
+    kinetic = 0.5 * jnp.sum(state.mass[:, None] * state.vel**2)
+    energy = kinetic + 0.5 * stiffness * overlap**2
+    return system.time, overlap, energy
+
+
+fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), layout="constrained")
+for method, label, color in (
+    ("euler", "Symplectic Euler", "tab:orange"),
+    ("verlet", "Velocity Verlet", "tab:blue"),
+):
+    contact_system = jdem.System.create(
+        state=contact_state,
+        dt=duration / step_counts[0],
+        collider_type="naive",
+        force_model_type="spring",
+        linear_integrator_type=method,
+        rotation_integrator_type=None,
+        mat_table=contact_materials,
+    )
+    overlap_errors = []
+    for count in step_counts:
+        trial_system = replace(contact_system, dt=jnp.asarray(duration / count))
+        trial_state, trial_system = jdem.System.initialize(contact_state, trial_system)
+        final_state, final_system = jdem.System.step_dynamic(
+            trial_state, trial_system, n=jnp.asarray(count)
+        )
+        _, final_overlap, _ = contact_observables(final_state, final_system)
+        overlap_errors.append(
+            abs(float(final_overlap) / initial_overlap - np.cos(omega * duration))
+        )
+
+    # Save only three scalar diagnostics per frame, rather than whole states.
+    trial_state, trial_system = jdem.System.initialize(contact_state, contact_system)
+    _, _, (times, _, energies) = jdem.System.trajectory_rollout(
+        trial_state,
+        trial_system,
+        n=int(step_counts[0]),
+        save_fn=contact_observables,
+    )
+    axes[0].plot(
+        np.r_[0.0, omega * np.asarray(times)],
+        np.r_[0.0, np.asarray(energies) / initial_energy - 1.0],
+        "o-",
+        color=color,
+        label=label,
+        markersize=4,
+    )
+    axes[1].loglog(
+        omega * duration / step_counts,
+        overlap_errors,
+        "o-",
+        color=color,
+        label=label,
+    )
+    # Refinement must improve this smooth-contact observable substantially.
+    assert overlap_errors[-1] < overlap_errors[0] / 6
+    print(f"{label}: final normalized-overlap errors = {np.array(overlap_errors)}")
+
+resolution = omega * duration / step_counts
+axes[1].loglog(resolution, 0.08 * resolution, "k--", alpha=0.5, label=r"$O(\Delta t)$")
+axes[1].loglog(
+    resolution, 0.05 * resolution**2, "k:", alpha=0.6, label=r"$O(\Delta t^2)$"
+)
+axes[0].axhline(0.0, color="0.5", linewidth=0.8)
+axes[0].set(
+    xlabel=r"Dimensionless time $\omega t$",
+    ylabel=r"Relative energy error $E/E_0-1$",
+    title="Energy accuracy at the coarsest timestep",
+)
+axes[1].set(
+    xlabel=r"Timestep resolution $\omega\Delta t$",
+    ylabel=r"Final overlap error $|\delta(T)-\delta_{\mathrm{exact}}(T)|/\delta_0$",
+    title="Same duration, progressively smaller steps",
+)
+for ax in axes:
+    ax.grid(alpha=0.2, which="both")
+    ax.legend(fontsize="small")
+plt.show()
+
+# %%
+# The left panel shows energy **error** during one part of a contact, not
+# long-time energy drift. Symplectic Euler has a first-order phase/overlap
+# error; Velocity Verlet has second-order error while the contact stays
+# smooth. The slope guides on the right make those rates visible. Opening
+# or closing contacts, friction, and multiple simultaneous contacts can
+# change the observed convergence, so repeat this test for the quantity
+# that matters in your own experiment.
 
 
 # %%
