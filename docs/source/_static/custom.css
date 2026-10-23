@@ -55,6 +55,10 @@ table.autosummary td {
     overflow-wrap: anywhere;
 }
 
+.bd-article table.autosummary td:first-child {
+    white-space: normal;
+}
+
 /* Gallery timing tables must remain readable in both color themes. */
 table.sg-datatable.table-striped > tbody > tr > td {
     color: var(--pst-color-text-base);
