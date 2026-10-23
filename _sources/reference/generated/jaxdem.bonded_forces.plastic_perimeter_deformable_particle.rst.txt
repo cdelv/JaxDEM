@@ -1,0 +1,12 @@
+jaxdem.bonded\_forces.plastic\_perimeter\_deformable\_particle
+==============================================================
+
+.. automodule:: jaxdem.bonded_forces.plastic_perimeter_deformable_particle
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      PlasticPerimeterDeformableParticleModel
+   

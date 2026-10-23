@@ -1,0 +1,19 @@
+jaxdem.analysis.engine
+======================
+
+.. automodule:: jaxdem.analysis.engine
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      clear_jit_cache
+      evaluate_binned
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Binned
+   

@@ -1,0 +1,158 @@
+{
+  "title": "Particle level friction calculation",
+  "renderer": "ParaView",
+  "paraview_version": "6.2.0",
+  "manifest": "/tmp/jaxdem-media-particle_level_friction_calculation-joy5kgu6/scene.json",
+  "size": [
+    960,
+    600
+  ],
+  "camera": "isometric",
+  "bounds": [
+    -0.39948660135269165,
+    0.4905704855918884,
+    -0.4094628393650055,
+    0.4899305999279022,
+    -0.4536084830760956,
+    0.4697123169898987
+  ],
+  "poster_time": 0.0,
+  "time_label": "t",
+  "native_times": [
+    0.0
+  ],
+  "animation_times": [],
+  "fps": 8,
+  "series": [
+    {
+      "path": "/tmp/jaxdem-media-particle_level_friction_calculation-joy5kgu6/vtk/group_00/batch_00000000_spheres.pvd",
+      "kind": "particles",
+      "native_times": [
+        0.0
+      ],
+      "source_points": 9,
+      "source_cells": 0,
+      "point_arrays": [
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "rad",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_id",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color_by": "rad",
+        "color": [
+          0.12,
+          0.48,
+          0.72
+        ]
+      },
+      "geometry_points": 12978,
+      "geometry_cells": 25920
+    }
+  ],
+  "outputs": {
+    "scene.png": 52649
+  },
+  "example": "particle_level_friction_calculation.py",
+  "example_sha256": "e7b8fb6fa42fabcb9782fb051e70675e45e5a6a41c3e599ddf5a9e1d0824b6e5",
+  "library_revision": "2696ab6add13b594179d06f0ec750238e3282b1c",
+  "library_sha256": "d76ac09567d0dae6fa39b1cccc643eae43d2a4213242d37138bec21215de3753",
+  "media_seconds": 3.499,
+  "simulation": {
+    "slug": "particle_level_friction_calculation",
+    "source": "Current example State/System snapshots via VTKWriter; derived diagnostics via native VTK",
+    "groups": [
+      {
+        "label": "Probed rigid clump",
+        "source_frames": 1,
+        "exported_frames": 1,
+        "selected_indices": [
+          0
+        ],
+        "particle_rows": [
+          9
+        ],
+        "source_step_counts": [
+          0
+        ],
+        "source_times": [
+          0.0
+        ],
+        "collection_times": [
+          0.0
+        ],
+        "offset": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "geometry_only_system": true
+      }
+    ],
+    "geometry": [
+      {
+        "label": "Probed rigid clump",
+        "kind": "particles",
+        "path": "/tmp/jaxdem-media-particle_level_friction_calculation-joy5kgu6/vtk/group_00/batch_00000000_spheres.pvd",
+        "point_arrays": [
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "rad",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_id",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 0.0,
+            "points": 9,
+            "cells": 0,
+            "bounds": [
+              -0.17900497535631413,
+              0.3906988378310284,
+              -0.3095911927452897,
+              0.390058946175327,
+              -0.35360847993591754,
+              0.3697123268424284
+            ],
+            "bytes": 7087,
+            "physical_summary": {
+              "radius_min": 0.1,
+              "radius_max": 0.4,
+              "speed_max": 0.0,
+              "force_norm_max": 0.0
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

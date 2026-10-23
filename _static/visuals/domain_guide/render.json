@@ -1,0 +1,200 @@
+{
+  "title": "Domain guide",
+  "renderer": "ParaView",
+  "paraview_version": "6.2.0",
+  "manifest": "/tmp/jaxdem-media-domain_guide-h8a_z8gy/scene.json",
+  "size": [
+    960,
+    600
+  ],
+  "camera": "xy",
+  "bounds": [
+    0.0,
+    10.0,
+    0.0,
+    10.0,
+    -0.4000000059604645,
+    0.4000000059604645
+  ],
+  "poster_time": 0.2,
+  "time_label": "t",
+  "native_times": [
+    0.2
+  ],
+  "animation_times": [],
+  "fps": 8,
+  "series": [
+    {
+      "path": "/tmp/jaxdem-media-domain_guide-h8a_z8gy/vtk/group_00/batch_00000000_domain.pvd",
+      "kind": "domain",
+      "native_times": [
+        0.2
+      ],
+      "source_points": 24,
+      "source_cells": 6,
+      "point_arrays": [
+        "Normals",
+        "TCoords"
+      ],
+      "representation": {},
+      "geometry_points": 24,
+      "geometry_cells": 6
+    },
+    {
+      "path": "/tmp/jaxdem-media-domain_guide-h8a_z8gy/vtk/group_00/batch_00000000_spheres.pvd",
+      "kind": "particles",
+      "native_times": [
+        0.2
+      ],
+      "source_points": 1,
+      "source_cells": 0,
+      "point_arrays": [
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "rad",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_id",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color_by": "rad",
+        "color": [
+          0.12,
+          0.48,
+          0.72
+        ]
+      },
+      "geometry_points": 1442,
+      "geometry_cells": 2880
+    }
+  ],
+  "outputs": {
+    "scene.png": 7660
+  },
+  "example": "domain_guide.py",
+  "example_sha256": "3eed276609e31f7a775ac847aefbfb2609964b9c483c659cba93ccb14d526026",
+  "library_revision": "2696ab6add13b594179d06f0ec750238e3282b1c",
+  "library_sha256": "d76ac09567d0dae6fa39b1cccc643eae43d2a4213242d37138bec21215de3753",
+  "media_seconds": 3.711,
+  "simulation": {
+    "slug": "domain_guide",
+    "source": "Current example State/System snapshots via VTKWriter; derived diagnostics via native VTK",
+    "groups": [
+      {
+        "label": "Final configuration",
+        "source_frames": 1,
+        "exported_frames": 1,
+        "selected_indices": [
+          0
+        ],
+        "particle_rows": [
+          1
+        ],
+        "source_step_counts": [
+          20
+        ],
+        "source_times": [
+          0.20000000000000004
+        ],
+        "collection_times": [
+          0.20000000000000004
+        ],
+        "offset": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "geometry_only_system": false
+      }
+    ],
+    "geometry": [
+      {
+        "label": "Final configuration",
+        "kind": "domain",
+        "path": "/tmp/jaxdem-media-domain_guide-h8a_z8gy/vtk/group_00/batch_00000000_domain.pvd",
+        "point_arrays": [
+          "Normals",
+          "TCoords"
+        ],
+        "frames": [
+          {
+            "time": 0.2,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              10.0,
+              0.0,
+              10.0,
+              0.0,
+              0.0
+            ],
+            "bytes": 3046,
+            "physical_summary": {}
+          }
+        ]
+      },
+      {
+        "label": "Final configuration",
+        "kind": "particles",
+        "path": "/tmp/jaxdem-media-domain_guide-h8a_z8gy/vtk/group_00/batch_00000000_spheres.pvd",
+        "point_arrays": [
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "rad",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_id",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 0.2,
+            "points": 1,
+            "cells": 0,
+            "bounds": [
+              0.5000000000000002,
+              0.5000000000000002,
+              0.5,
+              0.5,
+              0.0,
+              0.0
+            ],
+            "bytes": 6346,
+            "physical_summary": {
+              "radius_min": 0.4,
+              "radius_max": 0.4,
+              "speed_max": 1.0,
+              "force_norm_max": 0.0
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

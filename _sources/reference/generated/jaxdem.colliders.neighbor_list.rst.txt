@@ -1,0 +1,12 @@
+jaxdem.colliders.neighbor\_list
+===============================
+
+.. automodule:: jaxdem.colliders.neighbor_list
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      NeighborList
+   

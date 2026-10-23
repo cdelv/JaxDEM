@@ -1,0 +1,874 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Infer contact stiffness from observed trajectories &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=6cb5ae24" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'auto_examples/infer_contact_stiffness';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Rigid, elastic and viscoplastic grains under the same load" href="rigid_elastic_viscoplastic_loading.html" />
+    <link rel="prev" title="Vicsek alignment of rigid dumbbells" href="vicsek_model.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar">
+  <svg class="pst-icon" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sphere_construction.html">Polydisperse sphere packing in one call</a></li>
+<li class="toctree-l1"><a class="reference internal" href="general_particle_construction.html">Catch-all builder: polydisperse GA/DP packings in one call</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clump_construction_pipeline.html">Rigid geometric-asperity clumps: step-by-step pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dp_construction_pipeline.html">Geometric-asperity deformable particles: step-by-step pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="minimize_spheres.html">Minimization of bidisperse spheres (or disks).</a></li>
+
+<li class="toctree-l1"><a class="reference internal" href="jam_spheres.html">Jamming of bidisperse spheres (or disks).</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sphere_jamming_rattlers_dynamical_matrix.html">Jammed bidisperse packing: contacts, rattlers, and the dynamical matrix</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clump_jamming_dynamical_matrix_and_friction.html">Jammed rigid clumps: contacts, rattlers, dynamical matrix, and friction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="packing_analysis.html">Find rattlers and draw a contact network</a></li>
+<li class="toctree-l1"><a class="reference internal" href="packing_fraction_protocol.html">Packing-fraction protocol: integrate with a scheduled box rescale</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pseudo_log_rollout.html">Save selected quantities on a pseudo-logarithmic schedule</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sasa_calculation.html">SASA of a rigid clump via a spherical tracer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="particle_level_friction_calculation.html">Particle-level friction coefficient of a rigid clump</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="rotating_drum.html">A rotating drum loaded from an STL mesh</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temperature_density_control.html">Temperature and density control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="shear_flow_disks.html">Constant-rate shear below a finite packing’s jamming threshold</a></li>
+<li class="toctree-l1"><a class="reference internal" href="shear_jammed_disks.html">Quasistatic shear of a small jammed disk packing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vicsek_model.html">Vicsek alignment of rigid dumbbells</a></li>
+</ul>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Infer contact stiffness from observed trajectories</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rigid_elastic_viscoplastic_loading.html">Rigid, elastic and viscoplastic grains under the same load</a></li>
+<li class="toctree-l1"><a class="reference internal" href="soft_mode_rearrangement.html">Watch a soft mode develop into a rearrangement</a></li>
+<li class="toctree-l1"><a class="reference internal" href="batched_granular_experiments.html">Run an ensemble of granular compaction experiments</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="environment_custom_policy.html">Drive vectorized environments with a custom policy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="data/index.html">Scenario data</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../examples/index.html" class="nav-link">Examples</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Infer contact stiffness from observed trajectories</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-infer-contact-stiffness-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code.</p>
+</div>
+<section class="sphx-glr-example-title" id="infer-contact-stiffness-from-observed-trajectories">
+<span id="sphx-glr-auto-examples-infer-contact-stiffness-py"></span><h1>Infer contact stiffness from observed trajectories<a class="headerlink" href="#infer-contact-stiffness-from-observed-trajectories" title="Link to this heading">#</a></h1>
+<p>Recover an unknown normal contact stiffness from the positions of two
+colliding disks. The forward model is a JaxDEM simulation; JAX differentiates
+the complete, fixed-duration trajectory. A short optimization fits synthetic
+observations, then predicts a second collision at a different impact speed.</p>
+<p>The disks have known unit masses and radius 0.5. Gravity, damping, friction
+and rotation are absent. These assumptions make one stiffness identifiable
+and keep the first inverse problem small. Observations are noise-free and
+generated with the same time discretization as the fit, so this is a
+verification example rather than a claim of experimental calibration.</p>
+<p>This example additionally requires Matplotlib for plotting and SciPy for
+the optimizer: <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span> <span class="pre">pip</span> <span class="pre">install</span> <span class="pre">matplotlib</span> <span class="pre">scipy</span></code>.</p>
+<section id="forward-mechanics-and-the-inverse-problem">
+<h2>Forward mechanics and the inverse problem<a class="headerlink" href="#forward-mechanics-and-the-inverse-problem" title="Link to this heading">#</a></h2>
+<p>For overlap <span class="math notranslate nohighlight">\(\delta=\max(0,2R-r)\)</span>, the normal spring stores
+<span class="math notranslate nohighlight">\(U=\tfrac12 k\delta^2\)</span>. During a head-on elastic collision,</p>
+<div class="math notranslate nohighlight">
+\[m_{\mathrm{eff}}\ddot\delta+k\delta=0,\qquad
+m_{\mathrm{eff}}=\frac{m_1m_2}{m_1+m_2},\qquad
+t_c=\pi\sqrt{m_{\mathrm{eff}}/k}.\]</div>
+<p>Stiffness changes the compression and contact duration. Positions measured
+during and after contact therefore contain information about <span class="math notranslate nohighlight">\(k\)</span>.
+Velocities measured only long before and long after this perfectly elastic
+collision would be insufficient: their magnitudes do not change with
+stiffness. If mass were also unknown, this experiment would primarily
+identify the ratio <span class="math notranslate nohighlight">\(k/m_{\mathrm{eff}}\)</span>.</p>
+<p>Fit a dimensionless log parameter <span class="math notranslate nohighlight">\(\theta=\log(k/k_{\rm ref})\)</span>:</p>
+<div class="math notranslate nohighlight">
+\[k(\theta)=k_{\rm ref}\exp\theta,\qquad
+\mathcal L(\theta)=\frac{1}{2N_tR^2}
+  \sum_{n=1}^{N_t}\sum_{i=1}^{2}
+  [x_i(t_n;\theta)-x_i^{\rm obs}(t_n)]^2.\]</div>
+<p>This enforces positive stiffness. JAX evaluates the loss and its derivative
+through JaxDEM’s Verlet steps; the optimizer receives that derivative.
+See the <a class="reference external" href="https://docs.jax.dev/en/latest/automatic-differentiation.html">JAX automatic differentiation guide</a> for the
+underlying <code class="docutils literal notranslate"><span class="pre">value_and_grad</span></code> transformation.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">replace</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">scipy.optimize</span><span class="w"> </span><span class="kn">import</span> <span class="n">minimize</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jdem</span>
+
+<span class="n">jax</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s2">"jax_enable_x64"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+
+<span class="n">radius</span> <span class="o">=</span> <span class="mf">0.5</span>
+<span class="n">mass</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="n">reference_stiffness</span> <span class="o">=</span> <span class="mf">1.0</span>
+<span class="n">true_stiffness</span> <span class="o">=</span> <span class="mf">40.0</span>
+<span class="n">initial_stiffness</span> <span class="o">=</span> <span class="mf">10.0</span>
+<span class="n">dt</span> <span class="o">=</span> <span class="mf">0.002</span>
+<span class="n">n_frames</span> <span class="o">=</span> <span class="mi">80</span>
+<span class="n">save_stride</span> <span class="o">=</span> <span class="mi">5</span>
+<span class="n">training_speed</span> <span class="o">=</span> <span class="mf">0.5</span>  <span class="c1"># speed of each disk; relative approach speed is twice this</span>
+<span class="n">validation_speed</span> <span class="o">=</span> <span class="mf">0.35</span>
+<span class="n">times</span> <span class="o">=</span> <span class="n">dt</span> <span class="o">*</span> <span class="n">save_stride</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n_frames</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+
+<span class="n">initial_state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="o">-</span><span class="mf">0.54</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.54</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]),</span>
+    <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">radius</span><span class="p">),</span>
+    <span class="n">mass</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">mass</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">material_table</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">MaterialTable</span><span class="o">.</span><span class="n">from_materials</span><span class="p">(</span>
+    <span class="p">[</span>
+        <span class="n">jdem</span><span class="o">.</span><span class="n">Material</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="s2">"elastic"</span><span class="p">,</span>
+            <span class="n">young</span><span class="o">=</span><span class="n">reference_stiffness</span><span class="p">,</span>
+            <span class="n">poisson</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>
+            <span class="n">density</span><span class="o">=</span><span class="n">mass</span> <span class="o">/</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">radius</span><span class="o">**</span><span class="mi">2</span><span class="p">),</span>
+        <span class="p">)</span>
+    <span class="p">]</span>
+<span class="p">)</span>
+<span class="n">initial_system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">state</span><span class="o">=</span><span class="n">initial_state</span><span class="p">,</span>
+    <span class="n">dt</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span>
+    <span class="n">collider_type</span><span class="o">=</span><span class="s2">"naive"</span><span class="p">,</span>
+    <span class="n">force_model_type</span><span class="o">=</span><span class="s2">"spring"</span><span class="p">,</span>
+    <span class="n">rotation_integrator_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">mat_table</span><span class="o">=</span><span class="n">material_table</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="a-differentiable-jaxdem-experiment">
+<h2>A differentiable JaxDEM experiment<a class="headerlink" href="#a-differentiable-jaxdem-experiment" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">SpringForce</span></code> reads <code class="docutils literal notranslate"><span class="pre">young_eff</span></code> as its linear stiffness. The table’s
+harmonic matching gives <code class="docutils literal notranslate"><span class="pre">young_eff[0,</span> <span class="pre">0]</span> <span class="pre">==</span> <span class="pre">young[0]</span></code> for the single
+material used here. Replace both the scalar property and its derived pair
+value when changing the material: updating <code class="docutils literal notranslate"><span class="pre">young</span></code> alone would leave the
+precomputed pair table stale. Here <span class="math notranslate nohighlight">\(k\)</span> is this model’s effective
+spring stiffness, with units force/length, rather than a continuum modulus
+inferred through an additional Hertz contact model.</p>
+<p>Every call starts from the same positions and initializes its own forces.
+The all-pairs collider has no capacity to overflow. Static frame and stride
+counts make the rollout differentiable in reverse mode. The compiled
+function is reused for every optimizer evaluation and for the held-out
+speed; no Python factory is called inside the optimization loop.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">save_positions_and_velocities</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">):</span>
+    <span class="k">return</span> <span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">vel</span>
+
+
+<span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">simulate</span><span class="p">(</span><span class="n">log_stiffness</span><span class="p">,</span> <span class="n">speed</span><span class="p">):</span>
+    <span class="n">stiffness</span> <span class="o">=</span> <span class="n">reference_stiffness</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">log_stiffness</span><span class="p">)</span>
+    <span class="n">table</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span>
+        <span class="n">material_table</span><span class="p">,</span>
+        <span class="n">props</span><span class="o">=</span><span class="p">{</span><span class="o">**</span><span class="n">material_table</span><span class="o">.</span><span class="n">props</span><span class="p">,</span> <span class="s2">"young"</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="mi">1</span><span class="p">,),</span> <span class="n">stiffness</span><span class="p">)},</span>
+        <span class="n">pair</span><span class="o">=</span><span class="p">{</span><span class="o">**</span><span class="n">material_table</span><span class="o">.</span><span class="n">pair</span><span class="p">,</span> <span class="s2">"young_eff"</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="n">stiffness</span><span class="p">)},</span>
+    <span class="p">)</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span>
+        <span class="n">initial_state</span><span class="p">,</span>
+        <span class="n">vel</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">speed</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="o">-</span><span class="n">speed</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]),</span>
+    <span class="p">)</span>
+    <span class="n">system</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">initial_system</span><span class="p">,</span> <span class="n">mat_table</span><span class="o">=</span><span class="n">table</span><span class="p">)</span>
+    <span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">trajectory</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">trajectory_rollout</span><span class="p">(</span>
+        <span class="n">state</span><span class="p">,</span>
+        <span class="n">system</span><span class="p">,</span>
+        <span class="n">n</span><span class="o">=</span><span class="n">n_frames</span><span class="p">,</span>
+        <span class="n">stride</span><span class="o">=</span><span class="n">save_stride</span><span class="p">,</span>
+        <span class="n">save_fn</span><span class="o">=</span><span class="n">save_positions_and_velocities</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">trajectory</span>
+
+
+<span class="n">true_log_stiffness</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">true_stiffness</span> <span class="o">/</span> <span class="n">reference_stiffness</span><span class="p">)</span>
+<span class="n">initial_log_stiffness</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">initial_stiffness</span> <span class="o">/</span> <span class="n">reference_stiffness</span><span class="p">)</span>
+<span class="n">observed_positions</span><span class="p">,</span> <span class="n">observed_velocities</span> <span class="o">=</span> <span class="n">simulate</span><span class="p">(</span>
+    <span class="n">true_log_stiffness</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">training_speed</span><span class="p">)</span>
+<span class="p">)</span>
+
+
+<span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">loss</span><span class="p">(</span><span class="n">log_stiffness</span><span class="p">):</span>
+    <span class="n">positions</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">simulate</span><span class="p">(</span><span class="n">log_stiffness</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">training_speed</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">jnp</span><span class="o">.</span><span class="n">mean</span><span class="p">(((</span><span class="n">positions</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">observed_positions</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">])</span> <span class="o">/</span> <span class="n">radius</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">)</span>
+
+
+<span class="n">loss_and_gradient</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">value_and_grad</span><span class="p">(</span><span class="n">loss</span><span class="p">))</span>
+</pre></div>
+</div>
+</section>
+<section id="check-the-derivative-before-trusting-the-fit">
+<h2>Check the derivative before trusting the fit<a class="headerlink" href="#check-the-derivative-before-trusting-the-fit" title="Link to this heading">#</a></h2>
+<p>The contact force is continuous but its derivative changes at contact
+activation. The derivative below is that of the discrete, fixed-step
+simulation. Check it against a centered finite difference away from a
+contact exactly landing on an integration boundary. Float64 helps separate
+finite-difference cancellation from a real derivative error.</p>
+<p>Reducing <code class="docutils literal notranslate"><span class="pre">dt</span></code> at fixed physical observation times is a separate check of
+the discretization. For the target, <span class="math notranslate nohighlight">\(\omega\Delta t\simeq0.018\)</span>, with
+<span class="math notranslate nohighlight">\(\omega=\sqrt{k/m_{\mathrm{eff}}}\)</span>. The analytic contact solution below
+provides an independent forward-model check.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">check_parameter</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">18.0</span> <span class="o">/</span> <span class="n">reference_stiffness</span><span class="p">)</span>
+<span class="n">difference_step</span> <span class="o">=</span> <span class="mf">1e-4</span>
+<span class="n">_</span><span class="p">,</span> <span class="n">automatic_gradient</span> <span class="o">=</span> <span class="n">loss_and_gradient</span><span class="p">(</span><span class="n">check_parameter</span><span class="p">)</span>
+<span class="n">finite_difference</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">loss</span><span class="p">(</span><span class="n">check_parameter</span> <span class="o">+</span> <span class="n">difference_step</span><span class="p">)</span> <span class="o">-</span> <span class="n">loss</span><span class="p">(</span><span class="n">check_parameter</span> <span class="o">-</span> <span class="n">difference_step</span><span class="p">)</span>
+<span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">difference_step</span><span class="p">)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="n">automatic_gradient</span><span class="p">,</span> <span class="n">finite_difference</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">2e-4</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-8</span><span class="p">)</span>
+<span class="k">assert</span> <span class="nb">abs</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">automatic_gradient</span><span class="p">))</span> <span class="o">&gt;</span> <span class="mf">1e-5</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">"Gradient at k=18: AD=</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">automatic_gradient</span><span class="p">)</span><span class="si">:</span><span class="s2">.8f</span><span class="si">}</span><span class="s2">, "</span>
+    <span class="sa">f</span><span class="s2">"finite difference=</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">finite_difference</span><span class="p">)</span><span class="si">:</span><span class="s2">.8f</span><span class="si">}</span><span class="s2">"</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Gradient at k=18: AD=-0.04288933, finite difference=-0.04288933
+</pre></div>
+</div>
+</section>
+<section id="fit-one-positive-parameter">
+<h2>Fit one positive parameter<a class="headerlink" href="#fit-one-positive-parameter" title="Link to this heading">#</a></h2>
+<p>L-BFGS-B uses the JAX derivative and bounds the search to a physically
+specified range. The bounds are not observations; they just avoid
+unresolved contacts and irrelevant stiffness scales in this first example.
+Record every accepted iterate to see the actual convergence.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">iteration_stiffness</span> <span class="o">=</span> <span class="p">[</span><span class="n">initial_stiffness</span><span class="p">]</span>
+<span class="n">iteration_loss</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">loss</span><span class="p">(</span><span class="n">initial_log_stiffness</span><span class="p">))]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">scipy_objective</span><span class="p">(</span><span class="n">parameters</span><span class="p">):</span>
+    <span class="n">value</span><span class="p">,</span> <span class="n">derivative</span> <span class="o">=</span> <span class="n">loss_and_gradient</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">parameters</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">float</span><span class="p">(</span><span class="n">derivative</span><span class="p">)])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">record_iteration</span><span class="p">(</span><span class="n">parameters</span><span class="p">):</span>
+    <span class="n">iteration_stiffness</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">reference_stiffness</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">parameters</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+    <span class="n">iteration_loss</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">loss</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">parameters</span><span class="p">[</span><span class="mi">0</span><span class="p">]))))</span>
+
+
+<span class="n">fit</span> <span class="o">=</span> <span class="n">minimize</span><span class="p">(</span>
+    <span class="n">scipy_objective</span><span class="p">,</span>
+    <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="nb">float</span><span class="p">(</span><span class="n">initial_log_stiffness</span><span class="p">)]),</span>
+    <span class="n">jac</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">method</span><span class="o">=</span><span class="s2">"L-BFGS-B"</span><span class="p">,</span>
+    <span class="n">bounds</span><span class="o">=</span><span class="p">[(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">5.0</span> <span class="o">/</span> <span class="n">reference_stiffness</span><span class="p">),</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">100.0</span> <span class="o">/</span> <span class="n">reference_stiffness</span><span class="p">))],</span>
+    <span class="n">callback</span><span class="o">=</span><span class="n">record_iteration</span><span class="p">,</span>
+    <span class="n">options</span><span class="o">=</span><span class="p">{</span><span class="s2">"maxiter"</span><span class="p">:</span> <span class="mi">30</span><span class="p">,</span> <span class="s2">"gtol"</span><span class="p">:</span> <span class="mf">1e-10</span><span class="p">,</span> <span class="s2">"ftol"</span><span class="p">:</span> <span class="mf">1e-14</span><span class="p">},</span>
+<span class="p">)</span>
+<span class="k">if</span> <span class="ow">not</span> <span class="n">fit</span><span class="o">.</span><span class="n">success</span><span class="p">:</span>
+    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Stiffness fit failed: </span><span class="si">{</span><span class="n">fit</span><span class="o">.</span><span class="n">message</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="n">fitted_log_stiffness</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">fit</span><span class="o">.</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<span class="n">fitted_stiffness</span> <span class="o">=</span> <span class="n">reference_stiffness</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">fit</span><span class="o">.</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="n">fitted_stiffness</span><span class="p">,</span> <span class="n">true_stiffness</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-3</span><span class="p">)</span>
+<span class="k">assert</span> <span class="nb">float</span><span class="p">(</span><span class="n">fit</span><span class="o">.</span><span class="n">fun</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">iteration_loss</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="mf">1e-6</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">"Recovered k=</span><span class="si">{</span><span class="n">fitted_stiffness</span><span class="si">:</span><span class="s2">.6f</span><span class="si">}</span><span class="s2">, target=</span><span class="si">{</span><span class="n">true_stiffness</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2">; "</span>
+    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">fit</span><span class="o">.</span><span class="n">nit</span><span class="si">}</span><span class="s2"> iterations, loss=</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">fit</span><span class="o">.</span><span class="n">fun</span><span class="p">)</span><span class="si">:</span><span class="s2">.3e</span><span class="si">}</span><span class="s2">"</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Recovered k=40.000000, target=40.0; 7 iterations, loss=5.787e-26
+</pre></div>
+</div>
+</section>
+<section id="independent-mechanics-check-and-a-held-out-experiment">
+<h2>Independent mechanics check and a held-out experiment<a class="headerlink" href="#independent-mechanics-check-and-a-held-out-experiment" title="Link to this heading">#</a></h2>
+<p>Before contact the right disk moves left at <code class="docutils literal notranslate"><span class="pre">training_speed</span></code>. After the
+initial gap closes at <span class="math notranslate nohighlight">\(t_0\)</span>, its overlap obeys
+<span class="math notranslate nohighlight">\(\delta=(2v/\omega)\sin[\omega(t-t_0)]\)</span> until separation. Compare the
+numerical overlap with that solution, and verify conservation of total
+momentum. The fitted parameter then predicts an unused impact speed.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">effective_mass</span> <span class="o">=</span> <span class="n">mass</span> <span class="o">/</span> <span class="mf">2.0</span>
+<span class="n">omega</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">true_stiffness</span> <span class="o">/</span> <span class="n">effective_mass</span><span class="p">)</span>
+<span class="n">contact_start</span> <span class="o">=</span> <span class="p">(</span><span class="mf">1.08</span> <span class="o">-</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">radius</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">training_speed</span><span class="p">)</span>
+<span class="n">contact_age</span> <span class="o">=</span> <span class="n">times</span> <span class="o">-</span> <span class="n">contact_start</span>
+<span class="n">analytic_overlap</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+    <span class="p">(</span><span class="n">contact_age</span> <span class="o">&gt;=</span> <span class="mf">0.0</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="n">contact_age</span> <span class="o">&lt;=</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">/</span> <span class="n">omega</span><span class="p">),</span>
+    <span class="mf">2.0</span> <span class="o">*</span> <span class="n">training_speed</span> <span class="o">/</span> <span class="n">omega</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">omega</span> <span class="o">*</span> <span class="n">contact_age</span><span class="p">),</span>
+    <span class="mf">0.0</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">numerical_overlap</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span>
+    <span class="mf">0.0</span><span class="p">,</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="n">radius</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">observed_positions</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">]),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)[:,</span> <span class="mi">0</span><span class="p">]</span>
+<span class="p">)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="n">numerical_overlap</span><span class="p">,</span> <span class="n">analytic_overlap</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="mf">2e-5</span><span class="p">)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="n">mass</span> <span class="o">*</span> <span class="n">observed_velocities</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="mf">0.0</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-12</span><span class="p">)</span>
+
+<span class="n">initial_positions</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">simulate</span><span class="p">(</span><span class="n">initial_log_stiffness</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">training_speed</span><span class="p">))</span>
+<span class="n">fitted_positions</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">simulate</span><span class="p">(</span><span class="n">fitted_log_stiffness</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">training_speed</span><span class="p">))</span>
+<span class="n">validation_target</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">simulate</span><span class="p">(</span><span class="n">true_log_stiffness</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">validation_speed</span><span class="p">))</span>
+<span class="n">validation_prediction</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">simulate</span><span class="p">(</span><span class="n">fitted_log_stiffness</span><span class="p">,</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">validation_speed</span><span class="p">))</span>
+<span class="n">validation_rmse</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span>
+    <span class="n">jnp</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">mean</span><span class="p">((</span><span class="n">validation_prediction</span> <span class="o">-</span> <span class="n">validation_target</span><span class="p">)</span> <span class="o">**</span> <span class="mi">2</span><span class="p">))</span>
+<span class="p">)</span>
+<span class="k">assert</span> <span class="n">validation_rmse</span> <span class="o">&lt;</span> <span class="mf">1e-5</span> <span class="o">*</span> <span class="n">radius</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Held-out speed </span><span class="si">{</span><span class="n">validation_speed</span><span class="si">}</span><span class="s2">: position RMSE=</span><span class="si">{</span><span class="n">validation_rmse</span><span class="si">:</span><span class="s2">.3e</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Held-out speed 0.35: position RMSE=6.112e-14
+</pre></div>
+</div>
+</section>
+<section id="read-the-result">
+<h2>Read the result<a class="headerlink" href="#read-the-result" title="Link to this heading">#</a></h2>
+<p>The initial trajectory compresses too far and rebounds too late. The fitted
+trajectory matches both the calibration collision and the held-out speed.
+With experimental data, introduce observation noise and missing frames,
+fit several impact speeds, and report parameter uncertainty. Unknown mass,
+damping or initial velocity can create tradeoffs; successful fitting of one
+noiseless collision does not resolve those additional unknowns.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">12</span><span class="p">,</span> <span class="mf">3.4</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+    <span class="n">times</span><span class="p">,</span> <span class="n">initial_positions</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="s2">"--"</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Initial k=</span><span class="si">{</span><span class="n">initial_stiffness</span><span class="si">:</span><span class="s2">g</span><span class="si">}</span><span class="s2">"</span>
+<span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">times</span><span class="p">,</span> <span class="n">fitted_positions</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Fitted k=</span><span class="si">{</span><span class="n">fitted_stiffness</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">times</span><span class="p">[::</span><span class="mi">4</span><span class="p">],</span> <span class="n">observed_positions</span><span class="p">[::</span><span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="s2">"o"</span><span class="p">,</span> <span class="n">ms</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"Observed"</span><span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">xlabel</span><span class="o">=</span><span class="s2">"Time"</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="s2">"Right disk x"</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s2">"Recover contact timing"</span><span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">fontsize</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">semilogy</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">iteration_loss</span><span class="p">,</span> <span class="mf">1e-18</span><span class="p">),</span> <span class="s2">"o-"</span><span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span>
+    <span class="n">xlabel</span><span class="o">=</span><span class="s2">"Optimizer iteration"</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="s2">"Position loss"</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s2">"Fit convergence"</span>
+<span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">times</span><span class="p">,</span> <span class="n">validation_prediction</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="n">label</span><span class="o">=</span><span class="s2">"Prediction"</span><span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+    <span class="n">times</span><span class="p">[::</span><span class="mi">4</span><span class="p">],</span> <span class="n">validation_target</span><span class="p">[::</span><span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="s2">"o"</span><span class="p">,</span> <span class="n">ms</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">"Held-out target"</span>
+<span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span>
+    <span class="n">xlabel</span><span class="o">=</span><span class="s2">"Time"</span><span class="p">,</span> <span class="n">ylabel</span><span class="o">=</span><span class="s2">"Right disk x"</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Unused speed v=</span><span class="si">{</span><span class="n">validation_speed</span><span class="si">}</span><span class="s2">"</span>
+<span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">fontsize</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../_images/sphx_glr_infer_contact_stiffness_001.png" srcset="../_images/sphx_glr_infer_contact_stiffness_001.png" alt="Recover contact timing, Fit convergence, Unused speed v=0.35" class = "sphx-glr-single-img"/><p class="sphx-glr-timing"><strong>Total running time of the script:</strong> (0 minutes 8.228 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-infer-contact-stiffness-py">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/35858cb5d2d378466989a9a72321993f/infer_contact_stiffness.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">infer_contact_stiffness.ipynb</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/b4dd3c79aa1f5995be38b71be285e94a/infer_contact_stiffness.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">infer_contact_stiffness.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-zip docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/d86a39a1cd89934ebf981098433a6779/infer_contact_stiffness.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">zipped:</span> <span class="pre">infer_contact_stiffness.zip</span></code></a></p>
+</div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="vicsek_model.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Vicsek alignment of rigid dumbbells</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="rigid_elastic_viscoplastic_loading.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Rigid, elastic and viscoplastic grains under the same load</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#forward-mechanics-and-the-inverse-problem">Forward mechanics and the inverse problem</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#a-differentiable-jaxdem-experiment">A differentiable JaxDEM experiment</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#check-the-derivative-before-trusting-the-fit">Check the derivative before trusting the fit</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#fit-one-positive-parameter">Fit one positive parameter</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#independent-mechanics-check-and-a-held-out-experiment">Independent mechanics check and a held-out experiment</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#read-the-result">Read the result</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

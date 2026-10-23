@@ -1,0 +1,12 @@
+jaxdem.domains.free
+===================
+
+.. automodule:: jaxdem.domains.free
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      FreeDomain
+   

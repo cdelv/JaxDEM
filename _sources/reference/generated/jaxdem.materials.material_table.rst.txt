@@ -1,0 +1,12 @@
+jaxdem.materials.material\_table
+================================
+
+.. automodule:: jaxdem.materials.material_table
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      MaterialTable
+   

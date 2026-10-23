@@ -1,0 +1,1246 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Deformable Particles &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=6cb5ae24" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'auto_examples/deformable_particle_guide';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Facets (Triangular &amp; Line Boundaries)" href="facets_guide.html" />
+    <link rel="prev" title="Clumps (Rigid Bodies)" href="clump_guide.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar">
+  <svg class="pst-icon" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><p aria-level="2" class="caption" role="heading"><span class="caption-text">User guide</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="installation_guide.html">Installation and Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="state_guide.html">The Simulation State</a></li>
+<li class="toctree-l1"><a class="reference internal" href="system_guide.html">The Simulation System</a></li>
+<li class="toctree-l1"><a class="reference internal" href="domain_guide.html">The Simulation Domain</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrator_guide.html">Integrators and Minimizers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="materials_guide.html">Materials, Matchmakers, and Material Tables</a></li>
+<li class="toctree-l1"><a class="reference internal" href="force_model_guide.html">Force Models</a></li>
+<li class="toctree-l1"><a class="reference internal" href="force_manager_guide.html">The Force Manager</a></li>
+<li class="toctree-l1"><a class="reference internal" href="collider_guide.html">Colliders</a></li>
+<li class="toctree-l1"><a class="reference internal" href="checkpoint_guide.html">Checkpoint Save and Load</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vtk_writer_guide.html">VTK Post-Processing and Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clump_guide.html">Clumps (Rigid Bodies)</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Deformable Particles</a></li>
+<li class="toctree-l1"><a class="reference internal" href="facets_guide.html">Facets (Triangular &amp; Line Boundaries)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="custom_modules_guide.html">Custom Module Registration and System Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="intro_to_rl.html">Intro to JaxDEM reinforcement learning</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../user_guide/index.html" class="nav-link">User guide</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Deformable Particles</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-deformable-particle-guide-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code.</p>
+</div>
+<section class="sphx-glr-example-title" id="deformable-particles">
+<span id="sphx-glr-auto-examples-deformable-particle-guide-py"></span><h1>Deformable Particles<a class="headerlink" href="#deformable-particles" title="Link to this heading">#</a></h1>
+<p>This guide covers the <a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">DeformableParticleModel</span></code></a>,
+a bonded-force model that turns a collection of point particles (vertices) into
+elastic, deformable bodies.</p>
+<p>A deformable particle is defined by its mesh: a set of vertices connected by
+elements (triangles in 3D, segments in 2D).
+The model computes elastic forces from the mesh geometry. It penalizes
+deviations in element measure (area/length), body content (volume/area),
+bending angle, edge length, and surface tension.</p>
+<p>This guide shows how to create, configure, and extend deformable particles.</p>
+<p>The coefficients correspond to specific terms in the elastic energy, not
+interchangeable numerical weights. Let <span class="math notranslate nohighlight">\(\mathcal{M}_m\)</span> be element
+measure, <span class="math notranslate nohighlight">\(\mathcal{C}_I\)</span> enclosed body content, <span class="math notranslate nohighlight">\(L_e\)</span> edge length,
+and <span class="math notranslate nohighlight">\(\theta_a\)</span> the signed bend between adjacent elements. A subscript
+0 denotes the reference geometry. The model uses</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}E_{\mathrm{measure}} &amp;= \frac12\sum_m
+    \frac{em_m}{\mathcal{M}_{m,0}}
+    (\mathcal{M}_m-\mathcal{M}_{m,0})^2, \\
+E_{\mathrm{content}} &amp;= \frac12\sum_I
+    \frac{ec_I}{\mathcal{C}_{I,0}}
+    (\mathcal{C}_I-\mathcal{C}_{I,0})^2, \\
+E_{\mathrm{edge}} &amp;= \frac12\sum_e el_e(L_e-L_{e,0})^2, \\
+E_{\mathrm{bend}} &amp;= \frac12\sum_a eb_a w_{b,a}
+    \operatorname{wrap}(\theta_a-\theta_{a,0})^2, \\
+E_{\mathrm{tension}} &amp;= \sum_m\gamma_m\mathcal{M}_m.\end{split}\]</div>
+<p>In 2D, element measure is segment length and body content is enclosed area;
+in 3D they are triangle area and enclosed volume. The constructor derives
+the geometric bending weight <span class="math notranslate nohighlight">\(w_b\)</span> from the reference mesh, and
+<code class="docutils literal notranslate"><span class="pre">wrap</span></code> takes the shortest signed angular difference. Nodal forces are
+<span class="math notranslate nohighlight">\(\mathbf{F}_i=-\partial E/\partial\mathbf{x}_i\)</span>, with all active
+terms contributing to the same force accumulator.</p>
+<p>The measure, content, edge, and bending terms vanish at their reference
+values. Surface tension is different: a positive <span class="math notranslate nohighlight">\(\gamma\)</span> favors
+shorter perimeter or smaller surface area even at the reference geometry.
+Thus a reference mesh need not be an equilibrium shape when tension is
+active. The batched restoring-force example below sets it to zero to
+isolate the response to a prescribed small stretch.</p>
+<section id="creating-a-deformable-particle">
+<h2>Creating a Deformable Particle<a class="headerlink" href="#creating-a-deformable-particle" title="Link to this heading">#</a></h2>
+<p>Create a deformable particle with
+<a class="reference internal" href="../reference/generated/jaxdem.factory.html#jaxdem.factory.Factory.create" title="jaxdem.factory.Factory.create"><code class="xref py py-meth docutils literal notranslate"><span class="pre">BondedForceModel.create</span></code></a>. Pass the
+registered name <code class="docutils literal notranslate"><span class="pre">&quot;deformable_particle_model&quot;</span></code> and the mesh topology.</p>
+<p>Vertices define particle positions, and elements define connectivity.
+If you do not provide reference (stress-free) quantities,
+<a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.Create" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.Create"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Create()</span></code></a>
+computes them from <code class="docutils literal notranslate"><span class="pre">vertices</span></code>. If you provide all required reference
+quantities, the <code class="docutils literal notranslate"><span class="pre">vertices</span></code> argument is optional.</p>
+<p>The connectivity arrays of the deformable particle contain
+the particles’ array indices from
+<a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">State</span></code></a>.</p>
+<p>For the simulation to run correctly, all vertices the deformable model
+references must exist in the simulation <code class="docutils literal notranslate"><span class="pre">state</span></code>.
+Content elasticity additionally requires closed, consistently oriented
+boundaries: counterclockwise segments in 2D and outward-facing triangles
+in 3D. Open meshes can still use edge, measure, and bending terms.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jdem</span>
+
+<span class="c1"># A simple square boundary in 2D: 4 vertices connected by 4 segments.</span>
+<span class="n">vertices_2d</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+<span class="n">elements_2d</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">0</span><span class="p">]],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+<span class="n">edges_2d</span> <span class="o">=</span> <span class="n">elements_2d</span>  <span class="c1"># In 2D the edges often coincide with elements.</span>
+<span class="n">adjacency_2d</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">0</span><span class="p">]],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+
+<span class="n">dp</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">BondedForceModel</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="s2">"deformable_particle_model"</span><span class="p">,</span>
+    <span class="n">vertices</span><span class="o">=</span><span class="n">vertices_2d</span><span class="p">,</span>
+    <span class="n">elements</span><span class="o">=</span><span class="n">elements_2d</span><span class="p">,</span>
+    <span class="n">edges</span><span class="o">=</span><span class="n">edges_2d</span><span class="p">,</span>
+    <span class="n">element_adjacency</span><span class="o">=</span><span class="n">adjacency_2d</span><span class="p">,</span>
+    <span class="n">em</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+    <span class="n">eb</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+    <span class="n">el</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>
+    <span class="n">gamma</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Created DP:"</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">dp</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Created DP: DeformableParticleModel
+</pre></div>
+</div>
+</section>
+<section id="passing-the-model-to-the-system">
+<h2>Passing the Model to the System<a class="headerlink" href="#passing-the-model-to-the-system" title="Link to this heading">#</a></h2>
+<p>There are two equivalent ways to attach a deformable particle model to a
+<a class="reference internal" href="../reference/generated/jaxdem.system.html#jaxdem.system.System" title="jaxdem.system.System"><code class="xref py py-class docutils literal notranslate"><span class="pre">System</span></code></a>.</p>
+<p>When you provide a bonded-force model,
+<a class="reference internal" href="../reference/generated/jaxdem.system.html#jaxdem.system.System.create" title="jaxdem.system.System.create"><code class="xref py py-meth docutils literal notranslate"><span class="pre">create()</span></code></a> automatically registers its force
+and energy functions with the
+<a class="reference internal" href="../reference/generated/jaxdem.forces.force_manager.html#jaxdem.forces.force_manager.ForceManager" title="jaxdem.forces.force_manager.ForceManager"><code class="xref py py-class docutils literal notranslate"><span class="pre">ForceManager</span></code></a>. The force manager
+then computes the bonded forces alongside any other forces (contact,
+gravity, custom) during each time step. You do not pass them manually to
+the force manager.</p>
+<p><strong>Option 1</strong> — pass the model object directly:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">pos</span><span class="o">=</span><span class="n">vertices_2d</span><span class="p">,</span> <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">))</span>
+<span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">bonded_force_model</span><span class="o">=</span><span class="n">dp</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Option 2</strong> — pass the registered type name and keyword arguments.
+<a class="reference internal" href="../reference/generated/jaxdem.system.html#jaxdem.system.System.create" title="jaxdem.system.System.create"><code class="xref py py-meth docutils literal notranslate"><span class="pre">create()</span></code></a> will build the model internally:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+    <span class="n">bonded_force_model_type</span><span class="o">=</span><span class="s2">"deformable_particle_model"</span><span class="p">,</span>
+    <span class="n">bonded_force_model_kw</span><span class="o">=</span><span class="p">{</span>
+        <span class="s2">"vertices"</span><span class="p">:</span> <span class="n">vertices_2d</span><span class="p">,</span>
+        <span class="s2">"elements"</span><span class="p">:</span> <span class="n">elements_2d</span><span class="p">,</span>
+        <span class="s2">"edges"</span><span class="p">:</span> <span class="n">edges_2d</span><span class="p">,</span>
+        <span class="s2">"element_adjacency"</span><span class="p">:</span> <span class="n">adjacency_2d</span><span class="p">,</span>
+        <span class="s2">"em"</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">,</span>
+        <span class="s2">"eb"</span><span class="p">:</span> <span class="mf">0.5</span><span class="p">,</span>
+        <span class="s2">"el"</span><span class="p">:</span> <span class="mf">0.3</span><span class="p">,</span>
+        <span class="s2">"gamma"</span><span class="p">:</span> <span class="mf">0.1</span><span class="p">,</span>
+    <span class="p">},</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>If you pass both, the model object takes precedence and
+<a class="reference internal" href="../reference/generated/jaxdem.system.html#jaxdem.system.System.create" title="jaxdem.system.System.create"><code class="xref py py-meth docutils literal notranslate"><span class="pre">create()</span></code></a> ignores the keyword arguments.
+A bonded model does not automatically disable contact forces. Node radii
+here are smaller than half the edge length, so the reference square has no
+self-contact. Use <a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State.bond_id" title="jaxdem.state.State.bond_id"><code class="xref py py-attr docutils literal notranslate"><span class="pre">bond_id</span></code></a> explicitly when connected nodes should be
+excluded from contact even after deformation; see Connectivity Masking.</p>
+</section>
+<section id="coefficient-broadcasting">
+<h2>Coefficient Broadcasting<a class="headerlink" href="#coefficient-broadcasting" title="Link to this heading">#</a></h2>
+<p>Pass every coefficient as a <strong>scalar</strong> or as a full array.
+The constructor broadcasts scalar values to the shape of the
+corresponding geometric entity:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Coefficient</p></th>
+<th class="head"><p>Target shape</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.em" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.em"><code class="xref py py-attr docutils literal notranslate"><span class="pre">em</span></code></a></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(M,)</span></code> — per element</p></td>
+<td><p>Measure (area/length) stiffness</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.gamma" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.gamma"><code class="xref py py-attr docutils literal notranslate"><span class="pre">gamma</span></code></a></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(M,)</span></code> — per element</p></td>
+<td><p>Surface/line tension</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.eb" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.eb"><code class="xref py py-attr docutils literal notranslate"><span class="pre">eb</span></code></a></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(A,)</span></code> — per adjacency pair</p></td>
+<td><p>Bending stiffness</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.el" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.el"><code class="xref py py-attr docutils literal notranslate"><span class="pre">el</span></code></a></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(E,)</span></code> — per edge</p></td>
+<td><p>Edge length stiffness</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ec</span></code></a></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">(K,)</span></code> — per body</p></td>
+<td><p>Content (volume/area) stiffness</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ec</span></code></a>
+is special: it is a <strong>per-body</strong> coefficient, not per-element.
+The <a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id"><code class="xref py py-attr docutils literal notranslate"><span class="pre">elements_id</span></code></a>
+array maps each element to its parent body, so the
+model knows which <a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ec</span></code></a>
+value to read for each element’s content
+contribution.
+When only one body is present and you do not provide
+<a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id"><code class="xref py py-attr docutils literal notranslate"><span class="pre">elements_id</span></code></a>,
+<a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ec</span></code></a>
+must have shape <code class="docutils literal notranslate"><span class="pre">(1,)</span></code>.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">dp_scalar</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">BondedForceModel</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="s2">"deformable_particle_model"</span><span class="p">,</span>
+    <span class="n">vertices</span><span class="o">=</span><span class="n">vertices_2d</span><span class="p">,</span>
+    <span class="n">elements</span><span class="o">=</span><span class="n">elements_2d</span><span class="p">,</span>
+    <span class="n">edges</span><span class="o">=</span><span class="n">edges_2d</span><span class="p">,</span>
+    <span class="n">em</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span>  <span class="c1"># broadcast to shape (4,)</span>
+    <span class="n">el</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>  <span class="c1"># broadcast to shape (4,)</span>
+    <span class="n">gamma</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>  <span class="c1"># broadcast to shape (4,)</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"em shape:"</span><span class="p">,</span> <span class="n">dp_scalar</span><span class="o">.</span><span class="n">em</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (4,)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"el shape:"</span><span class="p">,</span> <span class="n">dp_scalar</span><span class="o">.</span><span class="n">el</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (4,)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"gamma shape:"</span><span class="p">,</span> <span class="n">dp_scalar</span><span class="o">.</span><span class="n">gamma</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (4,)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>em shape: (4,)
+el shape: (4,)
+gamma shape: (4,)
+</pre></div>
+</div>
+</section>
+<section id="lazy-array-creation">
+<h2>Lazy Array Creation<a class="headerlink" href="#lazy-array-creation" title="Link to this heading">#</a></h2>
+<p>The constructor only allocates the arrays it needs.
+If a coefficient is <code class="docutils literal notranslate"><span class="pre">None</span></code> (i.e. not provided), the constructor does
+<strong>not</strong> store the corresponding topology and reference arrays, even if you
+passed them. This keeps the model small when only some energy terms are
+active.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">dp_edges_only</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">BondedForceModel</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="s2">"deformable_particle_model"</span><span class="p">,</span>
+    <span class="n">vertices</span><span class="o">=</span><span class="n">vertices_2d</span><span class="p">,</span>
+    <span class="n">elements</span><span class="o">=</span><span class="n">elements_2d</span><span class="p">,</span>
+    <span class="n">edges</span><span class="o">=</span><span class="n">edges_2d</span><span class="p">,</span>
+    <span class="n">element_adjacency</span><span class="o">=</span><span class="n">adjacency_2d</span><span class="p">,</span>
+    <span class="n">el</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>  <span class="c1"># Only edge springs are active.</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"elements stored?"</span><span class="p">,</span> <span class="n">dp_edges_only</span><span class="o">.</span><span class="n">elements</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span>  <span class="c1"># False</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"edges stored?"</span><span class="p">,</span> <span class="n">dp_edges_only</span><span class="o">.</span><span class="n">edges</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span>  <span class="c1"># True</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"adjacency stored?"</span><span class="p">,</span> <span class="n">dp_edges_only</span><span class="o">.</span><span class="n">element_adjacency</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span>  <span class="c1"># False</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>elements stored? False
+edges stored? True
+adjacency stored? False
+</pre></div>
+</div>
+<p>Here the constructor discards
+<a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements"><code class="xref py py-attr docutils literal notranslate"><span class="pre">elements</span></code></a>
+and <a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.element_adjacency" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.element_adjacency"><code class="xref py py-attr docutils literal notranslate"><span class="pre">element_adjacency</span></code></a>,
+because no coefficient that needs them
+(<a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.em" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.em"><code class="xref py py-attr docutils literal notranslate"><span class="pre">em</span></code></a>,
+<a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ec</span></code></a>,
+<a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.gamma" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.gamma"><code class="xref py py-attr docutils literal notranslate"><span class="pre">gamma</span></code></a>,
+<a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.eb" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.eb"><code class="xref py py-attr docutils literal notranslate"><span class="pre">eb</span></code></a>)
+was provided.</p>
+</section>
+<section id="d-vs-3d-differences">
+<h2>2D vs 3D Differences<a class="headerlink" href="#d-vs-3d-differences" title="Link to this heading">#</a></h2>
+<p>JaxDEM supports both 2D and 3D deformable particles. The key differences
+are:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Concept</p></th>
+<th class="head"><p>2D</p></th>
+<th class="head"><p>3D</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Elements</p></td>
+<td><p>Segments <code class="docutils literal notranslate"><span class="pre">(M,</span> <span class="pre">2)</span></code></p></td>
+<td><p>Triangles <code class="docutils literal notranslate"><span class="pre">(M,</span> <span class="pre">3)</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Measure</p></td>
+<td><p>Segment length</p></td>
+<td><p>Triangle area</p></td>
+</tr>
+<tr class="row-even"><td><p>Content</p></td>
+<td><p>Enclosed area</p></td>
+<td><p>Enclosed volume</p></td>
+</tr>
+<tr class="row-odd"><td><p>Bending</p></td>
+<td><p>Angle at shared vertex</p></td>
+<td><p>Dihedral angle at shared edge</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.element_adjacency_edges" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.element_adjacency_edges"><code class="xref py py-attr docutils literal notranslate"><span class="pre">element_adjacency_edges</span></code></a></p></td>
+<td><p>Not needed (automatically inferred)</p></td>
+<td><p>Optional <code class="docutils literal notranslate"><span class="pre">(A,</span> <span class="pre">2)</span></code> — vertex IDs of the shared edge (auto-inferred if not provided)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The constructor infers the dimension from the vertices.
+<code class="docutils literal notranslate"><span class="pre">vertices.shape[-1]</span></code> sets whether the model operates in 2D or 3D, and
+this must be consistent with <code class="docutils literal notranslate"><span class="pre">elements.shape[-1]</span></code>.</p>
+<p>In 3D, each adjacency pair shares an edge (two vertices), and
+<a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.element_adjacency_edges" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.element_adjacency_edges"><code class="xref py py-attr docutils literal notranslate"><span class="pre">element_adjacency_edges</span></code></a>
+stores those vertex IDs. If you do not
+provide them, the constructor infers them from the element connectivity.
+In 2D, adjacencies share a single vertex and the edges array is not needed.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="c1"># A minimal 3D example: a tetrahedron with 4 triangular faces.</span>
+<span class="n">vertices_3d</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]],</span>
+    <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">elements_3d</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">]],</span>
+    <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">adjacency_3d</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+    <span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span> <span class="p">[</span><span class="mi">2</span><span class="p">,</span> <span class="mi">3</span><span class="p">]],</span>
+    <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">dp_3d</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">BondedForceModel</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="s2">"deformable_particle_model"</span><span class="p">,</span>
+    <span class="n">vertices</span><span class="o">=</span><span class="n">vertices_3d</span><span class="p">,</span>
+    <span class="n">elements</span><span class="o">=</span><span class="n">elements_3d</span><span class="p">,</span>
+    <span class="n">element_adjacency</span><span class="o">=</span><span class="n">adjacency_3d</span><span class="p">,</span>
+    <span class="n">em</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+    <span class="n">eb</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"3D elements shape:"</span><span class="p">,</span> <span class="n">dp_3d</span><span class="o">.</span><span class="n">elements</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (4, 3)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"3D adjacency_edges shape:"</span><span class="p">,</span> <span class="n">dp_3d</span><span class="o">.</span><span class="n">element_adjacency_edges</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (6, 2)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>3D elements shape: (4, 3)
+3D adjacency_edges shape: (6, 2)
+</pre></div>
+</div>
+</section>
+<section id="the-body-id-field">
+<h2>The Body-ID Field<a class="headerlink" href="#the-body-id-field" title="Link to this heading">#</a></h2>
+<p>When a single deformable particle model contains <strong>multiple bodies</strong>, the
+<a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id"><code class="xref py py-attr docutils literal notranslate"><span class="pre">elements_id</span></code></a>
+array identifies which body each element belongs to.
+The content energy term
+(<a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ec</span></code></a>)
+requires this mapping, because it is a
+per-body quantity: the model sums the partial content contribution of
+each element per body using
+<a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id"><code class="xref py py-attr docutils literal notranslate"><span class="pre">elements_id</span></code></a>.</p>
+<p><a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id"><code class="xref py py-attr docutils literal notranslate"><span class="pre">elements_id</span></code></a>
+has shape <code class="docutils literal notranslate"><span class="pre">(M,)</span></code> and contains integer body indices.
+For example, two closed square boundaries each have four segments:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">elements_id</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+<span class="n">ec</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.8</span><span class="p">])</span>  <span class="c1"># one value per body</span>
+</pre></div>
+</div>
+<p>Without <a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id"><code class="xref py py-attr docutils literal notranslate"><span class="pre">elements_id</span></code></a>,
+the model treats all elements as one body (body 0), and
+<a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec"><code class="xref py py-attr docutils literal notranslate"><span class="pre">ec</span></code></a>
+must have shape <code class="docutils literal notranslate"><span class="pre">(1,)</span></code>.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">two_square_vertices</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span>
+    <span class="p">(</span><span class="n">vertices_2d</span><span class="p">,</span> <span class="n">vertices_2d</span> <span class="o">+</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]))</span>
+<span class="p">)</span>
+<span class="n">two_square_elements</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">elements_2d</span><span class="p">,</span> <span class="n">elements_2d</span> <span class="o">+</span> <span class="mi">4</span><span class="p">))</span>
+<span class="n">dp_two_bodies</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">BondedForceModel</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="s2">"deformable_particle_model"</span><span class="p">,</span>
+    <span class="n">vertices</span><span class="o">=</span><span class="n">two_square_vertices</span><span class="p">,</span>
+    <span class="n">elements</span><span class="o">=</span><span class="n">two_square_elements</span><span class="p">,</span>
+    <span class="n">elements_id</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="mi">4</span><span class="p">),</span>
+    <span class="n">ec</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.8</span><span class="p">]),</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"ec shape:"</span><span class="p">,</span> <span class="n">dp_two_bodies</span><span class="o">.</span><span class="n">ec</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (2,)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"elements_id:"</span><span class="p">,</span> <span class="n">dp_two_bodies</span><span class="o">.</span><span class="n">elements_id</span><span class="p">)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="n">dp_two_bodies</span><span class="o">.</span><span class="n">initial_body_contents</span><span class="p">,</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">])</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>ec shape: (2,)
+elements_id: [0 0 0 0 1 1 1 1]
+</pre></div>
+</div>
+</section>
+<section id="connectivity-masking">
+<h2>Connectivity Masking<a class="headerlink" href="#connectivity-masking" title="Link to this heading">#</a></h2>
+<p>Contact forces should skip sphere pairs (or deformable-particle vertices)
+connected by a bond, because the bonded force model already handles their
+interaction.</p>
+<p>The <a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State.bond_id" title="jaxdem.state.State.bond_id"><code class="xref py py-attr docutils literal notranslate"><span class="pre">bond_id</span></code></a> field in the
+<a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">State</span></code></a> filters contacts. For each sphere,
+<a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State.bond_id" title="jaxdem.state.State.bond_id"><code class="xref py py-attr docutils literal notranslate"><span class="pre">bond_id</span></code></a> stores the unique IDs of the spheres it connects to.
+Connected sphere pairs do not collide.</p>
+<p>You can specify connections for each sphere as lists of neighbor unique IDs.
+The constructor automatically symmetrizes these connections and pads the
+resulting array with <code class="docutils literal notranslate"><span class="pre">-1</span></code>.</p>
+<p>For example, if we have 3 spheres in a line where 0-1 and 1-2 are connected:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]),</span>
+    <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.1</span><span class="p">,</span> <span class="mf">1.1</span><span class="p">,</span> <span class="mf">1.1</span><span class="p">]),</span>
+    <span class="n">bond_id</span><span class="o">=</span><span class="p">[[</span><span class="mi">1</span><span class="p">],</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="mi">1</span><span class="p">]],</span>  <span class="c1"># uneven lists of connected unique IDs</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Constructed bond_id:</span><span class="se">\n</span><span class="s2">"</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">bond_id</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Constructed bond_id:
+ [[ 1 -1]
+ [ 0  2]
+ [ 1 -1]]
+</pre></div>
+</div>
+<p>If a sphere has no connections, you can pass None (or empty lists),
+which pads everything with -1:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state_no_bonds</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]),</span>
+    <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.1</span><span class="p">,</span> <span class="mf">1.1</span><span class="p">,</span> <span class="mf">1.1</span><span class="p">]),</span>
+    <span class="n">bond_id</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"No bonds bond_id:</span><span class="se">\n</span><span class="s2">"</span><span class="p">,</span> <span class="n">state_no_bonds</span><span class="o">.</span><span class="n">bond_id</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>No bonds bond_id:
+ [[-1]
+ [-1]
+ [-1]]
+</pre></div>
+</div>
+</section>
+<section id="adding-and-merging-deformable-particles">
+<h2>Adding and Merging Deformable Particles<a class="headerlink" href="#adding-and-merging-deformable-particles" title="Link to this heading">#</a></h2>
+<p>Just like <a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">State</span></code></a>, deformable particle models
+support <a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.add" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.add"><code class="xref py py-meth docutils literal notranslate"><span class="pre">add()</span></code></a>
+and <a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.merge" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.merge"><code class="xref py py-meth docutils literal notranslate"><span class="pre">merge()</span></code></a>
+operations for building up complex
+configurations from smaller pieces.</p>
+<p><a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.add" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.add"><code class="xref py py-meth docutils literal notranslate"><span class="pre">add()</span></code></a>
+creates a new body from raw arrays and merges it into an existing model.
+It is equivalent to calling
+<a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.Create" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.Create"><code class="xref py py-meth docutils literal notranslate"><span class="pre">Create()</span></code></a>
+followed by <a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.merge" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.merge"><code class="xref py py-meth docutils literal notranslate"><span class="pre">merge()</span></code></a>.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">dp_base</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">BondedForceModel</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="s2">"deformable_particle_model"</span><span class="p">,</span>
+    <span class="n">vertices</span><span class="o">=</span><span class="n">vertices_2d</span><span class="p">,</span>
+    <span class="n">elements</span><span class="o">=</span><span class="n">elements_2d</span><span class="p">,</span>
+    <span class="n">edges</span><span class="o">=</span><span class="n">edges_2d</span><span class="p">,</span>
+    <span class="n">em</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+    <span class="n">el</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Add a second body.</span>
+<span class="n">new_verts</span> <span class="o">=</span> <span class="n">vertices_2d</span> <span class="o">+</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">2.0</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">])</span>
+<span class="n">dp_extended</span> <span class="o">=</span> <span class="n">dp_base</span><span class="o">.</span><span class="n">add</span><span class="p">(</span>
+    <span class="n">dp_base</span><span class="p">,</span>
+    <span class="n">vertices</span><span class="o">=</span><span class="n">new_verts</span><span class="p">,</span>
+    <span class="n">elements</span><span class="o">=</span><span class="n">elements_2d</span><span class="p">,</span>
+    <span class="n">edges</span><span class="o">=</span><span class="n">edges_2d</span><span class="p">,</span>
+    <span class="n">em</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span>
+    <span class="n">el</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Elements after add:"</span><span class="p">,</span> <span class="n">dp_extended</span><span class="o">.</span><span class="n">elements</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (8, 2)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Edges after add:"</span><span class="p">,</span> <span class="n">dp_extended</span><span class="o">.</span><span class="n">edges</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>  <span class="c1"># (8, 2)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Elements after add: (8, 2)
+Edges after add: (8, 2)
+</pre></div>
+</div>
+<p><a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.merge" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.merge"><code class="xref py py-meth docutils literal notranslate"><span class="pre">merge()</span></code></a>
+concatenates two existing models. It shifts vertex indices and body IDs so
+that references stay consistent. It updates
+<a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id"><code class="xref py py-attr docutils literal notranslate"><span class="pre">elements_id</span></code></a>
+to distinguish the bodies and
+<a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.element_adjacency" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.element_adjacency"><code class="xref py py-attr docutils literal notranslate"><span class="pre">element_adjacency</span></code></a>
+to address the concatenated elements.
+When one side has a term and the other does not,
+<a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.merge" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.merge"><code class="xref py py-meth docutils literal notranslate"><span class="pre">merge()</span></code></a>
+pads missing
+coefficients with <code class="docutils literal notranslate"><span class="pre">0</span></code> and missing reference values with <code class="docutils literal notranslate"><span class="pre">1</span></code>.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">dp_a</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">BondedForceModel</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="s2">"deformable_particle_model"</span><span class="p">,</span>
+    <span class="n">vertices</span><span class="o">=</span><span class="n">vertices_2d</span><span class="p">,</span>
+    <span class="n">elements</span><span class="o">=</span><span class="n">elements_2d</span><span class="p">,</span>
+    <span class="n">em</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+    <span class="n">gamma</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">dp_b</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">BondedForceModel</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="s2">"deformable_particle_model"</span><span class="p">,</span>
+    <span class="n">vertices</span><span class="o">=</span><span class="n">vertices_2d</span><span class="p">,</span>
+    <span class="n">elements</span><span class="o">=</span><span class="n">elements_2d</span><span class="p">,</span>
+    <span class="n">edges</span><span class="o">=</span><span class="n">edges_2d</span><span class="p">,</span>
+    <span class="n">el</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">dp_merged</span> <span class="o">=</span> <span class="n">dp_a</span><span class="o">.</span><span class="n">merge</span><span class="p">(</span><span class="n">dp_a</span><span class="p">,</span> <span class="n">dp_b</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Merged em:"</span><span class="p">,</span> <span class="n">dp_merged</span><span class="o">.</span><span class="n">em</span><span class="p">)</span>  <span class="c1"># em padded with 0 for dp_b's elements</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Merged el:"</span><span class="p">,</span> <span class="n">dp_merged</span><span class="o">.</span><span class="n">el</span><span class="p">)</span>  <span class="c1"># el padded with 0 for dp_a's edges</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Merged em: [1. 1. 1. 1.]
+Merged el: [0.5 0.5 0.5 0.5]
+</pre></div>
+</div>
+</section>
+<section id="batched-simulations">
+<h2>Batched Simulations<a class="headerlink" href="#batched-simulations" title="Link to this heading">#</a></h2>
+<p>Deformable particles work with
+<a class="reference external" href="https://docs.jax.dev/en/latest/_autosummary/jax.vmap.html">jax.vmap</a>, so you can run
+many independent simulations in parallel. Each simulation gets its own
+<a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State" title="jaxdem.state.State"><code class="xref py py-class docutils literal notranslate"><span class="pre">State</span></code></a> and <a class="reference internal" href="../reference/generated/jaxdem.system.html#jaxdem.system.System" title="jaxdem.system.System"><code class="xref py py-class docutils literal notranslate"><span class="pre">System</span></code></a>
+(including its own bonded model). The model uses
+the original square as its reference while each state starts with a small
+horizontal stretch. Surface tension is off so the reference is stress-free.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">create_sim</span><span class="p">(</span><span class="n">i</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="p">,</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="p">]:</span>
+    <span class="n">stretch</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">+</span> <span class="mf">0.02</span> <span class="o">*</span> <span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="n">pos</span><span class="o">=</span><span class="n">vertices_2d</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">stretch</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">]),</span> <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">dp_model</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">BondedForceModel</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="s2">"deformable_particle_model"</span><span class="p">,</span>
+        <span class="n">vertices</span><span class="o">=</span><span class="n">vertices_2d</span><span class="p">,</span>
+        <span class="n">elements</span><span class="o">=</span><span class="n">elements_2d</span><span class="p">,</span>
+        <span class="n">edges</span><span class="o">=</span><span class="n">edges_2d</span><span class="p">,</span>
+        <span class="n">element_adjacency</span><span class="o">=</span><span class="n">adjacency_2d</span><span class="p">,</span>
+        <span class="n">em</span><span class="o">=</span><span class="p">[</span><span class="mf">1.0</span><span class="p">],</span>
+        <span class="n">eb</span><span class="o">=</span><span class="p">[</span><span class="mf">0.5</span><span class="p">],</span>
+        <span class="n">el</span><span class="o">=</span><span class="mf">0.3</span><span class="p">,</span>
+        <span class="n">gamma</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">bonded_force_model</span><span class="o">=</span><span class="n">dp_model</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+
+
+<span class="c1"># Build a batch of three independent simulations.</span>
+<span class="n">states</span><span class="p">,</span> <span class="n">systems</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">vmap</span><span class="p">(</span><span class="n">create_sim</span><span class="p">)(</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">3</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Batched pos shape (B, N, dim):"</span><span class="p">,</span> <span class="n">states</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+<span class="c1"># The stretched right-hand vertices feel restoring forces to the left.</span>
+<span class="k">assert</span> <span class="nb">bool</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">states</span><span class="o">.</span><span class="n">force</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">))</span>
+<span class="n">initial_widths</span> <span class="o">=</span> <span class="n">states</span><span class="o">.</span><span class="n">pos</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">states</span><span class="o">.</span><span class="n">pos</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+<span class="c1"># Advance all simulations by ten steps in parallel.</span>
+<span class="n">states</span><span class="p">,</span> <span class="n">systems</span> <span class="o">=</span> <span class="n">systems</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">states</span><span class="p">,</span> <span class="n">systems</span><span class="p">,</span> <span class="n">n</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+<span class="n">widths</span> <span class="o">=</span> <span class="n">states</span><span class="o">.</span><span class="n">pos</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">-</span> <span class="n">states</span><span class="o">.</span><span class="n">pos</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+<span class="k">assert</span> <span class="nb">bool</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">widths</span> <span class="o">&lt;</span> <span class="n">initial_widths</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Initial widths:"</span><span class="p">,</span> <span class="n">initial_widths</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Widths after elastic response:"</span><span class="p">,</span> <span class="n">widths</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"After stepping:"</span><span class="p">,</span> <span class="n">states</span><span class="o">.</span><span class="n">pos</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Batched pos shape (B, N, dim): (3, 4, 2)
+Initial widths: [1.02 1.04 1.06]
+Widths after elastic response: [1.01993503 1.03987007 1.0598051 ]
+After stepping: (3, 4, 2)
+</pre></div>
+</div>
+</section>
+<section id="a-note-on-edges">
+<h2>A Note on Edges<a class="headerlink" href="#a-note-on-edges" title="Link to this heading">#</a></h2>
+<p>The <a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.edges" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.edges"><code class="xref py py-attr docutils literal notranslate"><span class="pre">edges</span></code></a>
+array and the <a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.el" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.el"><code class="xref py py-attr docutils literal notranslate"><span class="pre">el</span></code></a>
+coefficient define <strong>spring connections</strong> between vertex pairs. These are fully independent from the
+<a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements"><code class="xref py py-attr docutils literal notranslate"><span class="pre">elements</span></code></a>
+connectivity: you can define edge springs that do not correspond to any
+mesh element. This lets you model springs outside the mesh geometry, such
+as cross-bracing springs or tethers between non-adjacent vertices.</p>
+<p>Because edges are independent, use them alone (without elements) or
+in combination with any other energy term.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">dp_extra_springs</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">BondedForceModel</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="s2">"deformable_particle_model"</span><span class="p">,</span>
+    <span class="n">vertices</span><span class="o">=</span><span class="n">vertices_2d</span><span class="p">,</span>
+    <span class="n">edges</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">],</span> <span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">3</span><span class="p">]]),</span>  <span class="c1"># Diagonal springs (not mesh edges).</span>
+    <span class="n">el</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Diagonal springs — edges:"</span><span class="p">,</span> <span class="n">dp_extra_springs</span><span class="o">.</span><span class="n">edges</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Diagonal springs — elements stored?"</span><span class="p">,</span> <span class="n">dp_extra_springs</span><span class="o">.</span><span class="n">elements</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Diagonal springs — edges: [[0 2]
+ [1 3]]
+Diagonal springs — elements stored? False
+</pre></div>
+</div>
+</section>
+<section id="vtk-output">
+<h2>VTK Output<a class="headerlink" href="#vtk-output" title="Link to this heading">#</a></h2>
+<p>The <a class="reference internal" href="../reference/generated/jaxdem.writers.vtk_writer.html#jaxdem.writers.vtk_writer.VTKWriter" title="jaxdem.writers.vtk_writer.VTKWriter"><code class="xref py py-class docutils literal notranslate"><span class="pre">VTKWriter</span></code></a> detects when a
+<a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel"><code class="xref py py-class docutils literal notranslate"><span class="pre">DeformableParticleModel</span></code></a>
+is attached to the system and writes additional VTK files:</p>
+<ul class="simple">
+<li><p><strong>deformable_elements</strong> — the mesh elements (triangles/segments) with
+per-cell data: <code class="docutils literal notranslate"><span class="pre">elements_id</span></code>, <code class="docutils literal notranslate"><span class="pre">ec</span></code>, <code class="docutils literal notranslate"><span class="pre">gamma</span></code>,
+<code class="docutils literal notranslate"><span class="pre">initial_element_measures</span></code>, <code class="docutils literal notranslate"><span class="pre">current_element_measures</span></code>,
+<code class="docutils literal notranslate"><span class="pre">partial_content</span></code>, and <code class="docutils literal notranslate"><span class="pre">element_normals</span></code>.</p></li>
+<li><p><strong>deformable_edges</strong> — the edge springs with per-cell data:
+<code class="docutils literal notranslate"><span class="pre">initial_edge_lengths</span></code>, <code class="docutils literal notranslate"><span class="pre">current_edge_lengths</span></code>, and <code class="docutils literal notranslate"><span class="pre">el</span></code>.</p></li>
+<li><p><strong>deformable_edge_adjacencies</strong> — the adjacency pairs (hinge edges in 3D,
+hinge vertices in 2D) with per-cell data: <code class="docutils literal notranslate"><span class="pre">initial_bendings</span></code>,
+<code class="docutils literal notranslate"><span class="pre">current_bendings</span></code>, and <code class="docutils literal notranslate"><span class="pre">eb</span></code>.</p></li>
+</ul>
+<p>The writer only writes the files whose energy terms are active.
+For example, if
+<a class="reference internal" href="../reference/generated/jaxdem.bonded_forces.deformable_particle.html#jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.el" title="jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.el"><code class="xref py py-attr docutils literal notranslate"><span class="pre">el</span></code></a>
+is <code class="docutils literal notranslate"><span class="pre">None</span></code>, it skips the edges writer.
+You can load this output in ParaView for visualization and debugging.</p>
+</section>
+<section id="a-deformable-particle-bouncing-from-a-wall">
+<h2>A deformable particle bouncing from a wall<a class="headerlink" href="#a-deformable-particle-bouncing-from-a-wall" title="Link to this heading">#</a></h2>
+<p>Give a small, stress-free 20-vertex polygon a uniform velocity toward the
+right wall. Its vertices run counterclockwise around the closed boundary.
+Its leading vertices reflect first while the trailing vertices are still
+moving right, compressing the body. The elastic terms then redistribute
+momentum and restore its shape during the rebound.</p>
+<p><a class="reference internal" href="../reference/generated/jaxdem.domains.reflect_sphere.html#jaxdem.domains.reflect_sphere.ReflectSphereDomain" title="jaxdem.domains.reflect_sphere.ReflectSphereDomain"><code class="xref py py-class docutils literal notranslate"><span class="pre">ReflectSphereDomain</span></code></a> provides a
+rectangular box whose walls reflect the spherical <strong>vertices</strong> at their
+physical radii. This is nodal wall contact: the connecting segments do not
+have an independent wall-contact law. Neighboring vertices are bonded so
+their pairwise contact interactions are masked; the deformable model
+supplies the internal forces.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">wall_num_vertices</span> <span class="o">=</span> <span class="mi">20</span>
+<span class="n">wall_angles</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">pi</span><span class="p">,</span> <span class="n">wall_num_vertices</span><span class="p">,</span> <span class="n">endpoint</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+<span class="n">wall_vertices</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.2</span><span class="p">,</span> <span class="mf">1.5</span><span class="p">])</span> <span class="o">+</span> <span class="mf">0.45</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">(</span>
+    <span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">wall_angles</span><span class="p">),</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">wall_angles</span><span class="p">)),</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span>
+<span class="p">)</span>
+<span class="n">wall_indices</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">wall_num_vertices</span><span class="p">)</span>
+<span class="n">wall_next</span> <span class="o">=</span> <span class="p">(</span><span class="n">wall_indices</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="n">wall_num_vertices</span>
+<span class="c1"># Segment i joins vertex i to i+1; consecutive segments share a bending hinge.</span>
+<span class="c1"># Modulo indexing closes both the boundary and its final-to-first hinge.</span>
+<span class="n">wall_elements</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">((</span><span class="n">wall_indices</span><span class="p">,</span> <span class="n">wall_next</span><span class="p">),</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">wall_adjacency</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">((</span><span class="n">wall_indices</span><span class="p">,</span> <span class="n">wall_next</span><span class="p">),</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">wall_bonds</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">(((</span><span class="n">wall_indices</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="n">wall_num_vertices</span><span class="p">,</span> <span class="n">wall_next</span><span class="p">),</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+<span class="c1"># Keep total mass equal to one as the boundary resolution increases. The nodal</span>
+<span class="c1"># radius is small relative to the initial segment length (about 0.141).</span>
+<span class="n">wall_node_radius</span> <span class="o">=</span> <span class="mf">0.025</span>
+<span class="n">wall_state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">wall_vertices</span><span class="p">,</span>
+    <span class="n">vel</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">1.2</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]),</span> <span class="p">(</span><span class="n">wall_num_vertices</span><span class="p">,</span> <span class="mi">1</span><span class="p">)),</span>
+    <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">wall_num_vertices</span><span class="p">,</span> <span class="n">wall_node_radius</span><span class="p">),</span>
+    <span class="n">mass</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="n">wall_num_vertices</span><span class="p">,</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="n">wall_num_vertices</span><span class="p">),</span>
+    <span class="n">bond_id</span><span class="o">=</span><span class="n">wall_bonds</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">wall_model</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">BondedForceModel</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="s2">"deformable_particle_model"</span><span class="p">,</span>
+    <span class="n">vertices</span><span class="o">=</span><span class="n">wall_vertices</span><span class="p">,</span>
+    <span class="n">elements</span><span class="o">=</span><span class="n">wall_elements</span><span class="p">,</span>
+    <span class="n">edges</span><span class="o">=</span><span class="n">wall_elements</span><span class="p">,</span>
+    <span class="n">element_adjacency</span><span class="o">=</span><span class="n">wall_adjacency</span><span class="p">,</span>
+    <span class="n">em</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span>
+    <span class="n">ec</span><span class="o">=</span><span class="mf">3.0</span><span class="p">,</span>
+    <span class="n">el</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span>
+    <span class="n">eb</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>
+    <span class="n">gamma</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">wall_system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">state</span><span class="o">=</span><span class="n">wall_state</span><span class="p">,</span>
+    <span class="n">dt</span><span class="o">=</span><span class="mf">0.002</span><span class="p">,</span>
+    <span class="n">rotation_integrator_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">collider_type</span><span class="o">=</span><span class="s2">"naive"</span><span class="p">,</span>
+    <span class="n">domain_type</span><span class="o">=</span><span class="s2">"reflectsphere"</span><span class="p">,</span>
+    <span class="n">domain_kw</span><span class="o">=</span><span class="p">{</span><span class="s2">"box_size"</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">3.5</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">]),</span> <span class="s2">"restitution_coefficient"</span><span class="p">:</span> <span class="mf">1.0</span><span class="p">},</span>
+    <span class="n">bonded_force_model</span><span class="o">=</span><span class="n">wall_model</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">wall_state</span><span class="p">,</span> <span class="n">wall_system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">wall_state</span><span class="p">,</span> <span class="n">wall_system</span><span class="p">)</span>
+<span class="n">wall_state</span><span class="p">,</span> <span class="n">wall_system</span><span class="p">,</span> <span class="p">(</span><span class="n">scene_states</span><span class="p">,</span> <span class="n">scene_systems</span><span class="p">)</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">trajectory_rollout</span><span class="p">(</span>
+    <span class="n">wall_state</span><span class="p">,</span> <span class="n">wall_system</span><span class="p">,</span> <span class="n">strides</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="mi">40</span><span class="p">]</span> <span class="o">*</span> <span class="mi">40</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="n">wall_positions</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">scene_states</span><span class="o">.</span><span class="n">pos</span><span class="p">)</span>
+<span class="n">wall_widths</span> <span class="o">=</span> <span class="n">wall_positions</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">-</span> <span class="n">wall_positions</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">wall_com_velocities</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">scene_states</span><span class="o">.</span><span class="n">vel</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">wall_positions</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="mi">41</span><span class="p">,</span> <span class="n">wall_num_vertices</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">wall_positions</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="n">wall_state</span><span class="o">.</span><span class="n">mass</span><span class="o">.</span><span class="n">sum</span><span class="p">(),</span> <span class="mf">1.0</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-6</span><span class="p">)</span>
+<span class="c1"># The oriented polygon must retain positive enclosed area during impact.</span>
+<span class="n">wall_following</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">roll</span><span class="p">(</span><span class="n">wall_positions</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">wall_areas</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span>
+    <span class="n">wall_positions</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">wall_following</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">1</span><span class="p">]</span>
+    <span class="o">-</span> <span class="n">wall_positions</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">wall_following</span><span class="p">[:,</span> <span class="p">:,</span> <span class="mi">0</span><span class="p">],</span>
+    <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">wall_areas</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">wall_widths</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">&lt;</span> <span class="mf">0.9</span> <span class="o">*</span> <span class="n">wall_widths</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="k">assert</span> <span class="n">wall_com_velocities</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span> <span class="o">&lt;</span> <span class="o">-</span><span class="mf">0.2</span>
+<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">wall_positions</span> <span class="o">&gt;=</span> <span class="n">wall_node_radius</span> <span class="o">-</span> <span class="mf">1e-5</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">wall_positions</span> <span class="o">&lt;=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="mf">3.5</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">])</span> <span class="o">-</span> <span class="n">wall_node_radius</span> <span class="o">+</span> <span class="mf">1e-5</span><span class="p">)</span>
+<span class="n">wall_system</span><span class="o">.</span><span class="n">check_overflow</span><span class="p">()</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">"Wall-bounce body: </span><span class="si">{</span><span class="n">wall_num_vertices</span><span class="si">}</span><span class="s2"> vertices, total mass </span><span class="si">{</span><span class="n">wall_state</span><span class="o">.</span><span class="n">mass</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">"</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Width during impact: </span><span class="si">{</span><span class="n">wall_widths</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">wall_widths</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Peak leftward center-of-mass speed: </span><span class="si">{</span><span class="o">-</span><span class="n">wall_com_velocities</span><span class="p">[:,</span><span class="w"> </span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="animation-poster docutils container">
+<img src="../_images/sphx_glr_deformable_particle_guide_001.png" srcset="../_images/sphx_glr_deformable_particle_guide_001.png" alt="Deformable particle guide" class = "sphx-glr-single-img"/></div>
+<p>ParaView rendering of this run’s VTKWriter output.</p>
+<figure class="simulation-media"><video controls loop muted playsinline preload="none" poster="../_static/visuals/deformable_particle_guide/scene.png" aria-label="Deformable particle guide"><source src="../_static/visuals/deformable_particle_guide/animation.mp4" type="video/mp4"><a href="../_static/visuals/deformable_particle_guide/animation.mp4">Download the animation</a></video><figcaption>Saved native states at equally spaced video intervals; the clock shows their recorded physical time.</figcaption></figure><div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Wall-bounce body: 20 vertices, total mass 1.000
+Width during impact: 0.900 -&gt; 0.471
+Peak leftward center-of-mass speed: 0.882
+</pre></div>
+</div>
+<p>The animation uses these 41 complete state/system snapshots, including the
+initial condition, over 3.2 time units. ParaView draws the actual vertices
+and the deformable-element and edge output from the VTK writer. The body
+remains elastic: the wall reverses nodal momentum while deformation stores
+energy internally, so the shape can continue oscillating after separation.</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> (0 minutes 26.304 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-deformable-particle-guide-py">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/4a1497493cb9493a152814336cb91787/deformable_particle_guide.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">deformable_particle_guide.ipynb</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/ae862f46738d4f5d81baa93a8f9bbd42/deformable_particle_guide.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">deformable_particle_guide.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-zip docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/395f9599ce10db591d21f927819325ba/deformable_particle_guide.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">zipped:</span> <span class="pre">deformable_particle_guide.zip</span></code></a></p>
+</div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="clump_guide.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Clumps (Rigid Bodies)</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="facets_guide.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Facets (Triangular &amp; Line Boundaries)</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#creating-a-deformable-particle">Creating a Deformable Particle</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#passing-the-model-to-the-system">Passing the Model to the System</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coefficient-broadcasting">Coefficient Broadcasting</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#lazy-array-creation">Lazy Array Creation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#d-vs-3d-differences">2D vs 3D Differences</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#the-body-id-field">The Body-ID Field</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#connectivity-masking">Connectivity Masking</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-and-merging-deformable-particles">Adding and Merging Deformable Particles</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#batched-simulations">Batched Simulations</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#a-note-on-edges">A Note on Edges</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#vtk-output">VTK Output</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#a-deformable-particle-bouncing-from-a-wall">A deformable particle bouncing from a wall</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

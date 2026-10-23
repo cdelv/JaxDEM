@@ -1,0 +1,12 @@
+jaxdem.rl.models.mingru
+=======================
+
+.. automodule:: jaxdem.rl.models.mingru
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      MinGRUActorCritic
+   

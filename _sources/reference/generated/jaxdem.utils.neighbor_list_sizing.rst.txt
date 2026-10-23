@@ -1,0 +1,20 @@
+jaxdem.utils.neighbor\_list\_sizing
+===================================
+
+.. automodule:: jaxdem.utils.neighbor_list_sizing
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      estimate_neighbor_capacity
+      measure_neighbor_candidates
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      CandidateStatistics
+      NeighborCapacityEstimate
+   

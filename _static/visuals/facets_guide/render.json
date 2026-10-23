@@ -1,0 +1,221 @@
+{
+  "title": "Facets guide",
+  "renderer": "ParaView",
+  "paraview_version": "6.2.0",
+  "manifest": "/tmp/jaxdem-media-facets_guide-gzowjm04/scene.json",
+  "size": [
+    960,
+    600
+  ],
+  "camera": "isometric",
+  "bounds": [
+    -0.09844761469845398,
+    1.0990774583212215,
+    -0.1,
+    1.1,
+    -0.09683347811961068,
+    0.2500010132789612
+  ],
+  "poster_time": 0.0002,
+  "time_label": "t",
+  "native_times": [
+    0.0002
+  ],
+  "animation_times": [],
+  "fps": 8,
+  "series": [
+    {
+      "path": "/tmp/jaxdem-media-facets_guide-gzowjm04/vtk/group_00/batch_00000000_facets.pvd",
+      "kind": "surface",
+      "native_times": [
+        0.0002
+      ],
+      "source_points": 126,
+      "source_cells": 122,
+      "point_arrays": [
+        "thickness",
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color": [
+          0.12,
+          0.48,
+          0.72
+        ],
+        "opacity": 0.38
+      },
+      "geometry_points": 126,
+      "geometry_cells": 122
+    },
+    {
+      "path": "/tmp/jaxdem-media-facets_guide-gzowjm04/vtk/group_00/batch_00000000_spheres.pvd",
+      "kind": "particles",
+      "native_times": [
+        0.0002
+      ],
+      "source_points": 1,
+      "source_cells": 0,
+      "point_arrays": [
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "rad",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_id",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color_by": "rad",
+        "color": [
+          0.12,
+          0.48,
+          0.72
+        ]
+      },
+      "geometry_points": 1442,
+      "geometry_cells": 2880
+    }
+  ],
+  "outputs": {
+    "scene.png": 15892
+  },
+  "example": "facets_guide.py",
+  "example_sha256": "59951584884d1bce76b4a8a944b2dbb59714f50d0b621b6605fe7ccca20fa4e2",
+  "library_revision": "2696ab6add13b594179d06f0ec750238e3282b1c",
+  "library_sha256": "d76ac09567d0dae6fa39b1cccc643eae43d2a4213242d37138bec21215de3753",
+  "media_seconds": 3.96,
+  "simulation": {
+    "slug": "facets_guide",
+    "source": "Current example State/System snapshots via VTKWriter; derived diagnostics via native VTK",
+    "groups": [
+      {
+        "label": "Exported replica 0",
+        "reused_writer_output": true,
+        "source_directory": "/tmp/jaxdem-facets-guide-44746pgm"
+      }
+    ],
+    "geometry": [
+      {
+        "label": "Exported replica 0",
+        "kind": "surface",
+        "path": "/tmp/jaxdem-media-facets_guide-gzowjm04/vtk/group_00/batch_00000000_facets.pvd",
+        "point_arrays": [
+          "thickness",
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 0.0002,
+            "points": 126,
+            "cells": 122,
+            "bounds": [
+              -0.09844761469845398,
+              1.0990774583212215,
+              -0.1,
+              1.1,
+              -0.09683347811961068,
+              0.09962548960029277
+            ],
+            "bytes": 9707,
+            "physical_summary": {
+              "speed_max": 0.0,
+              "force_norm_max": 29.999400001500014
+            }
+          }
+        ]
+      },
+      {
+        "label": "Exported replica 0",
+        "kind": "particles",
+        "path": "/tmp/jaxdem-media-facets_guide-gzowjm04/vtk/group_00/batch_00000000_spheres.pvd",
+        "point_arrays": [
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "rad",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_id",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 0.0002,
+            "points": 1,
+            "cells": 0,
+            "bounds": [
+              0.2,
+              0.2,
+              0.2,
+              0.2,
+              0.1500009999975,
+              0.1500009999975
+            ],
+            "bytes": 6459,
+            "physical_summary": {
+              "radius_min": 0.1,
+              "radius_max": 0.1,
+              "speed_max": 0.009999925000125004,
+              "force_norm_max": 49.99900000250002
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

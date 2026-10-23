@@ -1,0 +1,200 @@
+{
+  "title": "Sphere construction",
+  "renderer": "ParaView",
+  "paraview_version": "6.2.0",
+  "manifest": "/tmp/jaxdem-media-sphere_construction-i6csqq0m/scene.json",
+  "size": [
+    960,
+    600
+  ],
+  "camera": "xy",
+  "bounds": [
+    0.0,
+    0.8747979998588562,
+    -0.024800598621368408,
+    0.8388782739639282,
+    -0.11999999731779099,
+    0.11999999731779099
+  ],
+  "poster_time": 0.01,
+  "time_label": "t",
+  "native_times": [
+    0.01
+  ],
+  "animation_times": [],
+  "fps": 8,
+  "series": [
+    {
+      "path": "/tmp/jaxdem-media-sphere_construction-i6csqq0m/vtk/group_00/batch_00000000_domain.pvd",
+      "kind": "domain",
+      "native_times": [
+        0.01
+      ],
+      "source_points": 24,
+      "source_cells": 6,
+      "point_arrays": [
+        "Normals",
+        "TCoords"
+      ],
+      "representation": {},
+      "geometry_points": 24,
+      "geometry_cells": 6
+    },
+    {
+      "path": "/tmp/jaxdem-media-sphere_construction-i6csqq0m/vtk/group_00/batch_00000000_spheres.pvd",
+      "kind": "particles",
+      "native_times": [
+        0.01
+      ],
+      "source_points": 8,
+      "source_cells": 0,
+      "point_arrays": [
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "rad",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_id",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color_by": "rad",
+        "color": [
+          0.12,
+          0.48,
+          0.72
+        ]
+      },
+      "geometry_points": 11536,
+      "geometry_cells": 23040
+    }
+  ],
+  "outputs": {
+    "scene.png": 58950
+  },
+  "example": "sphere_construction.py",
+  "example_sha256": "d2b323426b5db911a975f9c5e72bfb457cfaf9c8feb8ea3f66e0c5d2522cade6",
+  "library_revision": "2696ab6add13b594179d06f0ec750238e3282b1c",
+  "library_sha256": "d76ac09567d0dae6fa39b1cccc643eae43d2a4213242d37138bec21215de3753",
+  "media_seconds": 3.977,
+  "simulation": {
+    "slug": "sphere_construction",
+    "source": "Current example State/System snapshots via VTKWriter; derived diagnostics via native VTK",
+    "groups": [
+      {
+        "label": "Final configuration",
+        "source_frames": 1,
+        "exported_frames": 1,
+        "selected_indices": [
+          0
+        ],
+        "particle_rows": [
+          8
+        ],
+        "source_step_counts": [
+          10
+        ],
+        "source_times": [
+          0.010000000000000002
+        ],
+        "collection_times": [
+          0.010000000000000002
+        ],
+        "offset": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "geometry_only_system": false
+      }
+    ],
+    "geometry": [
+      {
+        "label": "Final configuration",
+        "kind": "domain",
+        "path": "/tmp/jaxdem-media-sphere_construction-i6csqq0m/vtk/group_00/batch_00000000_domain.pvd",
+        "point_arrays": [
+          "Normals",
+          "TCoords"
+        ],
+        "frames": [
+          {
+            "time": 0.01,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              0.8388782739639282,
+              0.0,
+              0.8388782739639282,
+              0.0,
+              0.0
+            ],
+            "bytes": 3050,
+            "physical_summary": {}
+          }
+        ]
+      },
+      {
+        "label": "Final configuration",
+        "kind": "particles",
+        "path": "/tmp/jaxdem-media-sphere_construction-i6csqq0m/vtk/group_00/batch_00000000_spheres.pvd",
+        "point_arrays": [
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "rad",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_id",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 0.01,
+            "points": 8,
+            "cells": 0,
+            "bounds": [
+              0.09911367469852338,
+              0.7549519909784849,
+              0.05509672310447176,
+              0.7205843485696163,
+              0.0,
+              0.0
+            ],
+            "bytes": 6786,
+            "physical_summary": {
+              "radius_min": 0.08,
+              "radius_max": 0.12,
+              "speed_max": 0.0,
+              "force_norm_max": 0.0
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
