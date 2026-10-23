@@ -522,13 +522,29 @@ def render(manifest_path: Path) -> dict[str, Any]:
                 if any(field in record["point_arrays"] for record in records)
             }
         )
-        pv.ExportView(
-            str(output / "scene.vtkjs"),
-            view=view,
-            ExportToGlance=0,
-            PointArrays=exported_fields,
-            CellArrays=[],
-        )
+        # ParaView's exporter selection domain uses actor-qualified names
+        # ("Glyph1:vel"), unlike ColorBy's plain array names. Plain names are
+        # accepted silently but export no data arrays, disabling Glance fields.
+        helper = paraview.servermanager.vtkSMViewExportHelper()
+        proxy = helper.CreateExporter(str(output / "scene.vtkjs"), view.SMProxy)
+        if proxy is None:
+            raise RuntimeError("ParaView could not create the vtkjs scene exporter")
+        proxy.UnRegister(None)
+        exporter = paraview.servermanager._getPyProxy(proxy)
+        exporter.ExportToGlance = 0
+        exporter.PointArrays = [
+            qualified
+            for qualified in exporter.PointArrays.Available
+            if qualified.rsplit(":", 1)[-1] in {*exported_fields, "Normals"}
+        ]
+        exporter.CellArrays = []
+        exporter.Write()
+        expected_arrays = {
+            pipeline.SMProxy.GetLogName(): set(exported_fields).intersection(
+                pipeline.PointData.keys()
+            )
+            for pipeline in pipelines
+        }
         if not (output / "scene.vtkjs").is_file():
             raise RuntimeError("ParaView did not produce the requested vtkjs scene")
         try:
@@ -541,11 +557,28 @@ def render(manifest_path: Path) -> dict[str, Any]:
                 exported_scene = json.loads(archive.read(min(indexes, key=len)))
                 if not exported_scene.get("scene"):
                     raise ValueError("the scene contains no visible geometry")
+                scene_arrays = {}
+                for actor in exported_scene["scene"]:
+                    data_path = actor[actor["type"]]["url"] + "/index.json"
+                    dataset = json.loads(archive.read(data_path))
+                    scene_arrays[actor["name"]] = {
+                        entry["data"]["name"]
+                        for entry in dataset.get("pointData", {}).get("arrays", [])
+                    }
+                for actor, required in expected_arrays.items():
+                    missing = required - scene_arrays.get(actor, set())
+                    if missing:
+                        raise ValueError(
+                            f"{actor} lost required point arrays: {sorted(missing)}"
+                        )
         except (zipfile.BadZipFile, KeyError, ValueError) as exc:
             raise RuntimeError(
                 f"ParaView exported an invalid vtkjs scene: {exc}"
             ) from exc
         interactive_metadata = _shared_glance_viewer(paraview, output.parent)
+        interactive_metadata["interactive_point_arrays"] = {
+            name: sorted(arrays) for name, arrays in scene_arrays.items()
+        }
 
     version = getattr(paraview, "__version__", None)
     if version is None:
