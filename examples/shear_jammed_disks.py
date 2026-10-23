@@ -37,12 +37,13 @@ jax.config.update("jax_enable_x64", True)
 #
 # .. math::
 #
-#     \gamma_{n+1}=\gamma_n+\Delta\gamma,\qquad
-#     \mathbf r_i^{\rm aff}=
-#       \begin{pmatrix}1&\Delta\gamma\\0&1\end{pmatrix}\mathbf r_i,
-#     \qquad
-#     \mathbf r_{n+1}=\operatorname{local\,min}_{\mathbf r}
+#     \begin{aligned}
+#     \gamma_{n+1} &= \gamma_n+\Delta\gamma, \\
+#     \mathbf r_i^{\rm aff} &=
+#       \begin{pmatrix}1&\Delta\gamma\\0&1\end{pmatrix}\mathbf r_i, \\
+#     \mathbf r_{n+1} &= \operatorname{local\,min}_{\mathbf r}
 #                         U(\mathbf r;\gamma_{n+1}).
+#     \end{aligned}
 #
 # The affine configuration starts the next minimization. The local minimum
 # reached depends on the preceding state; AQS follows a branch of equilibria
@@ -72,7 +73,7 @@ jax.config.update("jax_enable_x64", True)
 # can trigger nonaffine rearrangement and an energy drop; its location depends
 # on the strain increment and relaxation accuracy. That interpretation requires
 # inspecting the configurations as well as the scalar output.
-#
+
 # %%
 # A bounded jamming search establishes a reproducible starting configuration.
 N = 8

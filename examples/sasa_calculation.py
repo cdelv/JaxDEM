@@ -52,7 +52,7 @@ from jaxdem.utils.surface_properties import compute_surface_properties
 # Central rigid clump + tracer sphere
 # -----------------------------------
 # The central body is an eight-asperity rigid clump with a solid core. The
-# tracer is a single smooth sphere built with :func:`create_sphere_state`,
+# tracer is a single smooth sphere built with :func:`~jaxdem.utils.particle_creation.create_sphere_state`,
 # which needs no asperity mesh or union-boundary property integration.
 # A deterministic Fibonacci mesh and a small direction count keep this
 # demonstration quick. Increase ``n_points`` to check surface resolution.

@@ -99,7 +99,7 @@ def random_sphere_configuration(
         Absolute tolerance on the maximum free-sphere force norm.
     domain_type
         Boundary condition for the analogue sphere system. Must be a
-        registered :class:`Domain` type (e.g. ``"periodic"`` or
+        registered :class:`Domain <jaxdem.domains.Domain>` type (e.g. ``"periodic"`` or
         ``"reflect"``). Default ``"periodic"``.
 
     Returns
@@ -232,7 +232,7 @@ def minimize_sphere_configuration(
         Absolute tolerance on the maximum free-sphere force norm.
     domain_type
         Boundary condition for the analogue sphere system. Must be a
-        registered :class:`Domain` type (e.g. ``"periodic"`` or
+        registered :class:`Domain <jaxdem.domains.Domain>` type (e.g. ``"periodic"`` or
         ``"reflect"``). Default ``"periodic"``.
 
     Returns

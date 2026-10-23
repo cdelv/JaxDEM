@@ -6,6 +6,8 @@ import pathlib
 import sys
 import types
 
+from sphinx.util import logging as sphinx_logging
+
 # ------------------------------------------------------------------
 # Paths and project metadata
 # ------------------------------------------------------------------
@@ -63,6 +65,7 @@ html_theme_options = {
 }
 
 html_show_sourcelink = False
+html_show_copyright = False
 html_sidebars = {
     "index": ["custom-sidebar.html", "sidebar-nav-bs"],
     "*": ["sidebar-nav-bs", "sidebar-ethical-ads"],
@@ -108,7 +111,7 @@ sphinx_gallery_conf = {
     "filename_pattern": (
         r"/(introduction|[^/]+_guide|rotating_drum|infer_contact_stiffness|"
         r"rigid_elastic_viscoplastic_loading|soft_mode_rearrangement|"
-        r"batched_granular_experiments)\.py$"
+        r"batched_granular_experiments|packing_analysis)\.py$"
     ),
     # Keep the hand-written gallery index while publishing input assets.
     "copyfile_regex": r".*\.(rst|stl|json)$",
@@ -122,6 +125,35 @@ root_doc = "index"
 html_static_path = ["_static"]
 templates_path = ["_templates"]
 html_css_files = ["custom.css"]
+
+
+def _warn_missing_example_api_reference(app, env, node, contnode):
+    """Check API links in tutorials and the packing-analysis example."""
+    docname = node.get("refdoc", "")
+    name = docname.rsplit("/", 1)[-1]
+    is_checked_page = name.endswith("_guide") or name in {
+        "introduction",
+        "intro_to_rl",
+        "packing_analysis",
+    }
+    if (
+        docname.startswith("auto_examples/")
+        and is_checked_page
+        and node.get("refdomain") == "py"
+    ):
+        sphinx_logging.getLogger(__name__).warning(
+            "Unresolved API reference in tutorial or example: %s",
+            node.get("reftarget"),
+            location=node,
+            type="ref",
+            subtype="guide_api",
+        )
+
+
+def setup(app):
+    # Let other resolvers (including optional intersphinx) try first.
+    app.connect("missing-reference", _warn_missing_example_api_reference, priority=999)
+
 
 # ------------------------------------------------------------------
 # Linkcode configuration

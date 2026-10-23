@@ -6,7 +6,7 @@ counterpart of :func:`~jaxdem.utils.particle_creation.build_ga_system`.
 Give it per-particle radii and a target packing fraction, and it
 returns a minimized ``State`` plus a ready-to-step ``System``. It first
 draws a loose random configuration with
-:func:`random_sphere_configuration` at ``initial_phi`` (default 0.3,
+:func:`~jaxdem.utils.random_sphere_configuration.random_sphere_configuration` at ``initial_phi`` (default 0.3,
 or the target ``phi`` if that is lower). It then compresses the
 configuration quasistatically to ``phi`` with FIRE (time step
 ``fire_dt``).

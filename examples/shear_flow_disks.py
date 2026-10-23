@@ -73,7 +73,7 @@ jax.config.update("jax_enable_x64", True)
 # unordered pair appears once. Kinetic stress is not included in this output.
 # The four printed points reach strain 0.4; a constitutive flow curve would
 # additionally need equilibration and time-averaged observables.
-#
+
 # %%
 # The relaxed upper energy bound defines this finite system's threshold.
 # Moderate tolerances suffice for this dynamics lesson; convergence is checked.
@@ -121,6 +121,7 @@ print(
     f"flow phi = {flow_phi:.6f}"
 )
 
+
 # %%
 # The callback sees the tentative end time of each physical step.
 def advance_shear(state, system):
@@ -156,8 +157,10 @@ for _ in range(4):
     state, system, stress = compute_contact_stress_tensor(state, system)
     pe = compute_potential_energy(state, system) / N
     ke = 0.5 * jnp.sum(state.mass[:, None] * state.vel**2) / N
-    streaming = jnp.zeros_like(state.vel).at[:, 0].set(
-        shear_rate * (state.pos_c[:, 1] - jnp.mean(state.pos_c[:, 1]))
+    streaming = (
+        jnp.zeros_like(state.vel)
+        .at[:, 0]
+        .set(shear_rate * (state.pos_c[:, 1] - jnp.mean(state.pos_c[:, 1])))
     )
     peculiar_ke = 0.5 * jnp.sum(state.mass[:, None] * (state.vel - streaming) ** 2) / N
     print(

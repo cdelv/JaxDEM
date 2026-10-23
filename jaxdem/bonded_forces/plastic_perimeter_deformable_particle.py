@@ -34,14 +34,14 @@ if TYPE_CHECKING:  # pragma: no cover
 class PlasticPerimeterDeformableParticleModel(DeformableParticleModel):
     r"""Deformable particle model with perimeter-level plasticity.
 
-    Elastic forces match :class:`DeformableParticleModel`. The model keeps
+    Elastic forces match :class:`DeformableParticleModel <jaxdem.bonded_forces.deformable_particle.DeformableParticleModel>`. The model keeps
     the edge-spring, measure, content, bending, and surface-tension terms.
-    See the :class:`DeformableParticleModel` docstring for the full energy
+    See the :class:`DeformableParticleModel <jaxdem.bonded_forces.deformable_particle.DeformableParticleModel>` docstring for the full energy
     definition and shape conventions. The only difference is the plastic
     update rule.
 
     Instead of relaxing each edge rest length independently (as in
-    :class:`PlasticDeformableParticleModel`), the **total reference perimeter**
+    :class:`PlasticDeformableParticleModel <jaxdem.bonded_forces.plastic_deformable_particle.PlasticDeformableParticleModel>`), the **total reference perimeter**
     of each body relaxes toward the current total perimeter. Uniform
     rescaling then distributes the change back to the individual edges:
 
@@ -63,7 +63,7 @@ class PlasticPerimeterDeformableParticleModel(DeformableParticleModel):
     each edge to its body, analogous to ``elements_id`` for elements. For a
     single body without ``edges_id``, all edges belong to body 0.
 
-    Shapes (see :class:`DeformableParticleModel` for definitions of K, M, E, A):
+    Shapes (see :class:`DeformableParticleModel <jaxdem.bonded_forces.deformable_particle.DeformableParticleModel>` for definitions of K, M, E, A):
 
     - ``edges_id``: ``(E,)``
     - ``tau_s``: ``(K,)``

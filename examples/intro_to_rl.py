@@ -1,9 +1,12 @@
 """Intro to JaxDEM reinforcement learning
 =========================================
 
-This tutorial runs a tiny Proximal Policy Optimization (PPO) training loop
-for a sphere navigating toward a target in a reflective box. A shared
-actor–critic MLP maps observations to a continuous force policy and a value
+This tutorial runs a tiny
+:py:class:`Proximal Policy Optimization (PPO) <jaxdem.rl.trainers.ppo_trainer.PPOTrainer>`
+training loop for a sphere navigating toward a target in a reflective box,
+using :py:class:`~jaxdem.rl.environments.single_navigator.SingleNavigator`.
+A :py:class:`~jaxdem.rl.models.mlp.SharedActorCritic` MLP
+maps observations to a continuous force policy and a value
 estimate. Install ``JaxDEM[rl,io]`` for the experimental RL tools and optional
 VTK export used here.
 
@@ -58,7 +61,8 @@ env = rl.Environment.create(
 # %%
 # Reward and the actor–critic decomposition
 # -----------------------------------------
-# SingleNavigator rewards progress through a distance potential:
+# :py:meth:`~jaxdem.rl.environments.single_navigator.SingleNavigator.reward`
+# rewards progress through a distance potential:
 #
 # .. math::
 #
@@ -75,19 +79,20 @@ env = rl.Environment.create(
 # :math:`\pi_\theta(a\mid o)` for exploration; the value head estimates expected
 # discounted return. An advantage compares a sampled return with this baseline,
 # guiding the policy toward actions with better-than-expected outcomes.
-#
+
 # %%
 # Model and constrained actions
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# MaxNorm constrains sampled force magnitudes to one while retaining a
+# :py:class:`~jaxdem.rl.action_spaces.max_norm_space.MaxNormSpace`
+# constrains sampled force magnitudes to one while retaining a
 # differentiable probability density. Constructor registry keys ignore case
 # and underscores. The small architecture is sufficient for an API walkthrough.
-# MaxNorm is a bijector, so transformed action probabilities include its
+# The action space is a bijector, so transformed action probabilities include its
 # Jacobian correction. It preserves direction and maps a standard isotropic
 # Gaussian to a uniform ball; learned means and variances still shape the
 # resulting policy. This lets PPO use a bounded action distribution without
 # applying an additional hard clipping operation that changes sampled actions.
-# See :py:class:`~jaxdem.rl.action_spaces.MaxNormSpace` for the radial transform
+# See :py:class:`~jaxdem.rl.action_spaces.max_norm_space.MaxNormSpace` for the radial transform
 # and its analytic entropy expression.
 model = rl.Model.create(
     "SharedActorCritic",
@@ -103,18 +108,22 @@ model = rl.Model.create(
 # ~~~~~~~~~~~~~
 # One epoch collects 4*16=64 single-agent transitions. Two minibatches each
 # contain two complete 16-step environment segments. ``num_epochs`` counts
-# rollout/update iterations, not replay passes. Adam keeps this introductory
+# rollout/update iterations, not replay passes.
+# `optax.adam <https://optax.readthedocs.io/en/latest/api/generated/optax.adam.html>`_
+# keeps this introductory
 # example small; optimizer choice and larger budgets require separate tuning.
 # PPO compares the live policy with the behavior policy that collected the
 # rollout. For stored actions, its clipped surrogate is
 #
 # .. math::
 #
-#     \rho_t(\theta)=
-#       \frac{\pi_\theta(a_t\mid o_t)}{\pi_{\rm old}(a_t\mid o_t)},\qquad
-#     L_{\rm policy}=-\mathbb E_t\left[
+#     \begin{aligned}
+#     \rho_t(\theta) &=
+#       \frac{\pi_\theta(a_t\mid o_t)}{\pi_{\rm old}(a_t\mid o_t)}, \\
+#     L_{\rm policy} &= -\mathbb E_t\left[
 #       \min\left(\rho_t A_t,
 #       \operatorname{clip}(\rho_t,1-\epsilon,1+\epsilon)A_t\right)\right].
+#     \end{aligned}
 #
 # The ratio clipping limits the objective's incentive for large policy changes;
 # it is unrelated to constraining the physical force magnitude. The trainer
@@ -130,8 +139,10 @@ model = rl.Model.create(
 #
 # Increase ``num_envs`` for more independent data, ``num_steps_epoch`` for longer
 # segments, and ``num_epochs`` for more collect/update iterations. These affect
-# data and optimization differently. A longer run can use ``tr.train`` and its
-# logging/directory options, or retain the explicit ``epoch`` loop shown here
+# data and optimization differently. A longer run can use
+# :py:meth:`~jaxdem.rl.trainers.ppo_trainer.PPOTrainer.train` and its
+# logging/directory options, or retain the explicit
+# :py:meth:`~jaxdem.rl.trainers.ppo_trainer.PPOTrainer.epoch` loop shown here
 # to inspect diagnostics and implement a stopping criterion.
 tr = rl.Trainer.create(
     "PPO",
@@ -150,8 +161,10 @@ tr = rl.Trainer.create(
 # %%
 # Run and inspect two update epochs
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# ``train(tr, verbose=False, log=False)`` is the convenience loop. Calling
-# ``epoch`` directly exposes the scalar diagnostics for this short tutorial.
+# :py:meth:`~jaxdem.rl.trainers.ppo_trainer.PPOTrainer.train` is the convenience
+# loop (``train(tr, verbose=False, log=False)``). Calling
+# :py:meth:`~jaxdem.rl.trainers.ppo_trainer.PPOTrainer.epoch` directly exposes
+# the scalar diagnostics for this short tutorial.
 # Finite losses establish a working update, not successful target reaching.
 for epoch in range(num_epochs):
     tr, _transitions, metrics = tr.epoch(tr, jnp.asarray(epoch, dtype=int))
@@ -164,7 +177,8 @@ tr.env.system.check_overflow()
 # Evaluate the live model
 # ~~~~~~~~~~~~~~~~~~~~~~~
 # The trainer has its own vectorized environments. Reset the serial environment
-# separately with a reproducible key. Recurrent models need their memory reset
+# separately with :py:meth:`~jaxdem.rl.environments.single_navigator.SingleNavigator.reset`
+# and a reproducible key. Recurrent models need their memory reset
 # too; the feedforward model used here ignores this operation.
 tr.key, subkey = jax.random.split(tr.key)
 env = env.reset(env, subkey)
@@ -175,11 +189,15 @@ graphdef, graphstate = nnx.split(base_model)
 
 
 # %%
-# Flax NNX separates static graph structure (``graphdef``) from mutable graph
-# state (``graphstate``). The callback merges them, samples an action with the
+# `flax.nnx.split <https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/graph.html#flax.nnx.split>`_
+# separates static graph structure (``graphdef``) from mutable graph
+# state (``graphstate``). The callback uses
+# `flax.nnx.merge <https://flax.readthedocs.io/en/latest/api_reference/flax.nnx/graph.html#flax.nnx.merge>`_
+# to combine them, samples an action with the
 # supplied key, then returns the new state. Threading that state through the
 # evaluator also supports recurrent models. Such models need memory resets at
-# episode/agent boundaries; ``reset`` is harmless for this feedforward MLP.
+# episode/agent boundaries;
+# :py:meth:`~jaxdem.rl.models.Model.reset` is harmless for this feedforward MLP.
 # Setting evaluation mode changes model behavior such as dropout; sampling the
 # returned action distribution remains stochastic in this callback.
 @jax.jit
@@ -196,11 +214,13 @@ def policy_model(obs, key, graphstate, graphdef):
 # identifies the target. This short evaluation changes the objective three times;
 # distance summaries are descriptive, with no expectation of improvement after
 # only two updates. A context manager completes asynchronous output before exit.
-# Each ``env_step(..., n=5, skip_frames=4)`` requests 25 physics frames and
+# Each :py:func:`~jaxdem.utils.environment.env_step` call with
+# ``n=5, skip_frames=4`` requests 25 physics frames and
 # returns only the endpoint. Four calls make 20 decisions per target, and three
 # targets make all 60 decisions. The horizon above exceeds the resulting 300
 # physical frames; otherwise evaluation would freeze at the episode boundary.
-# The target marker is appended only to the state sent to the writer. It does
+# The target marker is appended with :py:meth:`~jaxdem.state.State.add` only
+# to the state sent to :py:class:`~jaxdem.writers.vtk_writer.VTKWriter`. It does
 # not become an interacting particle in the environment or affect the policy.
 frames_dir = Path(tempfile.mkdtemp(prefix="jaxdem-rl-tutorial-"))
 with jdem.VTKWriter(directory=frames_dir) as writer:

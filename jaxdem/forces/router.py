@@ -34,20 +34,20 @@ class ForceRouter(ForceModel):
 
     Notes
     -----
-    - Use :meth:`from_dict` to build the table from a mapping of species pairs.
-      Pairs not present in the mapping default to an empty :class:`LawCombiner`,
+    - Use :meth:`from_dict <jaxdem.forces.router.ForceRouter.from_dict>` to build the table from a mapping of species pairs.
+      Pairs not present in the mapping default to an empty :class:`LawCombiner <jaxdem.forces.law_combiner.LawCombiner>`,
       which produces zero force, torque, and energy.
     - Dispatch evaluates each upper-triangle entry and selects the result with
       :func:`jax.lax.select_n`. The cost grows quadratically with the number
       of species, for scalar and batched calls alike.
-    - :attr:`required_material_properties` is the union of the requirements of
+    - :attr:`required_material_properties <jaxdem.forces.router.ForceRouter.required_material_properties>` is the union of the requirements of
       all laws in the table.
     """
 
     # Keep the table as pytree data so configurable law arrays participate in
     # transformations just like laws held by LawCombiner.
     table: tuple[tuple[ForceModel, ...], ...] = field(default=())
-    """A symmetric :math:`S \\times S` table where entry ``table[a][b]`` is the :class:`ForceModel` that governs interactions between species ``a`` and ``b``."""
+    """A symmetric :math:`S \\times S` table where entry ``table[a][b]`` is the :class:`ForceModel <jaxdem.forces.ForceModel>` that governs interactions between species ``a`` and ``b``."""
 
     @property
     def supports_analytical_energy_gradient(self) -> bool:
@@ -195,7 +195,7 @@ class ForceRouter(ForceModel):
         """Names of the material properties this force model needs.
 
         The sorted union of the material properties required by all laws in
-        the table. Each name must be present in :attr:`System.mat_table`.
+        the table. Each name must be present in :attr:`System.mat_table <jaxdem.system.System.mat_table>`.
         Used for validation.
         """
         return tuple(
@@ -212,11 +212,11 @@ class ForceRouter(ForceModel):
     @staticmethod
     @partial(jax.named_call, name="ForceRouter.from_dict")
     def from_dict(S: int, mapping: dict[tuple[int, int], ForceModel]) -> ForceRouter:
-        """Build a :class:`ForceRouter` from a mapping of species pairs to force laws.
+        """Build a :class:`ForceRouter <jaxdem.forces.router.ForceRouter>` from a mapping of species pairs to force laws.
 
         The router symmetrizes the mapping: entry ``(a, b)`` also fills
         ``(b, a)``. Pairs not present in the mapping default to an empty
-        :class:`LawCombiner` (zero force, torque, and energy).
+        :class:`LawCombiner <jaxdem.forces.law_combiner.LawCombiner>` (zero force, torque, and energy).
 
         Parameters
         ----------

@@ -75,7 +75,7 @@ from jaxdem.utils.linalg import cross, dot, unit
 # Noise is sampled per body and broadcast to its members, preserving coherent
 # translation. Positions advance by :math:`\Delta t\,\mathbf v_I^{n+1}`;
 # this is a prescribed active-velocity update, not a force-over-mass step.
-#
+
 # %%
 # Local Vicsek integrators
 # ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -289,12 +289,13 @@ class VicsekIntrinsic(jdem.LinearIntegrator):
 
 # %%
 # This function sets the initial data
-
-
+#
 # For one-call builders see
-# :func:`~jaxdem.utils.particle_creation.build_sphere_system` and
-# :func:`~jaxdem.utils.particle_creation.build_ga_system`
-# (sphere_construction and general_particle_construction examples).
+# :py:func:`~jaxdem.utils.particle_creation.build_sphere_system` and
+# :py:func:`~jaxdem.utils.particle_creation.build_ga_system`
+# (:doc:`sphere_construction </auto_examples/sphere_construction>` and
+# :doc:`general_particle_construction </auto_examples/general_particle_construction>`
+# examples).
 def build_microstate(
     N: int,
     phi: float,

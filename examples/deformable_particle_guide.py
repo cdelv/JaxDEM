@@ -51,11 +51,12 @@ isolate the response to a prescribed small stretch.
 # Creating a Deformable Particle
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Create a deformable particle with
-# :py:meth:`~jaxdem.bonded_forces.BondedForceModel.create`. Pass the
+# :py:meth:`BondedForceModel.create <jaxdem.factory.Factory.create>`. Pass the
 # registered name ``"deformable_particle_model"`` and the mesh topology.
 #
 # Vertices define particle positions, and elements define connectivity.
-# If you do not provide reference (stress-free) quantities, the constructor
+# If you do not provide reference (stress-free) quantities,
+# :py:meth:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.Create`
 # computes them from ``vertices``. If you provide all required reference
 # quantities, the ``vertices`` argument is optional.
 #
@@ -136,7 +137,7 @@ system = jdem.System.create(
 # :py:meth:`~jaxdem.system.System.create` ignores the keyword arguments.
 # A bonded model does not automatically disable contact forces. Node radii
 # here are smaller than half the edge length, so the reference square has no
-# self-contact. Use ``bond_id`` explicitly when connected nodes should be
+# self-contact. Use :py:attr:`~jaxdem.state.State.bond_id` explicitly when connected nodes should be
 # excluded from contact even after deformation; see Connectivity Masking.
 
 
@@ -153,28 +154,33 @@ system = jdem.System.create(
 #    * - Coefficient
 #      - Target shape
 #      - Description
-#    * - ``em``
+#    * - :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.em`
 #      - ``(M,)`` — per element
 #      - Measure (area/length) stiffness
-#    * - ``gamma``
+#    * - :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.gamma`
 #      - ``(M,)`` — per element
 #      - Surface/line tension
-#    * - ``eb``
+#    * - :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.eb`
 #      - ``(A,)`` — per adjacency pair
 #      - Bending stiffness
-#    * - ``el``
+#    * - :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.el`
 #      - ``(E,)`` — per edge
 #      - Edge length stiffness
-#    * - ``ec``
+#    * - :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec`
 #      - ``(K,)`` — per body
 #      - Content (volume/area) stiffness
 #
-# ``ec`` is special: it is a **per-body** coefficient, not per-element.
-# The ``elements_id`` array maps each element to its parent body, so the
-# model knows which ``ec`` value to read for each element's content
+# :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec`
+# is special: it is a **per-body** coefficient, not per-element.
+# The :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id`
+# array maps each element to its parent body, so the
+# model knows which :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec`
+# value to read for each element's content
 # contribution.
-# When only one body is present and you do not provide ``elements_id``,
-# ``ec`` must have shape ``(1,)``.
+# When only one body is present and you do not provide
+# :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id`,
+# :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec`
+# must have shape ``(1,)``.
 
 dp_scalar = jdem.BondedForceModel.create(
     "deformable_particle_model",
@@ -212,9 +218,15 @@ print("edges stored?", dp_edges_only.edges is not None)  # True
 print("adjacency stored?", dp_edges_only.element_adjacency is not None)  # False
 
 # %%
-# Here the constructor discards ``elements`` and ``element_adjacency``,
-# because no coefficient that needs them (``em``, ``ec``,
-# ``gamma``, ``eb``) was provided.
+# Here the constructor discards
+# :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements`
+# and :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.element_adjacency`,
+# because no coefficient that needs them
+# (:py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.em`,
+# :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec`,
+# :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.gamma`,
+# :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.eb`)
+# was provided.
 
 # %%
 # 2D vs 3D Differences
@@ -240,7 +252,7 @@ print("adjacency stored?", dp_edges_only.element_adjacency is not None)  # False
 #    * - Bending
 #      - Angle at shared vertex
 #      - Dihedral angle at shared edge
-#    * - ``element_adjacency_edges``
+#    * - :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.element_adjacency_edges`
 #      - Not needed (automatically inferred)
 #      - Optional ``(A, 2)`` — vertex IDs of the shared edge (auto-inferred if not provided)
 #
@@ -249,7 +261,8 @@ print("adjacency stored?", dp_edges_only.element_adjacency is not None)  # False
 # this must be consistent with ``elements.shape[-1]``.
 #
 # In 3D, each adjacency pair shares an edge (two vertices), and
-# ``element_adjacency_edges`` stores those vertex IDs. If you do not
+# :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.element_adjacency_edges`
+# stores those vertex IDs. If you do not
 # provide them, the constructor infers them from the element connectivity.
 # In 2D, adjacencies share a single vertex and the edges array is not needed.
 
@@ -279,15 +292,20 @@ print("3D elements shape:", dp_3d.elements.shape)  # (4, 3)
 print("3D adjacency_edges shape:", dp_3d.element_adjacency_edges.shape)  # (6, 2)
 
 # %%
-# The ``elements_id`` Field
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~
+# The Body-ID Field
+# ~~~~~~~~~~~~~~~~~~
 # When a single deformable particle model contains **multiple bodies**, the
-# ``elements_id`` array identifies which body each element belongs to.
-# The content energy term (``ec``) requires this mapping, because it is a
+# :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id`
+# array identifies which body each element belongs to.
+# The content energy term
+# (:py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec`)
+# requires this mapping, because it is a
 # per-body quantity: the model sums the partial content contribution of
-# each element per body using ``elements_id``.
+# each element per body using
+# :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id`.
 #
-# ``elements_id`` has shape ``(M,)`` and contains integer body indices.
+# :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id`
+# has shape ``(M,)`` and contains integer body indices.
 # For example, two closed square boundaries each have four segments:
 #
 # .. code-block:: python
@@ -295,10 +313,14 @@ print("3D adjacency_edges shape:", dp_3d.element_adjacency_edges.shape)  # (6, 2
 #     elements_id = jnp.array([0, 0, 0, 0, 1, 1, 1, 1])
 #     ec = jnp.array([0.5, 0.8])  # one value per body
 #
-# Without ``elements_id``, the model treats all elements as one body
-# (body 0), and ``ec`` must have shape ``(1,)``.
+# Without :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id`,
+# the model treats all elements as one body (body 0), and
+# :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.ec`
+# must have shape ``(1,)``.
 
-two_square_vertices = jnp.concatenate((vertices_2d, vertices_2d + jnp.array([2.0, 0.0])))
+two_square_vertices = jnp.concatenate(
+    (vertices_2d, vertices_2d + jnp.array([2.0, 0.0]))
+)
 two_square_elements = jnp.concatenate((elements_2d, elements_2d + 4))
 dp_two_bodies = jdem.BondedForceModel.create(
     "deformable_particle_model",
@@ -318,9 +340,9 @@ np.testing.assert_allclose(dp_two_bodies.initial_body_contents, [1.0, 1.0])
 # connected by a bond, because the bonded force model already handles their
 # interaction.
 #
-# The ``bond_id`` field in the
+# The :py:attr:`~jaxdem.state.State.bond_id` field in the
 # :py:class:`~jaxdem.state.State` filters contacts. For each sphere,
-# ``bond_id`` stores the unique IDs of the spheres it connects to.
+# :py:attr:`~jaxdem.state.State.bond_id` stores the unique IDs of the spheres it connects to.
 # Connected sphere pairs do not collide.
 #
 # You can specify connections for each sphere as lists of neighbor unique IDs.
@@ -351,12 +373,16 @@ print("No bonds bond_id:\n", state_no_bonds.bond_id)
 # Adding and Merging Deformable Particles
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Just like :py:class:`~jaxdem.state.State`, deformable particle models
-# support ``add`` and ``merge`` operations for building up complex
+# support :py:meth:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.add`
+# and :py:meth:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.merge`
+# operations for building up complex
 # configurations from smaller pieces.
 #
 # :py:meth:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.add`
 # creates a new body from raw arrays and merges it into an existing model.
-# It is equivalent to calling ``create`` followed by ``merge``.
+# It is equivalent to calling
+# :py:meth:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.Create`
+# followed by :py:meth:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.merge`.
 
 dp_base = jdem.BondedForceModel.create(
     "deformable_particle_model",
@@ -383,10 +409,14 @@ print("Edges after add:", dp_extended.edges.shape)  # (8, 2)
 # %%
 # :py:meth:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.merge`
 # concatenates two existing models. It shifts vertex indices and body IDs so
-# that references stay consistent, and shifts ``element_id`` to keep it unique
-# across the merged model. Each merged container therefore represents new
-# bodies with new element IDs.
-# When one side has a term and the other does not, ``merge`` pads missing
+# that references stay consistent. It updates
+# :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements_id`
+# to distinguish the bodies and
+# :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.element_adjacency`
+# to address the concatenated elements.
+# When one side has a term and the other does not,
+# :py:meth:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.merge`
+# pads missing
 # coefficients with ``0`` and missing reference values with ``1``.
 
 dp_a = jdem.BondedForceModel.create(
@@ -410,11 +440,13 @@ print("Merged em:", dp_merged.em)  # em padded with 0 for dp_b's elements
 print("Merged el:", dp_merged.el)  # el padded with 0 for dp_a's edges
 
 # %%
-# Batched Simulations with ``vmap``
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Deformable particles work with :py:func:`jax.vmap`, so you can run
+# Batched Simulations
+# ~~~~~~~~~~~~~~~~~~~
+# Deformable particles work with
+# `jax.vmap <https://docs.jax.dev/en/latest/_autosummary/jax.vmap.html>`_, so you can run
 # many independent simulations in parallel. Each simulation gets its own
-# ``State`` and ``System`` (including its own bonded model). The model uses
+# :py:class:`~jaxdem.state.State` and :py:class:`~jaxdem.system.System`
+# (including its own bonded model). The model uses
 # the original square as its reference while each state starts with a small
 # horizontal stretch. Surface tension is off so the reference is stress-free.
 
@@ -458,8 +490,10 @@ print("After stepping:", states.pos.shape)
 # %%
 # A Note on Edges
 # ~~~~~~~~~~~~~~~~~
-# The ``edges`` array and the ``el`` coefficient define **spring connections**
-# between vertex pairs. These are fully independent from the ``elements``
+# The :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.edges`
+# array and the :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.el`
+# coefficient define **spring connections** between vertex pairs. These are fully independent from the
+# :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.elements`
 # connectivity: you can define edge springs that do not correspond to any
 # mesh element. This lets you model springs outside the mesh geometry, such
 # as cross-bracing springs or tethers between non-adjacent vertices.
@@ -480,7 +514,7 @@ print("Diagonal springs — elements stored?", dp_extra_springs.elements is not 
 # %%
 # VTK Output
 # ~~~~~~~~~~~~
-# The :py:class:`~jaxdem.writers.VTKWriter` detects when a
+# The :py:class:`~jaxdem.writers.vtk_writer.VTKWriter` detects when a
 # :py:class:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel`
 # is attached to the system and writes additional VTK files:
 #
@@ -495,5 +529,7 @@ print("Diagonal springs — elements stored?", dp_extra_springs.elements is not 
 #   ``current_bendings``, and ``eb``.
 #
 # The writer only writes the files whose energy terms are active.
-# For example, if ``el`` is ``None``, it skips the edges writer.
+# For example, if
+# :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.el`
+# is ``None``, it skips the edges writer.
 # You can load this output in ParaView for visualization and debugging.

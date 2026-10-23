@@ -3,9 +3,9 @@
 
 This guide introduces JaxDEM checkpointing utilities:
 
-- :py:class:`~jaxdem.writers.CheckpointWriter`
-- :py:class:`~jaxdem.writers.CheckpointLoader`
-- :py:class:`~jaxdem.writers.H5Writer`
+- :py:class:`~jaxdem.writers.checkpoints.CheckpointWriter`
+- :py:class:`~jaxdem.writers.checkpoints.CheckpointLoader`
+- :py:class:`~jaxdem.writers.h5_writer.H5Writer`
 
 Checkpoints are useful for long simulations, reproducibility, and restarting
 from intermediate steps. Install ``JaxDEM[io]`` for Orbax and HDF5 support.
@@ -22,7 +22,9 @@ import jaxdem as jdem
 # %%
 # Saving simulation checkpoints
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# We create a small simulation, run it in chunks, and save snapshots.
+# We create a small simulation, run it in chunks with
+# :py:meth:`~jaxdem.system.System.step`, and save snapshots with
+# :py:meth:`~jaxdem.writers.checkpoints.CheckpointWriter.save`.
 
 state = jdem.State.create(
     pos=jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
@@ -50,8 +52,9 @@ with jdem.CheckpointWriter(directory=tmp_dir, max_to_keep=2) as writer:
 # %%
 # Loading latest and specific checkpoints
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# ``load()`` returns ``(state, system)``. Query the current latest step with
-# :py:meth:`~jaxdem.writers.CheckpointLoader.latest_step`.
+# :py:meth:`load() <jaxdem.writers.checkpoints.CheckpointLoader.load>` returns ``(state, system)``. Query the
+# current latest step with
+# :py:meth:`~jaxdem.writers.checkpoints.CheckpointLoader.latest_step`.
 
 with jdem.CheckpointLoader(directory=tmp_dir) as loader:
     # ``loader.checkpointer`` is the underlying Orbax CheckpointManager.
@@ -77,7 +80,8 @@ print("Restarted and uninterrupted positions/velocities match exactly.")
 
 # %%
 # Resource management note:
-# Use :py:class:`~jaxdem.writers.CheckpointWriter` and :py:class:`~jaxdem.writers.CheckpointLoader`
+# Use :py:class:`~jaxdem.writers.checkpoints.CheckpointWriter` and
+# :py:class:`~jaxdem.writers.checkpoints.CheckpointLoader`
 # with a context manager (``with ... as ...``). The context manager waits for
 # pending async writes and closes resources on exit. You can also manage both
 # classes manually without ``with``.
@@ -91,9 +95,10 @@ print("Restarted and uninterrupted positions/velocities match exactly.")
 #     writer.block_until_ready()   # ensure writes are finished
 #     writer.close()               # release resources
 #
-# Checkpoint saving is asynchronous. Call ``block_until_ready()`` before
+# Checkpoint saving is asynchronous. Call
+# :py:meth:`block_until_ready() <jaxdem.writers.checkpoints.BaseCheckpointManager.block_until_ready>` before
 # program exit. When you manage the writer manually, also call it before
-# ``close()``, so all files reach the disk.
+# :py:meth:`close() <jaxdem.writers.checkpoints.BaseCheckpointManager.close>`, so all files reach the disk.
 # Continue a loaded initialized checkpoint directly; do not call
 # :py:meth:`~jaxdem.system.System.initialize` again. Checkpoints include
 # collider/contact history, integrator state, callbacks, and PRNG state needed
@@ -174,8 +179,9 @@ with jdem.CheckpointLoader(directory=tmp_dir_bonded) as loader:
 #    resolves every recorded path and verifies object identity before saving;
 #    closures, local functions, and functions in ``__main__`` are rejected.
 #    If the loader later cannot resolve a required physics function,
-#    :py:meth:`~jaxdem.writers.CheckpointLoader.load` raises a
-#    ``RuntimeError`` by default (``strict=True``). ``strict=False`` permits
+#    :py:meth:`~jaxdem.writers.checkpoints.CheckpointLoader.load` raises a
+#    `RuntimeError <https://docs.python.org/3/library/exceptions.html#RuntimeError>`_
+#    by default (``strict=True``). ``strict=False`` permits
 #    explicitly degraded loading of legacy custom force/energy entries, while
 #    required callbacks in current checkpoints still fail rather than silently
 #    changing the protocol.
@@ -216,10 +222,13 @@ with jdem.CheckpointLoader(directory=tmp_dir_bonded) as loader:
 # %%
 # HDF5 snapshots
 # ~~~~~~~~~~~~~~
-# H5Writer uses the shared asynchronous writer queue and the existing HDF5
-# encoding. Each saved State/System pair becomes a self-contained file.
+# :py:class:`~jaxdem.writers.h5_writer.H5Writer` uses the shared asynchronous writer queue and the existing
+# HDF5
+# encoding. Its :py:meth:`~jaxdem.writers.h5_writer.H5Writer.save` method stores each
+# :py:class:`~jaxdem.state.State`/:py:class:`~jaxdem.system.System` pair in a self-contained file.
 # Batches and trajectories keep their original array shapes in that file.
 # Numbering follows saved calls and continues after existing snapshots.
+# Read a saved snapshot with :py:func:`~jaxdem.utils.h5.load`.
 
 h5_directory = Path(tmp_root.name) / "hdf5"
 with jdem.H5Writer(directory=h5_directory) as writer:

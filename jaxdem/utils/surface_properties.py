@@ -462,7 +462,7 @@ def compute_surface_properties(
     Parameters
     ----------
     central_state, tracer_state : State
-        Single-clump :class:`State` instances. The function ignores their
+        Single-clump :class:`State <jaxdem.state.State>` instances. The function ignores their
         initial orientations (it resets both per probe: central to identity,
         tracer to the swept orientation), so the sampling directions live in
         the body frame of each clump as encoded by its ``pos_p``.

@@ -5,12 +5,16 @@
 
 This guide introduces the JaxDEM VTK writing utilities:
 
-- :py:class:`~jaxdem.writers.VTKWriter`
-- The registered concrete writers: ``"spheres"``, ``"facet_spheres"``, ``"domain"``,
-  ``"facets"``, ``"deformable_elements"``, ``"deformable_edge_adjacencies"``, and
-  ``"deformable_edges"``
+- :py:class:`~jaxdem.writers.vtk_writer.VTKWriter`
+- ``"spheres"``: :py:class:`~jaxdem.writers.vtk_spheres_writer.VTKSpheresWriter`
+- ``"facet_spheres"``: :py:class:`~jaxdem.writers.vtk_spheres_writer.VTKFacetSpheresWriter`
+- ``"domain"``: :py:class:`~jaxdem.writers.vtk_domain_writer.VTKDomainWriter`
+- ``"facets"``: :py:class:`~jaxdem.writers.vtk_facets_writer.VTKFacetsWriter`
+- ``"deformable_elements"``: :py:class:`~jaxdem.writers.vtk_deformable_particle_writer.VTKDeformableElementsWriter`
+- ``"deformable_edge_adjacencies"``: :py:class:`~jaxdem.writers.vtk_deformable_particle_writer.VTKDeformableEdgeAdjacenciesWriter`
+- ``"deformable_edges"``: :py:class:`~jaxdem.writers.vtk_deformable_particle_writer.VTKDeformableEdgesWriter`
 
-VTKWriter exports particle positions, boundaries, meshes, and state fields
+:py:class:`~jaxdem.writers.vtk_writer.VTKWriter` exports particle positions, boundaries, meshes, and state fields
 to standard VTK XML files (.vtp) and ParaView manifest collection files (.pvd).
 Install ``JaxDEM[io]``. This small 2D scene is also viewable in ParaView; the
 output directory is kept after execution so you can open the files.
@@ -22,9 +26,10 @@ import jax.numpy as jnp
 import jaxdem as jdem
 
 # %%
-# Basic Usage of VTKWriter
-# ~~~~~~~~~~~~~~~~~~~~~~~~
-# VTKWriter inherits from BaseAsyncWriter, which manages a pool of background
+# Basic Usage of :py:class:`~jaxdem.writers.vtk_writer.VTKWriter`
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# :py:class:`~jaxdem.writers.vtk_writer.VTKWriter` inherits from
+# :py:class:`~jaxdem.writers.async_base.BaseAsyncWriter`, which manages a pool of background
 # threads for parallel, non-blocking disk I/O. Use it in a context manager
 # (``with ... as ...:``) to make sure all writes finish before exiting.
 
@@ -40,9 +45,12 @@ state, system = jdem.System.initialize(state, system)
 # Replace this with Path("my_output") when choosing a permanent destination.
 tmp_dir = Path(tempfile.mkdtemp(prefix="jaxdem-vtk-guide-"))
 
+# %%
 # We configure the writer to save to our directory. By default, all registered
 # writers are active (each one skips itself when its data is not present).
-# VTKWriter defaults to clean=False. Here clean=True explicitly erases the frames directory
+# :py:meth:`~jaxdem.writers.vtk_writer.VTKWriter.save` submits each snapshot to the queue.
+# :py:class:`~jaxdem.writers.vtk_writer.VTKWriter` defaults to ``clean=False``. Here ``clean=True``
+# explicitly erases the frames directory
 # on construction, with safety checks on the path. The checkpoint writers
 # default to clean=False and preserve existing data.
 with jdem.VTKWriter(directory=tmp_dir, clean=True) as writer:
@@ -82,8 +90,11 @@ for f in sorted(vtp_files)[:4]:
 # Saving Trajectories directly
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # If you have accumulated a trajectory of states and systems in memory (e.g., via
-# `jax.lax.scan` or batching), you can write the entire sequence in one call
-# by setting ``trajectory=True`` and specifying the ``trajectory_axis``.
+# `jax.lax.scan <https://docs.jax.dev/en/latest/_autosummary/jax.lax.scan.html>`_ or batching), you can write
+# the entire sequence in one call
+# through :py:meth:`~jaxdem.writers.vtk_writer.VTKWriter.save` by setting
+# ``trajectory=True`` and specifying the ``trajectory_axis``. Collect trajectories
+# with :py:meth:`~jaxdem.system.System.trajectory_rollout`.
 
 # Collect matching State/System frames of shape (T, N, dim). Each System
 # frame carries its own time and step count for the VTK files and manifest.

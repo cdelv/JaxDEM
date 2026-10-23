@@ -45,10 +45,10 @@ class PeriodicDomain(Domain):
     particles with the minimum image convention.
 
     ``box_rate`` is the time derivative of ``box_size``. Periodic images of a
-    particle move at ``image * box_rate``, which :meth:`relative_velocity`
+    particle move at ``image * box_rate``, which :meth:`relative_velocity <jaxdem.domains.periodic.PeriodicDomain.relative_velocity>`
     subtracts. Time stepping does not advance ``box_size``; set ``box_rate``
     when a protocol changes the box continuously, and leave it zero otherwise.
-    Discrete rescaling goes through :meth:`Domain.resize`.
+    Discrete rescaling goes through :meth:`Domain.resize <jaxdem.domains.Domain.resize>`.
     """
 
     search_geometry = SearchGeometry.ORTHOGONAL
@@ -60,10 +60,10 @@ class PeriodicDomain(Domain):
 
     A periodic image of particle ``j`` sits at ``pos_j + image * box_size``
     and moves at ``image * box_rate`` when the box changes. Contact laws read
-    the relative velocity through :meth:`relative_velocity`, which subtracts
+    the relative velocity through :meth:`relative_velocity <jaxdem.domains.periodic.PeriodicDomain.relative_velocity>`, which subtracts
     that image velocity; without it a pair interacting across a boundary
     would see the change of its image offset as sliding and wind up its
-    tangential spring. :meth:`Domain.resize` sets this rate for the duration
+    tangential spring. :meth:`Domain.resize <jaxdem.domains.Domain.resize>` sets this rate for the duration
     of its history update and zero means a fixed box.
     """
 
@@ -166,8 +166,8 @@ class PeriodicDomain(Domain):
                 & r_{ij} = r_{ij} - B \cdot \text{round}(r_{ij}/B)
 
             where:
-                - :math:`a` is the domain anchor (:attr:`Domain.anchor`)
-                - :math:`B` is the domain box size (:attr:`Domain.box_size`)
+                - :math:`a` is the domain anchor (:attr:`Domain.anchor <jaxdem.domains.Domain.anchor>`)
+                - :math:`B` is the domain box size (:attr:`Domain.box_size <jaxdem.domains.Domain.box_size>`)
 
         """
         rij = ri - rj
@@ -183,8 +183,8 @@ class PeriodicDomain(Domain):
             r = r - B \cdot \text{floor}((r - a)/B)
 
         where:
-            - :math:`a` is the domain anchor (:attr:`Domain.anchor`)
-            - :math:`B` is the domain box size (:attr:`Domain.box_size`)
+            - :math:`a` is the domain anchor (:attr:`Domain.anchor <jaxdem.domains.Domain.anchor>`)
+            - :math:`B` is the domain box size (:attr:`Domain.box_size <jaxdem.domains.Domain.box_size>`)
 
         Parameters
         ----------

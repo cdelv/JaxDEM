@@ -38,16 +38,16 @@ class LawCombiner(ForceModel):
     -----
     - The combiner evaluates each sub-law with a system whose ``force_model``
       is the sub-law itself. Laws that read their own configuration from
-      :attr:`jaxdem.System.force_model` (including nested combiners) work
+      :attr:`jaxdem.System.force_model <jaxdem.system.System.force_model>` (including nested combiners) work
       correctly.
     - An empty combiner (``laws=()``) returns zero force, torque, and energy.
-      :meth:`ForceRouter.from_dict` uses it as the default no-interaction law.
-    - :attr:`required_material_properties` is the union of the requirements of
+      :meth:`ForceRouter.from_dict <jaxdem.forces.router.ForceRouter.from_dict>` uses it as the default no-interaction law.
+    - :attr:`required_material_properties <jaxdem.forces.law_combiner.LawCombiner.required_material_properties>` is the union of the requirements of
       all contained laws.
     """
 
     laws: tuple[ForceModel, ...] = ()
-    """Tuple of elementary :class:`ForceModel` instances to sum as pytree data."""
+    """Tuple of elementary :class:`ForceModel <jaxdem.forces.ForceModel>` instances to sum as pytree data."""
 
     @property
     def supports_analytical_energy_gradient(self) -> bool:
@@ -139,7 +139,7 @@ class LawCombiner(ForceModel):
         """Names of the material properties this force model needs.
 
         The sorted union of the material properties required by all contained
-        laws. Each name must be present in :attr:`System.mat_table`. Used for
+        laws. Each name must be present in :attr:`System.mat_table <jaxdem.system.System.mat_table>`. Used for
         validation.
         """
         return tuple(

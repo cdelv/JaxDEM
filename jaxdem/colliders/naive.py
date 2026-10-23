@@ -70,7 +70,7 @@ class NaiveSimulator(Collider):
     stored history of the directed pair ``(i, j)``, the interaction on ``i``
     from ``j``. Every pair keeps the same slot for the life of the collider,
     so no remapping is ever needed. Stateless laws have a zero-width trailing
-    axis, which costs nothing. :meth:`System.create` allocates the buffer.
+    axis, which costs nothing. :meth:`System.create <jaxdem.system.System.create>` allocates the buffer.
 
     Complexity
     ----------

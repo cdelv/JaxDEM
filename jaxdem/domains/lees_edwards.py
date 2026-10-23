@@ -43,21 +43,21 @@ class LeesEdwardsDomain(PeriodicDomain):
 
     For oscillatory shear, set ``gamma = gamma_amp * jnp.sin(omega * system.time)``
     and ``gamma_dot = gamma_amp * omega * jnp.cos(omega * system.time)`` in the
-    same callback. Contact laws use :meth:`relative_velocity` to account for
+    same callback. Contact laws use :meth:`relative_velocity <jaxdem.domains.lees_edwards.LeesEdwardsDomain.relative_velocity>` to account for
     the moving image even when particle coordinates remain unwrapped.
 
-    For discrete affine shear, call :meth:`shear` to apply one strain increment
+    For discrete affine shear, call :meth:`shear <jaxdem.domains.lees_edwards.LeesEdwardsDomain.shear>` to apply one strain increment
     to particle centers, periodic images, and any pair history. Quasistatic
     protocols can then minimize the returned state at fixed strain. Box
-    rescaling goes through :meth:`Domain.resize`; ``box_rate`` is the box
+    rescaling goes through :meth:`Domain.resize <jaxdem.domains.Domain.resize>`; ``box_rate`` is the box
     length rate for continuous protocols and is zero otherwise.
 
-    ``box_rate`` is inherited from :class:`PeriodicDomain`. Periodic images
+    ``box_rate`` is inherited from :class:`PeriodicDomain <jaxdem.domains.periodic.PeriodicDomain>`. Periodic images
     move at ``image * box_rate`` when the box changes, and the shear offset
     ``gamma * L_beta`` of an image across the gradient boundary moves with
-    ``L_beta`` as well. :meth:`relative_velocity` subtracts both so a pair
+    ``L_beta`` as well. :meth:`relative_velocity <jaxdem.domains.lees_edwards.LeesEdwardsDomain.relative_velocity>` subtracts both so a pair
     interacting across a boundary sees only its true relative motion.
-    See :attr:`PeriodicDomain.box_rate`.
+    See :attr:`PeriodicDomain.box_rate <jaxdem.domains.periodic.PeriodicDomain.box_rate>`.
 
     For fixed integer image counts :math:`\mathbf n`, the image position and
     velocity are
@@ -84,7 +84,7 @@ class LeesEdwardsDomain(PeriodicDomain):
     def _shift(pos: jax.Array, system: System) -> jax.Array:
         r"""Wrap coordinates after removing their shear-image offset.
 
-        The inherited :meth:`PeriodicDomain.shift` calls this shear-specific
+        The inherited :meth:`PeriodicDomain.shift <jaxdem.domains.periodic.PeriodicDomain.shift>` calls this shear-specific
         rule on body centers, preserving each clump's internal geometry.
 
         .. math::
@@ -317,7 +317,7 @@ class LeesEdwardsDomain(PeriodicDomain):
                 & r_{ij} = r_{ij} - L\operatorname{round}(r_{ij}/L)
 
             where:
-                - :math:`L` is the domain box size (:attr:`Domain.box_size`)
+                - :math:`L` is the domain box size (:attr:`Domain.box_size <jaxdem.domains.Domain.box_size>`)
                 - Rounding uses ties to even at half-box displacements.
 
         """

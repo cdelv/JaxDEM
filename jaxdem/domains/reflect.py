@@ -128,7 +128,7 @@ class ReflectDomain(Domain):
 
         The shared Verlet-consistent solver
         :func:`jaxdem.domains._toc.verlet_collision_fraction` (also used by
-        :class:`ReflectSphereDomain`) computes the collision time fraction
+        :class:`ReflectSphereDomain <jaxdem.domains.reflect_sphere.ReflectSphereDomain>`) computes the collision time fraction
         :math:`\alpha \in [0, 1]` per clump at the contact point. Before the
         impulse, the method reconstructs the contact-point velocity and
         angular velocity at the moment of collision as
@@ -138,10 +138,10 @@ class ReflectDomain(Domain):
 
         **Definitions**
 
-        - :math:`\vec{r}_c`: Particle center of mass position (:attr:`jaxdem.State.pos_c`).
-        - :math:`\vec{r}_{p}`: Vector from COM to contact sphere in the lab frame (:attr:`jaxdem.State.pos_p`).
-        - :math:`\vec{v}`: Particle linear velocity (:attr:`jaxdem.State.vel`).
-        - :math:`\vec{\omega}`: Particle angular velocity (:attr:`jaxdem.State.ang_vel`).
+        - :math:`\vec{r}_c`: Particle center of mass position (:attr:`jaxdem.State.pos_c <jaxdem.state.State.pos_c>`).
+        - :math:`\vec{r}_{p}`: Vector from COM to contact sphere in the lab frame (:attr:`jaxdem.State.pos_p <jaxdem.state.State.pos_p>`).
+        - :math:`\vec{v}`: Particle linear velocity (:attr:`jaxdem.State.vel <jaxdem.state.State.vel>`).
+        - :math:`\vec{\omega}`: Particle angular velocity (:attr:`jaxdem.State.ang_vel <jaxdem.state.State.ang_vel>`).
         - :math:`\hat{n}`: Boundary normal vector (pointing into the domain).
         - :math:`\delta`: Penetration depth (positive value).
         - :math:`e`: Coefficient of restitution.

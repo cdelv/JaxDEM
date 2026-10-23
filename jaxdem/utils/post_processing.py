@@ -45,7 +45,7 @@ class SphereContactNetwork:
     ``|F_t| / |F_n|`` along the sphere separation: zero for zero force,
     infinity for purely tangential force, and NaN for nonzero force at zero
     separation. ``pair_species`` is None or an integer array ``(M, 2)``
-    inherited from the clump labels supplied to :func:`analyze_packing`.
+    inherited from the clump labels supplied to :func:`analyze_packing <jaxdem.utils.post_processing.analyze_packing>`.
 
     Entries exist when force or torque is nonzero. Reciprocal contacts have
     both directions; ``pair_ids[:, 0] < pair_ids[:, 1]`` selects one edge
@@ -76,7 +76,7 @@ class ClumpContactNetwork:
     Their shapes are ``(K, dim)``, ``(K, angular_dim)``, and ``(K, dim)``.
 
     ``mu`` has shape ``(K,)`` and uses the COM axis with the same zero,
-    infinity, and NaN conventions as :class:`SphereContactNetwork`.
+    infinity, and NaN conventions as :class:`SphereContactNetwork <jaxdem.utils.post_processing.SphereContactNetwork>`.
     ``sphere_counts`` has shape ``(K, 2)`` and counts distinct participating
     spheres on each side. ``contact_counts`` has shape ``(K,)`` and counts
     constituent directed contacts, including torque-only contacts.
@@ -182,7 +182,7 @@ class PackingData:
 class PackingAnalysis:
     """Full and non-rattler packing data from the same input configuration.
 
-    ``full`` and ``non_rattlers`` are :class:`PackingData` objects with the
+    ``full`` and ``non_rattlers`` are :class:`PackingData <jaxdem.utils.post_processing.PackingData>` objects with the
     same fields. When nothing is removed, both refer to the same object.
     ``rattler_ids`` and ``non_rattler_ids`` contain original input clump IDs.
     ``rattler_proportion`` is the fraction of input clumps removed, or zero
@@ -403,7 +403,7 @@ def analyze_packing(
         constraint convention. Fixed bodies are included in coordination and
         Hessian coordinates; this function does not impose their constraints.
     zero_mode_rel_gap, zero_mode_atol
-        Relative gap for :func:`zero_mode_mask` and an additional absolute
+        Relative gap for :func:`zero_mode_mask <jaxdem.utils.dynamical_matrix.zero_mode_mask>` and an additional absolute
         zero threshold. All-zero spectra are counted entirely as zero modes.
 
     Returns

@@ -157,7 +157,7 @@ def quasistatic_compress_to_packing_fraction(
 ) -> CompressionResult:
     """Quasi-statically compress (or decompress) toward ``target_phi``.
 
-    Alternates :func:`scale_to_packing_fraction` with :func:`minimize` in
+    Alternates :func:`scale_to_packing_fraction <jaxdem.utils.packing_utils.scale_to_packing_fraction>` with :func:`minimize <jaxdem.minimizers.routines.minimize>` in
     steps no larger than ``step`` in packing fraction. The final step is
     truncated so the target is hit exactly (within ``phi_tolerance``).
     Works in both directions: if ``target_phi > current_phi`` the box
@@ -171,7 +171,7 @@ def quasistatic_compress_to_packing_fraction(
     Parameters
     ----------
     state, system
-        Current state/system. Any domain type that :func:`scale_to_packing_fraction`
+        Current state/system. Any domain type that :func:`scale_to_packing_fraction <jaxdem.utils.packing_utils.scale_to_packing_fraction>`
         supports works.
     target_phi
         Target packing fraction.

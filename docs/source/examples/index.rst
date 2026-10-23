@@ -25,6 +25,7 @@ Construction & packing pipelines
    ../auto_examples/jam_spheres
    ../auto_examples/sphere_jamming_rattlers_dynamical_matrix
    ../auto_examples/clump_jamming_dynamical_matrix_and_friction
+   ../auto_examples/packing_analysis
    ../auto_examples/packing_fraction_protocol
    ../auto_examples/pseudo_log_rollout
    ../auto_examples/sasa_calculation

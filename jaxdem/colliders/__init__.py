@@ -341,7 +341,7 @@ def valid_interaction_mask(
     The mask always disables interactions between particles in the same clump.
     It also disables interactions between bonded particles unless
     ``interact_same_bond_id`` is ``True`` (see
-    :attr:`jaxdem.System.interact_same_bond_id`).
+    :attr:`jaxdem.System.interact_same_bond_id <jaxdem.system.System.interact_same_bond_id>`).
     """
     is_bonded = jnp.any(bond_id_i == index_j[..., None], axis=-1)
     mask1 = (clump_i != clump_j).astype(int)
@@ -368,7 +368,7 @@ def refresh_collider(
     Supply ``force_model`` when growing nonempty history so new slots use its
     initializer. Changing particle count with nonempty history, shrinking its
     capacity, or changing particle identities requires ``reset_history=True``.
-    See :meth:`Collider.refresh`.
+    See :meth:`Collider.refresh <jaxdem.colliders.Collider.refresh>`.
 
     Example
     -------
@@ -390,11 +390,11 @@ def advance_history(
     ``quasistatic=True``, so ``dt`` cancels exactly and no velocity-
     dependent force acts.
 
-    Used by affine box deformation (:meth:`Domain.shear`,
-    :meth:`Domain.resize`) and by relaxation. Dynamics does not call it: the
+    Used by affine box deformation (:meth:`Domain.shear <jaxdem.domains.lees_edwards.LeesEdwardsDomain.shear>`,
+    :meth:`Domain.resize <jaxdem.domains.Domain.resize>`) and by relaxation. Dynamics does not call it: the
     integrator's own velocities advance history inside ``compute_force``.
 
-    This relies on the ``quasistatic`` contract of :meth:`ForceModel.force`:
+    This relies on the ``quasistatic`` contract of :meth:`ForceModel.force <jaxdem.forces.ForceModel.force>`:
     the law produces no velocity-dependent force, and its history update
     depends on velocity only through ``velocity * dt``. A law that breaks
     either rule gives a ``dt``-dependent result here.

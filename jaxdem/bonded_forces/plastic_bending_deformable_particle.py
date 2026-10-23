@@ -33,14 +33,14 @@ if TYPE_CHECKING:  # pragma: no cover
 class PlasticBendingDeformableParticleModel(DeformableParticleModel):
     r"""Deformable particle model with plastic bending angles.
 
-    Elastic forces match :class:`DeformableParticleModel`. The model keeps
+    Elastic forces match :class:`DeformableParticleModel <jaxdem.bonded_forces.deformable_particle.DeformableParticleModel>`. The model keeps
     the edge-spring, measure, content, bending, and surface-tension terms.
-    See the :class:`DeformableParticleModel` docstring for the full energy
+    See the :class:`DeformableParticleModel <jaxdem.bonded_forces.deformable_particle.DeformableParticleModel>` docstring for the full energy
     definition and shape conventions. The only difference is the plastic
     update rule for the reference bending angles.
 
     Instead of relaxing each edge rest length (as in
-    :class:`PlasticDeformableParticleModel`), the **reference bending angle**
+    :class:`PlasticDeformableParticleModel <jaxdem.bonded_forces.plastic_deformable_particle.PlasticDeformableParticleModel>`), the **reference bending angle**
     of each adjacency relaxes toward the current bending angle:
 
     The update runs once per physical time step, after the integrator drift
@@ -58,7 +58,7 @@ class PlasticBendingDeformableParticleModel(DeformableParticleModel):
     update integrates relaxation exactly with the current angle held fixed;
     infinite tau_s leaves the reference unchanged.
 
-    Shapes (see :class:`DeformableParticleModel` for definitions of K, M, E, A):
+    Shapes (see :class:`DeformableParticleModel <jaxdem.bonded_forces.deformable_particle.DeformableParticleModel>` for definitions of K, M, E, A):
 
     - ``tau_s``: ``(A,)`` — one relaxation time per adjacency (bending hinge).
     """

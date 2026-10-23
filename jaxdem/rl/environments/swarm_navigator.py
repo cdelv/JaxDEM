@@ -218,7 +218,7 @@ class SwarmNavigator(Environment):
     use ``jax.vmap`` for independent environment batches.
 
     With ``dt = 0.002`` and ``skip_frames = 49``, one policy action spans
-    50 physics steps (0.1 seconds). :func:`jaxdem.utils.advance_action`
+    50 physics steps (0.1 seconds). :func:`jaxdem.utils.advance_action <jaxdem.utils.environment.advance_action>`
     checkpoints once before these steps. Read reward at their endpoint,
     before another checkpoint or reset replaces the baseline. Forces are
     applied directly with viscous drag; this environment has no action
@@ -661,7 +661,7 @@ class SwarmNavigator(Environment):
 
         Notes
         -----
-        Use :func:`jaxdem.utils.advance_action` to checkpoint once before
+        Use :func:`jaxdem.utils.advance_action <jaxdem.utils.environment.advance_action>` to checkpoint once before
         repeating steps for a policy action. Calling this method directly
         neither creates a checkpoint nor handles episode reset.
         """
@@ -818,14 +818,16 @@ class SwarmNavigator(Environment):
 
         .. math::
 
-           C_{ik}=\sum_{q\in Q_i}
+           \begin{aligned}
+           C_{ik} &= \sum_{q\in Q_i}
                \exp\!\left[-\left(\frac{\widehat\delta_{ikq}}{\rho a_i}\right)^4\right],
-           \qquad w_{ik}=\frac{1}{1+C_{ik}},\qquad
-           B_{ik}=\exp\!\left[-\left(\frac{d_{ik}}{1.5a_i}\right)^4\right],
-
-           \Phi_i=\max_{k\in V_i}(w_{ik}B_{ik})
-                    +\eta\sum_{k\in V_i}w_{ik}P(d_{ik}/a_i),\qquad
-           r_{i,t}=\Phi_i(s_{t+1})-\Phi_i(s_{\mathrm{checkpoint}}).
+               \\
+           w_{ik} &= \frac{1}{1+C_{ik}}, \\
+           B_{ik} &= \exp\!\left[-\left(\frac{d_{ik}}{1.5a_i}\right)^4\right], \\
+           \Phi_i &= \max_{k\in V_i}(w_{ik}B_{ik})
+                    +\eta\sum_{k\in V_i}w_{ik}P(d_{ik}/a_i), \\
+           r_{i,t} &= \Phi_i(s_{t+1})-\Phi_i(s_{\mathrm{checkpoint}}).
+           \end{aligned}
 
         ``sharing_range`` sets :math:`\rho` (default 1.5) and
         ``attraction_coeff`` sets :math:`\eta` (default 0.1). The denominator

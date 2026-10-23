@@ -60,7 +60,7 @@ class CundallStrackContactData(NamedTuple):
 
         The resolved normal and tangential components are combined into total
         pair forces. Torques are shifted from each source sphere's center to
-        its clump center of mass, matching :class:`~jaxdem.utils.ContactData`.
+        its clump center of mass, matching :class:`~jaxdem.utils.contacts.ContactData`.
         Pair displacements use the configured domain's image convention.
 
         ``state`` and ``system`` must describe the unchanged configuration
@@ -630,7 +630,7 @@ def get_cundall_strack_contacts(
     Raises
     ------
     TypeError
-        The system does not use :class:`CundallStrackForce` directly.
+        The system does not use :class:`CundallStrackForce <jaxdem.forces.cundall_strack.CundallStrackForce>` directly.
     ValueError
         Pair search results are incomplete or a reported value is nonfinite.
     """

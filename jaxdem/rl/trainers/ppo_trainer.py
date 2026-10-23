@@ -265,7 +265,7 @@ class PPOTrainer(Trainer):
 
     With ``vtrace=False`` (default), targets use ordinary GAE. With
     ``vtrace=True``, a V-trace-style lambda trace uses the clipped
-    current importance ratios in :meth:`Trainer.compute_advantages`. This
+    current importance ratios in :meth:`Trainer.compute_advantages <jaxdem.rl.trainers.Trainer.compute_advantages>`. This
     still uses the PPO actor objective, not the IMPALA actor objective. Final-horizon and
     truncation bootstraps retain their collection-time estimates; episode
     boundary handling is independent of this choice.
@@ -440,7 +440,7 @@ class PPOTrainer(Trainer):
             ``key`` is not provided.
         key : jax.Array, optional
             PRNG key. When provided, it takes precedence over ``seed``
-            (same rule as :meth:`jaxdem.System.create`).
+            (same rule as :meth:`jaxdem.System.create <jaxdem.system.System.create>`).
         caps_temporal_coeff, caps_spatial_coeff : float
             Nonnegative CAPS loss weights, disabled by default. These are
             static configuration: changing either recompiles training.
@@ -638,7 +638,7 @@ class PPOTrainer(Trainer):
         Parameters
         ----------
         tr : Trainer
-            Trainer instance (will be cast to :class:`PPOTrainer`).
+            Trainer instance (will be cast to :class:`PPOTrainer <jaxdem.rl.trainers.ppo_trainer.PPOTrainer>`).
         verbose : bool
             If ``True``, display a ``tqdm`` progress bar.
         log : bool

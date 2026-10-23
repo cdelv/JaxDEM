@@ -59,7 +59,7 @@ class ThreeGears(Environment):
     r"""N dynamic gears that must assemble a triangular stack.
 
     The geometry, floor contact, and pairwise attraction come from
-    :class:`TwoGears`. Rewards measure distance progress minus the change in
+    :class:`TwoGears <jaxdem.rl.environments.two_gears.TwoGears>`. Rewards measure distance progress minus the change in
     kinetic energy over the whole action interval. The
     ``num_gears`` targets form a triangular stack. The rows shrink by one
     from bottom to top and the gears touch. ``num_gears=3`` gives the
@@ -108,7 +108,7 @@ class ThreeGears(Environment):
         Returns
         -------
         ThreeGears
-            The constructed environment. Call :meth:`reset` before use.
+            The constructed environment. Call :meth:`reset <jaxdem.rl.environments.three_gears.ThreeGears.reset>` before use.
         """
         dim = 2
         n = int(num_gears)

@@ -25,9 +25,9 @@ class BlockwiseSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     blocks : sequence of (int, ActionSpace)
         Positive block sizes and their scalar or vector bijectors, in order.
         Sizes must sum to the input vector's length. Each child must preserve
-        its event shape and implement :meth:`ActionSpace.log_det_expectation`
+        its event shape and implement :meth:`ActionSpace.log_det_expectation <jaxdem.rl.action_spaces.ActionSpace.log_det_expectation>`
         to support Gaussian policy entropy. Blocks may themselves be
-        :class:`BlockwiseSpace` instances.
+        :class:`BlockwiseSpace <jaxdem.rl.action_spaces.blockwise_space.BlockwiseSpace>` instances.
 
     The Jacobian is block diagonal, so its log-determinant is the sum of the
     children's log-determinants. The Gaussian entropy correction is likewise

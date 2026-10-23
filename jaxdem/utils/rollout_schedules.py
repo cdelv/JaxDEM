@@ -3,7 +3,7 @@
 """Utilities to generate step indices for trajectory logging.
 
 The returned integer indices compose with :func:`numpy.diff` to supply the
-step intervals accepted by :meth:`jaxdem.System.trajectory_rollout`.
+step intervals accepted by :meth:`jaxdem.System.trajectory_rollout <jaxdem.system.System.trajectory_rollout>`.
 """
 
 from __future__ import annotations

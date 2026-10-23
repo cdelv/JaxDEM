@@ -189,7 +189,7 @@ class MinGRUActorCritic(Model):
     ) -> tuple[distrax.Distribution, jax.Array, jax.Array]:
         """Evaluate spatial CAPS with the same clean incoming recurrent state.
 
-        See :meth:`Model.policy_with_perturbation` for the contract and
+        See :meth:`Model.policy_with_perturbation <jaxdem.rl.models.Model.policy_with_perturbation>` for the contract and
         the CAPS paper citation. Perturbations never advance the clean carry.
         """
         pi, value, perturbed_output = self._forward(

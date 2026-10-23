@@ -17,12 +17,12 @@ class Material(Factory):
     """Abstract base class for materials.
 
     Concrete subclasses of `Material` define scalar or vector fields (e.g., `young`, `poisson`, `mu`)
-    for the physical properties of a material. The :class:`MaterialTable`
+    for the physical properties of a material. The :class:`MaterialTable <jaxdem.materials.material_table.MaterialTable>`
     collects and manages these fields.
 
     Notes:
     ------
-    - Each field of a concrete `Material` subclass becomes a named property in the :attr:`MaterialTable.props` dictionary.
+    - Each field of a concrete `Material` subclass becomes a named property in the :attr:`MaterialTable.props <jaxdem.materials.material_table.MaterialTable.props>` dictionary.
 
     Example:
     --------

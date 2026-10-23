@@ -19,11 +19,11 @@ class MaterialMatchmaker(Factory, ABC):
 
     Notes:
     ------
-    - The :class:`jaxdem.MaterialTable` uses these matchmakers to pre-compute interaction matrices.
+    - The :class:`jaxdem.MaterialTable <jaxdem.materials.material_table.MaterialTable>` uses these matchmakers to pre-compute interaction matrices.
 
     Example:
     --------
-    To define a custom matchmaker, inherit from :class:`MaterialMatchmaker` and implement
+    To define a custom matchmaker, inherit from :class:`MaterialMatchmaker <jaxdem.material_matchmakers.MaterialMatchmaker>` and implement
     its abstract methods:
 
     >>> @MaterialMatchmaker.register("myCustomForce")

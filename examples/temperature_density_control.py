@@ -10,8 +10,8 @@ two independent control axes in JaxDEM:
   cadence. Picking ``"verlet"`` lets temperature float.
 
 * **Density / box control** is a protocol on top of whatever integrator
-  you chose. :func:`run_packing_fraction_protocol` integrates via
-  ``system.step`` in chunks and calls :func:`scale_to_packing_fraction`
+  you chose. :func:`~jaxdem.utils.dynamics_routines.run_packing_fraction_protocol` integrates via
+  ``system.step`` in chunks and calls :func:`~jaxdem.utils.packing_utils.scale_to_packing_fraction`
   on a user-supplied per-frame schedule.
 
 We impose a single-period sinusoidal modulation of the packing fraction
@@ -82,7 +82,7 @@ from jaxdem.utils.thermal import (
 # subsequent interactions exchange kinetic and potential energy. Density
 # control is therefore an external protocol, not a barostat that responds to
 # a measured pressure.
-#
+
 # %%
 # Parameters
 N = 16
@@ -203,7 +203,7 @@ bare_temperature, phi_trace = summarize("bare verlet", traj_state, traj_system)
 # %%
 # 2) verlet_rescaling thermostat + phi modulation: temperature clamped.
 # ``linear_integrator_kw`` takes plain Python values. The system forwards
-# them to :py:meth:`~jaxdem.integrators.VelocityVerletRescaling.Create`.
+# them to :py:meth:`~jaxdem.integrators.velocity_verlet_rescaling.VelocityVerletRescaling.Create`.
 state, system = build_state_system(
     "verlet_rescaling",
     linear_integrator_kw=dict(

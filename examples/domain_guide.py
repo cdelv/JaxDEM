@@ -50,7 +50,9 @@ print("Box size:", system.domain.box_size)
 print("Anchor:", system.domain.anchor)
 
 # %%
-# You can also build a domain independently and assign it to the system:
+# You can also build a domain independently with
+# :py:meth:`Domain.create <jaxdem.factory.Factory.create>` and assign it to
+# :py:attr:`system.domain <jaxdem.system.System.domain>`:
 
 domain = jdem.Domain.create("free", dim=2)
 system.domain = domain
@@ -62,9 +64,11 @@ print("Swapped to:", type(system.domain).__name__)
 # ~~~~~~~~~~~~~~~~~~
 # Every domain has two core attributes:
 #
-# * ``box_size`` — the length of the simulation box along each axis, shape
+# * :py:attr:`box_size <jaxdem.domains.Domain.box_size>` — the length of the simulation box along each axis,
+#   shape
 #   ``(dim,)``.
-# * ``anchor`` — the minimum-corner coordinate of the box, shape ``(dim,)``.
+# * :py:attr:`anchor <jaxdem.domains.Domain.anchor>` — the minimum-corner coordinate of the box, shape
+#   ``(dim,)``.
 #
 # Together they define an axis-aligned box
 # :math:`[\text{anchor},\;\text{anchor} + \text{box\_size}]`.
@@ -82,7 +86,8 @@ print("anchor:", domain.anchor)
 # ~~~~~~~~~~~~
 # :py:class:`~jaxdem.domains.free.FreeDomain` imposes no boundaries.
 # Particles move freely in an unbounded space. The domain updates the
-# ``box_size`` and ``anchor`` each step to tightly enclose all particles.
+# :py:attr:`box_size <jaxdem.domains.Domain.box_size>` and :py:attr:`anchor <jaxdem.domains.Domain.anchor>`
+# each step to tightly enclose all particles.
 # Some internal algorithms, like spatial hashing in the cell-list colliders,
 # need a finite bounding box.
 state = jdem.State.create(
@@ -105,7 +110,8 @@ print("Free domain anchor:", system.domain.anchor)
 # **minimum-image convention**: the displacement between two particles is the
 # shortest vector connecting them, potentially across a periodic boundary.
 #
-# The ``periodic`` property returns ``True`` for this domain, which
+# The :py:attr:`periodic <jaxdem.domains.periodic.PeriodicDomain.periodic>` property returns ``True`` for this
+# domain, which
 # lets colliders and other components adapt their behavior automatically.
 #
 # Periodic boundary conditions do **not** modify positions during the time
@@ -124,7 +130,7 @@ print("Is periodic?", system.domain.periodic)
 
 # %%
 # The minimum-image displacement between two particles near opposite edges
-# wraps around the box:
+# wraps around the box through :py:meth:`~jaxdem.domains.periodic.PeriodicDomain.displacement`:
 
 rij = system.domain.displacement(state.pos[0], state.pos[1], system)
 naive = state.pos[0] - state.pos[1]
@@ -132,7 +138,8 @@ print("Naive displacement:", naive)
 print("Minimum-image displacement:", rij)
 
 # %%
-# Call ``shift`` to wrap positions back into the primary image:
+# Call :py:meth:`shift <jaxdem.domains.periodic.PeriodicDomain.shift>` to wrap positions back into the primary
+# image:
 
 state, system = system.domain.shift(state, system)
 print("Wrapped positions:\n", state.pos)
@@ -142,9 +149,12 @@ print("Wrapped positions:\n", state.pos)
 # Lees--Edwards Shear-Periodic Domain
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # :py:class:`~jaxdem.domains.lees_edwards.LeesEdwardsDomain` is periodic in
-# every direction. When an image crosses the shear-gradient axis ``beta``, it
-# is offset along the shear-flow axis ``alpha`` by ``gamma * box_size[beta]``.
-# ``gamma`` is the current shear strain. The defaults are flow along x
+# every direction. When an image crosses the shear-gradient axis
+# :py:attr:`beta <jaxdem.domains.lees_edwards.LeesEdwardsDomain.beta>`, it
+# is offset along the shear-flow axis :py:attr:`alpha <jaxdem.domains.lees_edwards.LeesEdwardsDomain.alpha>`
+# by ``gamma * box_size[beta]``.
+# :py:attr:`gamma <jaxdem.domains.lees_edwards.LeesEdwardsDomain.gamma>` is the current shear strain. The
+# defaults are flow along x
 # (``alpha=0``) and gradient along y (``beta=1``); the axes must be distinct.
 
 system = jdem.System.create(
@@ -162,11 +172,14 @@ rij = system.domain.displacement(jnp.array([1.0, 0.1]), jnp.array([6.0, 9.9]), s
 print("Lees-Edwards displacement:", rij)
 
 # %%
-# The domain reads ``gamma`` (strain) and ``gamma_dot`` (shear rate), but does
-# not advance them. Update the strain in ``user_pre_step_actions`` so forces
-# use the strain at the new time. Cundall--Strack uses ``gamma_dot`` to account
+# The domain reads :py:attr:`gamma <jaxdem.domains.lees_edwards.LeesEdwardsDomain.gamma>` (strain) and
+# :py:attr:`gamma_dot <jaxdem.domains.lees_edwards.LeesEdwardsDomain.gamma_dot>` (shear rate), but does
+# not advance them. Update the strain in :py:attr:`~jaxdem.system.System.user_pre_step_actions` so forces
+# use the strain at the new time. :py:class:`Cundall–Strack <jaxdem.forces.cundall_strack.CundallStrackForce>`
+# uses :py:attr:`gamma_dot <jaxdem.domains.lees_edwards.LeesEdwardsDomain.gamma_dot>` to account
 # for the velocity of the selected periodic image. Ordinary stepping keeps
-# particle coordinates unwrapped; no call to ``domain.shift`` is needed.
+# particle coordinates unwrapped; no call to
+# :py:meth:`domain.shift <jaxdem.domains.periodic.PeriodicDomain.shift>` is needed.
 #
 # .. code-block:: python
 #
@@ -187,23 +200,33 @@ print("Lees-Edwards displacement:", rij)
 #    )
 #    state, system = system.initialize(state, system)
 #
-# For a time-dependent rate, update ``gamma_dot`` alongside ``gamma`` and set
-# both to their initial values before ``initialize``. For example, oscillatory
+# For a time-dependent rate, update
+# :py:attr:`gamma_dot <jaxdem.domains.lees_edwards.LeesEdwardsDomain.gamma_dot>` alongside
+# :py:attr:`gamma <jaxdem.domains.lees_edwards.LeesEdwardsDomain.gamma>` and set
+# both to their initial values before :py:meth:`initialize <jaxdem.system.System.initialize>`. For example,
+# oscillatory
 # shear uses ``gamma = amplitude * jnp.sin(omega * system.time)`` and
 # ``gamma_dot = amplitude * omega * jnp.cos(omega * system.time)``.
 #
 # For discrete affine increments (for example, quasistatic shear), call
+# :py:meth:`~jaxdem.domains.lees_edwards.LeesEdwardsDomain.shear`:
 # ``state, system = system.domain.shear(state, system, dgamma)``. This updates
-# ``gamma`` and advances pair histories such as Cundall--Strack exactly once,
-# with no time passing: velocities, ``dt``, ``gamma_dot`` and dashpots play no
+# :py:attr:`gamma <jaxdem.domains.lees_edwards.LeesEdwardsDomain.gamma>` and advances pair histories such as
+# Cundall--Strack exactly once,
+# with no time passing: velocities, ``dt``,
+# :py:attr:`gamma_dot <jaxdem.domains.lees_edwards.LeesEdwardsDomain.gamma_dot>` and dashpots play no
 # part. Do not represent the same strain increment through both this call and
 # the continuous protocol. Box rescaling works the same way through
+# :py:meth:`~jaxdem.domains.Domain.resize`:
 # ``system.domain.resize(state, system, new_box_size)``, which every domain
-# supports and which ``scale_to_packing_fraction`` uses.
+# supports and which :py:func:`~jaxdem.utils.packing_utils.scale_to_packing_fraction` uses.
 #
-# ``shift`` removes the positional shear offset for each crossed gradient image and then
+# :py:meth:`shift <jaxdem.domains.periodic.PeriodicDomain.shift>` removes the positional shear offset for each
+# crossed gradient image and then
 # wraps all coordinates into the primary box. Spatial-search caches include
-# ``gamma``, ``alpha``, and ``beta`` in their geometry snapshot, so cached
+# :py:attr:`gamma <jaxdem.domains.lees_edwards.LeesEdwardsDomain.gamma>`,
+# :py:attr:`alpha <jaxdem.domains.lees_edwards.LeesEdwardsDomain.alpha>`, and
+# :py:attr:`beta <jaxdem.domains.lees_edwards.LeesEdwardsDomain.beta>` in their geometry snapshot, so cached
 # colliders rebuild when that geometry changes.
 
 
@@ -214,7 +237,8 @@ print("Lees-Edwards displacement:", rij)
 # the walls of the simulation box. It uses impulse-based collision mechanics,
 # correctly handling both linear and angular velocity for spheres and clumps.
 #
-# An optional ``restitution_coefficient`` (default ``1.0``, i.e. perfectly
+# An optional :py:attr:`~jaxdem.domains.reflect.ReflectDomain.restitution_coefficient` (default ``1.0``, i.e.
+# perfectly
 # elastic) scales the normal rebound speed relative to the approach speed.
 # For a head-on impact on a stationary wall, the retained kinetic-energy
 # fraction is its square.
@@ -278,8 +302,8 @@ np.testing.assert_allclose(state.vel, [[1.0, 0.0]], atol=1e-6)
 
 
 # %%
-# ``apply`` vs ``shift``
-# ~~~~~~~~~~~~~~~~~~~~~~~
+# :py:meth:`~jaxdem.domains.Domain.apply` vs :py:meth:`~jaxdem.domains.Domain.shift`
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Domains expose two boundary-enforcement methods:
 #
 # * :py:meth:`~jaxdem.domains.Domain.apply` — called automatically at every integration step.

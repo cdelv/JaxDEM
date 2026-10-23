@@ -133,8 +133,8 @@ class SwarmRoller(Environment):
 
     Objectives are unassigned points on a jittered grid at floor height;
     agents spawn in the surrounding padding ring. Reward and objective/peer
-    LiDAR semantics match :class:`SwarmNavigator`. Rolling dynamics match
-    :class:`MultiRoller`: gravity, frictional contact with the :math:`z=0`
+    LiDAR semantics match :class:`SwarmNavigator <jaxdem.rl.environments.swarm_navigator.SwarmNavigator>`. Rolling dynamics match
+    :class:`MultiRoller <jaxdem.rl.environments.multi_roller.MultiRoller>`: gravity, frictional contact with the :math:`z=0`
     floor, normal spring particle contacts, and the naive all-pairs collider.
     No tangential particle-contact history is stored.
 
@@ -188,14 +188,14 @@ class SwarmRoller(Environment):
     ============================  =================
 
     With the default 12 angular bins, each observation has 29 entries.
-    Velocities are not normalized. As in :class:`MultiRoller`, the 2-D LiDAR
+    Velocities are not normalized. As in :class:`MultiRoller <jaxdem.rl.environments.multi_roller.MultiRoller>`, the 2-D LiDAR
     utility bins by azimuth but uses full center distances in three dimensions.
     All centers initially lie at the same height, so these are planar ranges.
     If particles lift off the floor, the bin-center occupancy estimate ignores
     relative elevation and becomes less accurate.
 
     With ``dt=0.002`` and ``skip_frames=49``, a policy action spans 50 physics
-    steps (0.1 seconds). :func:`jaxdem.utils.advance_action` checkpoints once
+    steps (0.1 seconds). :func:`jaxdem.utils.advance_action <jaxdem.utils.environment.advance_action>` checkpoints once
     before these steps; reward is read before the next checkpoint or reset.
     Reset and unchanged states give zero reward. Methods describe one
     environment; use ``jax.vmap`` for independent batches.
@@ -261,7 +261,7 @@ class SwarmRoller(Environment):
         action_alpha : float
             Fraction of the requested torque applied by the smoothing update
             each physics step, in ``[0, 1]``. Defaults to 0.22, as in
-            :class:`MultiRoller`. One disables smoothing.
+            :class:`MultiRoller <jaxdem.rl.environments.multi_roller.MultiRoller>`. One disables smoothing.
         lidar_range : float
             Maximum detection range :math:`L` for the LiDAR sensors.
         n_lidar_rays : int
@@ -592,8 +592,8 @@ class SwarmRoller(Environment):
             velocity (two components), angular velocity (three components),
             normalized objective bins, then normalized agent/wall bins.
             Velocities are in simulation units; LiDAR channels lie in ``[0, 1]``.
-            This matches :class:`SwarmNavigator` sensor semantics and
-            :class:`MultiRoller` velocity channels.
+            This matches :class:`SwarmNavigator <jaxdem.rl.environments.swarm_navigator.SwarmNavigator>` sensor semantics and
+            :class:`MultiRoller <jaxdem.rl.environments.multi_roller.MultiRoller>` velocity channels.
 
         Notes
         -----
@@ -687,14 +687,16 @@ class SwarmRoller(Environment):
 
         .. math::
 
-           C_{ik}=\sum_{q\in Q_i}
+           \begin{aligned}
+           C_{ik} &= \sum_{q\in Q_i}
                \exp\!\left[-\left(\frac{\widehat\delta_{ikq}}{\rho a_i}\right)^4\right],
-           \qquad w_{ik}=\frac{1}{1+C_{ik}},\qquad
-           B_{ik}=\exp\!\left[-\left(\frac{d_{ik}}{1.5a_i}\right)^4\right],
-
-           \Phi_i=\max_{k\in V_i}(w_{ik}B_{ik})
-                    +\eta\sum_{k\in V_i}w_{ik}P(d_{ik}/a_i),\qquad
-           r_{i,t}=\Phi_i(s_{t+1})-\Phi_i(s_{\mathrm{checkpoint}}).
+               \\
+           w_{ik} &= \frac{1}{1+C_{ik}}, \\
+           B_{ik} &= \exp\!\left[-\left(\frac{d_{ik}}{1.5a_i}\right)^4\right], \\
+           \Phi_i &= \max_{k\in V_i}(w_{ik}B_{ik})
+                    +\eta\sum_{k\in V_i}w_{ik}P(d_{ik}/a_i), \\
+           r_{i,t} &= \Phi_i(s_{t+1})-\Phi_i(s_{\mathrm{checkpoint}}).
+           \end{aligned}
 
         ``sharing_range`` sets :math:`\rho` (default 1.5) and
         ``attraction_coeff`` sets :math:`\eta` (default 0.1). The denominator

@@ -1,4 +1,4 @@
-/* Create bars showing the nesting levels of the doocs */
+/* Show the nesting of API documentation blocks. */
 dl.py.class,
 dl.py.function,
 dl.py.method,
@@ -15,12 +15,44 @@ dl.py.attribute {
     display: none;
 }
 
-/* Hide any div whose class starts with 'sphx-glr-download' */
-div[class^='sphx-glr-download'] {
-    display: none !important;
+/* Keep long module names, signatures, and links inside their columns. */
+.bd-article h1,
+.bd-article h2,
+.bd-article h3,
+.bd-article .sig,
+.bd-toc .nav-link,
+.bd-toc .nav-link code {
+    overflow-wrap: anywhere;
 }
 
-/* Hide any anchor tag whose class starts with 'sphx-glr-download' */
-a[class^='sphx-glr-download'] {
-    display: none !important;
+.bd-article .sig,
+.bd-article .sig-name,
+.bd-article .sig-prename,
+.bd-article a.reference code {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+/* The general index contains long fully qualified Python names. */
+table.genindextable {
+    width: 100%;
+    table-layout: fixed;
+}
+
+table.genindextable td {
+    overflow-wrap: anywhere;
+}
+
+table.autosummary {
+    width: 100%;
+    table-layout: fixed;
+}
+
+table.autosummary td {
+    overflow-wrap: anywhere;
+}
+
+/* Gallery timing tables must remain readable in both color themes. */
+table.sg-datatable.table-striped > tbody > tr > td {
+    color: var(--pst-color-text-base);
 }

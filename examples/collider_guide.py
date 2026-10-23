@@ -96,10 +96,10 @@ print("Forces after one step:\n", state_out.force)
 # partitions space into a regular grid. Only particles in the same or
 # neighboring cells interact. It uses an implicit infinite grid for supported
 # free, reflective, periodic, and shear-periodic domain geometries. Custom
-# domains must declare a compatible search geometry; see the
-# :doc:`search contracts <../user_guide/search_contracts>`.
+# domains declare their compatible geometry through
+# :py:attr:`~jaxdem.domains.Domain.search_geometry`.
 #
-# It probes each cell with a ``jax.lax.while_loop``, so it handles high or
+# It probes each cell with a `jax.lax.while_loop <https://docs.jax.dev/en/latest/_autosummary/jax.lax.while_loop.html>`_, so it handles high or
 # variable cell occupancy. This suits polydisperse systems and clumps.
 #
 # Key parameters (all have automatic defaults):
@@ -110,7 +110,7 @@ print("Forces after one step:\n", state_out.force)
 #   correctly).
 #
 #
-# Colliders whose ``Create`` method needs a reference state (cell lists,
+# Colliders whose factory constructor needs a reference state (cell lists,
 # neighbor lists) receive it automatically when you pass ``state=`` to
 # :py:meth:`~jaxdem.system.System.create`.
 
@@ -196,12 +196,12 @@ system_cl.check_overflow()
 # it is linear in N only when the mean neighbor count stays bounded.
 #
 # .. warning::
-#    In a batched simulation (:py:func:`jax.vmap` over many systems), the
-#    rebuild decision is a :py:func:`jax.lax.cond`, which vmap lowers to a
+#    In a batched simulation (`jax.vmap <https://docs.jax.dev/en/latest/_autosummary/jax.vmap.html>`_ over many systems), the
+#    rebuild decision is a `jax.lax.cond <https://docs.jax.dev/en/latest/_autosummary/jax.lax.cond.html>`_, which `vmap <https://docs.jax.dev/en/latest/_autosummary/jax.vmap.html>`_ lowers to a
 #    ``select`` that executes **both** branches. Every batch member pays
 #    the full rebuild cost at every step, whether or not its list was
 #    stale. The neighbor list therefore loses its main advantage under
-#    ``vmap`` and may not be the best collider choice for batched systems.
+#    `vmap <https://docs.jax.dev/en/latest/_autosummary/jax.vmap.html>`_ and may not be the best collider choice for batched systems.
 #
 # Key parameters:
 #
@@ -222,8 +222,10 @@ system_cl.check_overflow()
 # instead. It stores pair history densely as ``history[i, j]`` and needs no
 # cache or rebuild.
 #
-# This design works because every collider exposes ``create_neighbor_list``.
-# Do not wrap a ``NeighborList`` in another ``NeighborList``.
+# This design works because every collider exposes
+# :py:meth:`~jaxdem.colliders.Collider.create_neighbor_list`.
+# Do not wrap a :py:class:`~jaxdem.colliders.neighbor_list.NeighborList`
+# in another :py:class:`~jaxdem.colliders.neighbor_list.NeighborList`.
 #
 # When you pass ``state=`` to :py:meth:`~jaxdem.system.System.create`, it
 # forwards the reference state to the neighbor list and to its secondary
@@ -268,10 +270,11 @@ system_nl.check_overflow()
 # and returns a tuple ``(state, system, potential_energy)``, where
 # ``potential_energy`` is the **total** potential energy of the system.
 #
-# Keep the returned State and System, which include search-cache updates.
+# Keep the returned :py:class:`~jaxdem.state.State` and
+# :py:class:`~jaxdem.system.System`, which include search-cache updates.
 # Neighbor lists report pooled-pair or hash overflow; direct cell colliders
 # report hash overflow during force and energy evaluation. Check
-# ``system.check_overflow()`` before using spatial-search results.
+# :py:meth:`~jaxdem.system.System.check_overflow` before using spatial-search results.
 #
 # Naive and neighbor-list force/energy queries support forward and reverse
 # differentiation. Direct cell traversals support forward mode; their dynamic
@@ -300,8 +303,8 @@ np.testing.assert_allclose(pe, 0.5 * stiffness * 0.5**2, rtol=2e-6)
 #
 # 1. **Domain** — applies boundary conditions.
 # 2. **Integrator** (before force) — advances positions a half-step.
-# 3. **Collider** — evaluates pairwise forces and writes ``state.force``
-#    / ``state.torque``.
+# 3. **Collider** — evaluates pairwise forces and writes :py:attr:`~jaxdem.state.State.force`
+#    / :py:attr:`~jaxdem.state.State.torque`.
 # 4. **Force manager** — adds gravity, external forces, custom force
 #    functions, and aggregates rigid-body forces.
 # 5. **Integrator** (after force) — advances velocities.

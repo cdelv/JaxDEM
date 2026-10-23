@@ -15,7 +15,7 @@ The flow is:
    mesh optimization. Boundary integration of the sphere union gives
    the per-clump volume, COM, principal inertia, and principal-axis
    quaternion. The function stores these on the returned
-   :class:`~jaxdem.State`.
+   :class:`~jaxdem.state.State`.
 2. :func:`~jaxdem.utils.particle_creation.distribute_bodies` — build one
    bounding sphere per clump (radius = ``max(|node - centroid| + rad)``)
    and place the spheres uniformly in a box sized for an initial
@@ -182,7 +182,9 @@ if compression.reason != CompressionReason.TARGET_REACHED:
     )
 state, fire_system, final_phi, final_pe = compression
 np.testing.assert_allclose(final_phi, target_phi, atol=1e-9)
-print(f"after compression:  phi = {float(final_phi):.4f}  PE/node = {float(final_pe):.3e}")
+print(
+    f"after compression:  phi = {float(final_phi):.4f}  PE/node = {float(final_pe):.3e}"
+)
 print(f"box = {np.asarray(fire_system.domain.box_size)}")
 
 # %%

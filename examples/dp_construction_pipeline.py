@@ -3,26 +3,26 @@
 
 This example builds a packing of deformable particles (DPs) whose nodes
 are the surface asperities of a geometric-asperity body. Each DP is a
-soft body. A :class:`~jaxdem.bonded_forces.DeformableParticleModel`
+soft body. A :class:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel`
 (or a plastic variant) holds it together and applies the standard DP
 energies: area/volume (``ec``), element-measure (``em``), edges (``el``),
 bending (``eb``), and surface tension (``gamma``).
 
 Pipeline:
 
-1. :func:`create_ga_state` with ``particle_type='dp'`` builds a State
+1. :func:`~jaxdem.utils.particle_creation.create_ga_state` with ``particle_type='dp'`` builds a State
    where each node carries ``mass / nv`` and ``union_volume / nv``, and
    shares a ``bond_id`` with every other node in its body.
-2. :func:`distribute_bodies` places each body's bounding sphere at the
+2. :func:`~jaxdem.utils.particle_creation.distribute_bodies` places each body's bounding sphere at the
    target initial packing fraction and applies a uniform-random
    per-body rotation. The rotation rotates the DP nodes around their
    centroid.
-3. :func:`create_dp_container` builds the bonded-force container on the
-   placed state. A per-body convex-hull test (:func:`ga_surface_mask`)
+3. :func:`~jaxdem.utils.particle_creation.create_dp_container` builds the bonded-force container on the
+   placed state. A per-body convex-hull test (:func:`~jaxdem.utils.particle_creation.ga_surface_mask`)
    detects surface and interior nodes. A body with a solid core gets an
    interior node connected with "fan"-style struts. A body without a center
    node has every node on the surface, with no extra edges.
-4. :func:`quasistatic_compress_to_packing_fraction` compresses to the
+4. :func:`~jaxdem.utils.packing_utils.quasistatic_compress_to_packing_fraction` compresses to the
    target nominal packing fraction while the DP bonds keep each body
    self-consistent.
 5. Build a Verlet system (with the container as ``bonded_force_model``)
@@ -209,7 +209,9 @@ if compression.reason != CompressionReason.TARGET_REACHED:
     )
 state, fire_system, final_phi, final_pe = compression
 np.testing.assert_allclose(final_phi, target_phi, atol=1e-9)
-print(f"after compression:  nominal phi = {float(final_phi):.4f}  PE/node = {float(final_pe):.3e}")
+print(
+    f"after compression:  nominal phi = {float(final_phi):.4f}  PE/node = {float(final_pe):.3e}"
+)
 
 # %%
 # 5) Short Verlet rollout (dynamics)

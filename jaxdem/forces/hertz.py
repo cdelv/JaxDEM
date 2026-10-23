@@ -68,7 +68,7 @@ class HertzianForce(ForceModel):
     Notes
     -----
     The model reads the ``young`` and ``poisson`` properties per particle from
-    :attr:`System.mat_table`. It does not use a matchmaker effective value.
+    :attr:`System.mat_table <jaxdem.system.System.mat_table>`. It does not use a matchmaker effective value.
 
     """
 

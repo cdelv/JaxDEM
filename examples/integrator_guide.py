@@ -9,9 +9,10 @@ rotational degrees of freedom (orientation, angular velocity).
 
 JaxDEM also supports **energy minimization**: instead of integrating the
 equations of motion, you can drive the system towards a potential-energy
-minimum. Minimizers are not integrator subclasses — they are `optax`
+minimum. Minimizers are not integrator subclasses — they are `Optax
+<https://optax.readthedocs.io/en/latest/>`_
 gradient-transformation constructor functions (such as
-:py:func:`jaxdem.minimizers.fire`) passed to
+:py:func:`~jaxdem.minimizers.optimizers.fire`) passed to
 :py:meth:`~jaxdem.system.System.create` via ``minimizer`` /
 ``minimizer_kw``, as described in the Minimizers section below.
 
@@ -23,15 +24,16 @@ Let's see how to choose, configure, and swap them.
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Every integration step calls **both** integrators in sequence:
 #
-# 1. :py:meth:`~jaxdem.integrators.LinearIntegrator.step_before_force`
-# 2. :py:meth:`~jaxdem.integrators.RotationIntegrator.step_before_force`
+# 1. :py:meth:`LinearIntegrator.step_before_force <jaxdem.integrators.Integrator.step_before_force>`
+# 2. :py:meth:`RotationIntegrator.step_before_force <jaxdem.integrators.Integrator.step_before_force>`
 # 3. *Force evaluation*
-# 4. :py:meth:`~jaxdem.integrators.RotationIntegrator.step_after_force`
-# 5. :py:meth:`~jaxdem.integrators.LinearIntegrator.step_after_force`
+# 4. :py:meth:`RotationIntegrator.step_after_force <jaxdem.integrators.Integrator.step_after_force>`
+# 5. :py:meth:`LinearIntegrator.step_after_force <jaxdem.integrators.Integrator.step_after_force>`
 #
 # Rotation finishes first so a linear thermostat can measure both terminal
-# velocities. This split lets you mix and match: you could pair a Velocity Verlet linear
-# integrator with a SPIRAL rotation integrator, or disable rotation
+# velocities. This split lets you mix and match: you could pair
+# :py:class:`~jaxdem.integrators.velocity_verlet.VelocityVerlet` with
+# :py:class:`~jaxdem.integrators.spiral.Spiral`, or disable rotation
 # entirely while keeping translation active.
 
 import numpy as np
@@ -57,10 +59,15 @@ print("Rotation integrator:", type(system.rotation_integrator).__name__)
 # ``rotation_integrator_kw``. Consult the API reference for the specific
 # parameters of each integrator.
 #
-# Start with ``verlet`` for inertial, conservative translation and
-# ``verletspiral`` for rigid-body rotation. Use ``langevin`` when stochastic
-# drag and thermal forcing are part of the intended model, or
-# ``verlet_rescaling`` for explicit kinetic-temperature control. ``euler`` is a
+# Start with :py:class:`~jaxdem.integrators.velocity_verlet.VelocityVerlet`
+# (``"verlet"``) for inertial, conservative translation and
+# :py:class:`~jaxdem.integrators.velocity_verlet_spiral.VelocityVerletSpiral`
+# (``"verletspiral"``) for rigid-body rotation. Use
+# :py:class:`~jaxdem.integrators.langevin.Langevin` (``"langevin"``) when
+# stochastic drag and thermal forcing are part of the intended model, or
+# :py:class:`~jaxdem.integrators.velocity_verlet_rescaling.VelocityVerletRescaling`
+# (``"verlet_rescaling"``) for explicit kinetic-temperature control.
+# :py:class:`~jaxdem.integrators.direct_euler.DirectEuler` (``"euler"``) is a
 # simpler first-order method; it generally needs smaller steps for comparable
 # accuracy. Smooth frictionless spheres can disable rotation.
 #
@@ -77,14 +84,15 @@ print("Rotation integrator:", type(system.rotation_integrator).__name__)
 #
 # .. math::
 #
-#    \mathbf x_{n+1}=\mathbf x_n+\Delta t\,\mathbf v_n
-#        +\tfrac12\Delta t^2\mathbf a_n,\qquad
-#    \mathbf a_{n+1}=\mathbf F(\mathbf x_{n+1})/m,
-#
-#    \mathbf v_{n+1}=\mathbf v_n
+#    \begin{aligned}
+#    \mathbf x_{n+1} &= \mathbf x_n+\Delta t\,\mathbf v_n
+#        +\tfrac12\Delta t^2\mathbf a_n, \\
+#    \mathbf a_{n+1} &= \mathbf F(\mathbf x_{n+1})/m, \\
+#    \mathbf v_{n+1} &= \mathbf v_n
 #        +\tfrac12\Delta t(\mathbf a_n+\mathbf a_{n+1}).
+#    \end{aligned}
 #
-# Explicit initialization supplies :math:`\mathbf a_0`; starting with a
+# :py:meth:`~jaxdem.system.System.initialize` supplies :math:`\mathbf a_0`; starting with a
 # stale acceleration changes the first update. For a linear two-particle
 # contact the reduced mass and angular frequency are
 #
@@ -105,7 +113,8 @@ print("Rotation integrator:", type(system.rotation_integrator).__name__)
 # %%
 # Available Linear Integrators
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# The following linear integrators are registered:
+# The :py:class:`~jaxdem.integrators.LinearIntegrator` registry contains the
+# concrete classes linked above:
 
 # (the empty key ``""`` is a registered no-op; we filter it out)
 print("Linear integrators:", sorted(k for k in jdem.LinearIntegrator._registry if k))
@@ -113,7 +122,10 @@ print("Linear integrators:", sorted(k for k in jdem.LinearIntegrator._registry i
 # %%
 # Available Rotation Integrators
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# The following rotation integrators are registered:
+# The :py:class:`~jaxdem.integrators.RotationIntegrator` registry contains
+# :py:class:`~jaxdem.integrators.spiral.Spiral` (``"spiral"``) and
+# :py:class:`~jaxdem.integrators.velocity_verlet_spiral.VelocityVerletSpiral`
+# (``"verletspiral"``):
 
 print(
     "Rotation integrators:", sorted(k for k in jdem.RotationIntegrator._registry if k)
@@ -127,7 +139,8 @@ print(
 # Deactivating an Integrator
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Passing ``None`` as the integrator type (the **empty string** ``""`` is
-# equivalent) selects the base no-op integrator, which leaves the
+# equivalent) selects the base :py:class:`~jaxdem.integrators.LinearIntegrator`
+# or :py:class:`~jaxdem.integrators.RotationIntegrator`, which leaves the
 # corresponding degrees of freedom untouched. This is useful when you want
 # to freeze translation or rotation.
 
@@ -167,26 +180,38 @@ print("Langevin gamma:", system.linear_integrator.gamma)
 # %%
 # Minimizers
 # ~~~~~~~~~~~~
-# Minimizers in JaxDEM are standard `optax` optimizers that descend the potential
+# Minimizers in JaxDEM are standard `Optax <https://optax.readthedocs.io/en/latest/>`_
+# optimizers that descend the potential
 # energy landscape. You configure them by passing the constructor function (such
-# as `jaxdem.fire`, `jaxdem.damped_newtonian`, or standard `optax` optimizers like
-# `optax.adam`) to `minimizer`, along with any keyword arguments in `minimizer_kw`.
+# as :py:func:`~jaxdem.minimizers.optimizers.fire`,
+# :py:func:`~jaxdem.minimizers.optimizers.damped_newtonian`, or standard Optax
+# optimizers like `optax.adam
+# <https://optax.readthedocs.io/en/latest/api/generated/optax.adam.html>`_) to
+# ``minimizer``, along with any keyword arguments in ``minimizer_kw``.
 #
-# Inside `System.create`, JaxDEM constructs the optimizer and wraps it in a
-# custom wrapper (`CustomGradientTransformation`) that tracks the constructor
+# Inside :py:meth:`~jaxdem.system.System.create`, JaxDEM constructs the optimizer
+# and wraps it in :py:class:`~jaxdem.minimizers.optimizers.CustomGradientTransformation`,
+# which tracks the constructor
 # function and arguments for serialization.
 #
-# Force-only optimizers (``requires_value=False``, including FIRE and damped
-# Newtonian) also support contact history and facet force conventions.
+# Force-only optimizers (``requires_value=False``, including
+# :py:func:`~jaxdem.minimizers.optimizers.fire` and
+# :py:func:`~jaxdem.minimizers.optimizers.damped_newtonian`) also support contact
+# history and facet force conventions.
 # Minimization freezes stored pair history by default. Pass
-# ``advance_history=True`` to ``System.minimize`` to update displacement-dependent
+# ``advance_history=True`` to :py:meth:`~jaxdem.system.System.minimize` to update displacement-dependent
 # history after accepted steps. Both modes disable velocity-dependent forces.
 # Value-based optimizers use analytical physical gradients when available,
 # otherwise they differentiate energy with stored history fixed. For frictional
 # laws, that energy gradient can differ from the mechanical contact force.
-# AD through collider energy requires Naive or NeighborList; direct CellList
-# and MultiCellList traversals do not support reverse-mode differentiation.
-# A custom ``target_fn`` uses ordinary AD through the State mapping.
+# AD through collider energy requires
+# :py:class:`~jaxdem.colliders.naive.NaiveSimulator` or
+# :py:class:`~jaxdem.colliders.neighbor_list.NeighborList`; direct
+# :py:class:`~jaxdem.colliders.cell_list.DynamicCellList` and
+# :py:class:`~jaxdem.colliders.multi_cell_list.DynamicMultiCellList` traversals
+# do not support reverse-mode differentiation. A custom
+# :py:attr:`~jaxdem.system.System.target_fn` uses ordinary AD through the
+# :py:class:`~jaxdem.state.State` mapping.
 #
 # Every optimizer uses the same continuous body coordinates: positions and
 # unwrapped angles in 2D, or raw quaternions normalized for the State in 3D.
@@ -218,9 +243,11 @@ print("Langevin gamma:", system.linear_integrator.gamma)
 #    alternate between them in any order without one affecting the other.
 #
 # .. note::
-#    **Using Composite Optimizers (e.g., `optax.chain`)**
+#    **Using Composite Optimizers**
 #
-#    If you want to use a composite optimizer like `optax.chain`, you cannot pass
+#    If you want to use a composite optimizer like `optax.chain
+#    <https://optax.readthedocs.io/en/latest/api/generated/optax.chain.html>`_,
+#    you cannot pass
 #    it directly as an instantiated object because the checkpoint writer does not
 #    support arbitrary nested object serialization.
 #
@@ -257,11 +284,13 @@ print("Minimizer:", system.minimizer.type_name)
 
 
 # %%
-# The :py:func:`~jaxdem.system.System.minimize` Routine
+# The :py:meth:`~jaxdem.system.System.minimize` Routine
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # JaxDEM provides a convenience method
 # :py:meth:`~jaxdem.system.System.minimize` that runs a
-# ``while_loop`` until both free-body force and torque norms meet tolerance.
+# `jax.lax.while_loop
+# <https://docs.jax.dev/en/latest/_autosummary/jax.lax.while_loop.html>`_
+# until both free-body force and torque norms meet tolerance.
 # Custom targets use their position and world-angular gradient norms;
 # those residuals can differ from the State's physical forces and torques.
 # Step limits, nonfinite values and search overflow are unsuccessful exits.
@@ -288,7 +317,9 @@ system = jdem.System.create(
 result = system.minimize(state, system, max_steps=500, force_tol=1e-6)
 state, system, steps, pe = result
 print(f"Converged: {result.converged}, steps: {steps}, PE = {pe:.6e}")
-print(f"Force residual: {result.info.force_max}, torque residual: {result.info.torque_max}")
+print(
+    f"Force residual: {result.info.force_max}, torque residual: {result.info.torque_max}"
+)
 if not bool(result.converged):
     raise RuntimeError(f"Relaxation failed with reason {result.reason}.")
 # The initially overlapping pair can separate freely, so its minimum energy is zero.
@@ -302,11 +333,11 @@ np.testing.assert_allclose(pe, 0.0, atol=1e-8)
 # :py:meth:`~jaxdem.system.System.step` is:
 #
 # 1. :py:meth:`~jaxdem.domains.Domain.apply` — enforce boundary conditions
-# 2. :py:meth:`~jaxdem.integrators.LinearIntegrator.step_before_force`
-# 3. :py:meth:`~jaxdem.integrators.RotationIntegrator.step_before_force`
+# 2. :py:meth:`LinearIntegrator.step_before_force <jaxdem.integrators.Integrator.step_before_force>`
+# 3. :py:meth:`RotationIntegrator.step_before_force <jaxdem.integrators.Integrator.step_before_force>`
 # 4. *Collider + force manager* — compute forces and torques
-# 5. :py:meth:`~jaxdem.integrators.RotationIntegrator.step_after_force`
-# 6. :py:meth:`~jaxdem.integrators.LinearIntegrator.step_after_force`
+# 5. :py:meth:`RotationIntegrator.step_after_force <jaxdem.integrators.Integrator.step_after_force>`
+# 6. :py:meth:`LinearIntegrator.step_after_force <jaxdem.integrators.Integrator.step_after_force>`
 #
 # The :py:meth:`~jaxdem.integrators.Integrator.step_before_force` / :py:meth:`~jaxdem.integrators.Integrator.step_after_force` split lets multi-stage
 # schemes (such as Velocity Verlet) position their updates around the force
@@ -314,6 +345,7 @@ np.testing.assert_allclose(pe, 0.0, atol=1e-8)
 #
 # Fixed Particles
 # ~~~~~~~~~~~~~~~~~
-# Particles with ``state.fixed = True`` keep their prescribed linear and
+# Particles with :py:attr:`state.fixed <jaxdem.state.State.fixed>` set to ``True``
+# keep their prescribed linear and
 # angular velocities; forces do not accelerate them. Zero velocity keeps
 # them stationary. See :doc:`../auto_examples/state_guide` for this field.

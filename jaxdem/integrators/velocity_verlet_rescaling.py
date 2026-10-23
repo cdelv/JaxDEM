@@ -37,7 +37,7 @@ class VelocityVerletRescaling(VelocityVerlet):
     translational (and optionally rotational) velocities so the instantaneous
     kinetic temperature matches ``temperature``. Between rescalings the
     dynamics are purely Newtonian (standard Velocity Verlet, inherited from
-    :class:`VelocityVerlet`).
+    :class:`VelocityVerlet <jaxdem.integrators.velocity_verlet.VelocityVerlet>`).
 
     The integrator applies the rescaling in ``step_after_force``, after both
     terminal kicks. System runs the rotational hook before the linear hook.

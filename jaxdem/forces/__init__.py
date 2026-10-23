@@ -26,20 +26,20 @@ class ForceModel(Factory, ABC):
     Concrete subclasses implement specific force and energy models, such as
     linear springs and Hertzian contacts.
 
-    Every law has the same :meth:`force` and :meth:`energy` signatures. A law
+    Every law has the same :meth:`force <jaxdem.forces.ForceModel.force>` and :meth:`energy <jaxdem.forces.ForceModel.energy>` signatures. A law
     without pair memory returns its ``history`` argument unchanged and ignores
     ``advance_history``; a law without velocity-dependent terms ignores
     ``quasistatic``.
 
     Notes:
     ------
-    - The :meth:`force` and :meth:`energy` methods must handle the case where
+    - The :meth:`force <jaxdem.forces.ForceModel.force>` and :meth:`energy <jaxdem.forces.ForceModel.energy>` methods must handle the case where
       `i` and `j` refer to the same particle (`i == j`). Self-interaction
       calls can occur.
 
     Example:
     --------
-    To define a custom force model, inherit from :class:`ForceModel` and implement
+    To define a custom force model, inherit from :class:`ForceModel <jaxdem.forces.ForceModel>` and implement
     its abstract methods:
 
     >>> @ForceModel.register("myCustomForce")
@@ -52,7 +52,7 @@ class ForceModel(Factory, ABC):
 
     laws: tuple[ForceModel, ...] = ()
     """
-    Tuple of other :class:`ForceModel` instances that compose this force model.
+    Tuple of other :class:`ForceModel <jaxdem.forces.ForceModel>` instances that compose this force model.
 
     Use it to build composite force models, for example a spring force plus a
     damping force.
@@ -211,7 +211,7 @@ class ForceModel(Factory, ABC):
         """Names of the material properties this force model needs.
 
         Each name (for example 'young_eff' or 'restitution') must be present
-        in :attr:`System.mat_table`. Used for validation.
+        in :attr:`System.mat_table <jaxdem.system.System.mat_table>`. Used for validation.
         """
         return ()
 

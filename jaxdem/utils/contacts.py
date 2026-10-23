@@ -352,7 +352,7 @@ def compute_contact_pressure(
     """Return contact pressure, ``trace(stress) / dim``, positive in compression.
 
     Search settings and history come from the system. See
-    :func:`compute_contact_stress_tensor` for normalization and overflow rules.
+    :func:`compute_contact_stress_tensor <jaxdem.utils.contacts.compute_contact_stress_tensor>` for normalization and overflow rules.
     """
     state, system, stress = compute_contact_stress_tensor(
         state, system, volume=volume, contacts=contacts
@@ -601,7 +601,7 @@ def get_clump_rattler_ids(
     ``contact_rank_tol`` is the absolute singular-value threshold for that check.
 
     This host-side analysis does not remove particles or alter contact history.
-    Use :func:`remove_rattlers` to construct a reduced state afterward.
+    Use :func:`remove_rattlers <jaxdem.utils.contacts.remove_rattlers>` to construct a reduced state afterward.
     """
     state, system, data = _contacts_or_collect(state, system, contacts)
     group_ids, groups = np.unique(np.asarray(state.clump_id), return_inverse=True)
@@ -641,7 +641,7 @@ def get_sphere_rattler_ids(
     check requires the normalized force rows to span ``dim`` dimensions;
     ``contact_rank_tol`` specifies its absolute singular-value threshold.
     This is a translational sphere criterion. Clump force/torque analysis is
-    provided by :func:`get_clump_rattler_ids`.
+    provided by :func:`get_clump_rattler_ids <jaxdem.utils.contacts.get_clump_rattler_ids>`.
     """
     state, system, data = _contacts_or_collect(state, system, contacts)
     force = np.asarray(data.forces)
@@ -673,10 +673,10 @@ def remove_rattlers(
     incidences are preserved. The returned system is a
     :func:`dataclasses.replace` copy of the input, so it preserves every
     field (``domain``, ``mat_table``, integrators, user hooks, ``dt``,
-    ``time``, and any future additions to :class:`System`) by default.
+    ``time``, and any future additions to :class:`System <jaxdem.system.System>`) by default.
     Only the state-size-dependent fields change:
 
-    * The function rebuilds ``collider`` via its :meth:`Create` method for
+    * The function rebuilds ``collider`` via its ``Create`` method for
       stateful colliders (``NeighborList``, cell lists) and passes it
       through unchanged for stateless ones (``naive``). It recovers
       Create's config kwargs from the current collider via introspection
@@ -711,9 +711,9 @@ def remove_rattlers(
     Notes
     -----
     **DP / bonded force models.** When ``system.bonded_force_model`` is a
-    :class:`DeformableParticleModel`, its topology arrays (``elements``,
+    :class:`DeformableParticleModel <jaxdem.bonded_forces.deformable_particle.DeformableParticleModel>`, its topology arrays (``elements``,
     ``edges``, ``element_adjacency``, …) reference vertices by
-    particle array. :func:`remove_rattlers` re-indexes ``bond_id`` in
+    particle array. :func:`remove_rattlers <jaxdem.utils.contacts.remove_rattlers>` re-indexes ``bond_id`` in
     the state but does **not** remap the bonded-model topology, because
     the correct behavior is ambiguous (an element that partially
     straddles removed vertices could be dropped, re-triangulated, or
@@ -723,7 +723,7 @@ def remove_rattlers(
 
     **Custom collider settings.** Any collider Create-kwarg whose name
     is not a field on the current collider (e.g. ``number_density`` and
-    ``safety_factor`` on :class:`NeighborList`) gets Create's default
+    ``safety_factor`` on :class:`NeighborList <jaxdem.colliders.neighbor_list.NeighborList>`) gets Create's default
     value. Preserving those settings requires explicitly supplying them
     when reconstructing the collider.
     """

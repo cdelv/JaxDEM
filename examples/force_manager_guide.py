@@ -4,7 +4,7 @@ r"""The Force Manager
 The :py:class:`~jaxdem.forces.force_manager.ForceManager` collects *all*
 non-collider contributions (gravity, external forces, bonded forces, custom
 force functions) and aggregates them per rigid body, writing
-``state.force`` and ``state.torque``.
+:py:attr:`~jaxdem.state.State.force` and :py:attr:`~jaxdem.state.State.torque`.
 
 For an overview of the available pairwise force models, how to combine them,
 and how to set up species-wise interactions, see the
@@ -13,7 +13,7 @@ and how to set up species-wise interactions, see the
 
 # %%
 # The :py:class:`~jaxdem.forces.force_manager.ForceManager` lives on
-# ``system.force_manager``. It handles:
+# :py:attr:`~jaxdem.system.System.force_manager`. It handles:
 #
 # * **Gravity** — a constant acceleration applied to every particle.
 # * **External forces and torques** — accumulated buffers that are applied
@@ -49,9 +49,10 @@ print("Updated gravity:", system.force_manager.gravity)
 # %%
 # External Forces
 # ~~~~~~~~~~~~~~~~~
-# You can push forces into the manager's buffers before a step. ``apply``
-# clears the buffers automatically after each call (``system.step`` calls
-# ``apply``).
+# You can push forces into the manager's buffers before a step.
+# :py:meth:`~jaxdem.forces.force_manager.ForceManager.apply` clears the buffers
+# automatically after each call (:py:meth:`~jaxdem.system.System.step` calls
+# :py:meth:`~jaxdem.forces.force_manager.ForceManager.apply`).
 #
 # :py:meth:`~jaxdem.forces.force_manager.ForceManager.add_force` adds a
 # force array to **all** particles. Use ``is_com=True`` to apply the force
@@ -147,7 +148,8 @@ print("Trap position and analytical expectation:", state.pos[0, 0], expected_x)
 # %%
 # Force Function Formats
 # ~~~~~~~~~~~~~~~~~~~~~~~~
-# ``force_functions`` accepts several shorthand formats:
+# :py:attr:`~jaxdem.forces.force_manager.ForceManager.force_functions` accepts
+# several shorthand formats:
 #
 # .. list-table::
 #    :header-rows: 1
@@ -170,20 +172,22 @@ print("Trap position and analytical expectation:", state.pos[0, 0], expected_x)
 # Each integration step, the force pipeline runs as follows:
 #
 # 1. The **collider** computes pairwise contact forces and writes
-#    ``state.force`` / ``state.torque``.
+#    :py:attr:`~jaxdem.state.State.force` / :py:attr:`~jaxdem.state.State.torque`.
 # 2. The **force manager** then:
 #
-#    a. Evaluates all registered ``force_functions``.
+#    a. Evaluates all registered
+#       :py:attr:`~jaxdem.forces.force_manager.ForceManager.force_functions`.
 #    b. Adds external force / torque buffers.
 #    c. Adds gravity (applied at the center of mass).
 #    d. Computes torques induced by particle-position forces via
 #       :math:`\boldsymbol{\tau} = \mathbf{r}_p \times \mathbf{F}`.
 #    e. Aggregates rigid bodies:
-#       sums per-sphere contributions per clump with ``segment_sum``,
+#       sums per-sphere contributions per clump with `jax.ops.segment_sum <https://docs.jax.dev/en/latest/_autosummary/jax.ops.segment_sum.html>`_,
 #       then broadcasts the result back to all constituent spheres.
 #    f. Clears the external buffers.
 #
-# This means that ``state.force`` after ``system.step`` already contains the
+# This means that :py:attr:`~jaxdem.state.State.force` after
+# :py:meth:`~jaxdem.system.System.step` already contains the
 # fully aggregated clump forces and torques.
 
 

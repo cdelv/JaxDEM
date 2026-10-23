@@ -75,9 +75,9 @@ def run_packing_fraction_protocol(
 
     For each frame ``i`` in ``range(K)``:
 
-    1. Advance ``strides[i]`` integration steps via :meth:`System.step_dynamic`.
+    1. Advance ``strides[i]`` integration steps via :meth:`System.step_dynamic <jaxdem.system.System.step_dynamic>`.
     2. Rescale the periodic box to ``phi_at_frames[i]`` via
-       :func:`scale_to_packing_fraction`.
+       :func:`scale_to_packing_fraction <jaxdem.utils.packing_utils.scale_to_packing_fraction>`.
     3. Refresh forces at the new geometry without advancing physical history.
     4. Record ``(state, system)`` as the frame.
 
@@ -102,7 +102,7 @@ def run_packing_fraction_protocol(
         as ``strides``.
     unroll
         Unroll factor for the outer :func:`jax.lax.scan` (same semantics
-        as :meth:`System.trajectory_rollout`).
+        as :meth:`System.trajectory_rollout <jaxdem.system.System.trajectory_rollout>`).
 
     Returns
     -------
@@ -113,10 +113,10 @@ def run_packing_fraction_protocol(
 
     Notes
     -----
-    - For a non-rescaling rollout, call :meth:`System.trajectory_rollout`
+    - For a non-rescaling rollout, call :meth:`System.trajectory_rollout <jaxdem.system.System.trajectory_rollout>`
       directly.
     - To drive from a ``save_steps`` array produced by
-      :func:`make_save_steps_pseudolog` or :func:`make_save_steps_linear`,
+      :func:`make_save_steps_pseudolog <jaxdem.utils.rollout_schedules.make_save_steps_pseudolog>` or :func:`make_save_steps_linear <jaxdem.utils.rollout_schedules.make_save_steps_linear>`,
       pass ``strides=np.diff(save_steps)`` and a matching
       ``phi_at_frames`` array.
     - Argument shapes and stride values are validated on the host. Call this

@@ -228,13 +228,13 @@ def create_sphere_state(
     pos: Sequence[Sequence[float]] | np.ndarray | jax.Array | None = None,
     mass: float | Sequence[float] | np.ndarray | jax.Array = 1.0,
 ) -> State:
-    """Build a :class:`State` of ``N`` simple spheres.
+    """Build a :class:`State <jaxdem.state.State>` of ``N`` simple spheres.
 
     No Thomson mesh, no Monte-Carlo union-property integration — this is
     the lightweight sphere primitive. Each sphere is a single-particle
     body with its own ``clump_id``. Inertia defaults to the solid-disk
     (2D) / solid-sphere (3D) formula from the given mass and radius
-    (handled inside :meth:`State.create`).
+    (handled inside :meth:`State.create <jaxdem.state.State.create>`).
 
     Parameters
     ----------
@@ -284,7 +284,7 @@ def create_ga_state(
     asperity_dispersity_type: str = "constant",
     asperity_dispersity_kwargs: dict[str, Any] | None = None,
 ) -> State:
-    """Build a :class:`State` of ``N`` geometric-asperity bodies.
+    """Build a :class:`State <jaxdem.state.State>` of ``N`` geometric-asperity bodies.
 
     The function places surface asperities on a unit shape (set by
     ``mesh_type``) and adds an optional central core sphere. The union of
@@ -1141,9 +1141,9 @@ def create_dp_container(
     is_surface
         Optional ``(N,)`` bool mask of surface nodes. When ``None`` (the
         default) the function computes the mask automatically with
-        :func:`ga_surface_mask` (per-body convex hull), which is correct
+        :func:`ga_surface_mask <jaxdem.utils.particle_creation.ga_surface_mask>` (per-body convex hull), which is correct
         for DPs with no core, a solid core, or a phantom core from
-        :func:`create_ga_state` and for any other approximately-convex
+        :func:`create_ga_state <jaxdem.utils.particle_creation.create_ga_state>` and for any other approximately-convex
         body. Pass an explicit mask to control the boundary/interior
         classification. A mask does not specify nonconvex 3D connectivity.
     interior_edges
@@ -1447,7 +1447,7 @@ def _resolve_material_table(
 ) -> Any:
     """Return ``mat_table`` or build one from the material/matcher spec.
 
-    Shared by :func:`build_ga_system` and :func:`build_sphere_system`.
+    Shared by :func:`build_ga_system <jaxdem.utils.particle_creation.build_ga_system>` and :func:`build_sphere_system <jaxdem.utils.particle_creation.build_sphere_system>`.
     """
     import jaxdem as jd
 
@@ -1560,7 +1560,7 @@ def build_ga_system(
     collider, and material.
 
     For ``particle_type="dp"`` the builder also creates a
-    :class:`DeformableParticleModel` (or a plastic variant) and wires it
+    :class:`DeformableParticleModel <jaxdem.bonded_forces.deformable_particle.DeformableParticleModel>` (or a plastic variant) and wires it
     into the returned System as the ``bonded_force_model``. In that case it
     returns ``(state, system, container)``. For clumps/spheres it returns
     ``(state, system)``.
@@ -1579,17 +1579,17 @@ def build_ga_system(
         spheres.
     core_type
         ``"hollow"`` (default), ``"solid"``, or ``"phantom"``. Forwarded to
-        :func:`create_ga_state`: ``"hollow"`` adds no central sphere, while
+        :func:`create_ga_state <jaxdem.utils.particle_creation.create_ga_state>`: ``"hollow"`` adds no central sphere, while
         ``"phantom"`` retains solid-core mass properties and removes only
         the core's contact geometry.
     aspect_ratio
         ``None`` (isotropic), scalar, ``(dim,)``, ``(M,)``, or ``(M, dim)``.
     asperity_dispersity_type, asperity_dispersity_kwargs
         Asperity-radius polydispersity. Forwarded as-is to every per-body
-        :func:`create_ga_state` call. Theoretical mean of the chosen
+        :func:`create_ga_state <jaxdem.utils.particle_creation.create_ga_state>` call. Theoretical mean of the chosen
         distribution always equals each body's ``asperity_radius``, so
         the bounding/core geometry is unchanged. See
-        :func:`create_ga_state` for the supported distributions and
+        :func:`create_ga_state <jaxdem.utils.particle_creation.create_ga_state>` for the supported distributions and
         kwargs.
     domain_type
         ``"periodic"`` or ``"reflect"`` (closed box).
@@ -1602,9 +1602,9 @@ def build_ga_system(
         Packing-fraction increment for quasistatic compression.
     compression_force_tol, compression_torque_tol
         Force and torque tolerances passed to
-        :func:`quasistatic_compress_to_packing_fraction`.
+        :func:`quasistatic_compress_to_packing_fraction <jaxdem.utils.packing_utils.quasistatic_compress_to_packing_fraction>`.
     max_n_min_steps_per_outer, compression_progress
-        Passed to :func:`quasistatic_compress_to_packing_fraction`.
+        Passed to :func:`quasistatic_compress_to_packing_fraction <jaxdem.utils.packing_utils.quasistatic_compress_to_packing_fraction>`.
     fire_dt
         Time step of the internal FIRE system used for compression.
         Defaults to 1e-2.
@@ -1874,9 +1874,9 @@ def build_sphere_system(
 ) -> tuple[State, Any]:
     """Catch-all builder for a polydisperse sphere packing at a target phi.
 
-    Sphere counterpart to :func:`build_ga_system`. The builder draws random
+    Sphere counterpart to :func:`build_ga_system <jaxdem.utils.particle_creation.build_ga_system>`. The builder draws random
     positions loose (``initial_phi`` — default 0.3 — or the target, whichever
-    is smaller) via :func:`random_sphere_configuration`, then quasistatically
+    is smaller) via :func:`random_sphere_configuration <jaxdem.utils.random_sphere_configuration.random_sphere_configuration>`, then quasistatically
     compresses to ``phi`` under the same FIRE/spring setup as
     ``build_ga_system`` (the FIRE time step is ``fire_dt``). It returns
     ``(state, system)`` built with the user-requested integrator, collider,
@@ -1884,7 +1884,7 @@ def build_sphere_system(
     ``rotation_integrator_kw`` to the final integrator constructors (e.g.
     thermostat parameters for ``linear_integrator_type="verlet_rescaling"``).
 
-    Parameters mirror :func:`build_ga_system` (minus all the GA/DP-specific
+    Parameters mirror :func:`build_ga_system <jaxdem.utils.particle_creation.build_ga_system>` (minus all the GA/DP-specific
     knobs that do not apply to bare spheres).
 
     Raises

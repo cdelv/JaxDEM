@@ -315,7 +315,7 @@ class Trainer(Factory, ABC):
         Tuple[Environment, nnx.GraphState, jax.Array, TrajectoryData]
             The final environment, graph state, and PRNG key, plus a
             :class:`TrajectoryData` instance whose fields are stacked
-            along time (leading dimension :math:`T = \text{num_steps_epoch}`).
+            along time (leading dimension :math:`T = \text{num\_steps\_epoch}`).
 
         """
         model, *rest = nnx.merge(graphdef, graphstate)

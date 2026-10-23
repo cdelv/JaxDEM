@@ -467,7 +467,7 @@ def bisection_jam(
         Multiplier greater than one defining the maximum accepted upper-bound
         energy. Defaults to 2.
     minimizer_kwargs : mapping, optional
-        Arguments forwarded to :meth:`System.minimize` for every trial.
+        Arguments forwarded to :meth:`System.minimize <jaxdem.system.System.minimize>` for every trial.
         Recognized keys are ``max_steps``, ``force_tol``, ``torque_tol``, and
         ``advance_history``. Omitted keys use ``max_steps=100_000_000``,
         ``force_tol=1e-14``, ``torque_tol=1e-14``, and
@@ -668,7 +668,7 @@ def pressure_bisection_jam(
         Print box length, packing fraction, pressure, energy, and minimizer
         steps for each trial with a valid pressure measurement.
     minimizer_kwargs : mapping, optional
-        Arguments forwarded to :meth:`System.minimize` for every trial.
+        Arguments forwarded to :meth:`System.minimize <jaxdem.system.System.minimize>` for every trial.
         Recognized keys are ``max_steps``, ``force_tol``, ``torque_tol``, and
         ``advance_history``. Omitted keys use ``max_steps=100_000_000``,
         ``force_tol=1e-14``, ``torque_tol=1e-14``, and
@@ -869,7 +869,7 @@ def pe_band_jam(
         Print packing fraction, step size, energy, and minimizer steps for
         each trial.
     minimizer_kwargs : mapping, optional
-        Arguments forwarded to :meth:`System.minimize` for every trial.
+        Arguments forwarded to :meth:`System.minimize <jaxdem.system.System.minimize>` for every trial.
         Recognized keys are ``max_steps``, ``force_tol``, ``torque_tol``, and
         ``advance_history``. Omitted keys use ``max_steps=100_000_000``,
         ``force_tol=1e-14``, ``torque_tol=1e-14``, and
@@ -1166,7 +1166,7 @@ def rollback_pe_band_jam(
         Print packing fraction, step size, energy, and minimizer steps for
         each trial.
     minimizer_kwargs : mapping, optional
-        Arguments forwarded to :meth:`System.minimize` for every trial.
+        Arguments forwarded to :meth:`System.minimize <jaxdem.system.System.minimize>` for every trial.
         Recognized keys are ``max_steps``, ``force_tol``, ``torque_tol``, and
         ``advance_history``. Omitted keys use ``max_steps=100_000_000``,
         ``force_tol=1e-14``, ``torque_tol=1e-14``, and

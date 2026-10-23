@@ -15,7 +15,9 @@ from . import Material
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class Elastic(Material):
-    """Example:
+    """Elastic material specified by density, Young's modulus, and Poisson's ratio.
+
+    Example:
     --------
     >>> import jaxdem as jdem
     >>> elastic_steel = jdem.Material.create("elastic", density=7850.0, young=2.0e11, poisson=0.3)
@@ -30,7 +32,9 @@ class Elastic(Material):
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class ElasticFriction(Material):
-    """Example:
+    """Elastic material with contact friction and restitution.
+
+    Example:
     --------
     >>> import jaxdem as jdem
     >>> frictional_rubber = jdem.Material.create("elasticfrict", density=1100.0, young=1.0e7, poisson=0.49, mu=0.5, e=1.0)

@@ -48,7 +48,7 @@ class BaseAsyncWriter:
     save_every: int = 1
     """
     Save frequency. The writer pushes a frame to the queue on the first call
-    and on every `save_every`-th call to the :meth:`save` method.
+    and on every `save_every`-th call to the subclass's ``save`` method.
     """
 
     clean: bool = False
@@ -66,7 +66,7 @@ class BaseAsyncWriter:
     max_queue_size: int = 512
     """
     Maximum number of pending tasks in the background queue. When the queue
-    is full, :meth:`submit` blocks until a worker frees a slot. This
+    is full, :meth:`submit <jaxdem.writers.async_base.BaseAsyncWriter.submit>` blocks until a worker frees a slot. This
     backpressure keeps memory bounded when the simulation outruns disk I/O.
     Set to ``0`` for an unbounded queue.
     """
@@ -139,7 +139,7 @@ class BaseAsyncWriter:
 
         Increments the internal call counter and returns True on the first
         call and every ``save_every``-th call after it. Call this at the
-        top of :meth:`save` in subclasses.
+        top of ``save`` in subclasses.
         """
         count = self._save_calls
         self._save_calls = count + 1
@@ -149,7 +149,7 @@ class BaseAsyncWriter:
         """
         Pushes a task to the background worker queue.
 
-        Blocks when the queue is full (see :attr:`max_queue_size`).
+        Blocks when the queue is full (see :attr:`max_queue_size <jaxdem.writers.async_base.BaseAsyncWriter.max_queue_size>`).
         """
         with self._lifecycle_lock:
             if self._closed:
@@ -161,7 +161,7 @@ class BaseAsyncWriter:
         Blocks the main thread until all pending writes are finished and
         shuts down the background threads.
 
-        Raises :class:`AsyncWriterError` after shutdown if any task failed.
+        Raises :class:`AsyncWriterError <jaxdem.writers.async_base.AsyncWriterError>` after shutdown if any task failed.
         Reported failures are consumed, so a later call does not report the
         same failures again.
         """
@@ -183,7 +183,7 @@ class BaseAsyncWriter:
         """
         Waits until all pending tasks in the queue complete.
 
-        Raises :class:`AsyncWriterError` after the queue drains if any task
+        Raises :class:`AsyncWriterError <jaxdem.writers.async_base.AsyncWriterError>` after the queue drains if any task
         failed. Reported failures are consumed, so a later completion boundary
         does not report the same failures again.
         """

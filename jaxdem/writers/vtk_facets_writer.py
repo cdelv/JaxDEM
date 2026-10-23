@@ -23,7 +23,7 @@ if TYPE_CHECKING:  # pragma: no cover
 @VTKBaseWriter.register("facets")
 @dataclass(slots=True)
 class VTKFacetsWriter(VTKBaseWriter):
-    """A :class:`VTKBaseWriter` that writes facets as thickened VTK cells.
+    """A :class:`VTKBaseWriter <jaxdem.writers.VTKBaseWriter>` that writes facets as thickened VTK cells.
 
     The writer gathers each unique facet incidence and unwraps its vertices in
     one domain displacement call using each facet's first vertex. In 2D it expands each
@@ -31,7 +31,7 @@ class VTKFacetsWriter(VTKBaseWriter):
     its thickness, or a quad when the hull is not available. In 3D it
     expands each 3-vertex facet into a convex-hull triangle mesh, or a
     flat prism when the hull is not available. It also attaches per-vertex
-    :class:`State` fields and quaternion components as ``PointData`` arrays.
+    :class:`State <jaxdem.state.State>` fields and quaternion components as ``PointData`` arrays.
     Each expanded point inherits the fields of its source vertex.
     The expansion radius is ``state.rad`` at each face's first vertex,
     matching the facet contact law.

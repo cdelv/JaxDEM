@@ -28,7 +28,7 @@ class VTKBaseWriter(Factory, ABC):
     """Abstract base class for writers that output simulation data.
 
     Concrete subclasses implement the `write` method to convert a snapshot
-    (:class:`jaxdem.State`, :class:`jaxdem.System` pair) into a specific file format.
+    (:class:`jaxdem.State <jaxdem.state.State>`, :class:`jaxdem.System <jaxdem.system.System>` pair) into a specific file format.
 
     Example:
     --------
@@ -95,9 +95,9 @@ class VTKBaseWriter(Factory, ABC):
         Parameters
         ----------
         state : State
-            The simulation :class:`jaxdem.State` snapshot to write.
+            The simulation :class:`jaxdem.State <jaxdem.state.State>` snapshot to write.
         system : System
-            The simulation :class:`jaxdem.System` configuration.
+            The simulation :class:`jaxdem.System <jaxdem.system.System>` configuration.
         filename : Path
             Target path of the VTK file. The caller guarantees that the
             parent directory exists.

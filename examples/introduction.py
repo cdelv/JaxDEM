@@ -43,7 +43,8 @@ state, system = jdem.System.initialize(state, system)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # After explicit initialization has prepared the initial acceleration, we
 # advance the simulation by calling
-# :py:meth:`jaxdem.system.System.step`:
+# :py:meth:`jaxdem.system.System.step`. Initial forces are prepared by
+# :py:meth:`~jaxdem.system.System.initialize`:
 
 n_steps = 10
 state, system = system.step(state, system, n=n_steps)
@@ -57,9 +58,11 @@ np.testing.assert_allclose(state.pos, [[0.1, 0.0, 0.0]], atol=2e-7)
 # Saving the Simulation
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # With the optional ``[io]`` extra installed, save the simulation to VTK so we can
-# visualize it in ParaView. Writes happen asynchronously in background
+# visualize it in ParaView with :py:class:`~jaxdem.writers.vtk_writer.VTKWriter`.
+# Its :py:meth:`~jaxdem.writers.vtk_writer.VTKWriter.save` method writes asynchronously in background
 # threads. Use the writer as a context manager (or call
-# ``writer.block_until_ready()`` before exiting) to make sure the writer
+# :py:meth:`writer.block_until_ready() <jaxdem.writers.async_base.BaseAsyncWriter.block_until_ready>` before
+# exiting) to make sure the writer
 # finishes all files:
 
 tmp_dir = Path(tempfile.mkdtemp(prefix="jaxdem-introduction-"))
@@ -91,4 +94,5 @@ else:
 # - :doc:`../auto_examples/deformable_particle_guide` — elastic, deformable bodies from bonded meshes.
 # - :doc:`../auto_examples/vtk_writer_guide` — exporting frames for ParaView visualization.
 # - :doc:`../auto_examples/checkpoint_guide` — saving and restoring simulations.
-# - :doc:`../auto_examples/custom_modules_guide` — registering your own force models, domains, and integrators.
+# - :doc:`../auto_examples/custom_modules_guide` — registering your own force models, domains, and
+#   integrators.

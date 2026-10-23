@@ -56,9 +56,10 @@ e_int = 1.0
 dt = 5e-2
 
 
+# %%
 # For the one-call equivalent see
-# :func:`~jaxdem.utils.particle_creation.build_sphere_system`
-# (sphere_construction example).
+# :py:func:`~jaxdem.utils.particle_creation.build_sphere_system`
+# (:doc:`sphere_construction example </auto_examples/sphere_construction>`).
 def build_microstate(i):
     # assign bidisperse radii
     rad = jnp.ones(N)

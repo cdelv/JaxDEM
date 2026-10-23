@@ -3,7 +3,7 @@
 
 The simulation state keeps particle-shaped rigid-body fields for fast contact
 kernels. This module provides a padded, body-indexed view without changing the
-serialized :class:`jaxdem.State` pytree.
+serialized :class:`jaxdem.State <jaxdem.state.State>` pytree.
 """
 
 from __future__ import annotations

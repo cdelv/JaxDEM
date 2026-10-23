@@ -30,7 +30,7 @@ def _write_sphere_points(
     """Shared implementation for the sphere-like point writers.
 
     Writes the masked particle centers as VTK points and attaches the
-    per-particle :class:`State` fields and quaternion components as
+    per-particle :class:`State <jaxdem.state.State>` fields and quaternion components as
     ``PointData`` arrays. Pads positions and 2-component vectors to 3D
     as VTK requires.
     """
@@ -93,10 +93,10 @@ def _write_sphere_points(
 @VTKBaseWriter.register("spheres")
 @dataclass(slots=True)
 class VTKSpheresWriter(VTKBaseWriter):
-    """A :class:`VTKBaseWriter` that writes particle centers as VTK points.
+    """A :class:`VTKBaseWriter <jaxdem.writers.VTKBaseWriter>` that writes particle centers as VTK points.
 
     The writer skips facet vertices (``facet_id != -1``). It attaches
-    per-particle :class:`State` fields (e.g., ``vel``, ``rad``, ``mass``)
+    per-particle :class:`State <jaxdem.state.State>` fields (e.g., ``vel``, ``rad``, ``mass``)
     and quaternion components as ``PointData`` arrays. It pads positions
     and 2-component vectors to 3D as VTK requires.
     """
@@ -122,7 +122,7 @@ class VTKSpheresWriter(VTKBaseWriter):
 @VTKBaseWriter.register("facet_spheres")
 @dataclass(slots=True)
 class VTKFacetSpheresWriter(VTKBaseWriter):
-    """A :class:`VTKBaseWriter` that writes facet vertices (``facet_id != -1``) as VTK points."""
+    """A :class:`VTKBaseWriter <jaxdem.writers.VTKBaseWriter>` that writes facet vertices (``facet_id != -1``) as VTK points."""
 
     @classmethod
     def is_active(cls, state: State, system: System) -> bool:

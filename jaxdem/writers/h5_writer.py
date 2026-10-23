@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 class H5Writer(BaseAsyncWriter):
     """Write complete State/System pairs in background workers.
 
-    Each selected :meth:`save` call produces ``snapshot_XXXXXXXX.h5`` in
+    Each selected :meth:`save <jaxdem.writers.h5_writer.H5Writer.save>` call produces ``snapshot_XXXXXXXX.h5`` in
     ``directory``. Files contain the original arrays, including any leading
     batch or trajectory axes, without wrapping or otherwise changing geometry.
     Read them with :func:`jaxdem.utils.h5.load`, which returns ``(state, system)``.
@@ -37,8 +37,8 @@ class H5Writer(BaseAsyncWriter):
     final names; failed writes remove their temporary files.
 
     The inherited queue limits, ``save_every``, context management, and
-    completion/error reporting work like :class:`VTKWriter`. Call
-    :meth:`block_until_ready` before reading pending files, or use a context
+    completion/error reporting work like :class:`VTKWriter <jaxdem.writers.vtk_writer.VTKWriter>`. Call
+    :meth:`block_until_ready <jaxdem.writers.async_base.BaseAsyncWriter.block_until_ready>` before reading pending files, or use a context
     manager to wait and close. HDF5 support requires ``JaxDEM[io]``.
     """
 

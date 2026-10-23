@@ -26,7 +26,7 @@ def free_mask(state: State) -> jax.Array:
     particles and `False` for fixed ones. Multiplying a `(..., N, dim)` update
     by this mask zeroes the update on fixed particles. Their prescribed
     velocities stay untouched. Integrators use this mask to respect
-    :attr:`jaxdem.State.fixed`.
+    :attr:`jaxdem.State.fixed <jaxdem.state.State.fixed>`.
     """
     return (~state.fixed)[..., None]
 
@@ -38,7 +38,7 @@ class Integrator(Factory, ABC):
 
     Example:
     --------
-    To define a custom integrator, inherit from :class:`Integrator` and implement its abstract methods:
+    To define a custom integrator, inherit from :class:`Integrator <jaxdem.integrators.Integrator>` and implement its abstract methods:
 
     >>> @Integrator.register("myCustomIntegrator")
     >>> @jax.tree_util.register_dataclass

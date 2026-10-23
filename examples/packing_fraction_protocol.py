@@ -2,7 +2,7 @@
 ======================================================================
 
 :func:`~jaxdem.utils.dynamics_routines.run_packing_fraction_protocol`
-wraps :meth:`System.step` and calls
+wraps :meth:`~jaxdem.system.System.step` and calls
 :func:`~jaxdem.utils.packing_utils.scale_to_packing_fraction` on a
 user-supplied, per-frame schedule. Temperature control, bonded forces,
 and the collider come from the ``System`` you pass in. The protocol
@@ -11,7 +11,7 @@ does not change them.
 Here we:
 
 1. Build a sphere packing at ``phi = 0.35`` with
-   :func:`build_sphere_system`.
+   :func:`~jaxdem.utils.particle_creation.build_sphere_system`.
 2. Ramp ``phi`` linearly up to ``0.55`` and then hold it there. We save
    frames on a pseudolog schedule, which samples the fast early changes
    densely and the slow late drift sparsely.

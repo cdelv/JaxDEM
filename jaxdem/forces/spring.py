@@ -38,7 +38,7 @@ class SpringForce(ForceModel):
     Notes
     -----
     - The model reads the 'effective Young's modulus' (:math:`k_{eff,\; ij}`)
-      from the :attr:`jaxdem.System.mat_table` using the material IDs of the
+      from the :attr:`jaxdem.System.mat_table <jaxdem.system.System.mat_table>` using the material IDs of the
       interacting particles.
     - The force is zero if :math:`i == j`.
     - The model computes distances and normals with the zero-safe
@@ -184,7 +184,7 @@ class SpringForce(ForceModel):
         """Names of the material properties this force model needs.
 
         Each name (for example 'young_eff' or 'restitution') must be present
-        in :attr:`System.mat_table`. Used for validation.
+        in :attr:`System.mat_table <jaxdem.system.System.mat_table>`. Used for validation.
         """
         return ("young_eff",)
 

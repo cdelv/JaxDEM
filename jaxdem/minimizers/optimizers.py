@@ -535,11 +535,11 @@ def conjugate_gradient(max_linesearch_steps: int = 20) -> Any:
     (:func:`_scale_by_conjugate_gradient`) and chooses the step length with a
     strong-Wolfe zoom line search (:func:`optax.scale_by_zoom_linesearch`). For
     energy minimization, this optimizer uses little memory and often converges
-    in fewer steps than :func:`fire`.
+    in fewer steps than :func:`fire <jaxdem.minimizers.optimizers.fire>`.
 
     .. note::
         A line search evaluates the energy several times per outer step, so
-        :func:`~jaxdem.minimizers.minimize` performs more than one force/energy
+        :func:`~jaxdem.minimizers.routines.minimize` performs more than one force/energy
         evaluation per iteration (unlike FIRE). The line search requires a
         scalar objective, which ``minimize`` supplies automatically.
 

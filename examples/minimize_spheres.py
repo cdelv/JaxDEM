@@ -56,9 +56,10 @@ e_int = 1.0
 dt = 5e-2
 
 
+# %%
 # For the one-call equivalent see
-# :func:`~jaxdem.utils.particle_creation.build_sphere_system`
-# (sphere_construction example).
+# :py:func:`~jaxdem.utils.particle_creation.build_sphere_system`
+# (:doc:`sphere_construction example </auto_examples/sphere_construction>`).
 def build_microstate(i):
     # assign bidisperse radii
     rad = jnp.ones(N)
@@ -144,9 +145,7 @@ result = jax.vmap(
     lambda st, sys: sys.minimize(
         st, sys, max_steps=n_steps, force_tol=force_tol, torque_tol=force_tol
     )
-)(
-    state, system
-)
+)(state, system)
 if not bool(jnp.all(result.converged)):
     raise RuntimeError(f"Minimization failed: reason={result.reason}")
 state, system, steps, final_pe = result

@@ -29,9 +29,9 @@ if TYPE_CHECKING:
 def _check_material_table(table: MaterialTable, required: Sequence[str]) -> None:
     """Check that a MaterialTable contains all properties that a force model requires.
 
-    The :class:`ForceModel` lists the required properties in
-    :attr:`ForceModel.required_material_properties`. Each one must be an
-    attribute of the given :class:`MaterialTable`.
+    The :class:`ForceModel <jaxdem.forces.ForceModel>` lists the required properties in
+    :attr:`ForceModel.required_material_properties <jaxdem.forces.ForceModel.required_material_properties>`. Each one must be an
+    attribute of the given :class:`MaterialTable <jaxdem.materials.material_table.MaterialTable>`.
 
     Parameters
     ----------
@@ -176,31 +176,31 @@ class System:
     """
 
     linear_integrator: LinearIntegrator
-    """Instance of :class:`jaxdem.LinearIntegrator` that advances the simulation linear state in time."""
+    """Instance of :class:`jaxdem.LinearIntegrator <jaxdem.integrators.LinearIntegrator>` that advances the simulation linear state in time."""
 
     rotation_integrator: RotationIntegrator
-    """Instance of :class:`jaxdem.RotationIntegrator` that advances the simulation angular state in time."""
+    """Instance of :class:`jaxdem.RotationIntegrator <jaxdem.integrators.RotationIntegrator>` that advances the simulation angular state in time."""
 
     collider: Collider
-    """Instance of :class:`jaxdem.Collider` that performs contact detection and computes inter-particle forces and potential energies."""
+    """Instance of :class:`jaxdem.Collider <jaxdem.colliders.Collider>` that performs contact detection and computes inter-particle forces and potential energies."""
 
     domain: Domain
-    """Instance of :class:`jaxdem.Domain` that defines the simulation boundaries, displacement rules, and boundary conditions."""
+    """Instance of :class:`jaxdem.Domain <jaxdem.domains.Domain>` that defines the simulation boundaries, displacement rules, and boundary conditions."""
 
     force_manager: ForceManager
-    """Instance of :class:`jaxdem.ForceManager` that handles per particle forces like external forces and resets forces."""
+    """Instance of :class:`jaxdem.ForceManager <jaxdem.forces.force_manager.ForceManager>` that handles per particle forces like external forces and resets forces."""
 
     bonded_force_model: BondedForceModel | None
     """
-    Optional instance of :class:`jaxdem.BondedForceModel` that defines bonded interactions
+    Optional instance of :class:`jaxdem.BondedForceModel <jaxdem.bonded_forces.BondedForceModel>` that defines bonded interactions
     by passing a force and energy function to the `ForceManager`.
     """
 
     force_model: ForceModel
-    """Instance of :class:`jaxdem.ForceModel` that defines the physical laws for inter-particle interactions."""
+    """Instance of :class:`jaxdem.ForceModel <jaxdem.forces.ForceModel>` that defines the physical laws for inter-particle interactions."""
 
     mat_table: MaterialTable
-    """Instance of :class:`jaxdem.MaterialTable` holding material properties and pairwise interaction parameters."""
+    """Instance of :class:`jaxdem.MaterialTable <jaxdem.materials.material_table.MaterialTable>` holding material properties and pairwise interaction parameters."""
 
     dt: jax.Array
     r"""The global simulation time step :math:`\Delta t`."""
@@ -230,7 +230,7 @@ class System:
     )
     """Sticky flag: a force evaluation used an incomplete spatial search.
 
-    Check with :meth:`check_overflow` at host chunk boundaries. Retry from the
+    Check with :meth:`check_overflow <jaxdem.system.System.check_overflow>` at host chunk boundaries. Retry from the
     last valid state after resizing; clearing this flag cannot repair a trajectory.
     """
 
@@ -300,7 +300,7 @@ class System:
         minimizer_kw: dict[str, Any] | None = None,
         target_fn: Callable[[State, System], jax.Array] | None = None,
     ) -> System:
-        """Factory method to create a :class:`System` instance with specified components.
+        """Factory method to create a :class:`System <jaxdem.system.System>` instance with specified components.
 
         Every component slot accepts either a pre-built instance
         (``linear_integrator``, ``rotation_integrator``, ``collider``,
@@ -334,25 +334,25 @@ class System:
             used to evolve angular degrees of freedom. ``None`` (or the empty
             string) disables rotational integration (no-op integrator).
         collider_type : str or None, optional
-            The registered type string for the :class:`jaxdem.Collider` to use.
+            The registered type string for the :class:`jaxdem.Collider <jaxdem.colliders.Collider>` to use.
             ``None`` (or the empty string) disables non-bonded particle
             interactions by selecting the no-op collider. Bonded forces,
             external forces, and domain boundaries remain active.
         domain_type : str, optional
-            The registered type string for the :class:`jaxdem.Domain` to use.
+            The registered type string for the :class:`jaxdem.Domain <jaxdem.domains.Domain>` to use.
         bonded_force_model_type : str or None, optional
-            The registered type string for the :class:`jaxdem.BondedForceModel` to use.
+            The registered type string for the :class:`jaxdem.BondedForceModel <jaxdem.bonded_forces.BondedForceModel>` to use.
         bonded_force_model_kw : Dict[str, Any] or None, optional
             Keyword arguments forwarded to ``BondedForceModel.create``.
         bonded_force_manager_kw : Dict[str, Any] or None, optional
             Deprecated alias of ``bonded_force_model_kw`` (the dict has always
             been forwarded to the bonded force *model*, not the manager).
         force_model_type : str, optional
-            The registered type string for the :class:`jaxdem.ForceModel` to use.
+            The registered type string for the :class:`jaxdem.ForceModel <jaxdem.forces.ForceModel>` to use.
         force_manager_kw : Dict[str, Any] or None, optional
             Keyword arguments to pass to the constructor of `ForceManager`.
         mat_table : MaterialTable or None, optional
-            An optional pre-configured :class:`jaxdem.MaterialTable`. If `None`, the
+            An optional pre-configured :class:`jaxdem.MaterialTable <jaxdem.materials.material_table.MaterialTable>`. If `None`, the
             method creates a default `jaxdem.MaterialTable` with one generic elastic material and the "harmonic" `jaxdem.MaterialMatchmaker`.
         linear_integrator : LinearIntegrator, optional
             Pre-built linear integrator instance. Overrides
@@ -397,17 +397,17 @@ class System:
         user_post_step_actions : Callable, optional
             A function called after every time step to perform user-defined actions.
         minimizer : Callable, optional
-            Optimizer factory used by :meth:`System.minimize`. Called as
+            Optimizer factory used by :meth:`System.minimize <jaxdem.system.System.minimize>`. Called as
             ``minimizer(**minimizer_kw)`` and must return an optax-style
             ``GradientTransformation``. Defaults to FIRE
-            (:func:`jaxdem.minimizers.fire`).
+            (:func:`jaxdem.minimizers.fire <jaxdem.minimizers.optimizers.fire>`).
         minimizer_kw : Dict[str, Any] or None, optional
             Keyword arguments passed to ``minimizer``. If the minimizer's
             signature accepts a ``dt`` parameter and none is given here, the
             method passes the system ``dt`` automatically.
         target_fn : Callable, optional
             Custom objective ``(state, system) -> scalar`` minimized by
-            :meth:`System.minimize`. When ``None``, :meth:`System.minimize`
+            :meth:`System.minimize <jaxdem.system.System.minimize>`. When ``None``, :meth:`System.minimize <jaxdem.system.System.minimize>`
             uses the total potential energy.
 
         Returns
@@ -666,7 +666,7 @@ class System:
 
         Call explicitly after constructing the state and system, before the
         first integration step. This method supports one snapshot or matching
-        stacked states and systems, like :meth:`step`.
+        stacked states and systems, like :meth:`step <jaxdem.system.System.step>`.
 
         Bounds and collider caches are updated, pair and managed forces are
         evaluated, then the linear and rotational ``initialize`` hooks run.
@@ -895,7 +895,7 @@ class System:
             Current system configuration.
         n : int, optional
             Static number of integration steps. Defaults to 1. Use
-            :meth:`step_dynamic` for a traced scalar count.
+            :meth:`step_dynamic <jaxdem.system.System.step_dynamic>` for a traced scalar count.
 
         Returns
         -------
@@ -909,7 +909,7 @@ class System:
 
         Notes
         -----
-        Call :meth:`initialize` explicitly before stepping a new trajectory.
+        Call :meth:`initialize <jaxdem.system.System.initialize>` explicitly before stepping a new trajectory.
         This method performs no automatic force or integrator initialization.
         Checkpoint continuation uses its saved forces and integrator state
         without repeating initialization.
@@ -947,7 +947,7 @@ class System:
     def step_checked(state: State, system: System, *, n: int = 1) -> StepResult:
         """Advance at most ``n`` steps, stopping and rolling back on failure.
 
-        Unlike :meth:`step`, this opt-in device loop checks finite particle
+        Unlike :meth:`step <jaxdem.system.System.step>`, this opt-in device loop checks finite particle
         state and spatial-search overflow after every step. ``result.steps``
         counts accepted steps; ``result.status`` preserves failure even though
         the returned state/system precede the failed step. An invalid input is
@@ -985,7 +985,7 @@ class System:
         This path uses ``lax.fori_loop`` with dynamic bounds. It is intended
         for compiled control flow such as variable trajectory strides. Reverse
         mode differentiation through dynamic loop bounds is not supported by
-        JAX; use :meth:`step` with a Python integer for differentiable rollouts.
+        JAX; use :meth:`step <jaxdem.system.System.step>` with a Python integer for differentiable rollouts.
         """
         n_array = jnp.asarray(n)
         if n_array.ndim != 0 or not jnp.issubdtype(n_array.dtype, jnp.integer):
@@ -1004,7 +1004,7 @@ class System:
     @staticmethod
     @partial(jax.named_call, name="System.stack")
     def stack(systems: Sequence[System]) -> System:
-        """Concatenate a sequence of :class:`System` snapshots into a trajectory or batch along axis 0.
+        """Concatenate a sequence of :class:`System <jaxdem.system.System>` snapshots into a trajectory or batch along axis 0.
 
         Use this method to collect simulation snapshots over time into a single
         `System` object where the leading dimension represents time, or to
@@ -1013,12 +1013,12 @@ class System:
         Parameters
         ----------
         systems : Sequence[System]
-            A sequence (e.g., list, tuple) of :class:`System` instances to be stacked.
+            A sequence (e.g., list, tuple) of :class:`System <jaxdem.system.System>` instances to be stacked.
 
         Returns
         -------
         System
-            A new :class:`System` instance where each attribute is a JAX array with an
+            A new :class:`System <jaxdem.system.System>` instance where each attribute is a JAX array with an
             additional leading dimension representing the stacked trajectory.
             For example, if input `pos` was `(N, dim)`, output `pos` will be `(T, N, dim)`.
 
@@ -1032,9 +1032,9 @@ class System:
     @staticmethod
     @partial(jax.named_call, name="System.unstack")
     def unstack(system: System) -> list[System]:
-        """Split a stacked/batched :class:`System` along the leading axis into a Python list.
+        """Split a stacked/batched :class:`System <jaxdem.system.System>` along the leading axis into a Python list.
 
-        This method is the inverse of :meth:`System.stack`:
+        This method is the inverse of :meth:`System.stack <jaxdem.system.System.stack>`:
 
         - If `stacked = System.stack([sys0, sys1, ...])`, then `System.unstack(stacked)` returns
           `[sys0, sys1, ...]`.
@@ -1073,7 +1073,7 @@ class System:
         requests displacement-driven updates after accepted optimizer steps.
         Residuals are mechanical forces and torques for force-based relaxation,
         or objective gradients for energies and targets differentiated by AD.
-        See :func:`jaxdem.minimizers.minimize` for convergence and optimizer
+        See :func:`jaxdem.minimizers.minimize <jaxdem.minimizers.routines.minimize>` for convergence and optimizer
         behavior.
         """
         from .minimizers import minimize

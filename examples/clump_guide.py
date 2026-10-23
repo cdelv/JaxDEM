@@ -3,18 +3,18 @@ r"""Clumps (Rigid Bodies)
 
 A **clump** is a rigid body made of several spheres that move together.
 Every sphere in the same clump shares its center-of-mass position
-(``pos_c``), orientation (``q``), velocity (``vel``), angular velocity
-(``ang_vel``), mass, and inertia. The remaining fields are stored
-per-sphere: the body-frame offset (``pos_p``), the radius (``rad``),
-the volume (``volume``), and the ID fields (``mat_id``, ``species_id``,
-``bond_id``, ``clump_id``) — see the table below.
+(:py:attr:`~jaxdem.state.State.pos_c`), orientation (:py:attr:`~jaxdem.state.State.q`), velocity (:py:attr:`~jaxdem.state.State.vel`), angular velocity
+(:py:attr:`~jaxdem.state.State.ang_vel`), mass, and inertia. The remaining fields are stored
+per-sphere: the body-frame offset (:py:attr:`~jaxdem.state.State.pos_p`), the radius (:py:attr:`~jaxdem.state.State.rad`),
+the volume (:py:attr:`~jaxdem.state.State.volume`), and the ID fields (:py:attr:`~jaxdem.state.State.mat_id`, :py:attr:`~jaxdem.state.State.species_id`,
+:py:attr:`~jaxdem.state.State.bond_id`, :py:attr:`~jaxdem.state.State.clump_id`) — see the table below.
 
 This guide covers:
 
 - The data model: which fields are shared and which are per-sphere.
 - Creating clumps manually and with :py:meth:`~jaxdem.state.State.add_clump`.
 - Computing clump mass, inertia, and center of mass with
-  :py:func:`~jaxdem.utils.compute_clump_properties`.
+  :py:func:`~jaxdem.utils.clumps.compute_clump_properties`.
 - How colliders, force aggregation, and integrators handle clumps.
 - Practical tips and common pitfalls.
 """
@@ -23,8 +23,8 @@ This guide covers:
 # The Clump Data Model
 # ~~~~~~~~~~~~~~~~~~~~~~
 # Each particle slot in the state stores its *own* copy of the shared
-# fields. ``clump_id`` encodes clump membership: every slot with the same
-# ``clump_id`` belongs to the same rigid body.
+# fields. :py:attr:`~jaxdem.state.State.clump_id` encodes clump membership: every slot with the same
+# :py:attr:`~jaxdem.state.State.clump_id` belongs to the same rigid body.
 #
 # .. list-table::
 #    :header-rows: 1
@@ -32,58 +32,58 @@ This guide covers:
 #    * - Field
 #      - Shared by clump
 #      - Per-sphere
-#    * - ``pos_c`` (center of mass position)
+#    * - :py:attr:`~jaxdem.state.State.pos_c` (center of mass position)
 #      - ✓
 #      -
-#    * - ``pos_p`` (body-frame offset relative to COM)
+#    * - :py:attr:`~jaxdem.state.State.pos_p` (body-frame offset relative to COM)
 #      -
 #      - ✓
-#    * - ``q`` (quaternion orientation)
+#    * - :py:attr:`~jaxdem.state.State.q` (quaternion orientation)
 #      - ✓
 #      -
-#    * - ``vel`` (linear velocity of COM)
+#    * - :py:attr:`~jaxdem.state.State.vel` (linear velocity of COM)
 #      - ✓
 #      -
-#    * - ``ang_vel`` (angular velocity)
+#    * - :py:attr:`~jaxdem.state.State.ang_vel` (angular velocity)
 #      - ✓
 #      -
-#    * - ``force`` (total aggregated linear force)
+#    * - :py:attr:`~jaxdem.state.State.force` (total aggregated linear force)
 #      - ✓
 #      -
-#    * - ``torque`` (total aggregated torque)
+#    * - :py:attr:`~jaxdem.state.State.torque` (total aggregated torque)
 #      - ✓
 #      -
-#    * - ``mass`` (total mass of the clump)
+#    * - :py:attr:`~jaxdem.state.State.mass` (total mass of the clump)
 #      - ✓
 #      -
-#    * - ``inertia`` (total inertia tensor of the clump)
+#    * - :py:attr:`~jaxdem.state.State.inertia` (total inertia tensor of the clump)
 #      - ✓
 #      -
-#    * - ``rad`` (radius of the sphere)
+#    * - :py:attr:`~jaxdem.state.State.rad` (radius of the sphere)
 #      -
 #      - ✓
-#    * - ``volume`` (volume of the sphere)
+#    * - :py:attr:`~jaxdem.state.State.volume` (volume of the sphere)
 #      -
 #      - ✓
-#    * - ``clump_id`` (clump identifier)
+#    * - :py:attr:`~jaxdem.state.State.clump_id` (clump identifier)
 #      -
 #      - ✓
-#    * - ``bond_id`` (connectivity/connection IDs)
+#    * - :py:attr:`~jaxdem.state.State.bond_id` (connectivity/connection IDs)
 #      -
 #      - ✓
-#    * - ``mat_id`` (material ID of the sphere)
+#    * - :py:attr:`~jaxdem.state.State.mat_id` (material ID of the sphere)
 #      -
 #      - ✓
-#    * - ``species_id`` (species ID of the sphere)
+#    * - :py:attr:`~jaxdem.state.State.species_id` (species ID of the sphere)
 #      -
 #      - ✓
-#    * - ``fixed`` (immobility flag)
+#    * - :py:attr:`~jaxdem.state.State.fixed` (immobility flag)
 #      - ✓
 #      -
 #
 # .. note::
 #
-#    The state stores ``volume`` per sphere: ``State.create`` defaults it to each
+#    The state stores :py:attr:`~jaxdem.state.State.volume` per sphere: :py:meth:`~jaxdem.state.State.create` defaults it to each
 #    sphere's own hypersphere volume, while
 #    :py:meth:`~jaxdem.state.State.add_clump` broadcasts a provided clump
 #    volume to every member sphere. Packing-fraction utilities read one
@@ -107,8 +107,8 @@ import jaxdem as jdem
 # Creating a Clump Manually
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # The simplest way is to create individual spheres and assign the same
-# ``clump_id`` to those that form a rigid body. We also set their shared
-# ``pos_c`` (center of mass) and per-sphere ``pos_p`` (offset from the
+# :py:attr:`~jaxdem.state.State.clump_id` to those that form a rigid body. We also set their shared
+# :py:attr:`~jaxdem.state.State.pos_c` (center of mass) and per-sphere :py:attr:`~jaxdem.state.State.pos_p` (offset from the
 # center of mass in the body frame).
 
 # Two spheres forming a dumbbell clump, plus one free sphere.
@@ -140,9 +140,9 @@ print("pos_p   :", state.pos_p)
 print("pos     :", state.pos)
 
 # %%
-# ``state.pos`` gives the true lab-frame position of each
+# :py:attr:`~jaxdem.state.State.pos` gives the true lab-frame position of each
 # sphere. In the dumbbell (clump 0) the two spheres sit at different
-# locations even though they share the same ``pos_c``.
+# locations even though they share the same :py:attr:`~jaxdem.state.State.pos_c`.
 
 
 # %%
@@ -151,7 +151,7 @@ print("pos     :", state.pos)
 # A more convenient way to append a clump to an existing state is
 # :py:meth:`~jaxdem.state.State.add_clump`. It broadcasts shared fields
 # (velocity, mass, material, …) to all spheres automatically and assigns
-# a single ``clump_id`` to the whole group.
+# a single :py:attr:`~jaxdem.state.State.clump_id` to the whole group.
 
 state_base = jdem.State.create(
     pos=jnp.array([[0.0, 0.0]]),
@@ -184,7 +184,7 @@ print("Velocities:\n", state_with_clump.vel)
 # inertia tensor. This is **not trivial** because spheres may overlap.
 # Summing individual volumes would over-count shared regions.
 #
-# :py:func:`~jaxdem.utils.compute_clump_properties` computes the mass properties
+# :py:func:`~jaxdem.utils.clumps.compute_clump_properties` computes the mass properties
 # of the union. In 2D it splits intersecting circles into exposed arcs and
 # integrates those arcs analytically. In 3D it combines analytical sphere
 # moments with numerical integration where needed: boundary quadrature for
@@ -199,10 +199,10 @@ print("Velocities:\n", state_with_clump.vel)
 # The resulting density field determines:
 #
 # - total mass (accounting for overlap)
-# - center of mass (``pos_c``)
-# - principal moments of inertia (``inertia``)
-# - principal-axes orientation (``q``)
-# - body-frame offsets (``pos_p``) relative to the new center of mass
+# - center of mass (:py:attr:`~jaxdem.state.State.pos_c`)
+# - principal moments of inertia (:py:attr:`~jaxdem.state.State.inertia`)
+# - principal-axes orientation (:py:attr:`~jaxdem.state.State.q`)
+# - body-frame offsets (:py:attr:`~jaxdem.state.State.pos_p`) relative to the new center of mass
 #
 # These quantities are moments of the material union, not sums of
 # independent overlapping spheres. With union :math:`\Omega` and material
@@ -244,8 +244,8 @@ print("Velocities:\n", state_with_clump.vel)
 #
 # .. important::
 #
-#    ``compute_clump_properties`` requires a
-#    :py:class:`~jaxdem.materials.MaterialTable` because the mass
+#    :py:func:`~jaxdem.utils.clumps.compute_clump_properties` requires a
+#    :py:class:`~jaxdem.materials.material_table.MaterialTable` because the mass
 #    computation depends on material density.
 
 mat = jdem.Material.create("elastic", density=2.0, young=1e4, poisson=0.3)
@@ -279,7 +279,7 @@ print("  inertia:", clump_state.inertia)
 # once. Space outside all supplied members stays empty, including enclosed
 # cavities. To leave the center empty, supply a clump without a center sphere.
 #
-# The geometric-asperity builder ``create_ga_state`` distinguishes:
+# The geometric-asperity builder :py:func:`~jaxdem.utils.particle_creation.create_ga_state` distinguishes:
 #
 # - ``core_type="hollow"`` (default) generates only the solid asperities,
 #   without adding a center sphere. The name refers to the clump composition;
@@ -289,8 +289,8 @@ print("  inertia:", clump_state.inertia)
 # - ``core_type="phantom"``: the core contributes mass, volume, and inertia,
 #   then is removed from the contact geometry. Its interior is still material.
 #
-# ``compute_clump_properties`` derives mass from the material density table.
-# The uniform-union helper used by ``create_ga_state`` instead preserves the
+# :py:func:`~jaxdem.utils.clumps.compute_clump_properties` derives mass from the material density table.
+# The uniform-union helper used by :py:func:`~jaxdem.utils.particle_creation.create_ga_state` instead preserves the
 # requested total body mass and spreads it uniformly over the chosen union.
 # Both models preserve geometric voids and avoid double-counting overlaps.
 
@@ -320,7 +320,8 @@ print("  inertia:", clump_state.inertia)
 # Compare inertia in world coordinates, ``R(q) @ diag(inertia) @ R(q).T``:
 # quaternion signs and axes within an almost repeated eigenspace can change
 # even when the physical tensor agrees. Unresolved nonpositive properties
-# raise ``ValueError``; increasing samples or precision can resolve them.
+# raise `ValueError <https://docs.python.org/3/library/exceptions.html#ValueError>`_;
+# increasing samples or precision can resolve them.
 #
 # ``sample_batch_size`` bounds the temporary sample arrays, while
 # ``clump_batch_size`` bounds the number of bodies processed together.
@@ -334,7 +335,7 @@ print("  inertia:", clump_state.inertia)
 # value. Single-sphere bodies keep their existing state properties.
 # Compute these properties during construction, before running dynamics.
 # The grouping step runs on the host, so call the wrapper outside
-# ``jax.jit``; its numerical kernels are compiled internally.
+# `jax.jit <https://docs.jax.dev/en/latest/_autosummary/jax.jit.html>`_; its numerical kernels are compiled internally.
 
 
 # %%
@@ -351,7 +352,7 @@ print("  inertia:", clump_state.inertia)
 #
 # So spheres inside a clump never exert contact forces on each
 # other — they are a rigid assembly by construction. Colliders mask
-# bonded pairs (connected via ``bond_id``) by default. Bonded pairs
+# bonded pairs (connected via :py:attr:`~jaxdem.state.State.bond_id`) by default. Bonded pairs
 # interact when
 # :py:attr:`~jaxdem.system.System.interact_same_bond_id` is ``True``.
 # The colliders **always** mask same-clump pairs, regardless of that flag.
@@ -360,23 +361,23 @@ print("  inertia:", clump_state.inertia)
 
 
 # %%
-# ``clump_id`` vs ``bond_id``
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# :py:attr:`~jaxdem.state.State.clump_id` vs :py:attr:`~jaxdem.state.State.bond_id`
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # These two identifiers serve different purposes:
 #
-# - ``clump_id`` — **rigid body grouping**. Spheres with the same
-#   ``clump_id`` are physically fused: they share velocity, position,
+# - :py:attr:`~jaxdem.state.State.clump_id` — **rigid body grouping**. Spheres with the same
+#   :py:attr:`~jaxdem.state.State.clump_id` are physically fused: they share velocity, position,
 #   and orientation and **never** collide with each other.
-# - ``bond_id`` — **connectivity masking**. The colliders **disable**
+# - :py:attr:`~jaxdem.state.State.bond_id` — **connectivity masking**. The colliders **disable**
 #   (mask out) pairwise interactions between spheres connected by a
-#   bond. The ``bond_id`` array holds the unique IDs of the spheres
+#   bond. The :py:attr:`~jaxdem.state.State.bond_id` array holds the unique IDs of the spheres
 #   each sphere is connected to. Setting
 #   :py:attr:`~jaxdem.system.System.interact_same_bond_id` to ``True``
 #   re-enables contact forces between bonded pairs (same-clump pairs stay
 #   masked either way).
 #
-# In short: ``clump_id`` controls rigid-body aggregation *and*
-# collision masking, while ``bond_id`` controls localized connection masking.
+# In short: :py:attr:`~jaxdem.state.State.clump_id` controls rigid-body aggregation *and*
+# collision masking, while :py:attr:`~jaxdem.state.State.bond_id` controls localized connection masking.
 # See :doc:`../auto_examples/deformable_particle_guide` for details on
 # deformable particles.
 
@@ -384,15 +385,15 @@ print("  inertia:", clump_state.inertia)
 # Force Aggregation
 # ~~~~~~~~~~~~~~~~~~~
 # The :py:class:`~jaxdem.forces.force_manager.ForceManager` handles clump-level force
-# aggregation in its ``apply`` step. The pipeline is:
+# aggregation in its :py:meth:`~jaxdem.forces.force_manager.ForceManager.apply` step. The pipeline is:
 #
 # 1. The collider writes per-sphere contact forces/torques into
-#    ``state.force`` / ``state.torque``.
+#    :py:attr:`~jaxdem.state.State.force` / :py:attr:`~jaxdem.state.State.torque`.
 # 2. The force manager adds external forces (gravity, custom functions).
 # 3. Particle-frame forces induce extra torque via the lever arm
 #    :math:`\tau_i = r_i \times F_i`, where :math:`r_i = R(q) \cdot pos\_p_i`.
 # 4. The force manager **sums** forces and torques over each clump with
-#    ``jax.ops.segment_sum``, using ``clump_id`` as the segment key.
+#    `jax.ops.segment_sum <https://docs.jax.dev/en/latest/_autosummary/jax.ops.segment_sum.html>`_, using :py:attr:`~jaxdem.state.State.clump_id` as the segment key.
 # 5. It **broadcasts** the aggregated values back, so every sphere
 #    in the clump sees the same total force and torque.
 #
@@ -450,13 +451,13 @@ print("Floor position (unchanged):  ", state_sim.pos[0])
 # %%
 # Integration and Clumps
 # ~~~~~~~~~~~~~~~~~~~~~~~~~
-# The linear and rotational integrators act on ``pos_c``, ``vel``, ``q``,
-# and ``ang_vel``. Because all spheres in a clump share these fields
+# The linear and rotational integrators act on :py:attr:`~jaxdem.state.State.pos_c`, :py:attr:`~jaxdem.state.State.vel`, :py:attr:`~jaxdem.state.State.q`,
+# and :py:attr:`~jaxdem.state.State.ang_vel`. Because all spheres in a clump share these fields
 # (with the same values broadcast to every slot), the integrator moves
 # the entire clump as one rigid body without any special branching.
 #
-# ``state.pos`` derives the actual sphere positions from ``pos_c`` and
-# ``pos_p`` on each access.
+# :py:attr:`~jaxdem.state.State.pos` derives the actual sphere positions from :py:attr:`~jaxdem.state.State.pos_c` and
+# :py:attr:`~jaxdem.state.State.pos_p` on each access.
 
 
 # %%
@@ -472,23 +473,23 @@ print("Floor position (unchanged):  ", state_sim.pos[0])
 # %%
 # Common Pitfalls
 # ~~~~~~~~~~~~~~~~~
-# 1. **Forgetting to call ``compute_clump_properties``.**
+# 1. **Forgetting to call** :py:func:`~jaxdem.utils.clumps.compute_clump_properties`.
 #    If you build a clump manually and skip this step, the mass, inertia,
 #    and center of mass will be those of a single sphere. The simulation
 #    will not be physically correct.
 #
-# 2. **Overlapping clumps with the same** ``clump_id``.
-#    If two separate bodies accidentally share a ``clump_id``, JaxDEM
+# 2. **Overlapping clumps with the same** :py:attr:`~jaxdem.state.State.clump_id`.
+#    If two separate bodies accidentally share a :py:attr:`~jaxdem.state.State.clump_id`, JaxDEM
 #    treats them as one rigid body. They do not interact through contact
 #    forces and they move together.
 #
-# 3. **Editing** ``clump_id`` **after construction.**
+# 3. **Editing** :py:attr:`~jaxdem.state.State.clump_id` **after construction.**
 #    :py:meth:`~jaxdem.state.State.create` relabels input groups to contiguous
 #    IDs, so inputs such as ``[10, 10, 100, 100]`` become ``[0, 0, 1, 1]``.
 #    Preserve that invariant when editing arrays directly: aggregation indexes
 #    an array with ``N`` segments, so IDs outside ``[0, N)`` are invalid.
 #
 # 4. **Shared fields must be identical** across a clump.
-#    If you manually set ``vel``, ``pos_c``, ``q``, etc., make sure all
+#    If you manually set :py:attr:`~jaxdem.state.State.vel`, :py:attr:`~jaxdem.state.State.pos_c`, :py:attr:`~jaxdem.state.State.q`, etc., make sure all
 #    slots belonging to the same clump receive the *same* value.
 #    :py:meth:`~jaxdem.state.State.add_clump` handles this automatically by broadcasting.

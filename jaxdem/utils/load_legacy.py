@@ -338,7 +338,7 @@ def load_legacy_dp(
     dim: int = 3,
 ) -> DeformableParticleModel:
     """Load an old ``DeformableParticleContainer`` h5 file and return a new
-    :class:`~jaxdem.bonded_forces.DeformableParticleModel`.
+    :class:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel`.
 
     Parameters
     ----------
