@@ -35,8 +35,10 @@ interactive snapshot when rotating the scene reveals useful structure. The
 uses one shared bundled browser application and a small, freshly exported
 ``.vtkjs`` scene per example. It loads on demand without a running server.
 The bundled ParaView 6.2 viewer references two absent optional modules for ITK
-image loading and service workers; the build removes only those dead script
-tags and preserves the core application and its license notices.
+image loading and service workers; the build removes those dead script tags.
+A checked compatibility fix widens constant color-display ranges so equal
+radii do not trigger vtk.js errors. It preserves the actual arrays, their
+statistics, and the viewer's license notices.
 
 CI preserves generated media and `render.json` summaries as build artifacts.
 The summaries include example and library source hashes, ParaView version,

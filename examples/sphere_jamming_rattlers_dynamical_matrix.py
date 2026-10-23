@@ -130,7 +130,7 @@ assert pe_tol < float(result.potential_energy) <= 4.0 * pe_tol
 # %%
 # Make rattler removal visible
 # ----------------------------
-# Add one tiny, noncontacting tracer in a void. The eight-disk search above
+# Add one visible, noncontacting tracer in a void. The eight-disk search above
 # is unchanged; this extra free disk deliberately contributes floppy motion.
 # A deterministic grid search finds a void using periodic minimum images.
 box = np.asarray(system.domain.box_size)
@@ -140,7 +140,9 @@ delta = candidates[:, None, :] - np.asarray(state.pos)[None, :, :]
 delta -= box * np.round(delta / box)
 clearance = np.min(np.linalg.norm(delta, axis=-1) - np.asarray(state.rad), axis=1)
 void_index = int(np.argmax(clearance))
-tracer_radius = min(0.03, 0.5 * float(clearance[void_index]))
+# Keep its actual radius below the measured clearance, so a visible tracer
+# still contributes no contacts or load to the jammed network.
+tracer_radius = min(0.2, 0.8 * float(clearance[void_index]))
 if tracer_radius <= 0:
     raise RuntimeError("No noncontacting tracer position was resolved.")
 state = jdem.State.add(
@@ -186,6 +188,9 @@ state, system, rattler_ids, non_rattler_ids = get_sphere_rattler_ids(
 print("Contacts per disk:", np.asarray(counts))
 print("Distinct contacts:", int(np.asarray(counts).sum()) // 2)
 print("Rattler disk IDs:", np.asarray(rattler_ids))
+assert int(counts[-1]) == 0
+assert N - 1 in np.asarray(rattler_ids)
+print(f"Isolated tracer radius: {tracer_radius:.3f}")
 
 # %%
 # A rattler can move without being held by the load-bearing network. The
@@ -352,53 +357,35 @@ print("Global translations required by symmetry:", dim)
 # curvatures. Each spectrum has its own ascending mode index because its
 # coordinate space has a different dimension. The signed scale preserves
 # negative curvature and uses a linear neighborhood around zero.
-fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), layout="constrained")
-disk_ids = np.arange(len(counts))
-axes[0].bar(
-    disk_ids, np.asarray(counts), color="tab:blue", label="Force-bearing contacts"
-)
-axes[0].scatter(
-    np.asarray(rattler_ids),
-    np.asarray(counts)[np.asarray(rattler_ids)],
-    marker="x",
-    color="tab:orange",
-    s=65,
-    label="Removed rattler",
-    zorder=3,
-)
-axes[0].axhline(dim + 1, color="0.4", linestyle=":", label="Local screening threshold")
-axes[0].set(
-    xticks=disk_ids,
-    xlabel="Disk ID before pruning",
-    ylabel="Contacts per disk",
-    title="The tracer is disconnected",
-)
-axes[1].plot(
+scene_states = {"Before rattler removal": state, "After rattler removal": state_nr}
+scene_systems = {"Before rattler removal": system, "After rattler removal": system_nr}
+
+fig, ax = plt.subplots(figsize=(7, 4), layout="constrained")
+ax.plot(
     np.arange(len(eigenvalues)),
     eigenvalues,
     "o-",
     markersize=4,
     label=f"All disks: {zero_mask.sum()} numerical zero modes",
 )
-axes[1].plot(
+ax.plot(
     np.arange(len(eigenvalues_nr)),
     eigenvalues_nr,
     "s--",
     markersize=4,
     label=f"After pruning: {zero_mask_nr.sum()} numerical zero modes",
 )
-axes[1].set_yscale("symlog", linthresh=1e-7 * scale)
+ax.set_yscale("symlog", linthresh=1e-7 * scale)
 # Keep zero readable by omitting log ticks inside the linear neighborhood.
-axes[1].set_yticks(
-    [tick for tick in axes[1].get_yticks() if tick == 0 or abs(tick) >= 1e-7 * scale]
+ax.set_yticks(
+    [tick for tick in ax.get_yticks() if tick == 0 or abs(tick) >= 1e-7 * scale]
 )
-axes[1].axhline(0.0, color="0.5", linewidth=0.8)
-axes[1].set(
+ax.axhline(0.0, color="0.5", linewidth=0.8)
+ax.set(
     xlabel="Sorted mode index (each spectrum separately)",
     ylabel="Energy-Hessian eigenvalue",
     title="Remove free motion, retain finite curvature",
 )
-for ax in axes:
-    ax.grid(alpha=0.2)
-    ax.legend(fontsize="small")
+ax.grid(alpha=0.2)
+ax.legend(fontsize="small")
 plt.show()

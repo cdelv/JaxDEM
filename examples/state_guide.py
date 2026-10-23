@@ -22,7 +22,6 @@ This guide shows how to create, modify, and extend the simulation state.
 import jax
 import jaxdem as jdem
 import jax.numpy as jnp
-import matplotlib.pyplot as plt
 
 state = jdem.State.create(pos=jnp.array([[0.0, 0.0]]))
 print(f"Dimension of state: {state.dim}")
@@ -467,49 +466,6 @@ state, system, (state_traj, system_traj) = system.trajectory_rollout(
 )
 
 print(f"Shape of positions (T, B, N, dim): {state_traj.pos.shape}")
-
-
-# %%
-# Read the aligned field layouts
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# The table reads shapes directly from the single snapshot, batched endpoint
-# and batched trajectory constructed above. Stacking adds the same leading
-# axes to every field. Vector fields retain their final coordinate axis d;
-# scalar and ID fields stop at the particle axis N. The examples have
-# different particle counts, which are shown explicitly rather than hidden
-# behind symbolic shape labels.
-field_names = ["pos_c", "vel", "force", "rad", "mass", "clump_id"]
-layout_samples = [
-    ("Single snapshot", snapshot1, ("N", "d")),
-    ("Batched endpoint", state, ("B", "N", "d")),
-    ("Batched trajectory", state_traj, ("T", "B", "N", "d")),
-]
-fig, axes = plt.subplots(1, 3, figsize=(11.5, 3.5), layout="constrained")
-for ax, (label, sample, axis_names) in zip(axes, layout_samples, strict=True):
-    rows = []
-    for name in field_names:
-        names = axis_names if name in {"pos_c", "vel", "force"} else axis_names[:-1]
-        rows.append([name, str(getattr(sample, name).shape), " × ".join(names)])
-    table = ax.table(
-        cellText=rows,
-        colLabels=["Field", "Actual shape", "Axes"],
-        colWidths=[0.25, 0.42, 0.33],
-        loc="center",
-        cellLoc="center",
-    )
-    table.auto_set_font_size(False)
-    table.set_fontsize(9)
-    table.scale(1, 1.7)
-    for (row, column), cell in table.get_celld().items():
-        cell.set_edgecolor("#bac6cf")
-        cell.set_facecolor(
-            "#dce5ec" if row == 0 else "#e7f2ef" if row <= 3 else "#f5eee3"
-        )
-    ax.set_title(label, fontsize=11)
-    ax.set_axis_off()
-fig.suptitle("Leading axes stack every field together", fontsize=14)
-plt.show()
-
 
 # %%
 # Utilities

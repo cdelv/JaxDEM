@@ -64,6 +64,15 @@ _KINDS = {
 }
 _COLORS = ([0.12, 0.48, 0.72], [0.88, 0.46, 0.12], [0.23, 0.63, 0.42])
 _LOADING_COLORS = {"rigid": "#52657c", "elastic": "#258685", "viscoplastic": "#d07a28"}
+_MOVIE_FPS = {
+    "vtk_writer_guide": 4,
+    "clump_guide": 4,
+    "deformable_particle_guide": 4,
+    "intro_to_rl": 4,
+    "vicsek_model": 4,
+    "soft_mode_rearrangement": 3,
+    "environment_custom_policy": 6,
+}
 
 
 def _indices(size: int, maximum: int = 48) -> list[int]:
@@ -405,6 +414,11 @@ def _write_groups(
     for index, group in enumerate(groups):
         all_frames = group["frames"]
         selected = _indices(len(all_frames))
+        if slug == "vicsek_model" and len(all_frames) > 48:
+            # Resolve the early heading changes, then retain the long flight.
+            selected = list(range(12)) + [
+                12 + i for i in _indices(len(all_frames) - 12, maximum=36)
+            ]
         frames = [all_frames[i] for i in selected]
         dimension = max(dimension, frames[0][0].pos_c.shape[-1])
         times = [
@@ -498,6 +512,15 @@ def _write_groups(
                             for state, _ in frames
                         )
                         item["vector_offset"] = [0.0, 0.0, 1.1 * max_radius]
+        if slug == "vicsek_model":
+            for item in group_series:
+                if item["kind"] == "particles":
+                    item.update(vectors="vel", vector_scale=1.25)
+                    max_radius = max(
+                        float(np.asarray(state.rad).max(initial=0.0))
+                        for state, _ in frames
+                    )
+                    item["vector_offset"] = [0.0, 0.0, 1.1 * max_radius]
 
         minimum, maximum = _display_bounds(group_series)
         span = max(maximum - minimum, 1e-3)
@@ -704,6 +727,71 @@ def _packing_edges(namespace: dict[str, Any], directory: Path) -> list[dict[str,
     return result
 
 
+def _goal_overlays(
+    namespace: dict[str, Any], groups: list[dict[str, Any]], directory: Path
+) -> list[dict[str, Any]]:
+    """Mark the environment's actual targets without adding physical grains."""
+    captures = namespace.get("scene_targets")
+    if captures is None:
+        return []
+    result = []
+    angle = np.linspace(0, 2 * np.pi, 33)[:-1]
+    unit_circle = np.stack((np.cos(angle), np.sin(angle)), axis=-1)
+    cells = np.stack((np.arange(32), np.roll(np.arange(32), -1)), axis=-1)
+    for index, group in enumerate(groups):
+        values = captures[group["label"]] if isinstance(captures, dict) else captures
+        targets = np.asarray(values, dtype=float)
+        if targets.ndim == 3 and targets.shape[1] == 1:
+            targets = targets[:, 0]
+        if targets.shape in {(2,), (1, 2)}:
+            targets = np.broadcast_to(
+                targets.reshape(1, 2), (group["source_frames"], 2)
+            )
+        if targets.shape != (group["source_frames"], 2) or not np.all(
+            np.isfinite(targets)
+        ):
+            raise ValueError(
+                "Goal markers require one finite XY target per saved state"
+            )
+        chosen = targets[group["selected_indices"]]
+        marker_radius = 0.35
+        target_dir = directory / f"group_{index:02d}"
+        root = ET.Element("VTKFile", type="Collection", version="0.1")
+        collection = ET.SubElement(root, "Collection")
+        for frame, (target, time) in enumerate(
+            zip(chosen, group["collection_times"], strict=True)
+        ):
+            frame_dir = target_dir / f"frame_{frame:04d}"
+            _auxiliary(
+                frame_dir,
+                "target",
+                target + marker_radius * unit_circle,
+                cells,
+                lines=True,
+                time=time,
+            )
+            ET.SubElement(
+                collection,
+                "DataSet",
+                timestep=format(time, ".12g"),
+                file=f"frame_{frame:04d}/target.vtp",
+            )
+        path = target_dir / "targets.pvd"
+        ET.ElementTree(root).write(path, encoding="utf-8", xml_declaration=True)
+        result.append(
+            {
+                "path": str(path.resolve()),
+                "kind": "edges",
+                "color": [0.88, 0.46, 0.12],
+                "tube_radius": 0.025,
+                "offset": [group["offset"][0], 0.0, 1.2],
+                "label": f"{group['label']} target marker",
+            }
+        )
+        group["target_positions"] = chosen.tolist()
+    return result
+
+
 def _metrics(series: list[dict[str, Any]]) -> list[dict[str, Any]]:
     from vtk.util.numpy_support import vtk_to_numpy
 
@@ -790,7 +878,15 @@ def export_example(
     directory.mkdir(parents=True)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    reused = _reuse_writer(namespace, directory) if slug in _EXISTING_WRITERS else None
+    has_capture = (
+        namespace.get("scene_states") is not None
+        or namespace.get("scene_systems") is not None
+    )
+    reused = (
+        _reuse_writer(namespace, directory)
+        if slug in _EXISTING_WRITERS and not has_capture
+        else None
+    )
     if reused is not None:
         series, groups = reused
         source_state = namespace.get("state")
@@ -804,6 +900,8 @@ def export_example(
         series, groups, dimension = _write_groups(slug, captures, namespace, directory)
     if slug == "packing_analysis":
         series.extend(_packing_edges(namespace, directory / "contacts"))
+    if namespace.get("scene_targets") is not None:
+        series.extend(_goal_overlays(namespace, groups, directory / "targets"))
     if slug == "sasa_calculation":
         central = namespace["central"]
         points = (
@@ -838,7 +936,7 @@ def export_example(
         "output": str(output_dir),
         "size": [960, 600],
         "max_frames": 48,
-        "fps": max(1, min(8, frame_count // 2)) if animate else 8,
+        "fps": _MOVIE_FPS.get(slug, max(1, min(8, frame_count // 2))) if animate else 8,
         "camera": namespace.get(
             "scene_camera",
             "xy" if dimension == 2 or slug == "rotating_drum" else "isometric",
@@ -889,6 +987,22 @@ def export_example(
             "Grain colors show instantaneous speed on a fixed scale. "
             "The imported facet walls are transparent to expose the bed; "
             "their simulation geometry and contacts are unchanged."
+        )
+    elif slug == "vicsek_model":
+        manifest["caption"] = (
+            "Arrows show the instantaneous translational velocities, including "
+            "the initial random headings. They are projected above the spheres "
+            "for visibility; body orientations and native velocities are unchanged."
+        )
+        manifest["animation_caption"] = (
+            "Saved states are denser during the initial alignment. The clock "
+            "shows their actual physical time; playback intervals are uniform."
+        )
+    elif slug in {"intro_to_rl", "environment_custom_policy"}:
+        manifest["caption"] = (
+            "Orange rings mark the environment's actual targets. They are "
+            "display annotations projected in front of the agent spheres, "
+            "with radius 0.35; they are not extra simulated particles."
         )
     elif slug == "rigid_elastic_viscoplastic_loading":
         manifest["caption"] = (

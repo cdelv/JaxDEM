@@ -7,8 +7,8 @@ hand-written proportional/velocity-feedback controller rather than a trained
 network. Three independently reset single-agent environments illustrate
 vectorization, stepping, trajectory collection and VTK output.
 
-Install ``JaxDEM[rl,io]``. The run requests 120 decisions of five physics frames
-each, with three saved frames per environment. It demonstrates the interface;
+Install ``JaxDEM[rl,io]``. The run requests 360 decisions of five physics frames
+each, with 23 saved frames per environment. It demonstrates the interface;
 the controller gains are heuristic and do not establish optimal navigation.
 """
 
@@ -25,7 +25,6 @@ import numpy as np
 import jaxdem as jdem
 import jaxdem.rl as rl
 from jaxdem import utils
-
 
 # %%
 # The callable interface is independent of the policy's implementation.
@@ -67,6 +66,7 @@ from jaxdem import utils
 # reset recurrent memory before evaluation; a recurrent callback returns its
 # evolving hidden state as part of ``graphstate`` rather than using ``None``.
 
+
 def policy(obs, key, carry):
     # SingleNavigator observes [unit(pos-goal), clamped(pos-goal), velocity].
     # Negating the first vector therefore points toward the objective.
@@ -93,8 +93,8 @@ def policy(obs, key, carry):
 # important even when its size is one.
 #
 num_envs = 3
-logical_steps = 120
-save_every = 30
+logical_steps = 360
+save_every = 15
 skip_frames = 4
 key = jax.random.key(1)
 env = rl.Environment.create(
@@ -106,6 +106,7 @@ env = rl.Environment.create(
 env = rl.vectorise_env(env, n=num_envs)
 key, reset_key = jax.random.split(key)
 env = env.reset(env, jax.random.split(reset_key, num_envs))
+policy_initial_state, policy_initial_system = env.state, env.system
 initial_distance = np.linalg.norm(
     np.asarray(env.state.pos_c - env.env_params["objective"]), axis=-1
 )
@@ -118,13 +119,13 @@ initial_distance = np.linalg.norm(
 # above is deliberately longer than our complete requested rollout.
 # Manual stepping is useful when the caller must inspect or modify the state
 # between chunks. Trajectory rollout instead keeps the loop in JAX and stacks
-# the saved endpoints after each stride. Here one initial chunk advances 30
-# decisions, then three recorded chunks advance another 90. Thus
+# the saved endpoints after each stride. Here one initial chunk advances 15
+# decisions, then 23 recorded chunks advance another 345. Thus
 #
 # .. math::
 #
-#     n_{\rm physics}=120(1+4)=600,\qquad
-#     n_{\rm saved}=120/30-1=3.
+#     n_{\rm physics}=360(1+4)=1800,\qquad
+#     n_{\rm saved}=360/15-1=23.
 #
 # These are requested counts; an earlier termination/truncation would stop
 # accepted physics and require an explicit reset before further advancement.
@@ -151,9 +152,30 @@ expected_steps = logical_steps * (skip_frames + 1)
 np.testing.assert_array_equal(env.system.step_count, np.full(num_envs, expected_steps))
 env.system.check_overflow()
 print(f"Each environment advanced {expected_steps} physics frames.")
+# Retain every native state/system pair for the three independent movies.
+# These are parallel replicas, not successive frames of one shared scene.
+scene_states = {
+    f"Environment {b + 1}": jax.tree.map(lambda x: x[:, b], env_traj.state)
+    for b in range(num_envs)
+}
+scene_systems = {
+    f"Environment {b + 1}": jax.tree.map(lambda x: x[:, b], env_traj.system)
+    for b in range(num_envs)
+}
+scene_targets = {
+    label: np.asarray(env.env_params["objective"])[b]
+    for b, label in enumerate(scene_states)
+}
+travel = np.linalg.norm(
+    np.asarray(env_traj.state.pos_c) - np.asarray(policy_initial_state.pos_c)[None],
+    axis=-1,
+)
+assert np.isfinite(travel).all()
+assert float(travel.max()) > 1.0
+print(f"Largest displacement during evaluation: {travel.max():.3f}")
 
 # %%
-# Export the three recorded trajectory frames per environment. The first manual
+# Export the 23 recorded trajectory frames per environment. The first manual
 # chunk above is not in ``env_traj``; rollout frames are saved after each stride.
 # The temporary root is unique but persists for inspection after the process exits.
 # The saved environment has a trajectory axis before its batch axis, so particle

@@ -22,7 +22,6 @@ consume these properties, see :doc:`../auto_examples/force_model_guide`.
 # Each registered material type defines its own required fields.
 
 import jax.numpy as jnp
-import matplotlib.pyplot as plt
 import numpy as np
 import jaxdem as jdem
 
@@ -121,54 +120,6 @@ mat_table_linear = jdem.MaterialTable.from_materials(
 print("Registered matchmakers:", list(jdem.MaterialMatchmaker._registry.keys()))
 print("harmonic young_eff[0,1] =", mat_table.young_eff[0, 1])
 print("linear   young_eff[0,1] =", mat_table_linear.young_eff[0, 1])
-
-
-# %%
-# Read the pair tables visually
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Each cell is the value the table stores for one material pair. The first
-# two panels share a color scale, so their off-diagonal values can be
-# compared directly. The friction panel has its own dimensionless scale:
-# harmonic mixing with the zero-filled elastic entry makes every pair
-# involving that material zero. A nonzero table entry alone does not activate
-# a frictional force law.
-fig, axes = plt.subplots(1, 3, figsize=(10, 3.6), layout="constrained")
-material_labels = ["Elastic", "Frictional"]
-pair_tables = [
-    np.asarray(mat_table.young_eff),
-    np.asarray(mat_table_linear.young_eff),
-    np.asarray(mat_table.mu_eff),
-]
-for index, (ax, values, title) in enumerate(
-    zip(
-        axes,
-        pair_tables,
-        ["Harmonic young_eff", "Linear young_eff", "Harmonic mu_eff"],
-        strict=True,
-    )
-):
-    maximum = float(np.max(pair_tables[0])) if index < 2 else float(values.max())
-    image = ax.imshow(values, vmin=0, vmax=maximum, cmap="viridis")
-    ax.set(
-        title=title,
-        xticks=range(2),
-        xticklabels=material_labels,
-        yticks=range(2),
-        yticklabels=material_labels,
-        xlabel="Material j",
-        ylabel="Material i",
-    )
-    for (row, column), value in np.ndenumerate(values):
-        ax.text(
-            column,
-            row,
-            f"{value:.3g}",
-            ha="center",
-            va="center",
-            color="white" if value < 0.5 * maximum else "black",
-        )
-plt.show()
-
 
 # %%
 # Using Material IDs in a Simulation

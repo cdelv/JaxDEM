@@ -55,6 +55,33 @@ def _valid_bounds(bounds: list[float]) -> bool:
     )
 
 
+def _guard_glance_lut_ranges(content: str) -> str:
+    """Pad only constant display domains in the bundled Glance LUT proxy.
+
+    Glance initializes a color map for every imported field, including constant
+    radii. vtk.js rejects a zero-width color domain even though that is valid
+    simulation data. Guarding the LUT setter also covers the viewer's rescale
+    control, without changing any field values or their measured ranges.
+    """
+    original = (
+        "e.setDataRange=(n,r)=>{t.dataRange[0]===n&&t.dataRange[1]===r||"
+        "(t.dataRange[0]=n,t.dataRange[1]=r,t.lookupTable.setMappingRange("
+    )
+    if content.count(original) != 1:
+        raise RuntimeError(
+            "The bundled Glance LUT setter differs from the supported ParaView "
+            "6.2 bundle; review its constant-field display-range compatibility fix"
+        )
+    guard = (
+        "if(n===r&&Number.isFinite(n)){"
+        "const i=Math.max(Math.abs(n)*0.01,1e-6);"
+        "n=Math.max(-Number.MAX_VALUE,n-i);"
+        "r=Math.min(Number.MAX_VALUE,r+i)}"
+    )
+    guarded = original.replace("=>{", "=>{" + guard, 1)
+    return content.replace(original, guarded, 1)
+
+
 def _shared_glance_viewer(paraview: Any, directory: Path) -> dict[str, Any]:
     """Share the bundled browser application; every scene still exports afresh."""
     resources = Path(
@@ -72,6 +99,7 @@ def _shared_glance_viewer(paraview: Any, directory: Path) -> dict[str, Any]:
         "",
         content,
     )
+    content = _guard_glance_lut_ranges(content)
 
     class Dependencies(HTMLParser):
         def __init__(self) -> None:
@@ -118,6 +146,12 @@ def _shared_glance_viewer(paraview: Any, directory: Path) -> dict[str, Any]:
         "viewer_sha256": hashlib.sha256(encoded).hexdigest(),
         "viewer_bytes": len(encoded),
         "removed_optional_script_tags": removed,
+        "constant_lut_range_padding": {
+            "patched_setters": 1,
+            "relative": 0.01,
+            "absolute_minimum": 1e-6,
+            "preserves_field_values_and_ranges": True,
+        },
         "viewer_license_files": license_files,
     }
 

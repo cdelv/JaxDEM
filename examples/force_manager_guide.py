@@ -24,7 +24,6 @@ and how to set up species-wise interactions, see the
 
 import jax
 import jax.numpy as jnp
-import matplotlib.pyplot as plt
 import numpy as np
 import jaxdem as jdem
 
@@ -273,48 +272,3 @@ system = jdem.System.create(
 state, system = jdem.System.evaluate_forces(state, system)
 np.testing.assert_allclose(state.force, [[0.0, 50.0]], rtol=1e-6)
 print("Wall force on the overlapping sphere:", state.force)
-
-# %%
-# Inspect the registered force functions
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Evaluate the same trap and wall callables on a short array of scalar
-# displacements. These curves show the force and energy conventions directly,
-# without another integration run. The trap restores either sign of x; the
-# wall acts only for positive overlap. Negative wall overlap means separation
-# from the contact surface.
-trap_positions = jnp.linspace(-2.0, 2.0, 65)
-trap_samples = jnp.stack((trap_positions, jnp.zeros_like(trap_positions)), axis=-1)
-trap_force_samples = np.asarray(harmonic_trap(trap_samples, state, system)[0])[:, 0]
-trap_energy_samples = np.asarray(harmonic_trap_energy(trap_samples, state, system))
-wall_overlap = jnp.linspace(-0.5, 0.5, 65)
-wall_samples = jnp.stack(
-    (jnp.zeros_like(wall_overlap), 0.5 + state.rad[0] - wall_overlap), axis=-1
-)
-wall_force_fn, _wall_energy_fn = make_wall(
-    point=[0.0, 0.5], normal=[0.0, 1.0], stiffness=100.0
-)
-wall_force_samples = np.asarray(wall_force_fn(wall_samples, state, system)[0])[:, 1]
-fig, axes = plt.subplots(1, 3, figsize=(10.5, 3.5), layout="constrained")
-axes[0].plot(trap_positions, trap_force_samples, color="#258685")
-axes[0].set(
-    xlabel="Trap displacement x",
-    ylabel="Force component Fx",
-    title="Restoring trap force",
-)
-axes[1].plot(trap_positions, trap_energy_samples, color="#275e94")
-axes[1].set(
-    xlabel="Trap displacement x",
-    ylabel="Trap potential energy",
-    title="Minimum at the origin",
-)
-axes[2].plot(wall_overlap, wall_force_samples, color="#d07a28")
-axes[2].set(
-    xlabel="Signed wall overlap δ",
-    ylabel="Wall normal force",
-    title="The wall only pushes",
-)
-for ax in axes:
-    ax.axhline(0, color="0.4", lw=0.8)
-    ax.axvline(0, color="0.4", lw=0.8)
-    ax.grid(alpha=0.18)
-plt.show()

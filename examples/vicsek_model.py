@@ -15,7 +15,7 @@ weights. Physical mass and inertia therefore do not determine the motion.
 The rotational integrator is disabled: the dumbbell geometry keeps its
 orientation while its translational heading changes.
 
-We initialize nonzero random headings, run 200 steps, and report polarization
+We initialize nonaligned random headings, run 2,000 steps, and report polarization
 ``|mean(v)| / v0``. A fixed seed makes the short run reproducible. Longer runs
 and larger ensembles are needed to study collective ordering.
 """
@@ -396,16 +396,44 @@ state, system = build_microstate(
     integrator_type="vicsek_intrinsic",
 )
 
-# A short rollout checks that the active update works; it need not order.
-n_steps = 200
+# Follow enough actual motion to see bodies traverse the periodic box.
+# Save every step during the initial alignment, then sample the later motion
+# every 20 steps. Both histories contain actual states; no interpolation is
+# needed to watch the initial random headings become correlated.
+n_steps = 2_000
 save_stride = 20
-n_frames = n_steps // save_stride
+dense_steps = 40
+remaining_frames = (n_steps - dense_steps) // save_stride
 
+state_dense, system_dense, (dense_states, dense_systems) = (
+    jdem.System.trajectory_rollout(
+        state,
+        system,
+        n=dense_steps,
+        stride=1,
+    )
+)
 state_f, system_f, (traj_state, traj_system) = jdem.System.trajectory_rollout(
-    state,
-    system,
-    n=n_frames,
+    state_dense,
+    system_dense,
+    n=remaining_frames,
     stride=save_stride,
+)
+traj_state = jax.tree.map(
+    lambda initial, dense, sparse: jnp.concatenate(
+        (jnp.expand_dims(initial, 0), dense, sparse)
+    ),
+    state,
+    dense_states,
+    traj_state,
+)
+traj_system = jax.tree.map(
+    lambda initial, dense, sparse: jnp.concatenate(
+        (jnp.expand_dims(initial, 0), dense, sparse)
+    ),
+    system,
+    dense_systems,
+    traj_system,
 )
 
 # %%
@@ -426,26 +454,28 @@ v0 = float(system_f.linear_integrator.v0)
 polarization = jnp.linalg.norm(jnp.mean(traj_state.vel, axis=-2), axis=-1) / v0
 speeds = np.linalg.norm(np.asarray(traj_state.vel), axis=-1)
 np.testing.assert_allclose(speeds, v0, rtol=1e-10, atol=1e-10)
-print("Polarization (0 = disordered, 1 = aligned):", np.asarray(polarization))
+print(
+    f"Polarization, initial/final (0 = disordered, 1 = aligned): "
+    f"{float(polarization[0]):.3f} / {float(polarization[-1]):.3f}"
+)
 print(f"Body-speed range: {speeds.min():.3f} to {speeds.max():.3f}")
 # %%
-# Alignment and prescribed speed
-# --------------------------------
-# Plot the measured polarization beside the speed invariant. The short
-# trajectory may remain disordered; the second panel checks the active
-# update's prescribed speed independently of that collective behavior.
+# Collective alignment
+# ---------------------
+# The first point measures the initial random headings. The ParaView arrows
+# show translational velocity: the fixed orientation of each dumbbell is
+# independent of its direction of travel in this nonrotating model.
+# The speed invariant is checked above rather than plotted as a flat curve.
 import matplotlib.pyplot as plt
 
-fig, axes = plt.subplots(1, 2, figsize=(8, 3), layout="constrained")
+fig, axis = plt.subplots(figsize=(6, 3), layout="constrained")
 time = np.asarray(traj_system.time)
-axes[0].plot(time, np.asarray(polarization), "o-")
-axes[0].set(ylabel="Polarization", ylim=(0, 1), title="Collective alignment")
-axes[1].plot(time, speeds.min(axis=-1), label="Minimum body speed")
-axes[1].plot(time, speeds.max(axis=-1), "--", label="Maximum body speed")
-axes[1].axhline(v0, color="0.4", ls=":", label="Prescribed speed")
-axes[1].set(ylabel="Speed", title="The active constraint remains satisfied")
-axes[1].legend(fontsize=8)
-for axis in axes:
-    axis.set_xlabel("Physical time")
-    axis.grid(alpha=0.2)
+axis.plot(time, np.asarray(polarization))
+axis.set(
+    xlabel="Time (reduced units)",
+    ylabel="Polarization",
+    ylim=(0, 1),
+    title="Collective alignment from random headings",
+)
+axis.grid(alpha=0.2)
 plt.show()

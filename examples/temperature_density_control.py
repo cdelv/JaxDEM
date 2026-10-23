@@ -88,9 +88,10 @@ from jaxdem.utils.thermal import (
 N = 16
 phi0 = 0.70
 dim = 2
-dt = 1e-2
+dt = 2e-3
+young = 1_000.0
 initial_temperature = 1.0
-phi_amplitude = -0.05  # phi(t) = phi0 + amp * sin(2*pi*t), one full period
+phi_amplitude = -0.05  # one sinusoidal density cycle over the complete run
 n_steps = 1_000
 save_stride = 50  # align sampling with the thermostat's rescaling cadence
 n_frames = n_steps // save_stride
@@ -144,7 +145,10 @@ def build_state_system(linear_integrator_type, linear_integrator_kw=None):
         subtract_drift=subtract_drift,
         seed=seed,
     )
-    mats = [jdem.Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
+    # Stiff contacts keep the visible overlaps small. Resolve the shorter
+    # contact timescale with dt=0.002; density and temperature controls are
+    # otherwise identical between the two runs.
+    mats = [jdem.Material.create("elastic", young=young, poisson=0.5, density=1.0)]
     mat_table = jdem.MaterialTable.from_materials(
         mats, matcher=jdem.MaterialMatchmaker.create("harmonic")
     )
@@ -197,7 +201,7 @@ state, system, (traj_state, traj_system) = run_packing_fraction_protocol(
     strides=strides,
     phi_at_frames=phi_at_frames,
 )
-bare_temperature, phi_trace = summarize("bare verlet", traj_state, traj_system)
+bare_temperature, _ = summarize("bare verlet", traj_state, traj_system)
 
 
 # %%
@@ -230,11 +234,10 @@ controlled_temperature, _ = summarize("verlet_rescaling", traj_state, traj_syste
 import matplotlib.pyplot as plt
 
 time = np.cumsum(strides) * dt
-fig, axes = plt.subplots(2, 1, sharex=True, figsize=(6, 4))
-axes[0].plot(time, bare_temperature, label="Verlet")
-axes[0].plot(time, controlled_temperature, label="Velocity rescaling")
-axes[0].set_ylabel("Kinetic temperature")
-axes[0].legend()
-axes[1].plot(time, phi_trace, color="tab:green")
-axes[1].set(xlabel="Time (reduced units)", ylabel="Packing fraction")
+fig, axis = plt.subplots(figsize=(6, 3))
+axis.plot(time, bare_temperature, label="Verlet")
+axis.plot(time, controlled_temperature, label="Velocity rescaling")
+axis.set(xlabel="Time (reduced units)", ylabel="Kinetic temperature")
+axis.legend()
+axis.grid(alpha=0.2)
 fig.tight_layout()

@@ -38,8 +38,11 @@ skip_frames = 4
 num_envs = 4
 num_epochs = 2
 # Each decision requests five physics steps. The evaluation below requests
-# 60 decisions (300 frames); its episode horizon must allow all of them.
-evaluation_steps = 60
+# 1800 decisions (9000 physics frames), long enough to make the motion visible.
+# Saving endpoints does not change the policy action interval.
+decisions_per_frame = 40
+frames_per_target = 15
+evaluation_steps = 3 * frames_per_target * decisions_per_frame
 env = rl.Environment.create(
     "single_navigator",
     min_box_size=8.0,
@@ -210,34 +213,46 @@ def policy_model(obs, key, graphstate, graphdef):
 
 
 # %%
-# Save twelve frames to an isolated persistent directory. A small marker sphere
-# identifies the target. This short evaluation changes the objective three times;
-# distance summaries are descriptive, with no expectation of improvement after
-# only two updates. A context manager completes asynchronous output before exit.
+# Save an initial frame and fifteen endpoints for each of three target phases.
+# A small marker sphere identifies the target. The longer evaluation lasts
+# 18 physical time units without increasing the two-update training budget.
+# Distance summaries remain descriptive; this policy need not reach a target.
+# A context manager completes asynchronous output before exit.
 # Each :py:func:`~jaxdem.utils.environment.env_step` call with
-# ``n=5, skip_frames=4`` requests 25 physics frames and
-# returns only the endpoint. Four calls make 20 decisions per target, and three
-# targets make all 60 decisions. The horizon above exceeds the resulting 300
-# physical frames; otherwise evaluation would freeze at the episode boundary.
+# ``n=40, skip_frames=4`` makes 40 policy decisions and 200 physics steps.
+# Three phases of fifteen calls make all 1800 decisions. The horizon above
+# exceeds the resulting 9000 physics steps; otherwise evaluation would freeze
+# at the episode boundary. These 46 saved frames retain their native times.
 # The target marker is appended with :py:meth:`~jaxdem.state.State.add` only
 # to the state sent to :py:class:`~jaxdem.writers.vtk_writer.VTKWriter`. It does
 # not become an interacting particle in the environment or affect the policy.
+# The embedded movie marks the same recorded objectives with orange rings.
 frames_dir = Path(tempfile.mkdtemp(prefix="jaxdem-rl-tutorial-"))
+scene_states = [env.state]
+scene_systems = [env.system]
+scene_targets = [np.asarray(env.env_params["objective"]).copy()]
 with jdem.VTKWriter(directory=frames_dir) as writer:
+    marker_state = env.state.add(
+        env.state, pos=env.env_params["objective"], rad=env.state.rad / 5
+    )
+    writer.save(marker_state, env.system)
     for target_index in range(3):
         initial_distance = float(
             jnp.linalg.norm(env.state.pos_c - env.env_params["objective"])
         )
-        for _ in range(4):
+        for _ in range(frames_per_target):
             env, tr.key, graphstate = utils.env_step(
                 env,
                 policy_model,
                 tr.key,
                 graphstate,
                 graphdef=graphdef,
-                n=5,
+                n=decisions_per_frame,
                 skip_frames=skip_frames,
             )
+            scene_states.append(env.state)
+            scene_systems.append(env.system)
+            scene_targets.append(np.asarray(env.env_params["objective"]).copy())
             marker_state = env.state.add(
                 env.state, pos=env.env_params["objective"], rad=env.state.rad / 5
             )
@@ -259,6 +274,14 @@ with jdem.VTKWriter(directory=frames_dir) as writer:
                 maxval=env.system.domain.box_size - low,
             )
 
+evaluation_positions = np.asarray([state.pos_c[0] for state in scene_states])
+evaluation_displacements = np.linalg.norm(
+    evaluation_positions - evaluation_positions[0], axis=-1
+)
+assert np.isfinite(evaluation_positions).all()
+assert float(evaluation_displacements.max()) > 0.5
 assert int(env.system.step_count) == evaluation_steps * (1 + skip_frames)
+env.system.check_overflow()
+print(f"Largest evaluation displacement: {evaluation_displacements.max():.3f}")
 print(f"Evaluation advanced {int(env.system.step_count)} physics frames.")
 print(f"Open the PVD collection in ParaView: {frames_dir}")

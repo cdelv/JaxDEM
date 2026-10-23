@@ -173,6 +173,44 @@ def test_reexport_uses_current_fields_and_removes_obsolete_frames(
     assert len(list(work.rglob("*.vtp"))) == 1
 
 
+def test_explicit_capture_keeps_initial_frames_omitted_by_existing_writer(
+    tmp_path, recorded_history
+):
+    states, systems = recorded_history
+    targets = [np.asarray([[0.3 + i, 0.4 - i]]) for i in range(len(states))]
+    with jd.VTKWriter(
+        directory=tmp_path / "example_output", writers=["spheres"], max_workers=1
+    ) as writer:
+        writer.save(states[-1], systems[-1])
+        writer.block_until_ready()
+        manifest = export_example(
+            "intro_to_rl",
+            {
+                "writer": writer,
+                "scene_states": states,
+                "scene_systems": systems,
+                "scene_targets": targets,
+            },
+            tmp_path / "work",
+            tmp_path / "media",
+        )
+    frames = read_collection(particle_collections(manifest)[0])
+    assert len(frames) == len(states)
+    for (time, poly), state, system in zip(frames, states, systems, strict=True):
+        assert time == float(system.time)
+        assert_physical_fields_match(poly, state)
+    goal_series = next(
+        item
+        for item in manifest["series"]
+        if item.get("label", "").endswith("target marker")
+    )
+    goal_frames = read_collection(Path(goal_series["path"]))
+    for (time, poly), target, system in zip(goal_frames, targets, systems, strict=True):
+        assert time == float(system.time)
+        points = vtk_to_numpy(poly.GetPoints().GetData())
+        np.testing.assert_allclose(points[:, :2].mean(axis=0), target[0])
+
+
 @pytest.mark.parametrize("stacked", [False, True])
 def test_history_with_mismatched_system_snapshots_is_rejected(
     tmp_path, recorded_history, stacked

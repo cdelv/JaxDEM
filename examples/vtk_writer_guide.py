@@ -23,6 +23,7 @@ output directory is kept after execution so you can open the files.
 import tempfile
 from pathlib import Path
 import jax.numpy as jnp
+import numpy as np
 import jaxdem as jdem
 
 # %%
@@ -37,8 +38,17 @@ state = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [1.0, 0.0]]),
     rad=jnp.array([0.2, 0.2]),
     vel=jnp.array([[0.5, 0.0], [-0.5, 0.0]]),
+    mass=jnp.ones(2),
 )
-system = jdem.System.create(state.shape, dt=1e-2)
+system = jdem.System.create(
+    state=state,
+    dt=1e-2,
+    rotation_integrator_type=None,
+    collider_type="naive",
+    mat_table=jdem.MaterialTable.from_materials(
+        [jdem.Material.create("elastic", young=20.0, poisson=0.25, density=1.0)]
+    ),
+)
 state, system = jdem.System.initialize(state, system)
 
 # Create a unique directory, preserving its few frames for inspection.
@@ -98,9 +108,19 @@ for f in sorted(vtp_files)[:4]:
 
 # Collect matching State/System frames of shape (T, N, dim). Each System
 # frame carries its own time and step count for the VTK files and manifest.
+# Forty intervals of five steps cover two reduced time units: the grains approach,
+# compress their contact springs, and separate with reversed velocities.
+# A leading zero stride retains the current initialized snapshot as well.
+# The modest stiffness and dt resolve the impact while keeping this run tiny.
 state, system, (state_trajectory, system_trajectory) = system.trajectory_rollout(
-    state, system, n=3
+    state, system, strides=jnp.asarray([0] + [5] * 40)
 )
+scene_states, scene_systems = state_trajectory, system_trajectory
+assert state_trajectory.pos.shape[0] == 41
+assert float(state_trajectory.vel[-1, 0, 0]) < -0.4
+assert float(state_trajectory.vel[-1, 1, 0]) > 0.4
+assert np.ptp(np.asarray(state_trajectory.pos[:, 0, 0])) > 0.25
+system.check_overflow()
 
 # Save the entire trajectory
 with jdem.VTKWriter(directory=tmp_dir / "trajectory", clean=True) as writer:

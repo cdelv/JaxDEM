@@ -308,52 +308,38 @@ print(
 # Compare the two contact counts and the resulting curvature
 # ----------------------------------------------------------
 # Several constituent contacts can connect the same neighboring bodies,
-# so the two bar heights answer different questions. The signed Hessian
+# so the counts above answer different questions. The signed Hessian
 # spectra expose soft and negative directions without discarding their
 # signs. When pruning removes no bodies, the two spectra coincide; that
 # outcome is also useful evidence about this particular preparation.
-fig, axes = plt.subplots(1, 2, figsize=(10, 3.8), layout="constrained")
-body_ids = np.arange(N_clumps)
-axes[0].bar(
-    body_ids - 0.18, np.asarray(vertex_counts), width=0.36, label="Constituent contacts"
-)
-axes[0].bar(
-    body_ids + 0.18, np.asarray(clump_counts), width=0.36, label="Neighboring clumps"
-)
-axes[0].set(
-    xticks=body_ids,
-    xlabel="Clump ID before pruning",
-    ylabel="Count per clump",
-    title="Contacts and neighbors differ",
-)
-axes[1].plot(
+fig, ax = plt.subplots(figsize=(7, 4), layout="constrained")
+ax.plot(
     np.arange(len(eigenvalues)),
     eigenvalues,
     "o-",
     markersize=4,
     label=f"All bodies: {zero_mask.sum()} numerical zero modes",
 )
-axes[1].plot(
+ax.plot(
     np.arange(len(eigenvalues_nr)),
     eigenvalues_nr,
     "s--",
     markersize=4,
     label=f"After pruning: {np.asarray(zero_mode_mask(eigenvalues_nr)).sum()} numerical zero modes",
 )
-axes[1].set_yscale("symlog", linthresh=1e-7 * scale)
+ax.set_yscale("symlog", linthresh=1e-7 * scale)
 # Keep zero readable by omitting log ticks inside the linear neighborhood.
-axes[1].set_yticks(
-    [tick for tick in axes[1].get_yticks() if tick == 0 or abs(tick) >= 1e-7 * scale]
+ax.set_yticks(
+    [tick for tick in ax.get_yticks() if tick == 0 or abs(tick) >= 1e-7 * scale]
 )
-axes[1].axhline(0.0, color="0.5", linewidth=0.8)
-axes[1].set(
+ax.axhline(0.0, color="0.5", linewidth=0.8)
+ax.set(
     xlabel="Sorted mode index (each spectrum separately)",
     ylabel="Generalized energy-Hessian eigenvalue",
     title="Inspect the actual curvature",
 )
-for ax in axes:
-    ax.grid(alpha=0.2)
-    ax.legend(fontsize="small")
+ax.grid(alpha=0.2)
+ax.legend(fontsize="small")
 plt.show()
 
 # %%
@@ -426,3 +412,6 @@ ax.set(
 )
 ax.grid(alpha=0.2)
 plt.show()
+
+scene_states = {"Before rattler removal": state, "After rattler removal": state_nr}
+scene_systems = {"Before rattler removal": system, "After rattler removal": system_nr}

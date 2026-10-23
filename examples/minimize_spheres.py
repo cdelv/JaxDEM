@@ -30,11 +30,14 @@ Lengths, masses, and stiffnesses use a consistent set of reduced units.
 # %%
 # Imports
 # ~~~~~~~~~~~~~~~~~~~~~
+from dataclasses import replace
+
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import numpy as np
 import jaxdem as jdem
+from jaxdem.minimizers.optimizers import CustomGradientTransformation
 
 # We enable double precision to reach the accuracy that our tolerances need.
 jax.config.update("jax_enable_x64", True)
@@ -158,61 +161,88 @@ print(f"Converged: {result.converged}")
 print(f"Final potential energy: {final_pe}")
 print(f"Number of steps taken: {steps}")
 
-# %%
-# Separate energy reduction from convergence cost
-# -----------------------------------------------
-# At this dilute fraction both preparations remove their initial overlaps.
-# The left panel retains zero final energies on a symmetric logarithmic
-# scale. The right panel compares optimization work; force-residual labels
-# are normalized by the requested tolerance, so values at or below one
-# satisfy that criterion. These iterations are FIRE steps, not physical time.
-seeds = np.arange(N_systems)
-fig, axes = plt.subplots(1, 2, figsize=(9, 3.6), layout="constrained")
-for seed, initial, final in zip(
-    seeds, np.asarray(initial_pe), np.asarray(final_pe), strict=True
-):
-    axes[0].plot([0, 1], [initial, final], "o-", label=f"Seed {seed}")
-axes[0].set(
-    xticks=[0, 1],
-    xticklabels=["Initial", "Relaxed"],
-    ylabel="Potential energy per sphere",
-    title="FIRE removes the overlaps",
-)
-axes[0].set_yscale("symlog", linthresh=1e-10)
-axes[0].set_ylim(-5e-11, 1.7 * max(float(jnp.max(initial_pe)), 1e-10))
-axes[0].legend(fontsize="small")
-bars = axes[1].bar(seeds, np.asarray(steps), width=0.5, color="tab:blue")
-residual_ratio = np.asarray(result.info.force_max) / force_tol
-axes[1].bar_label(
-    bars,
-    labels=[f"F/tol = {value:.2g}" for value in residual_ratio],
-    padding=3,
-    fontsize="small",
-)
-axes[1].set(
-    xticks=seeds,
-    xlabel="Preparation seed",
-    ylabel="FIRE iterations",
-    title="Cost and final force residual",
-)
-axes[1].margins(y=0.2)
-for ax in axes:
-    ax.grid(axis="y", alpha=0.2)
-plt.show()
+# Keep the first batch member as an independent check of the observed run.
+batch_positions = np.asarray(state.pos)[0].copy()
+batch_final_pe = float(final_pe[0])
+batch_steps = int(steps[0])
 
 # %%
 # Run the Minimization for a Single System
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # We can also run the minimization on a single system by passing the state and system to the minimization function.
 state, system = build_microstate(0)
+initial_state, initial_system = state, system
+
+# Observe the energy at each actual FIRE iteration. The wrapper forwards
+# every update to the same optimizer; the added counter and callback only
+# record diagnostics. Each disk is a one-member body, so its optimized
+# center coordinates are exactly ``params["pos_c"]``. This reconstruction
+# is specific to these smooth spheres, whose orientation does not affect U.
+energy_iterations = []
+energy_per_particle = []
+
+
+def record_energy(iteration, energy):
+    energy_iterations.append(int(iteration))
+    energy_per_particle.append(float(energy))
+
+
+def observed_fire(**fire_kw):
+    fire = jdem.minimizers.fire(**fire_kw)
+
+    def init(params):
+        return fire.init(params), jnp.asarray(0)
+
+    def update(grads, optimizer_state, params, **kwargs):
+        fire_state, iteration = optimizer_state
+        snapshot = replace(initial_state, pos_c=params["pos_c"])
+        energy = compute_potential_energy(snapshot, initial_system) / N
+        jax.debug.callback(record_energy, iteration, energy, ordered=True)
+        updates, next_fire_state = fire.update(grads, fire_state, params, **kwargs)
+        return updates, (next_fire_state, iteration + 1)
+
+    return CustomGradientTransformation(
+        init, update, observed_fire, fire_kw, requires_value=False
+    )
+
+
+system = replace(system, minimizer=observed_fire(**dict(initial_system.minimizer.kw)))
 result = system.minimize(
     state, system, max_steps=n_steps, force_tol=force_tol, torque_tol=force_tol
 )
 if not bool(result.converged):
     raise RuntimeError(f"Single-system minimization failed: reason={result.reason}")
 state, system, steps, final_pe = result
+jax.effects_barrier()
+# The callback sees the state before each update; append the returned final
+# state so the curve includes both the initial and converged configurations.
+record_energy(steps, final_pe)
+np.testing.assert_array_equal(energy_iterations, np.arange(int(steps) + 1))
+np.testing.assert_allclose(state.pos, batch_positions, atol=1e-12)
+np.testing.assert_allclose(final_pe, batch_final_pe, atol=1e-12)
+assert int(steps) == batch_steps
 
 print(f"Converged: {result.converged}")
 print(f"Final potential energy: {final_pe}")
 print(f"Number of steps taken: {steps}")
+
+scene_states = {"Before minimization": initial_state, "After minimization": state}
+scene_systems = {"Before minimization": initial_system, "After minimization": system}
+
 # %%
+# Follow the energy during minimization
+# -------------------------------------
+# This curve uses every observed optimizer iteration, including the final
+# state. The symmetric logarithmic scale retains zero when all overlaps have
+# disappeared. FIRE iterations describe optimization progress, not physical
+# relaxation time; adaptive steps need not decrease energy monotonically.
+fig, ax = plt.subplots(figsize=(7, 3.8), layout="constrained")
+ax.plot(energy_iterations, energy_per_particle, color="tab:blue")
+ax.set(
+    xlabel="FIRE iteration",
+    ylabel="Potential energy per sphere",
+    title="Relax the same initial configuration",
+)
+ax.set_yscale("symlog", linthresh=1e-10)
+ax.grid(alpha=0.2)
+plt.show()

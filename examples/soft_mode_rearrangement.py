@@ -289,6 +289,9 @@ print(
 # particle colors. The arrows are projected above the disks for visibility.
 # The quantitative event comparison uses the preceding mode, actual event
 # displacement norm and normalized overlap reported above.
+# The animation plays the saved equilibria slowly enough to follow the event.
+# Its clock measures strain; playback introduces no intermediate simulation
+# states and does not assign a physical time to the minimization sequence.
 #
 strain_offset = 1_000 * (np.asarray(strain_values) - strain_values[0])
 fig, axes = plt.subplots(2, 2, figsize=(11, 8.5), layout="constrained")

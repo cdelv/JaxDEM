@@ -33,7 +33,6 @@ This guide covers each one.
 
 import numpy as np
 import jax.numpy as jnp
-import matplotlib.pyplot as plt
 import jaxdem as jdem
 
 state = jdem.State.create(pos=jnp.zeros((1, 2)))
@@ -325,64 +324,3 @@ np.testing.assert_allclose(state.vel, [[1.0, 0.0]], atol=1e-6)
 # In practice you rarely call :py:meth:`~jaxdem.domains.Domain.apply` yourself — the integrator does it.
 # You typically call :py:meth:`~jaxdem.domains.Domain.shift` right before saving output or computing
 # observables that need positions inside the box.
-
-# %%
-# Compare displacement and rebound diagnostics
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# The first two panels compare vector components, rather than drawing a
-# particle layout. They use the exact displacement queries above. Periodic
-# wrapping and the shear offset change which image supplies the separation.
-# The last panel reports measured velocities from the two existing head-on
-# rebounds. With restitution one, the normal speed is retained and its sign
-# reverses at the wall.
-fig, axes = plt.subplots(1, 3, figsize=(11, 3.6), layout="constrained")
-components = np.arange(2)
-for ax, raw, minimum_image, title in (
-    (axes[0], periodic_naive, periodic_displacement, "Periodic separation"),
-    (axes[1], sheared_naive, sheared_displacement, "Lees–Edwards separation"),
-):
-    raw_bars = ax.bar(
-        components - 0.18, raw, width=0.36, label="Direct subtraction", color="#7b8794"
-    )
-    image_bars = ax.bar(
-        components + 0.18,
-        minimum_image,
-        width=0.36,
-        label="Domain displacement",
-        color="#258685",
-    )
-    ax.bar_label(raw_bars, fmt="%.2f", padding=2, fontsize=8)
-    ax.bar_label(image_bars, fmt="%.2f", padding=2, fontsize=8)
-    ax.axhline(0, color="0.4", lw=0.8)
-    ax.set(
-        title=title,
-        xticks=components,
-        xticklabels=["x component", "y component"],
-        ylabel="Displacement component",
-    )
-    ax.legend(fontsize=8)
-axes[2].bar(
-    components - 0.18,
-    [reflect_approach_velocity, reflect_sphere_approach_velocity],
-    width=0.36,
-    label="Approach",
-    color="#7b8794",
-)
-axes[2].bar(
-    components + 0.18,
-    [reflect_rebound_velocity, reflect_sphere_rebound_velocity],
-    width=0.36,
-    label="Rebound",
-    color="#d07a28",
-)
-axes[2].axhline(0, color="0.4", lw=0.8)
-axes[2].set(
-    title="Elastic head-on reflection",
-    xticks=components,
-    xticklabels=["Reflect", "Reflect-sphere"],
-    ylabel="Normal velocity component",
-)
-axes[2].legend(fontsize=8)
-for ax in axes:
-    ax.grid(axis="y", alpha=0.18)
-plt.show()

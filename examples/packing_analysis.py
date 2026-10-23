@@ -149,51 +149,27 @@ colors = np.where(same_species[unique], "tab:blue", "tab:orange")
 # %%
 # Compare geometry, force transmission and stability
 # ---------------------------------------------------
-# Separate axes keep packing fraction and pressure in their own units.
 # The signed spectrum makes the negative curvature visible: pruning an
 # isolated clump removes its free coordinates, but does not stabilize the
 # contacting cluster. Indices in the two spectra belong to their respective
 # coordinate spaces, rather than matched eigenmodes.
-fig, axes = plt.subplots(2, 2, figsize=(9, 6.5), layout="constrained")
+fig, ax = plt.subplots(figsize=(7, 4), layout="constrained")
 labels = ["Full packing", "Rattler removed"]
 comparison_colors = ["#7b8794", "#258685"]
-axes[0, 0].bar(
-    labels,
-    [float(full.packing_fraction), float(remaining.packing_fraction)],
-    color=comparison_colors,
-)
-axes[0, 0].set(ylabel="Nominal packing fraction", title="Volume decreases by 25%")
-axes[0, 1].bar(
-    labels, [float(full.pressure), float(remaining.pressure)], color=comparison_colors
-)
-axes[0, 1].set(
-    ylabel="Contact virial pressure", title="Force transmission is unchanged"
-)
-axes[1, 0].bar(
-    ["Within species", "Between species"],
-    [within, between],
-    color=["tab:blue", "tab:orange"],
-)
-axes[1, 0].set(
-    ylabel="Distinct body-pair edges",
-    title=f"Mean body coordination = {mean_coordination:g}",
-    yticks=range(max(within, between) + 1),
-)
 for data, label, color in zip(
     (full, remaining), labels, comparison_colors, strict=True
 ):
     eigenvalues = np.asarray(data.eigenvalues)
-    axes[1, 1].plot(
+    ax.plot(
         np.arange(eigenvalues.size), eigenvalues, "o-", ms=3, label=label, color=color
     )
-axes[1, 1].axhline(0, color="0.4", lw=0.8)
-axes[1, 1].set(
+ax.axhline(0, color="0.4", lw=0.8)
+ax.set(
     xlabel="Ordered eigenvalue index",
     ylabel="Signed energy curvature",
     yscale="symlog",
     title="Rattler pruning does not prove stability",
 )
-axes[1, 1].legend(fontsize=8)
-for ax in axes.flat:
-    ax.grid(axis="y", alpha=0.18)
+ax.legend(fontsize=8)
+ax.grid(axis="y", alpha=0.18)
 plt.show()

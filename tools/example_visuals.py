@@ -88,6 +88,7 @@ def paraview_scraper(block, block_vars, gallery_conf):
         shutil.rmtree(output)
     output.mkdir(parents=True)
     started = time.monotonic()
+    preview_metadata = None
     with tempfile.TemporaryDirectory(
         prefix=f"jaxdem-media-{source.stem}-"
     ) as temporary:
@@ -132,6 +133,48 @@ def paraview_scraper(block, block_vars, gallery_conf):
                 raise RuntimeError(
                     f"ParaView produced a blank poster for {source.name}"
                 )
+        namespace = block_vars["example_globals"]
+        if "scene_preview_state" in namespace or "scene_preview_system" in namespace:
+            preview_namespace = dict(namespace)
+            preview_namespace.update(
+                scene_states=[namespace["scene_preview_state"]],
+                scene_systems=[namespace["scene_preview_system"]],
+                scene_vectors=None,
+                scene_color_by="clump_id",
+                scene_title="A rigid clump built from multiple spheres",
+            )
+            preview_output = output / "initial"
+            preview = export_example(
+                source.stem,
+                preview_namespace,
+                Path(temporary) / "initial",
+                preview_output,
+            )
+            if preview is None:
+                raise RuntimeError(f"{source.name} produced no initial clump preview")
+            preview.update(animate=False, interactive=False)
+            preview_path = Path(temporary) / "initial.json"
+            preview_path.write_text(json.dumps(preview, indent=2) + "\n")
+            result = subprocess.run(
+                [*command[:-1], str(preview_path)],
+                capture_output=True,
+                text=True,
+                timeout=300,
+                check=False,
+            )
+            if result.returncode:
+                raise RuntimeError(
+                    f"ParaView initial preview failed for {source.name}:\n"
+                    f"{result.stdout[-2000:]}\n{result.stderr[-6000:]}"
+                )
+            with Image.open(preview_output / "scene.png") as picture:
+                if max(ImageStat.Stat(picture.convert("RGB")).stddev) < 2:
+                    raise RuntimeError(
+                        f"ParaView produced a blank initial clump preview"
+                    )
+            shutil.copy2(preview_output / "scene.png", output / "initial.png")
+            preview_metadata = json.loads((preview_output / "render.json").read_text())
+            preview_metadata["simulation"] = preview["export_metadata"]
 
     if (
         hashlib.sha256(source.read_bytes()).hexdigest() != source_hash
@@ -149,6 +192,16 @@ def paraview_scraper(block, block_vars, gallery_conf):
         media_seconds=round(time.monotonic() - started, 3),
         simulation=manifest.get("export_metadata", {}),
     )
+    if preview_metadata is not None:
+        preview_metadata.update(
+            example_sha256=source_hash,
+            library_revision=provenance["library_revision"],
+            library_sha256=library_hash,
+        )
+        (output / "initial" / "render.json").write_text(
+            json.dumps(preview_metadata, indent=2) + "\n"
+        )
+        provenance["initial_preview"] = "initial.png"
     (output / "render.json").write_text(json.dumps(provenance, indent=2) + "\n")
     # Register the actual ParaView poster with Sphinx-Gallery as well, so its
     # thumbnail and notebook machinery know this is an example figure.

@@ -105,6 +105,11 @@ source_suffix = {
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
 os.environ.setdefault("JAXDEM_DOCS_VISUALS", "1")
 render_example_scenes = os.environ["JAXDEM_DOCS_VISUALS"] == "1"
+jaxdem_visuals_enabled = (
+    render_example_scenes and os.environ.get("JAXDEM_DOCS_EXECUTE", "1") == "1"
+)
+if jaxdem_visuals_enabled:
+    tags.add("jaxdem_visuals")
 if (
     render_example_scenes
     and os.environ.get("JAXDEM_DOCS_EXECUTE", "1") == "1"
@@ -176,6 +181,10 @@ def _warn_missing_example_api_reference(app, env, node, contnode):
 
 
 def setup(app):
+    from tools.docs_media import SimulationImage
+
+    app.add_config_value("jaxdem_visuals_enabled", False, "env")
+    app.add_directive("simulation-image", SimulationImage)
     # Let other resolvers (including optional intersphinx) try first.
     app.connect("missing-reference", _warn_missing_example_api_reference, priority=999)
 

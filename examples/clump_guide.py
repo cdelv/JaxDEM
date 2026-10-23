@@ -139,6 +139,21 @@ print("pos_c   :", state.pos_c)
 print("pos_p   :", state.pos_p)
 print("pos     :", state.pos)
 
+# Keep this actual construction snapshot for the initial ParaView illustration.
+scene_preview_state = state
+scene_preview_system = jdem.System.create(state=state, collider_type="naive")
+
+# %%
+# .. only:: jaxdem_visuals
+#
+#    .. simulation-image:: /_static/visuals/clump_guide/initial.png
+#       :alt: Two overlapping member disks forming one dumbbell clump beside a separate sphere.
+#       :width: 100%
+#
+#    The two overlapping disks share one clump ID and move as a rigid body.
+#    The larger sphere has its own clump ID. ParaView renders their actual
+#    radii and body-frame offsets from this construction snapshot.
+
 # %%
 # :py:attr:`~jaxdem.state.State.pos` gives the true lab-frame position of each
 # sphere. In the dumbbell (clump 0) the two spheres sit at different
@@ -403,10 +418,13 @@ print("  inertia:", clump_state.inertia)
 # %%
 # Running a Simulation with Clumps
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# A short free-fall interval illustrates rigid-body aggregation and the
-# fixed-particle contract. The dumbbell stays above the fixed support during
-# this interval, so its center of mass follows ``y(t) = y(0) - g*t**2/2``.
-# Contact with the support is outside this short tutorial calculation.
+# Drop a dumbbell onto a fixed spherical support and follow its elastic
+# rebound. Before contact its center of mass follows
+# ``y(t) = y(0) - g*t**2/2``. During impact the two member contacts transfer
+# force and torque to one rigid body; the initial tilt makes the first
+# contact asymmetric, causing rotation. Their separation stays constant.
+# The spring law stores and releases contact energy without damping. All
+# lengths, masses, and times use consistent reduced units.
 
 # Fixed floor sphere
 pos_floor = jnp.array([[0.0, 0.0]])
@@ -419,7 +437,8 @@ state_sim.fixed = jnp.array([True])
 state_sim = jdem.State.add_clump(
     state_sim,
     pos=jnp.array([[0.0, 4.0], [0.0, 4.0]]),
-    pos_p=jnp.array([[-0.4, 0.0], [0.4, 0.0]]),
+    pos_p=0.4
+    * jnp.array([[-jnp.cos(0.3), -jnp.sin(0.3)], [jnp.cos(0.3), jnp.sin(0.3)]]),
     rad=jnp.array([0.4, 0.4]),
 )
 print("N:", state_sim.N, " clump_ids:", state_sim.clump_id)
@@ -431,21 +450,41 @@ system_sim = jdem.System.create(
     state_sim.shape,
     dt=1e-3,
     force_model_type="spring",
+    collider_type="naive",
     mat_table=mat_table,
     force_manager_kw={"gravity": jnp.array([0.0, -9.81])},
 )
 
-# Run a short, resolved interval and compare its center of mass with free fall.
+# Save the initialized state and forty actual snapshots, spanning 1.6 time units.
 state_sim, system_sim = jdem.System.initialize(state_sim, system_sim)
 initial_com = np.asarray(state_sim.pos_c[1]).copy()
-state_sim, system_sim = system_sim.step(state_sim, system_sim, n=50)
-elapsed = float(system_sim.time)
+state_sim, system_sim, (scene_states, scene_systems) = jdem.System.trajectory_rollout(
+    state_sim, system_sim, strides=jnp.asarray([0] + [40] * 40)
+)
+elapsed = float(scene_systems.time[1])
 expected_com = initial_com + np.array([0.0, -0.5 * 9.81 * elapsed**2])
-np.testing.assert_allclose(state_sim.pos_c[1], expected_com, atol=2e-5)
-np.testing.assert_allclose(state_sim.pos[0], pos_floor[0], atol=1e-7)
-np.testing.assert_allclose(state_sim.pos_c[1], state_sim.pos_c[2], atol=1e-7)
+np.testing.assert_allclose(scene_states.pos_c[1, 1], expected_com, atol=2e-5)
+np.testing.assert_allclose(
+    scene_states.pos[:, 0],
+    np.broadcast_to(np.asarray(pos_floor[0]), scene_states.pos[:, 0].shape),
+    atol=1e-7,
+)
+np.testing.assert_allclose(
+    scene_states.pos_c[:, 1], scene_states.pos_c[:, 2], atol=1e-7
+)
+member_vectors = np.asarray(scene_states.pos[:, 2] - scene_states.pos[:, 1])
+member_separation = np.linalg.norm(member_vectors, axis=-1)
+orientation_change = np.linalg.norm(member_vectors - member_vectors[0], axis=-1)
+np.testing.assert_allclose(member_separation, 0.8, atol=2e-6)
+assert float(scene_states.pos_c[:, 1, 1].min()) < 1.5
+assert float(scene_states.vel[:, 1, 1].max()) > 1.0
+assert np.isfinite(np.asarray(scene_states.ang_vel)).all()
+assert float(jnp.abs(scene_states.ang_vel[:, 1]).max()) > 0.5
+assert float(orientation_change.max()) > 0.1
+system_sim.check_overflow()
 print("Dumbbell COM:", state_sim.pos_c[1])
 print("Floor position (unchanged):  ", state_sim.pos[0])
+print("Peak upward rebound speed:", float(scene_states.vel[:, 1, 1].max()))
 
 
 # %%

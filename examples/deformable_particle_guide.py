@@ -72,7 +72,6 @@ isolate the response to a prescribed small stretch.
 
 import jax
 import jax.numpy as jnp
-import matplotlib.pyplot as plt
 import numpy as np
 import jaxdem as jdem
 
@@ -479,7 +478,6 @@ print("Batched pos shape (B, N, dim):", states.pos.shape)
 # The stretched right-hand vertices feel restoring forces to the left.
 assert bool(jnp.all(states.force[:, 1, 0] < 0))
 initial_widths = states.pos[:, 1, 0] - states.pos[:, 0, 0]
-initial_restoring_forces = -np.asarray(states.force[:, 1, 0])
 # Advance all simulations by ten steps in parallel.
 states, systems = systems.step(states, systems, n=10)
 widths = states.pos[:, 1, 0] - states.pos[:, 0, 0]
@@ -487,38 +485,6 @@ assert bool(jnp.all(widths < initial_widths))
 print("Initial widths:", initial_widths)
 print("Widths after elastic response:", widths)
 print("After stepping:", states.pos.shape)
-
-
-# %%
-# Measure the elastic response of each replica
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# All three replicas have the same material coefficients and stress-free
-# reference square. Only the initial horizontal stretch differs. The first
-# panel reports the inward force on the lower-right vertex at initialization;
-# the second reports the measured width reduction during the same ten steps
-# already taken above. This is an early inertial response, not the final
-# equilibrium compliance or a stiffness sweep.
-reference_width = float(vertices_2d[1, 0] - vertices_2d[0, 0])
-initial_stretch_percent = 100 * (np.asarray(initial_widths) / reference_width - 1)
-width_reduction = np.asarray(initial_widths - widths)
-fig, axes = plt.subplots(1, 2, figsize=(9, 3.5), layout="constrained")
-axes[0].plot(initial_stretch_percent, initial_restoring_forces, "o-", color="#258685")
-axes[0].set(
-    xlabel="Initial horizontal stretch (%)",
-    ylabel="Inward vertex force",
-    title="More stretch gives a larger restoring force",
-)
-axes[1].plot(initial_stretch_percent, width_reduction, "o-", color="#d07a28")
-axes[1].set(
-    xlabel="Initial horizontal stretch (%)",
-    ylabel="Width decrease after ten steps",
-    title="All three replicas start to recover",
-)
-axes[1].ticklabel_format(axis="y", style="sci", scilimits=(0, 0))
-for ax in axes:
-    ax.set_xticks(initial_stretch_percent)
-    ax.grid(alpha=0.18)
-plt.show()
 
 
 # %%
@@ -567,3 +533,70 @@ print("Diagonal springs — elements stored?", dp_extra_springs.elements is not 
 # :py:attr:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel.el`
 # is ``None``, it skips the edges writer.
 # You can load this output in ParaView for visualization and debugging.
+
+
+# %%
+# A deformable particle bouncing from a wall
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Give a small, stress-free square a uniform velocity toward the right wall.
+# Its leading vertices reflect first while the trailing vertices are still
+# moving right, compressing the body. The elastic terms then redistribute
+# momentum and restore its shape during the rebound.
+#
+# :py:class:`~jaxdem.domains.reflect_sphere.ReflectSphereDomain` provides a
+# rectangular box whose walls reflect the spherical **vertices** at their
+# physical radii. This is nodal wall contact: the connecting segments do not
+# have an independent wall-contact law. Neighboring vertices are bonded so
+# their pairwise contact interactions are masked; the deformable model
+# supplies the internal forces.
+wall_vertices = jnp.array([[0.8, 1.1], [1.6, 1.1], [1.6, 1.9], [0.8, 1.9]])
+wall_state = jdem.State.create(
+    pos=wall_vertices,
+    vel=jnp.tile(jnp.array([1.2, 0.0]), (4, 1)),
+    rad=jnp.full(4, 0.08),
+    mass=jnp.full(4, 0.25),
+    bond_id=jnp.array([[1, 3], [0, 2], [1, 3], [0, 2]]),
+)
+wall_model = jdem.BondedForceModel.create(
+    "deformable_particle_model",
+    vertices=wall_vertices,
+    elements=elements_2d,
+    edges=edges_2d,
+    element_adjacency=adjacency_2d,
+    em=1.5,
+    ec=3.0,
+    el=1.5,
+    eb=0.1,
+    gamma=None,
+)
+wall_system = jdem.System.create(
+    state=wall_state,
+    dt=0.002,
+    rotation_integrator_type=None,
+    collider_type="naive",
+    domain_type="reflectsphere",
+    domain_kw={"box_size": jnp.array([3.5, 3.0]), "restitution_coefficient": 1.0},
+    bonded_force_model=wall_model,
+)
+wall_state, wall_system = jdem.System.initialize(wall_state, wall_system)
+wall_state, wall_system, (scene_states, scene_systems) = jdem.System.trajectory_rollout(
+    wall_state, wall_system, strides=jnp.asarray([0] + [40] * 40)
+)
+wall_positions = np.asarray(scene_states.pos)
+wall_widths = wall_positions[:, :, 0].max(axis=1) - wall_positions[:, :, 0].min(axis=1)
+wall_com_velocities = np.asarray(scene_states.vel).mean(axis=1)
+assert np.isfinite(wall_positions).all()
+assert wall_widths.min() < 0.9 * wall_widths[0]
+assert wall_com_velocities[:, 0].min() < -0.2
+assert np.all(wall_positions >= 0.08 - 1e-5)
+assert np.all(wall_positions <= np.array([3.5, 3.0]) - 0.08 + 1e-5)
+wall_system.check_overflow()
+print(f"Width during impact: {wall_widths[0]:.3f} -> {wall_widths.min():.3f}")
+print(f"Peak leftward center-of-mass speed: {-wall_com_velocities[:, 0].min():.3f}")
+
+# %%
+# The animation uses these 41 complete state/system snapshots, including the
+# initial condition, over 3.2 time units. ParaView draws the actual vertices
+# and the deformable-element and edge output from the VTK writer. The body
+# remains elastic: the wall reverses nodal momentum while deformation stores
+# energy internally, so the shape can continue oscillating after separation.
