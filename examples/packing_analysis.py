@@ -170,6 +170,15 @@ ax.set(
     yscale="symlog",
     title="Rattler pruning does not prove stability",
 )
+# Set headroom after selecting the signed scale so every measured endpoint
+# remains visible, including the largest positive curvature after pruning.
+spectrum_min = min(float(np.min(data.eigenvalues)) for data in (full, remaining))
+spectrum_max = max(float(np.max(data.eigenvalues)) for data in (full, remaining))
+curvature_scale = max(abs(spectrum_min), abs(spectrum_max), 1.0)
+ax.set_ylim(
+    1.5 * spectrum_min if spectrum_min < 0 else -0.05 * curvature_scale,
+    1.5 * spectrum_max if spectrum_max > 0 else 0.05 * curvature_scale,
+)
 ax.legend(fontsize=8)
 ax.grid(axis="y", alpha=0.18)
 plt.show()
