@@ -28,7 +28,10 @@ dl.py.attribute {
 .bd-article .sig,
 .bd-article .sig-name,
 .bd-article .sig-prename,
-.bd-article a.reference code {
+.bd-article .sig .pre,
+.bd-article a.reference code,
+.bd-article a.reference code .pre,
+.bd-toc .nav-link code .pre {
     white-space: normal;
     overflow-wrap: anywhere;
 }
