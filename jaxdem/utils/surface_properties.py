@@ -730,6 +730,9 @@ def compute_surface_properties(
     # Per-grid PRNG keys for sampling="random" (None -> deterministic lattice).
     # Independent keys per grid so approach directions, facings and rolls are
     # sampled independently; reproducible for a fixed ``seed``.
+    k_approach: jax.Array | None
+    k_orient: jax.Array | None
+    k_roll: jax.Array | None
     if sampling == "random":
         k_approach, k_orient, k_roll = jax.random.split(jax.random.PRNGKey(seed), 3)
     else:
