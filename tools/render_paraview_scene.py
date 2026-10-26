@@ -183,6 +183,10 @@ def render(manifest_path: Path) -> dict[str, Any]:
     fps = int(manifest.get("fps", 12))
     if maximum < 2 or maximum > 120 or fps < 1 or fps > 60:
         raise ValueError("max_frames must be 2..120 and fps must be 1..60")
+    end_hold_seconds = float(manifest.get("end_hold_seconds", 0.0))
+    if not math.isfinite(end_hold_seconds) or not 0 <= end_hold_seconds <= 10:
+        raise ValueError("end_hold_seconds must be finite and between 0 and 10")
+    end_hold_frames = round(end_hold_seconds * fps)
     series = manifest.get("series", [])
     if not series:
         raise ValueError("The scene manifest must contain at least one series")
@@ -511,6 +515,13 @@ def render(manifest_path: Path) -> dict[str, Any]:
                     view,
                     ImageResolution=size,
                 )
+            video_filter = "pad=ceil(iw/2)*2:ceil(ih/2)*2"
+            if end_hold_frames:
+                # Repeat the final native frame for inspection; the saved
+                # simulation timestamps and geometry remain unchanged.
+                video_filter = (
+                    f"tpad=stop_mode=clone:stop={end_hold_frames}," + video_filter
+                )
             command = [
                 str(ffmpeg),
                 "-hide_banner",
@@ -532,7 +543,7 @@ def render(manifest_path: Path) -> dict[str, Any]:
                 "-movflags",
                 "+faststart",
                 "-vf",
-                "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+                video_filter,
                 str(output / "animation.mp4"),
             ]
             subprocess.run(command, check=True)
@@ -632,6 +643,11 @@ def render(manifest_path: Path) -> dict[str, Any]:
         "native_times": timeline,
         "animation_times": animation_times,
         "fps": fps,
+        "end_hold_frames": end_hold_frames if animation_times else 0,
+        "end_hold_seconds": end_hold_frames / fps if animation_times else 0.0,
+        "encoded_frame_count": (
+            len(animation_times) + end_hold_frames if animation_times else 0
+        ),
         "series": records,
         **interactive_metadata,
         "outputs": {

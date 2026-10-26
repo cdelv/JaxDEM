@@ -68,9 +68,10 @@ _MOVIE_FPS = {
     "vtk_writer_guide": 4,
     "clump_guide": 4,
     "deformable_particle_guide": 4,
+    "facets_guide": 4,
     "intro_to_rl": 4,
     "vicsek_model": 4,
-    "soft_mode_rearrangement": 3,
+    "soft_mode_rearrangement": 4,
     "environment_custom_policy": 6,
 }
 
@@ -414,11 +415,6 @@ def _write_groups(
     for index, group in enumerate(groups):
         all_frames = group["frames"]
         selected = _indices(len(all_frames))
-        if slug == "vicsek_model" and len(all_frames) > 48:
-            # Resolve the early heading changes, then retain the long flight.
-            selected = list(range(12)) + [
-                12 + i for i in _indices(len(all_frames) - 12, maximum=36)
-            ]
         frames = [all_frames[i] for i in selected]
         dimension = max(dimension, frames[0][0].pos_c.shape[-1])
         times = [
@@ -966,6 +962,12 @@ def export_example(
             "Accepted equilibria in strain order. Playback speed represents "
             "neither a physical loading rate nor minimizer time."
         )
+    if slug == "soft_mode_rearrangement":
+        manifest["end_hold_seconds"] = 3.0
+        manifest["animation_caption"] += (
+            " The final rearranged configuration is held for three seconds "
+            "before looping."
+        )
     if slug == "packing_analysis":
         manifest["caption"] = (
             "Particles are colored by clump ID. Blue network edges connect "
@@ -995,8 +997,8 @@ def export_example(
             "for visibility; body orientations and native velocities are unchanged."
         )
         manifest["animation_caption"] = (
-            "Saved states are denser during the initial alignment. The clock "
-            "shows their actual physical time; playback intervals are uniform."
+            "Saved states and playback frames are uniformly spaced in time, "
+            "so the prescribed speed is visible from the first frame."
         )
     elif slug in {"intro_to_rl", "environment_custom_policy"}:
         manifest["caption"] = (

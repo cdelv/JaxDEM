@@ -17,7 +17,8 @@ weights. Physical mass and inertia therefore do not determine the motion.
 The rotational integrator is disabled: the dumbbell geometry keeps its
 orientation while its translational heading changes.
 
-We initialize nonaligned random headings, run 2,000 steps, and report polarization
+We initialize nonaligned random headings and follow their alignment while all
+bodies already move at the prescribed speed. Polarization measures
 ``|mean(v)| / v0``. A fixed seed makes the short run reproducible. Longer runs
 and larger ensembles are needed to study collective ordering.
 """
@@ -391,53 +392,26 @@ state, system = build_microstate(
     N=32,  # 32 spheres -> 16 two-sphere clumps
     phi=0.65,  # fraction occupied by the bounding disks
     dim=2,  # 2D
-    dt=1e-2,  # displacement v0*dt = 0.01, well below sphere radius 1
-    neighbor_radius=4.0,  # center-distance query for constituent spheres
+    dt=0.1,  # displacement v0*dt = 0.1, below sphere radius 1
+    neighbor_radius=3.5,  # center-distance query for constituent spheres
     eta=0.2,  # small noise component
     v0=1.0,  # prescribed body speed in reduced units
     seed=0,
     integrator_type="vicsek_intrinsic",
 )
 
-# Follow enough actual motion to see bodies traverse the periodic box.
-# Save every step during the initial alignment, then sample the later motion
-# every 20 steps. Both histories contain actual states; no interpolation is
-# needed to watch the initial random headings become correlated.
-n_steps = 2_000
-save_stride = 20
-dense_steps = 40
-remaining_frames = (n_steps - dense_steps) // save_stride
-
-state_dense, system_dense, (dense_states, dense_systems) = (
-    jdem.System.trajectory_rollout(
-        state,
-        system,
-        n=dense_steps,
-        stride=1,
-    )
-)
+# Every movie frame spans the same physical interval, including the first.
+# Mixing dense early samples with sparse later samples at a uniform video
+# frame rate would make constant-speed motion appear to accelerate.
+# Here the 48 actual snapshots span 4.7 reduced time units: bodies travel
+# visibly from the start while their initially random headings align.
+n_steps = 47
 state_f, system_f, (traj_state, traj_system) = jdem.System.trajectory_rollout(
-    state_dense,
-    system_dense,
-    n=remaining_frames,
-    stride=save_stride,
-)
-traj_state = jax.tree.map(
-    lambda initial, dense, sparse: jnp.concatenate(
-        (jnp.expand_dims(initial, 0), dense, sparse)
-    ),
     state,
-    dense_states,
-    traj_state,
-)
-traj_system = jax.tree.map(
-    lambda initial, dense, sparse: jnp.concatenate(
-        (jnp.expand_dims(initial, 0), dense, sparse)
-    ),
     system,
-    dense_systems,
-    traj_system,
+    strides=jnp.asarray([0] + [1] * n_steps),
 )
+scene_states, scene_systems = traj_state, traj_system
 
 # %%
 # The dimensionless polarization for ``M`` bodies is
@@ -457,11 +431,24 @@ v0 = float(system_f.linear_integrator.v0)
 polarization = jnp.linalg.norm(jnp.mean(traj_state.vel, axis=-2), axis=-1) / v0
 speeds = np.linalg.norm(np.asarray(traj_state.vel), axis=-1)
 np.testing.assert_allclose(speeds, v0, rtol=1e-10, atol=1e-10)
+time = np.asarray(traj_system.time)
+frame_intervals = np.diff(time)
+np.testing.assert_allclose(frame_intervals, float(system.dt), rtol=1e-10, atol=1e-10)
+# Check actual position increments as well as stored velocity fields. This
+# catches a zero-motion startup or a sampling schedule that distorts speed.
+displacements = np.diff(np.asarray(traj_state.pos_c), axis=0)
+box = np.asarray(system.domain.box_size)
+displacements -= box * np.round(displacements / box)
+displacement_speeds = np.linalg.norm(displacements, axis=-1) / frame_intervals[:, None]
+np.testing.assert_allclose(displacement_speeds, v0, rtol=1e-10, atol=1e-10)
+assert float(polarization[0]) < 0.3
+assert float(polarization[-1]) > 0.8
 print(
     f"Polarization, initial/final (0 = disordered, 1 = aligned): "
     f"{float(polarization[0]):.3f} / {float(polarization[-1]):.3f}"
 )
 print(f"Body-speed range: {speeds.min():.3f} to {speeds.max():.3f}")
+print(f"Uniform movie-frame interval: {frame_intervals[0]:.3f}")
 # %%
 # Collective alignment
 # ---------------------
@@ -472,7 +459,6 @@ print(f"Body-speed range: {speeds.min():.3f} to {speeds.max():.3f}")
 import matplotlib.pyplot as plt
 
 fig, axis = plt.subplots(figsize=(6, 3), layout="constrained")
-time = np.asarray(traj_system.time)
 axis.plot(time, np.asarray(polarization))
 axis.set(
     xlabel="Time (reduced units)",

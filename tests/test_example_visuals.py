@@ -153,6 +153,30 @@ def test_independent_batch_snapshots_do_not_become_a_time_history(
     )
 
 
+def test_vicsek_downsampling_preserves_uniform_playback_speed(tmp_path, tiny_snapshot):
+    state, system = tiny_snapshot
+    states = [
+        replace(state, pos_c=state.pos_c + state.vel * (0.1 * i)) for i in range(95)
+    ]
+    systems = [
+        replace(system, time=jnp.asarray(0.1 * i), step_count=jnp.asarray(i))
+        for i in range(95)
+    ]
+    manifest = export_example(
+        "vicsek_model",
+        {"scene_states": states, "scene_systems": systems},
+        tmp_path / "work",
+        tmp_path / "media",
+    )
+    frames = read_collection(particle_collections(manifest)[0])
+    # All 48 displayed intervals represent equal physical durations. A dense
+    # startup followed by sparse samples would make constant velocity accelerate.
+    assert len(frames) == 48
+    np.testing.assert_allclose([time for time, _ in frames], np.arange(48) * 0.2)
+    for (_, poly), state in zip(frames, states[::2], strict=True):
+        assert_physical_fields_match(poly, state)
+
+
 def test_reexport_uses_current_fields_and_removes_obsolete_frames(
     tmp_path, recorded_history
 ):

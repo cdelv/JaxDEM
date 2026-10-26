@@ -299,6 +299,7 @@ router = jdem.ForceRouter.from_dict(
 # Its center is 0.15 above the plane, while the radius plus facet expansion
 # is 0.2: overlap=0.05, giving a normal spring force 1000*0.05=50.
 state_connected.fixed = jnp.ones(state_connected.N, dtype=bool)
+fixed_facet_state = state_connected
 state_connected = jdem.State.merge(
     state_connected,
     jdem.State.create(pos=[[0.2, 0.2, 0.15]], rad=[0.1], species_id=[0]),
@@ -322,6 +323,70 @@ state_stepped, system = system.step(state_connected, system, n=2)
 np.testing.assert_allclose(state_stepped.pos[:3], fixed_positions, atol=1e-7)
 assert float(state_stepped.pos[-1, 2]) > 0.15
 print("Sphere moved away from the fixed facet.")
+
+# %%
+# Watch the sphere approach, make contact, and rebound
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Start a unit-mass sphere well above the same fixed triangle, moving toward
+# its interior at speed 1.5. This law is an undamped elastic spring: the
+# material's friction and restitution coefficients are not used by
+# ``sphere_facet_spring``. With contact stiffness 1000, the sphere stores its
+# incoming kinetic energy in the spring, reverses direction, then separates.
+#
+# The contact begins when the center is one sphere radius plus one facet
+# thickness from the triangle's plane, here 0.2. Capture complete states and
+# systems every 0.025 time units, including the initial configuration. The
+# 41 saved frames cover one physical time unit and resolve both travel and
+# the approximately 0.1-time-unit contact interval.
+impact_state = jdem.State.merge(
+    fixed_facet_state,
+    jdem.State.create(
+        pos=jnp.array([[0.2, 0.2, 0.8]]),
+        vel=jnp.array([[0.0, 0.0, -1.5]]),
+        rad=jnp.array([0.1]),
+        mass=jnp.array([1.0]),
+        species_id=jnp.array([0]),
+    ),
+)
+impact_system = jdem.System.create(
+    state=impact_state,
+    collider_type="naive",
+    force_model=router,
+    mat_table=mat_table,
+    dt=0.0005,
+    rotation_integrator_type=None,
+)
+impact_state, impact_system = jdem.System.initialize(impact_state, impact_system)
+state_stepped, system, (scene_states, scene_systems) = jdem.System.trajectory_rollout(
+    impact_state, impact_system, strides=jnp.asarray([0] + [50] * 40)
+)
+scene_title = "An elastic sphere bouncing from a fixed facet"
+impact_positions = np.asarray(scene_states.pos)
+impact_velocities = np.asarray(scene_states.vel[:, -1, 2])
+contact_overlap = np.maximum(0.2 - impact_positions[:, -1, 2], 0.0)
+assert impact_positions.shape == (41, 4, 3)
+assert np.isfinite(impact_positions).all()
+np.testing.assert_allclose(
+    impact_positions[:, :3],
+    np.broadcast_to(fixed_positions, impact_positions[:, :3].shape),
+    atol=1e-7,
+)
+np.testing.assert_allclose(
+    impact_positions[:, -1, :2],
+    np.broadcast_to([0.2, 0.2], impact_positions[:, -1, :2].shape),
+    atol=1e-7,
+)
+assert contact_overlap.max() > 0.04
+assert impact_positions[:, -1, 2].min() > 0.1
+assert impact_velocities[0] < -1.4
+assert impact_velocities[-1] > 1.4
+np.testing.assert_allclose(impact_velocities[-1], -impact_velocities[0], rtol=2e-3)
+assert contact_overlap[-1] == 0.0
+system.check_overflow()
+print(f"Maximum sphere/facet overlap: {contact_overlap.max():.4f}")
+print(
+    f"Incoming/outgoing normal velocity: {impact_velocities[0]:.3f} / {impact_velocities[-1]:.3f}"
+)
 
 # %%
 # Selecting Contact Calculations
@@ -391,6 +456,11 @@ tmp_dir = Path(tempfile.mkdtemp(prefix="jaxdem-facets-guide-"))
 with jdem.VTKWriter(
     directory=tmp_dir, writers=["facets", "spheres", "facet_spheres"]
 ) as writer:
-    writer.save(state_stepped, system)
+    for saved_state, saved_system in zip(
+        jdem.State.unstack(scene_states),
+        jdem.System.unstack(scene_systems),
+        strict=True,
+    ):
+        writer.save(saved_state, saved_system)
 print(f"Saved VTK output (check the generated {tmp_dir} directory).")
 # Output is retained for ParaView inspection; remove the directory when done.

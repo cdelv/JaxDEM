@@ -14,66 +14,6 @@ dependencies use the same installed JAX backend.
 """
 
 # %%
-# Choose the features you need
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# The dependency map follows the extras defined in ``pyproject.toml``. Both
-# documentation and testing install the I/O and reinforcement-learning extras;
-# the complete extra includes all four groups. The JAX backend is a separate
-# choice, so selecting CUDA or TPU does not select a JaxDEM feature extra.
-import matplotlib.pyplot as plt
-
-fig, ax = plt.subplots(figsize=(9, 5.2), layout="constrained")
-ax.set(xlim=(0, 1), ylim=(0, 1))
-ax.set_axis_off()
-feature_nodes = [
-    (0.5, 0.90, "Core\nJAX · NumPy · Optax", "#e1e9ef"),
-    (0.25, 0.69, "[io]\nVTK · h5py · Orbax", "#e1f0ec"),
-    (
-        0.75,
-        0.69,
-        "[rl]\nFlax · Distrax · SciPy\ntqdm · TensorBoard · tensorboardX",
-        "#e1f0ec",
-    ),
-    (
-        0.25,
-        0.32,
-        "[docs] includes io + rl\nMatplotlib · Sphinx · MyST\nPyData theme · Sphinx-Gallery",
-        "#f4eadb",
-    ),
-    (0.75, 0.32, "[test] includes io + rl\npytest · mypy · build", "#f4eadb"),
-    (0.5, 0.08, "[all] includes io + rl + docs + test", "#e1e9ef"),
-]
-for x, y, label, color in feature_nodes:
-    ax.text(
-        x,
-        y,
-        label,
-        ha="center",
-        va="center",
-        fontsize=10,
-        bbox={"boxstyle": "round,pad=0.6", "facecolor": color, "edgecolor": "#8795a1"},
-    )
-for start, end in [
-    ((0.43, 0.84), (0.27, 0.77)),
-    ((0.57, 0.84), (0.73, 0.79)),
-    ((0.25, 0.62), (0.5, 0.50)),
-    ((0.75, 0.59), (0.5, 0.50)),
-    ((0.5, 0.50), (0.27, 0.42)),
-    ((0.5, 0.50), (0.73, 0.40)),
-    ((0.25, 0.22), (0.43, 0.12)),
-    ((0.75, 0.24), (0.57, 0.12)),
-]:
-    ax.annotate(
-        "",
-        xy=end,
-        xytext=start,
-        arrowprops={"arrowstyle": "->", "color": "#52657c", "lw": 1.3},
-    )
-ax.text(0.5, 0.53, "both included", ha="center", fontsize=9, color="#52657c")
-ax.set_title("Feature extras share one installed JAX backend", pad=12)
-plt.show()
-
-# %%
 # Create a Virtual Environment
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #

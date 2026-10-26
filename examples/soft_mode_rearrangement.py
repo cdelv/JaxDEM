@@ -292,7 +292,8 @@ print(
 # particle colors. The arrows are projected above the disks for visibility.
 # The quantitative event comparison uses the preceding mode, actual event
 # displacement norm and normalized overlap reported above.
-# The animation plays the saved equilibria slowly enough to follow the event.
+# The animation plays through the saved equilibria, then holds the final
+# rearranged configuration on screen for three seconds before looping.
 # Its clock measures strain; playback introduces no intermediate simulation
 # states and does not assign a physical time to the minimization sequence.
 #
