@@ -17,7 +17,7 @@ from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from enum import IntEnum
 from functools import partial
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, overload
 
 from ..minimizers.routines import COLLIDER_OVERFLOW, MAX_STEPS, NONFINITE, MinimizeInfo
 from .contacts import compute_contact_pressure
@@ -411,6 +411,54 @@ def _minimizer_kwargs(minimizer_kwargs: Mapping[str, Any] | None) -> dict[str, A
     return resolved
 
 
+@overload
+def bisection_jam(
+    state: State,
+    system: System,
+    pe_tol: float = 1e-16,
+    n_jamming_steps: int = 10000,
+    packing_fraction_tolerance: float = 1e-10,
+    packing_fraction_increment: float = 1e-3,
+    verbose: bool = True,
+    *,
+    pe_band_factor: float = 2.0,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: Literal[False] = False,
+) -> JamResult: ...
+
+
+@overload
+def bisection_jam(
+    state: State,
+    system: System,
+    pe_tol: float = 1e-16,
+    n_jamming_steps: int = 10000,
+    packing_fraction_tolerance: float = 1e-10,
+    packing_fraction_increment: float = 1e-3,
+    verbose: bool = True,
+    *,
+    pe_band_factor: float = 2.0,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: Literal[True],
+) -> tuple[JamResult, JammingInfo]: ...
+
+
+@overload
+def bisection_jam(
+    state: State,
+    system: System,
+    pe_tol: float = 1e-16,
+    n_jamming_steps: int = 10000,
+    packing_fraction_tolerance: float = 1e-10,
+    packing_fraction_increment: float = 1e-3,
+    verbose: bool = True,
+    *,
+    pe_band_factor: float = 2.0,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: bool,
+) -> JamResult | tuple[JamResult, JammingInfo]: ...
+
+
 def bisection_jam(
     state: State,
     system: System,
@@ -602,6 +650,57 @@ def _bisection_jam(
 
 
 bisection_jam.clear_cache = _bisection_jam.clear_cache  # type: ignore[attr-defined]
+
+
+@overload
+def pressure_bisection_jam(
+    state: State,
+    system: System,
+    *,
+    pressure_threshold: float = 1e-7,
+    pressure_band_factor: float = 1.01,
+    growth_rate: float = 1.001,
+    fine_growth_rate: float = 1.000001,
+    length_ratio_tolerance: float = 1e-14,
+    n_jamming_steps: int = 10_000,
+    verbose: bool = True,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: Literal[False] = False,
+) -> JamResult: ...
+
+
+@overload
+def pressure_bisection_jam(
+    state: State,
+    system: System,
+    *,
+    pressure_threshold: float = 1e-7,
+    pressure_band_factor: float = 1.01,
+    growth_rate: float = 1.001,
+    fine_growth_rate: float = 1.000001,
+    length_ratio_tolerance: float = 1e-14,
+    n_jamming_steps: int = 10_000,
+    verbose: bool = True,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: Literal[True],
+) -> tuple[JamResult, JammingInfo]: ...
+
+
+@overload
+def pressure_bisection_jam(
+    state: State,
+    system: System,
+    *,
+    pressure_threshold: float = 1e-7,
+    pressure_band_factor: float = 1.01,
+    growth_rate: float = 1.001,
+    fine_growth_rate: float = 1.000001,
+    length_ratio_tolerance: float = 1e-14,
+    n_jamming_steps: int = 10_000,
+    verbose: bool = True,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: bool,
+) -> JamResult | tuple[JamResult, JammingInfo]: ...
 
 
 def pressure_bisection_jam(
@@ -820,6 +919,51 @@ def pressure_bisection_jam(
         info=info,
     )
     return (result, info) if return_info else result
+
+
+@overload
+def pe_band_jam(
+    state: State,
+    system: System,
+    pe_tol: float = 1e-16,
+    pe_band_factor: float = 2.0,
+    packing_fraction_increment: float = 1e-3,
+    n_jamming_steps: int = 10_000,
+    verbose: bool = True,
+    *,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: Literal[False] = False,
+) -> JamResult: ...
+
+
+@overload
+def pe_band_jam(
+    state: State,
+    system: System,
+    pe_tol: float = 1e-16,
+    pe_band_factor: float = 2.0,
+    packing_fraction_increment: float = 1e-3,
+    n_jamming_steps: int = 10_000,
+    verbose: bool = True,
+    *,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: Literal[True],
+) -> tuple[JamResult, JammingInfo]: ...
+
+
+@overload
+def pe_band_jam(
+    state: State,
+    system: System,
+    pe_tol: float = 1e-16,
+    pe_band_factor: float = 2.0,
+    packing_fraction_increment: float = 1e-3,
+    n_jamming_steps: int = 10_000,
+    verbose: bool = True,
+    *,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: bool,
+) -> JamResult | tuple[JamResult, JammingInfo]: ...
 
 
 def pe_band_jam(
@@ -1113,6 +1257,54 @@ def _pe_band_jam(
 
 
 pe_band_jam.clear_cache = _pe_band_jam.clear_cache  # type: ignore[attr-defined]
+
+
+@overload
+def rollback_pe_band_jam(
+    state: State,
+    system: System,
+    pe_tol: float = 1e-16,
+    pe_band_factor: float = 2.0,
+    packing_fraction_increment: float = 1e-3,
+    increment_growth_factor: float = 1.0,
+    n_jamming_steps: int = 10_000,
+    verbose: bool = True,
+    *,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: Literal[False] = False,
+) -> JamResult: ...
+
+
+@overload
+def rollback_pe_band_jam(
+    state: State,
+    system: System,
+    pe_tol: float = 1e-16,
+    pe_band_factor: float = 2.0,
+    packing_fraction_increment: float = 1e-3,
+    increment_growth_factor: float = 1.0,
+    n_jamming_steps: int = 10_000,
+    verbose: bool = True,
+    *,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: Literal[True],
+) -> tuple[JamResult, JammingInfo]: ...
+
+
+@overload
+def rollback_pe_band_jam(
+    state: State,
+    system: System,
+    pe_tol: float = 1e-16,
+    pe_band_factor: float = 2.0,
+    packing_fraction_increment: float = 1e-3,
+    increment_growth_factor: float = 1.0,
+    n_jamming_steps: int = 10_000,
+    verbose: bool = True,
+    *,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: bool,
+) -> JamResult | tuple[JamResult, JammingInfo]: ...
 
 
 def rollback_pe_band_jam(

@@ -31,7 +31,7 @@ from tensorboardX import SummaryWriter  # type: ignore[import-untyped]
 from tqdm.auto import trange  # type: ignore[import-untyped]
 
 from ..env_wrappers import clip_action_env, vectorise_env
-from . import Trainer, TrajectoryData
+from . import ModelState, Trainer, TrajectoryData
 
 if TYPE_CHECKING:
     from ..environments import Environment
@@ -489,7 +489,7 @@ class PPOTrainer(Trainer):
         if not bool(jnp.all(jnp.isfinite(caps_noise_std) & (caps_noise_std >= 0))):
             raise ValueError("caps_noise_std must be finite and nonnegative")
         if caps_noise_std.ndim != 0 and caps_noise_std.shape != (
-            model.observation_space_size,
+            env.observation_space_size,
         ):
             raise ValueError(
                 "caps_noise_std must be scalar or have one entry per observation feature"
@@ -1077,8 +1077,8 @@ class PPOTrainer(Trainer):
 
         @partial(jax.named_call, name="PPOTrainer.train_batch")
         def train_batch(
-            graphstate: nnx.GraphState, batch_index: jax.Array
-        ) -> tuple[nnx.GraphState, dict[str, jax.Array]]:
+            graphstate: ModelState, batch_index: jax.Array
+        ) -> tuple[ModelState, dict[str, jax.Array]]:
             indices, loss_mask = _minibatch_selection(
                 T, S, tr.minibatch_size, batch_index
             )
@@ -1119,7 +1119,7 @@ class PPOTrainer(Trainer):
             model.train()
             selected = mb_td.agent_mask & loss_mask
 
-            def apply_update(state: nnx.GraphState) -> nnx.GraphState:
+            def apply_update(state: ModelState) -> ModelState:
                 current_model, current_optimizer = nnx.merge(tr.graphdef, state)
                 current_optimizer.update(current_model, grads)
                 return nnx.state((current_model, current_optimizer))

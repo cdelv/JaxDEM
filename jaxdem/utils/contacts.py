@@ -169,6 +169,7 @@ def _reduce_contacts(
         Collider,
         DynamicCellList,
         DynamicMultiCellList,
+        NaiveSimulator,
         NeighborList,
     )
     from ..colliders._neighbor_cache import _valid_pairs, pair_sources
@@ -209,7 +210,7 @@ def _reduce_contacts(
             partial(_cell_summary, system=system, quantity=quantity),
             initial,
         )
-    else:
+    elif isinstance(collider, NaiveSimulator):
         from ..colliders.naive import _dense_history
 
         neighbors = jnp.arange(state.N)
@@ -230,6 +231,10 @@ def _reduce_contacts(
 
         rows = jax.lax.map(row, (neighbors, history), batch_size=min(state.N, 32))
         overflow = jnp.asarray(False)
+    else:
+        raise NotImplementedError(
+            f"Pair traversal is unavailable for {type(collider).__name__}."
+        )
     rows = jnp.where(overflow, -1 if quantity == "count" else jnp.nan, rows)
     return _record_overflow(system, overflow), rows
 

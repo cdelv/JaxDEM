@@ -19,9 +19,13 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 from jax.custom_batching import custom_vmap
+from jax.typing import ArrayLike
 
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from functools import partial
+import operator
+from typing import SupportsIndex
 
 import numpy as np
 
@@ -31,6 +35,7 @@ from ...colliders.neighbor_list import NeighborList
 from ...colliders._neighbor_cache import check_and_rebuild, forces as contact_forces
 from ...forces import ForceModel
 from ...forces.cundall_strack import CundallStrackForce
+from ...forces.force_manager import EnergyFunction, ForceFunction
 from ...materials import Material, MaterialTable
 from ...state import State
 from ...system import System
@@ -319,18 +324,28 @@ _STALL, _DAMPING, _FRICTION = (
 _Y_MIN = jnp.min(_OFFSETS[:, 1] - _RADII)
 
 
-def _magnetic_curve(r):
+def _magnetic_curve(r: ArrayLike) -> tuple[jax.Array, jax.Array]:
     """Solid-cylinder coefficient and potential in simulation units."""
     return magnetic_coefficient(r), magnetic_potential(r)
 
 
-def rebuild_status(state, system):
+def _neighbor_collider(system: System) -> NeighborList:
+    """Require the cache topology used by the Granulabot contact kernels."""
+    collider = system.collider
+    if not isinstance(collider, NeighborList):
+        raise TypeError("Granulabot contact evaluation requires a NeighborList")
+    return collider
+
+
+def rebuild_status(
+    state: State, system: System
+) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Return geometry, cutoff, and whether cache maintenance may be needed.
 
     Geometry changes must reach ``check_and_rebuild`` so it can account for
     image motion before deciding whether the skin budget requires a rebuild.
     """
-    col = system.collider
+    col = _neighbor_collider(system)
     metric = system.domain.search_geometry_snapshot()
     if metric.shape != (state.dim + 3,):
         raise ValueError(
@@ -358,7 +373,11 @@ _maintain_neighbors = custom_vmap(check_and_rebuild)
 
 
 @_maintain_neighbors.def_vmap
-def _batch_maintain_neighbors(axis_size, in_batched, state, system):
+def _batch_maintain_neighbors(
+    axis_size: int, in_batched: Sequence[object], state: State, system: System
+) -> tuple[System, object]:
+    # JAX reconstructs the input/output dataclass pytrees with boolean leaves
+    # for batching metadata; these masks are not numerical State/System values.
     state, system = jax.tree.map(
         lambda x, batched: (
             x if batched else jnp.broadcast_to(x, (axis_size,) + jnp.shape(x))
@@ -376,21 +395,25 @@ def _batch_maintain_neighbors(axis_size, in_batched, state, system):
     return updated, jax.tree.map(lambda _: True, updated)
 
 
-def _contact_evaluator(advance_history):
+def _contact_evaluator(advance_history: bool) -> custom_vmap:
     """Evaluate only the occupied prefix, retaining the full storage capacity."""
 
-    def evaluate(state, system, batched=False):
-        col = system.collider
+    def evaluate(
+        state: State, system: System, batched: bool = False
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
+        col = _neighbor_collider(system)
         capacity = col.neighbor_list.shape[-1]
         compact = min(1024, capacity)
         occupied = jnp.max(col.row_offsets[..., -1])
-        force_fn = partial(contact_forces, advance_history=advance_history)
+        force_fn: Callable[[State, System], tuple[jax.Array, jax.Array, jax.Array]] = (
+            partial(contact_forces, advance_history=advance_history)
+        )
         if batched:
             force_fn = jax.vmap(force_fn)
 
-        def small(args):
+        def small(args: tuple[State, System]) -> tuple[jax.Array, jax.Array, jax.Array]:
             s, sy = args
-            c = sy.collider
+            c = _neighbor_collider(sy)
             compact_col = replace(
                 c,
                 neighbor_list=c.neighbor_list[..., :compact],
@@ -405,39 +428,44 @@ def _contact_evaluator(advance_history):
                 h = c.history
             return f, t, h
 
-        def nonempty(args):
+        def nonempty(
+            args: tuple[State, System],
+        ) -> tuple[jax.Array, jax.Array, jax.Array]:
             return jax.lax.cond(
                 occupied <= compact, small, lambda pair: force_fn(*pair), args
+            )
+
+        def empty(args: tuple[State, System]) -> tuple[jax.Array, jax.Array, jax.Array]:
+            s, sy = args
+            history = _neighbor_collider(sy).history
+            return (
+                jnp.zeros_like(s.force),
+                jnp.zeros_like(s.torque),
+                jnp.zeros_like(history) if advance_history else history,
             )
 
         return jax.lax.cond(
             occupied > 0,
             nonempty,
-            lambda args: (
-                jnp.zeros_like(args[0].force),
-                jnp.zeros_like(args[0].torque),
-                (
-                    jnp.zeros_like(args[1].collider.history)
-                    if advance_history
-                    else args[1].collider.history
-                ),
-            ),
+            empty,
             (state, system),
         )
 
     @custom_vmap
-    def wrapped(state, system):
+    def wrapped(state: State, system: System) -> tuple[jax.Array, jax.Array, jax.Array]:
         return evaluate(state, system)
 
     @wrapped.def_vmap
-    def batch(axis_size, in_batched, state, system):
+    def batch(
+        axis_size: int, in_batched: Sequence[object], state: State, system: System
+    ) -> tuple[tuple[jax.Array, jax.Array, jax.Array], tuple[bool, bool, bool]]:
         state, system = jax.tree.map(
             lambda x, b: x if b else jnp.broadcast_to(x, (axis_size,) + jnp.shape(x)),
             (state, system),
             tuple(in_batched),
         )
         result = evaluate(state, system, batched=True)
-        return result, jax.tree.map(lambda _: True, result)
+        return result, (True, True, True)
 
     return wrapped
 
@@ -454,7 +482,13 @@ class _Neighbors(NeighborList):
 
     @staticmethod
     @partial(jax.jit, static_argnames=("advance_history", "quasistatic"), inline=True)
-    def compute_force(state, system, *, advance_history=True, quasistatic=False):
+    def compute_force(
+        state: State,
+        system: System,
+        *,
+        advance_history: bool = True,
+        quasistatic: bool = False,
+    ) -> tuple[State, System]:
         if quasistatic:
             return NeighborList.compute_force(
                 state, system, advance_history=advance_history, quasistatic=True
@@ -464,11 +498,12 @@ class _Neighbors(NeighborList):
             _advance_contacts if advance_history else _evaluate_contacts
         )(state, system)
         return replace(state, force=force, torque=torque), replace(
-            system, collider=replace(system.collider, history=history)
+            system, collider=replace(_neighbor_collider(system), history=history)
         )
 
     @staticmethod
-    def evaluate_force(state, system):
+    @jax.jit(inline=True)
+    def evaluate_force(state: State, system: System) -> tuple[State, System]:
         return _Neighbors.compute_force(state, system, advance_history=False)
 
 
@@ -483,16 +518,22 @@ class MagnetPairs(BondedForceModel):
     particle_count: int = jax.tree.static()
 
     @classmethod
-    def Create(cls, pairs, weights, particle_count):
+    def Create(
+        cls, pairs: ArrayLike, weights: ArrayLike, particle_count: int
+    ) -> MagnetPairs:
         return cls(jnp.asarray(pairs), jnp.asarray(weights), particle_count)
 
     @property
-    def force_and_energy_fns(self):
+    def force_and_energy_fns(self) -> tuple[ForceFunction, EnergyFunction, bool]:
         return self.force, self.energy, True
 
     @staticmethod
-    def force(pos, state, system):
+    def force(
+        pos: jax.Array, state: State, system: System
+    ) -> tuple[jax.Array, jax.Array]:
         model = system.bonded_force_model
+        if not isinstance(model, MagnetPairs):
+            raise TypeError("Granulabot magnetic forces require a MagnetPairs model")
         i, j = model.pairs[:, 0], model.pairs[:, 1]
         rho = pos[j] - pos[i]
         r = jnp.sqrt(jnp.maximum(jnp.sum(rho * rho, axis=-1), 1e-24))
@@ -503,10 +544,16 @@ class MagnetPairs(BondedForceModel):
         )
 
     @staticmethod
-    def energy(pos, state, system):
-        return system.bonded_force_model.compute_potential_energy(pos, state, system)
+    def energy(pos: jax.Array, state: State, system: System) -> jax.Array:
+        model = system.bonded_force_model
+        if not isinstance(model, MagnetPairs):
+            raise TypeError("Granulabot magnetic energy requires a MagnetPairs model")
+        return model.compute_potential_energy(pos, state, system)
 
-    def compute_potential_energy(self, pos, state, system):
+    @jax.jit(inline=True)
+    def compute_potential_energy(
+        self, pos: jax.Array, state: State, system: System
+    ) -> jax.Array:
         rho = pos[self.pairs[:, 1]] - pos[self.pairs[:, 0]]
         u = magnetic_potential(
             jnp.sqrt(jnp.maximum(jnp.sum(rho * rho, axis=-1), 1e-24))
@@ -514,8 +561,19 @@ class MagnetPairs(BondedForceModel):
         return jnp.sum(self.weights * u)
 
     @staticmethod
-    def merge(first, others):
-        for other in ([others] if isinstance(others, MagnetPairs) else others):
+    def merge(
+        first: BondedForceModel,
+        others: BondedForceModel | Sequence[BondedForceModel],
+    ) -> MagnetPairs:
+        if not isinstance(first, MagnetPairs):
+            raise TypeError(
+                "Granulabot magnetic pairs can only merge MagnetPairs models"
+            )
+        for other in ([others] if isinstance(others, BondedForceModel) else others):
+            if not isinstance(other, MagnetPairs):
+                raise TypeError(
+                    "Granulabot magnetic pairs can only merge MagnetPairs models"
+                )
             first = replace(
                 first,
                 pairs=jnp.concatenate(
@@ -527,8 +585,20 @@ class MagnetPairs(BondedForceModel):
         return first
 
     @staticmethod
-    def add(model, **kwargs):
-        return MagnetPairs.merge(model, MagnetPairs.Create(**kwargs))
+    def add(model: BondedForceModel, **kwargs: ArrayLike) -> MagnetPairs:
+        if set(kwargs) != {"pairs", "weights", "particle_count"}:
+            raise TypeError(
+                "MagnetPairs.add requires pairs, weights, and particle_count"
+            )
+        count = kwargs["particle_count"]
+        if not isinstance(count, SupportsIndex):
+            raise TypeError("MagnetPairs.particle_count must be an integer")
+        return MagnetPairs.merge(
+            model,
+            MagnetPairs.Create(
+                kwargs["pairs"], kwargs["weights"], operator.index(count)
+            ),
+        )
 
 
 @ForceModel.register("GranulabotContacts")
@@ -537,19 +607,28 @@ class MagnetPairs(BondedForceModel):
 class _Contacts(CundallStrackForce):
     """Frictional contacts involving a Granulabot body and its interaction radii."""
 
-    def search_radii(self, state, system):
+    def search_radii(self, state: State, system: System) -> jax.Array:
         return state._rad
 
     @staticmethod
-    def _state(state):
+    def _state(state: State) -> State:
         return replace(
             state, rad=jnp.where(state.clump_id % 3 == 0, state.rad, state._rad)
         )
 
     @staticmethod
+    @jax.jit(inline=True, static_argnames=("advance_history", "quasistatic"))
     def force(
-        i, j, pos, state, system, history, *, advance_history=True, quasistatic=False
-    ):
+        i: int | jax.Array,
+        j: int | jax.Array,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+        quasistatic: bool = False,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
         f, t, h = CundallStrackForce.force(
             i,
             j,
@@ -568,7 +647,15 @@ class _Contacts(CundallStrackForce):
         )
 
     @staticmethod
-    def energy(i, j, pos, state, system, history):
+    @jax.jit(inline=True)
+    def energy(
+        i: int | jax.Array,
+        j: int | jax.Array,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
+    ) -> jax.Array:
         active = (state.clump_id[i] % 3 == 0) | (state.clump_id[j] % 3 == 0)
         return jnp.where(
             active,
@@ -579,7 +666,7 @@ class _Contacts(CundallStrackForce):
         )
 
 
-def _floor(pos, state, system):
+def _floor(pos: jax.Array, state: State, system: System) -> tuple[jax.Array, jax.Array]:
     normal = jnp.array([0.0, 1.0])
     arm = -state.rad[:, None] * normal
     velocity = state.vel + cross_3X3D_1X2D(state.ang_vel, pos - state.pos_c + arm)
@@ -599,7 +686,7 @@ def _floor(pos, state, system):
     return force, cross(arm, force)
 
 
-def _radial(p):
+def _radial(p: jax.Array) -> tuple[jax.Array, jax.Array, jax.Array]:
     delta = p[1:] - p[0]
     radius = jnp.sqrt(jnp.maximum(jnp.sum(delta * delta, axis=-1), 1e-20))
     normal = delta / radius[:, None]
@@ -613,7 +700,7 @@ def _radial(p):
     return j.reshape(2, 6), radius, normal
 
 
-def _solve2(a, b):
+def _solve2(a: jax.Array, b: jax.Array) -> jax.Array:
     """Small positive-definite constraint solve, avoiding a batched LU kernel."""
     determinant = a[0, 0] * a[1, 1] - a[0, 1] * a[1, 0]
     return (
@@ -622,7 +709,16 @@ def _solve2(a, b):
     )
 
 
-def _drive(p0, velocity, omega, mass, inertia, dt, voltage, motor_speed_scale=1.0):
+def _drive(
+    p0: jax.Array,
+    velocity: jax.Array,
+    omega: jax.Array,
+    mass: jax.Array,
+    inertia: jax.Array,
+    dt: jax.Array,
+    voltage: jax.Array,
+    motor_speed_scale: ArrayLike = 1.0,
+) -> tuple[jax.Array, jax.Array, jax.Array]:
     """Two rigid orbits, implicit back-EMF/friction, equal chassis reaction."""
     inv_mass = jnp.repeat(1 / mass, 2)
     # Project near the origin: subtracting two rounded world positions and
@@ -630,9 +726,11 @@ def _drive(p0, velocity, omega, mass, inertia, dt, voltage, motor_speed_scale=1.
     origin = p0[0]
     local0 = p0 - origin
 
-    def project(_, carry):
+    def project(
+        _: int, carry: tuple[jax.Array, jax.Array]
+    ) -> tuple[jax.Array, jax.Array]:
         p, correction = carry
-        j, radius, _ = _radial(p)
+        j, radius, _normal = _radial(p)
         impulse = _solve2((j * inv_mass) @ j.T, radius - _ORBIT)
         delta = -(inv_mass * (j.T @ impulse)).reshape(3, 2)
         return p + delta, correction + delta
@@ -661,7 +759,7 @@ def _drive(p0, velocity, omega, mass, inertia, dt, voltage, motor_speed_scale=1.
     response = w * active - jw.T @ _solve2(a, jw @ active)
     mobility, free_speed = active @ response, active @ v
     trial = free_speed + mobility * dt * _STALL * voltage
-    damping = _DAMPING / motor_speed_scale
+    damping = _DAMPING / jnp.asarray(motor_speed_scale)
     speed = (
         jnp.sign(trial)
         * jnp.maximum(jnp.abs(trial) - mobility * dt * _FRICTION, 0.0)
@@ -671,11 +769,11 @@ def _drive(p0, velocity, omega, mass, inertia, dt, voltage, motor_speed_scale=1.
     return p + origin, v[:6].reshape(3, 2), omega.at[0, 0].set(v[-1])
 
 
-def _indices(n):
+def _indices(n: int) -> jax.Array:
     return jnp.arange(n)[:, None] * _STRIDE + jnp.array([0, _N, _N + 1])
 
 
-def _measure(env):
+def _measure(env: Granulabot) -> tuple[jax.Array, jax.Array]:
     idx = _indices(env.num_gears)
     state = env.state
     distance = norm(
@@ -712,21 +810,22 @@ class Granulabot(Environment):
     increase it if the collider reports overflow for unusually dense scenes.
     """
 
+    env_params: dict[str, jax.Array]
     num_gears: int = jax.tree.static()
     neighbor_capacity: int = jax.tree.static()
 
     @classmethod
     def Create(
         cls,
-        num_gears=2,
-        box_size=20.0,
-        max_steps=100000,
-        ke_weight=0.1,
-        attraction_mag=0.25,
-        dt=0.0005,
-        neighbor_capacity=32,
-        motor_speed_scale=2.0,
-    ):
+        num_gears: int = 2,
+        box_size: float = 20.0,
+        max_steps: int = 100000,
+        ke_weight: float = 0.1,
+        attraction_mag: float = 0.25,
+        dt: float = 0.0005,
+        neighbor_capacity: int = 32,
+        motor_speed_scale: float = 2.0,
+    ) -> Granulabot:
         if isinstance(num_gears, bool) or int(num_gears) != num_gears or num_gears < 1:
             raise ValueError("num_gears must be a positive integer")
         n = int(num_gears)
@@ -771,7 +870,7 @@ class Granulabot(Environment):
 
     @staticmethod
     @jax.jit
-    def reset(env, key):
+    def reset(env: Granulabot, key: ArrayLike) -> Granulabot:
         n, params = env.num_gears, env.env_params
         _, key_obj, key_x = jax.random.split(key, 3)
         box = jnp.full(2, params["box_size"])
@@ -849,7 +948,7 @@ class Granulabot(Environment):
 
     @staticmethod
     @jax.jit
-    def step(env, action):
+    def step(env: Granulabot, action: jax.Array) -> Granulabot:
         """Apply voltage and advance physics; preserve the action-start baseline."""
         p, dt = env.env_params, env.system.dt
         p["action"] = jnp.clip(action.reshape(env.num_gears, 1), -1.0, 1.0)
@@ -880,7 +979,7 @@ class Granulabot(Environment):
 
     @staticmethod
     @jax.jit
-    def checkpoint(env, action):
+    def checkpoint(env: Granulabot, action: jax.Array) -> Granulabot:
         """Save per-robot distance and kinetic energy before the next action.
 
         Parameters
@@ -905,13 +1004,13 @@ class Granulabot(Environment):
 
     @staticmethod
     @jax.jit
-    def observation(env):
+    def observation(env: Granulabot) -> jax.Array:
         """Compute per-robot observations from the live physical state."""
         return Granulabot._observe(env)
 
     @staticmethod
     @jax.jit
-    def _observe(env):
+    def _observe(env: Granulabot) -> jax.Array:
         robot_idx = _indices(env.num_gears)
         idx = robot_idx[:, 0]
         s, p = env.state, env.env_params
@@ -969,30 +1068,30 @@ class Granulabot(Environment):
 
     @staticmethod
     @jax.jit
-    def reward(env):
+    def reward(env: Granulabot) -> jax.Array:
         p = env.env_params
         curr_dist, curr_ke = _measure(env)
         return p["prev_dist"] - curr_dist - p["ke_weight"] * (curr_ke - p["prev_ke"])
 
     @staticmethod
     @jax.jit
-    def truncated(env):
+    def truncated(env: Granulabot) -> jax.Array:
         return env.system.step_count >= env.env_params["max_steps"]
 
     @property
-    def action_space_size(self):
+    def action_space_size(self) -> int:
         return 1
 
     @property
-    def action_space_shape(self):
+    def action_space_shape(self) -> tuple[int]:
         return (1,)
 
     @property
-    def observation_space_size(self):
+    def observation_space_size(self) -> int:
         return 35
 
     @property
-    def max_num_agents(self):
+    def max_num_agents(self) -> int:
         return self.num_gears
 
 

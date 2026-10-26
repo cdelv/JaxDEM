@@ -9,9 +9,10 @@ import jax.numpy as jnp
 from jax.typing import ArrayLike
 
 from abc import ABC, abstractmethod
+from collections.abc import Hashable
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 from flax import nnx
 
@@ -20,6 +21,11 @@ from ...utils.environment import _mask_agent_actions, advance_action
 
 if TYPE_CHECKING:
     from ..environments import Environment
+
+
+# ``nnx.split`` and ``nnx.state`` return nested State mappings. GraphState is
+# a different NNX container that also owns its GraphDef.
+ModelState: TypeAlias = nnx.State[Hashable, nnx.Variable[jax.Array] | jax.Array]
 
 
 @jax.tree_util.register_dataclass
@@ -94,7 +100,7 @@ class TrajectoryData:
 class Trainer(Factory, ABC):
     """Base class for reinforcement learning trainers.
 
-    This class holds the environment and model state (Flax NNX GraphDef/GraphState).
+    This class holds the environment and model state (Flax NNX GraphDef/State).
     It provides rollout utilities (:meth:`step`, :meth:`trajectory_rollout`) and
     a general advantage method (:meth:`compute_advantages`).
     Subclasses must implement algorithm-specific training logic in :meth:`epoch`.
@@ -121,7 +127,7 @@ class Trainer(Factory, ABC):
     Static graph definition of the model/optimizer.
     """
 
-    graphstate: nnx.GraphState
+    graphstate: ModelState
     """
     Mutable state (parameters, optimizer state, RNGs, etc.).
     """
@@ -163,10 +169,10 @@ class Trainer(Factory, ABC):
     def step(
         env: Environment,
         graphdef: nnx.GraphDef[Any],
-        graphstate: nnx.GraphState,
+        graphstate: ModelState,
         key: jax.Array,
         skip_frames: int = 0,
-    ) -> tuple[tuple[Environment, nnx.GraphState, jax.Array], TrajectoryData]:
+    ) -> tuple[tuple[Environment, ModelState, jax.Array], TrajectoryData]:
         """Take one environment step and record a single-step trajectory.
         Repeats the action for ``skip_frames`` extra frames when set.
 
@@ -176,7 +182,7 @@ class Trainer(Factory, ABC):
             The (vectorized) environment to step.
         graphdef : nnx.GraphDef
             Python part of the nnx model.
-        graphstate : nnx.GraphState
+        graphstate : nnx.State
             State of the nnx model.
         key : jax.Array
             Jax random key.
@@ -185,7 +191,7 @@ class Trainer(Factory, ABC):
 
         Returns
         -------
-        Tuple[Tuple[Environment, nnx.GraphState, jax.Array], TrajectoryData]
+        Tuple[Tuple[Environment, nnx.State, jax.Array], TrajectoryData]
             Updated state and the new single-step trajectory.
             Trajectory data is shaped (N_envs, N_agents, ...).
 
@@ -284,12 +290,12 @@ class Trainer(Factory, ABC):
     def trajectory_rollout(
         env: Environment,
         graphdef: nnx.GraphDef[Any],
-        graphstate: nnx.GraphState,
+        graphstate: ModelState,
         key: jax.Array,
         num_steps_epoch: int,
         unroll: int = 8,
         skip_frames: int = 0,
-    ) -> tuple[Environment, nnx.GraphState, jax.Array, TrajectoryData]:
+    ) -> tuple[Environment, ModelState, jax.Array, TrajectoryData]:
         r"""Roll out :math:`T = \text{num\_steps\_epoch}` policy decisions using :func:`jax.lax.scan`.
 
         Parameters
@@ -298,7 +304,7 @@ class Trainer(Factory, ABC):
             The (vectorized) environment to roll out.
         graphdef : nnx.GraphDef
             Python part of the nnx model.
-        graphstate : nnx.GraphState
+        graphstate : nnx.State
             State of the nnx model.
         key : jax.Array
             Jax random key.
@@ -311,7 +317,7 @@ class Trainer(Factory, ABC):
 
         Returns
         -------
-        Tuple[Environment, nnx.GraphState, jax.Array, TrajectoryData]
+        Tuple[Environment, nnx.State, jax.Array, TrajectoryData]
             The final environment, graph state, and PRNG key, plus a
             :class:`TrajectoryData` instance whose fields are stacked
             along time (leading dimension :math:`T = \text{num\_steps\_epoch}`).
@@ -323,8 +329,8 @@ class Trainer(Factory, ABC):
 
         @partial(jax.named_call, name="Trainer.rollout_body")
         def body(
-            carry: tuple[Environment, nnx.GraphState, jax.Array], _: None
-        ) -> tuple[tuple[Environment, nnx.GraphState, jax.Array], TrajectoryData]:
+            carry: tuple[Environment, ModelState, jax.Array], _: None
+        ) -> tuple[tuple[Environment, ModelState, jax.Array], TrajectoryData]:
             env, graphstate, key = carry
             carry, traj = Trainer.step(env, graphdef, graphstate, key, skip_frames)
             return carry, traj

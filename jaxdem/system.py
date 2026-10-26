@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+from jax.typing import ArrayLike
 
 import dataclasses
 from collections.abc import Callable, Sequence
@@ -263,7 +264,7 @@ class System:
         state_shape: tuple[int, ...] | None = None,
         *,
         state: State | None = None,
-        dt: float = 0.005,
+        dt: ArrayLike = 0.005,
         time: float = 0.0,
         linear_integrator_type: str | None = "verlet",
         rotation_integrator_type: str | None = "verletspiral",
@@ -323,8 +324,8 @@ class System:
             ``Create`` method requires one (e.g. ``"CellList"``,
             ``"NeighborList"``), so ``collider_kw={"state": state}`` is not
             needed.
-        dt : float, optional
-            The global simulation time step.
+        dt : ArrayLike, optional
+            The scalar global simulation time step, including a traced JAX scalar.
         linear_integrator_type : str or None, optional
             The registered type string for the :class:`jaxdem.integrators.LinearIntegrator`
             used to evolve translational degrees of freedom. ``None`` (or the

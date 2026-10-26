@@ -22,6 +22,19 @@ from . import Environment
 from ._swarm import filter_objectives, shared_potential, vacant_objective_lidar
 
 
+def _sensor_dimensions(dim: object, n_lidar_elevation: object) -> tuple[int, int]:
+    """Validate user-provided sensor dimensions, including NumPy integers."""
+    if isinstance(dim, bool) or not isinstance(dim, Integral) or dim not in (2, 3):
+        raise ValueError("dim must be 2 or 3")
+    if (
+        isinstance(n_lidar_elevation, bool)
+        or not isinstance(n_lidar_elevation, Integral)
+        or n_lidar_elevation < 1
+    ):
+        raise ValueError("n_lidar_elevation must be a positive integer")
+    return int(dim), int(n_lidar_elevation)
+
+
 @jax.jit(static_argnames=("N",))
 @partial(jax.named_call, name="swarm_navigator._sample_objectives")
 def _sample_objectives(key: ArrayLike, N: int, box: jax.Array, gap: float) -> jax.Array:
@@ -384,14 +397,7 @@ class SwarmNavigator(Environment):
         ):
             if not isfinite(value) or value <= 0:
                 raise ValueError(f"{name} must be finite and positive")
-        if isinstance(dim, bool) or not isinstance(dim, Integral) or dim not in (2, 3):
-            raise ValueError("dim must be 2 or 3")
-        if (
-            isinstance(n_lidar_elevation, bool)
-            or not isinstance(n_lidar_elevation, Integral)
-            or n_lidar_elevation < 1
-        ):
-            raise ValueError("n_lidar_elevation must be a positive integer")
+        dim, n_lidar_elevation = _sensor_dimensions(dim, n_lidar_elevation)
         n_obj = int(num_objectives)
         state = State.create(pos=jnp.zeros((int(N), dim)))
         env_params = {

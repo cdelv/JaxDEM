@@ -1520,7 +1520,7 @@ def build_ga_system(
     # Final system
     dt: float = 1e-3,
     linear_integrator_type: str = "verlet",
-    rotation_integrator_type: str = "verletspiral",
+    rotation_integrator_type: str | None = "verletspiral",
     linear_integrator_kw: dict[str, Any] | None = None,
     rotation_integrator_kw: dict[str, Any] | None = None,
     force_model_type: str = "spring",

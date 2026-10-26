@@ -1,0 +1,25 @@
+name: types
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  mypy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install typing dependencies
+        run: python -m pip install '.[test]'
+      - name: Check library and public type contracts
+        run: >-
+          python -m mypy --explicit-package-bases --no-incremental
+          jaxdem tests/typing_contracts.py

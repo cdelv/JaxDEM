@@ -371,7 +371,7 @@ def _clump_first_indices(state: State, n: int) -> jax.Array:
 
 
 def _measure(
-    state: State, system: System, env_params: dict
+    state: State, system: System, env_params: dict[str, jax.Array]
 ) -> Tuple[jax.Array, jax.Array]:
     """Per-gear distance to its objective and total kinetic energy.
 
@@ -392,6 +392,13 @@ def _measure(
         [jnp.sum(jnp.where(cid == i, ke_total, 0.0)) for i in range(int(n))]
     )
     return curr_dist, curr_ke
+
+
+def _positive_integer(name: str, value: object) -> int:
+    """Validate factory input without assuming callers already type-check."""
+    if isinstance(value, bool) or not isinstance(value, Integral) or value < 1:
+        raise ValueError(f"{name} must be a positive integer")
+    return int(value)
 
 
 @Environment.register("TwoGears")
@@ -452,13 +459,9 @@ class TwoGears(Environment):
         is nonnegative, and kinetic_energy_scale is a positive reference
         energy for the complete rigid gear.
         """
-        for name, value in (
-            ("num_gears", num_gears),
-            ("max_steps", max_steps),
-            ("n_lidar_rays", n_lidar_rays),
-        ):
-            if isinstance(value, bool) or not isinstance(value, Integral) or value < 1:
-                raise ValueError(f"{name} must be a positive integer")
+        num_gears = _positive_integer("num_gears", num_gears)
+        max_steps = _positive_integer("max_steps", max_steps)
+        n_lidar_rays = _positive_integer("n_lidar_rays", n_lidar_rays)
         for name, value in (
             ("friction", friction),
             ("attraction_mag", attraction_mag),

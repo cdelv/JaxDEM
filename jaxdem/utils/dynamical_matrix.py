@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+from jax.typing import ArrayLike
 
 from functools import partial
 from typing import TYPE_CHECKING
@@ -123,8 +124,13 @@ def _pair_blocks(
     dof = state.dim + state.ang_vel.shape[-1] if clumps else state.dim
     if not pairs.shape[0]:
         return jnp.empty((0, 2 * dof, 2 * dof), dtype=state.pos_c.dtype)
+
+    def pair_block(args: tuple[jax.Array, jax.Array, jax.Array]) -> jax.Array:
+        pair, mask, history = args
+        return _pair_hessian_block(state, system, pair, mask, history, clumps)
+
     return jax.lax.map(
-        lambda args: _pair_hessian_block(state, system, *args, clumps),
+        pair_block,
         (pairs, directions, histories),
         batch_size=min(pairs.shape[0], _HESSIAN_BATCH_SIZE),
     )
@@ -311,7 +317,7 @@ def clump_non_bonded_hessian(
 
 
 def zero_mode_mask(
-    eigenvalues: jax.Array,
+    eigenvalues: ArrayLike,
     rel_gap: float = 1e4,
 ) -> jax.Array:
     r"""Boolean mask identifying numerically-zero eigenvalues via gap detection.
@@ -332,7 +338,7 @@ def zero_mode_mask(
 
     Parameters
     ----------
-    eigenvalues : jax.Array
+    eigenvalues : ArrayLike
         1-D array of eigenvalues (e.g. from :func:`jax.numpy.linalg.eigvalsh`
         or :func:`jax.numpy.linalg.eigh`). Ordering is not required.
     rel_gap : float, optional

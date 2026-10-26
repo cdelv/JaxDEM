@@ -357,6 +357,27 @@ def test_caps_configuration_validation(kwargs):
         PPOTrainer.Create(ActionLookupEnv.Create(), model, **kwargs)
 
 
+def test_per_feature_caps_noise_trains_a_custom_model_without_input_size_attribute():
+    from tests.test_ppo_math import BanditModel, TimeLimitCounterEnv
+
+    model = BanditModel()
+    assert not hasattr(model, "observation_space_size")
+    trainer = PPOTrainer.Create(
+        TimeLimitCounterEnv.Create(),
+        model,
+        num_envs=1,
+        num_steps_epoch=2,
+        num_minibatches=1,
+        caps_spatial_coeff=0.1,
+        caps_noise_std=[0.1],
+    )
+
+    _, _, metrics = trainer.epoch(trainer, jnp.array(0))
+    jax.block_until_ready(metrics)
+    assert all(np.isfinite(value).all() for value in jax.tree.leaves(metrics))
+    assert metrics["caps_spatial_loss"] == 0.0
+
+
 def test_single_step_rollout_and_zero_noise_have_finite_zero_caps_gradients():
     model = LinearPolicy()
     td = trajectory(jnp.zeros((1, 1, 1)))

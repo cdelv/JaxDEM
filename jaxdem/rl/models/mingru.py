@@ -96,6 +96,7 @@ class MinGRUActorCritic(Model):
             self.activation,
         )
 
+        self.proj_in: nnx.Linear | None
         if self.hidden_features != self.gru_features:
             self.proj_in = nnx.Linear(
                 self.hidden_features,

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+from jax.typing import ArrayLike
 
 from typing import TYPE_CHECKING
 
@@ -67,8 +68,8 @@ def run_packing_fraction_protocol(
     state: State,
     system: System,
     *,
-    strides: jax.Array,
-    phi_at_frames: jax.Array,
+    strides: ArrayLike,
+    phi_at_frames: ArrayLike,
     unroll: int = 2,
 ) -> tuple[State, System, tuple[State, System]]:
     """Integrate + scheduled box-rescale protocol, saving one frame per event.

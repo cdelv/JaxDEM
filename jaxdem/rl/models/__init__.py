@@ -69,6 +69,10 @@ class Model(Factory, nnx.Module, ABC):  # type: ignore[misc]
     #: :meth:`_init_policy_head`.
     discrete: bool
 
+    #: Continuous-policy scale, either a feature-dependent head or a learned
+    #: state-independent parameter. Both accept the same feature tensor.
+    actor_sigma: SigmaHead | SigmaParam
+
     @property
     def action_space(self) -> Any:
         if hasattr(self, "bij") and self.bij is not None:

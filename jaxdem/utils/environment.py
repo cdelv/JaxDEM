@@ -19,7 +19,8 @@ if TYPE_CHECKING:
     from ..rl.environments import Environment
 
 
-def _step_count(name: str, value: int, *, minimum: int = 0) -> int:
+def _step_count(name: str, value: object, *, minimum: int = 0) -> int:
+    """Validate an untrusted count, including NumPy integer scalars."""
     if isinstance(value, bool) or not isinstance(value, Integral) or value < minimum:
         raise ValueError(f"{name} must be an integer >= {minimum}")
     return int(value)
@@ -60,15 +61,17 @@ def advance_action(
     skip_frames = _step_count("skip_frames", skip_frames)
     action = _mask_agent_actions(action, env.agent_mask(env))
     shape = jnp.shape(env.done(env))
-    if terminated is None:
-        terminated = jnp.zeros(shape, dtype=bool)
-    if truncated is None:
-        truncated = jnp.zeros(shape, dtype=bool)
+    initial_terminated = (
+        jnp.zeros(shape, dtype=bool) if terminated is None else terminated
+    )
+    initial_truncated = jnp.zeros(shape, dtype=bool) if truncated is None else truncated
 
     # Refresh history even for frozen entries: their difference reward is zero.
     env = env.checkpoint(env, action)
 
-    def step_fn(carry, _):
+    def step_fn(
+        carry: tuple[Environment, jax.Array, jax.Array], _: None
+    ) -> tuple[tuple[Environment, jax.Array, jax.Array], None]:
         current, terminated, truncated = carry
         done_before = terminated | truncated
         # Slots can disappear between repeated physics steps. They must not
@@ -91,13 +94,13 @@ def advance_action(
         truncated = truncated | current.truncated(current)
         return (current, terminated, truncated), None
 
-    (env, terminated, truncated), _ = jax.lax.scan(
+    (env, final_terminated, final_truncated), _ = jax.lax.scan(
         step_fn,
-        (env, terminated, truncated),
+        (env, initial_terminated, initial_truncated),
         None,
         length=1 + skip_frames,
     )
-    return env, terminated, truncated
+    return env, final_terminated, final_truncated
 
 
 @jax.jit(inline=True, static_argnames=("model", "n", "stride", "skip_frames"))
