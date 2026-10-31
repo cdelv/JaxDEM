@@ -1,0 +1,203 @@
+{
+  "title": "Multi gpu guide",
+  "renderer": "ParaView",
+  "paraview_version": "6.2.0",
+  "manifest": "/tmp/jaxdem-media-multi_gpu_guide-9ja39jw8/scene.json",
+  "size": [
+    960,
+    600
+  ],
+  "camera": "isometric",
+  "bounds": [
+    -0.9945219159126282,
+    8.123929977416992,
+    -0.9945219159126282,
+    8.123929977416992,
+    -1.0,
+    8.123929977416992
+  ],
+  "poster_time": 0.0,
+  "time_label": "t",
+  "native_times": [
+    0.0
+  ],
+  "animation_times": [],
+  "fps": 8,
+  "end_hold_frames": 0,
+  "end_hold_seconds": 0.0,
+  "encoded_frame_count": 0,
+  "series": [
+    {
+      "path": "/tmp/jaxdem-media-multi_gpu_guide-9ja39jw8/vtk/group_00/batch_00000000_domain.pvd",
+      "kind": "domain",
+      "native_times": [
+        0.0
+      ],
+      "source_points": 24,
+      "source_cells": 6,
+      "point_arrays": [
+        "Normals",
+        "TCoords"
+      ],
+      "representation": {},
+      "geometry_points": 24,
+      "geometry_cells": 6
+    },
+    {
+      "path": "/tmp/jaxdem-media-multi_gpu_guide-9ja39jw8/vtk/group_00/batch_00000000_spheres.pvd",
+      "kind": "particles",
+      "native_times": [
+        0.0
+      ],
+      "source_points": 64,
+      "source_cells": 0,
+      "point_arrays": [
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "rad",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_id",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color_by": "rad",
+        "color": [
+          0.12,
+          0.48,
+          0.72
+        ]
+      },
+      "geometry_points": 21632,
+      "geometry_cells": 43008
+    }
+  ],
+  "outputs": {
+    "scene.png": 128521
+  },
+  "example": "multi_gpu_guide.py",
+  "example_sha256": "3bd7d97872fff671bb7ba5c81bfb535e9f70c8de4fa09321bf20a6193a162186",
+  "library_revision": "9915b7d8d5b93e287f8f095c68dc6aa1dd6d2265",
+  "library_sha256": "df9920bdc26265a6cb7fdc6748fa7b2c1243981c76c49bbc80785fe0f7fb6d30",
+  "media_seconds": 3.788,
+  "simulation": {
+    "slug": "multi_gpu_guide",
+    "source": "Current example State/System snapshots via VTKWriter; derived diagnostics via native VTK",
+    "groups": [
+      {
+        "label": "Final configuration",
+        "source_frames": 1,
+        "exported_frames": 1,
+        "selected_indices": [
+          0
+        ],
+        "particle_rows": [
+          64
+        ],
+        "source_step_counts": [
+          0
+        ],
+        "source_times": [
+          0.0
+        ],
+        "collection_times": [
+          0.0
+        ],
+        "offset": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "geometry_only_system": false
+      }
+    ],
+    "geometry": [
+      {
+        "label": "Final configuration",
+        "kind": "domain",
+        "path": "/tmp/jaxdem-media-multi_gpu_guide-9ja39jw8/vtk/group_00/batch_00000000_domain.pvd",
+        "point_arrays": [
+          "Normals",
+          "TCoords"
+        ],
+        "frames": [
+          {
+            "time": 0.0,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.123929977416992,
+              0.0,
+              8.123929977416992,
+              0.0,
+              8.123929977416992
+            ],
+            "bytes": 3066,
+            "physical_summary": {}
+          }
+        ]
+      },
+      {
+        "label": "Final configuration",
+        "kind": "particles",
+        "path": "/tmp/jaxdem-media-multi_gpu_guide-9ja39jw8/vtk/group_00/batch_00000000_spheres.pvd",
+        "point_arrays": [
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "rad",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_id",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 0.0,
+            "points": 64,
+            "cells": 0,
+            "bounds": [
+              0.0,
+              6.0,
+              0.0,
+              6.0,
+              0.0,
+              6.0
+            ],
+            "bytes": 9095,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 0.5000000000000001,
+              "force_norm_max": 0.0
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

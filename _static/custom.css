@@ -1,0 +1,141 @@
+/* Show the nesting of API documentation blocks. */
+dl.py.class,
+dl.py.function,
+dl.py.method,
+dl.py.attribute {
+    border-left: 2px solid var(--pst-color-border);
+    padding-left: 1em;
+    padding-top: 1em;
+    padding-bottom: 1em;
+    margin-bottom: 2em;
+}
+
+/* Hide things meant for the Github Readme only */
+.github-only {
+    display: none;
+}
+
+/* Keep example downloads unobtrusive, without a callout above the content. */
+.sphx-glr-download-link-note {
+    display: none;
+}
+
+.bd-article .sphx-glr-footer-example {
+    margin-top: 1.25rem;
+    text-align: left;
+}
+
+.bd-article div.sphx-glr-download {
+    margin: 0.25rem 0;
+    font-size: 0.9rem;
+}
+
+.bd-article .sphx-glr-download p {
+    margin: 0;
+}
+
+.bd-article .sphx-glr-download a,
+.bd-article .sphx-glr-download a:hover {
+    display: inline;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    color: var(--pst-color-link);
+    font-weight: normal;
+    text-align: left;
+    text-decoration: underline;
+}
+
+.bd-article .sphx-glr-download code.download {
+    display: inline;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+}
+
+/* Keep long module names, signatures, and links inside their columns. */
+.bd-article h1,
+.bd-article h2,
+.bd-article h3,
+.bd-article .sig,
+.bd-toc .nav-link,
+.bd-toc .nav-link code {
+    overflow-wrap: anywhere;
+}
+
+.bd-article .sig,
+.bd-article .sig-name,
+.bd-article .sig-prename,
+.bd-article .sig .pre,
+.bd-article a.reference code,
+.bd-article a.reference code .pre,
+.bd-toc .nav-link code .pre {
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+/* The general index contains long fully qualified Python names. */
+table.genindextable {
+    width: 100%;
+    table-layout: fixed;
+}
+
+table.genindextable td {
+    overflow-wrap: anywhere;
+}
+
+table.autosummary {
+    width: 100%;
+    table-layout: fixed;
+}
+
+table.autosummary td {
+    overflow-wrap: anywhere;
+}
+
+.bd-article table.autosummary td:first-child {
+    white-space: normal;
+}
+
+/* Gallery timing tables must remain readable in both color themes. */
+table.sg-datatable.table-striped > tbody > tr > td {
+    color: var(--pst-color-text-base);
+}
+
+/* Simulation media stays responsive and uses the browser's native controls. */
+@media screen {
+    .bd-article .animation-poster {
+        display: none;
+    }
+}
+
+.simulation-media {
+    margin: 1.5rem 0;
+}
+
+.simulation-media video,
+.simulation-media iframe {
+    display: block;
+    width: 100%;
+    border: 0;
+}
+
+.simulation-media iframe {
+    height: 32rem;
+    margin-top: 0.75rem;
+}
+
+.simulation-media figcaption {
+    margin-top: 0.5rem;
+    color: var(--pst-color-text-muted);
+    font-size: 0.9rem;
+}
+
+.interactive-scene summary {
+    cursor: pointer;
+    color: var(--pst-color-link);
+}

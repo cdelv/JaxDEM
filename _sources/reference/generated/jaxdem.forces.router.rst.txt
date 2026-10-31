@@ -1,0 +1,12 @@
+jaxdem.forces.router
+====================
+
+.. automodule:: jaxdem.forces.router
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      ForceRouter
+   

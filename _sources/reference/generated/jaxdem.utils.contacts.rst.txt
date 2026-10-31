@@ -1,0 +1,28 @@
+jaxdem.utils.contacts
+=====================
+
+.. automodule:: jaxdem.utils.contacts
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      compute_contact_pressure
+      compute_contact_stress_tensor
+      count_clump_contacts
+      count_sphere_contacts
+      count_vertex_contacts
+      get_clump_rattler_ids
+      get_contacts
+      get_group_contacts
+      get_sphere_rattler_ids
+      remove_rattlers
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      ContactData
+      GroupContactData
+   

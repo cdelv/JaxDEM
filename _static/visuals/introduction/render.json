@@ -1,0 +1,140 @@
+{
+  "title": "Introduction",
+  "renderer": "ParaView",
+  "paraview_version": "6.2.0",
+  "manifest": "/tmp/jaxdem-media-introduction-8eqi7j7l/scene.json",
+  "size": [
+    960,
+    600
+  ],
+  "camera": "isometric",
+  "bounds": [
+    -0.8987165689468384,
+    1.0987164974212646,
+    -0.9987165331840515,
+    0.9987165331840515,
+    -1.0,
+    1.0
+  ],
+  "poster_time": 0.099999986589,
+  "time_label": "t",
+  "native_times": [
+    0.099999986589
+  ],
+  "animation_times": [],
+  "fps": 8,
+  "end_hold_frames": 0,
+  "end_hold_seconds": 0.0,
+  "encoded_frame_count": 0,
+  "series": [
+    {
+      "path": "/tmp/jaxdem-media-introduction-8eqi7j7l/vtk/group_00/batch_00000000_spheres.pvd",
+      "kind": "particles",
+      "native_times": [
+        0.099999986589
+      ],
+      "source_points": 1,
+      "source_cells": 0,
+      "point_arrays": [
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "rad",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_id",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color_by": "rad",
+        "color": [
+          0.12,
+          0.48,
+          0.72
+        ]
+      },
+      "geometry_points": 1442,
+      "geometry_cells": 2880
+    }
+  ],
+  "outputs": {
+    "scene.png": 46423
+  },
+  "example": "introduction.py",
+  "example_sha256": "8ad9fdaefe429bbb43468196ca7fb13fd176730c239f62bf71b18519a3654be9",
+  "library_revision": "9915b7d8d5b93e287f8f095c68dc6aa1dd6d2265",
+  "library_sha256": "df9920bdc26265a6cb7fdc6748fa7b2c1243981c76c49bbc80785fe0f7fb6d30",
+  "media_seconds": 9.044,
+  "simulation": {
+    "slug": "introduction",
+    "source": "Current example State/System snapshots via VTKWriter; derived diagnostics via native VTK",
+    "groups": [
+      {
+        "label": "Exported replica 0",
+        "reused_writer_output": true,
+        "source_directory": "/tmp/jaxdem-introduction-jzdwvg7p"
+      }
+    ],
+    "geometry": [
+      {
+        "label": "Exported replica 0",
+        "kind": "particles",
+        "path": "/tmp/jaxdem-media-introduction-8eqi7j7l/vtk/group_00/batch_00000000_spheres.pvd",
+        "point_arrays": [
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "rad",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_id",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 0.099999986589,
+            "points": 1,
+            "cells": 0,
+            "bounds": [
+              0.09999998658895493,
+              0.09999998658895493,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "bytes": 6379,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 1.0,
+              "force_norm_max": 0.0
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

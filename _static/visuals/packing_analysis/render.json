@@ -1,0 +1,311 @@
+{
+  "title": "Packing analysis",
+  "renderer": "ParaView",
+  "paraview_version": "6.2.0",
+  "manifest": "/tmp/jaxdem-media-packing_analysis-6wcs1i8q/scene.json",
+  "size": [
+    960,
+    600
+  ],
+  "camera": "xy",
+  "bounds": [
+    0.0,
+    6.0,
+    0.0,
+    6.0,
+    -0.5,
+    0.65
+  ],
+  "poster_time": 0.0,
+  "time_label": "t",
+  "native_times": [
+    0.0
+  ],
+  "animation_times": [],
+  "fps": 8,
+  "end_hold_frames": 0,
+  "end_hold_seconds": 0.0,
+  "encoded_frame_count": 0,
+  "series": [
+    {
+      "path": "/tmp/jaxdem-media-packing_analysis-6wcs1i8q/vtk/group_00/batch_00000000_domain.pvd",
+      "kind": "domain",
+      "native_times": [
+        0.0
+      ],
+      "source_points": 24,
+      "source_cells": 6,
+      "point_arrays": [
+        "Normals",
+        "TCoords"
+      ],
+      "representation": {},
+      "geometry_points": 24,
+      "geometry_cells": 6
+    },
+    {
+      "path": "/tmp/jaxdem-media-packing_analysis-6wcs1i8q/vtk/group_00/batch_00000000_spheres.pvd",
+      "kind": "particles",
+      "native_times": [
+        0.0
+      ],
+      "source_points": 8,
+      "source_cells": 0,
+      "point_arrays": [
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "rad",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_id",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color_by": "clump_id",
+        "color": [
+          0.12,
+          0.48,
+          0.72
+        ]
+      },
+      "geometry_points": 11536,
+      "geometry_cells": 23040
+    },
+    {
+      "path": "/tmp/jaxdem-media-packing_analysis-6wcs1i8q/vtk/contacts/within_species.pvd",
+      "kind": "edges",
+      "native_times": [
+        0.0
+      ],
+      "source_points": 2,
+      "source_cells": 1,
+      "point_arrays": [
+        "force_magnitude",
+        "tube_radius"
+      ],
+      "representation": {
+        "color": [
+          0.12,
+          0.48,
+          0.72
+        ],
+        "offset": [
+          0.0,
+          0.0,
+          0.55
+        ],
+        "radius_by": "tube_radius"
+      },
+      "geometry_points": 40,
+      "geometry_cells": 12
+    },
+    {
+      "path": "/tmp/jaxdem-media-packing_analysis-6wcs1i8q/vtk/contacts/between_species.pvd",
+      "kind": "edges",
+      "native_times": [
+        0.0
+      ],
+      "source_points": 4,
+      "source_cells": 2,
+      "point_arrays": [
+        "force_magnitude",
+        "tube_radius"
+      ],
+      "representation": {
+        "color": [
+          0.88,
+          0.46,
+          0.12
+        ],
+        "offset": [
+          0.0,
+          0.0,
+          0.55
+        ],
+        "radius_by": "tube_radius"
+      },
+      "geometry_points": 80,
+      "geometry_cells": 24
+    }
+  ],
+  "outputs": {
+    "scene.png": 30363
+  },
+  "example": "packing_analysis.py",
+  "example_sha256": "f8c11ee2996feb2a9d8ec87f81cc47834e7dbdba2d71b9dc3c129229d7ab7515",
+  "library_revision": "9915b7d8d5b93e287f8f095c68dc6aa1dd6d2265",
+  "library_sha256": "df9920bdc26265a6cb7fdc6748fa7b2c1243981c76c49bbc80785fe0f7fb6d30",
+  "media_seconds": 4.249,
+  "simulation": {
+    "slug": "packing_analysis",
+    "source": "Current example State/System snapshots via VTKWriter; derived diagnostics via native VTK",
+    "groups": [
+      {
+        "label": "Full packing, including the isolated rattler",
+        "source_frames": 1,
+        "exported_frames": 1,
+        "selected_indices": [
+          0
+        ],
+        "particle_rows": [
+          8
+        ],
+        "source_step_counts": [
+          0
+        ],
+        "source_times": [
+          0.0
+        ],
+        "collection_times": [
+          0.0
+        ],
+        "offset": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "geometry_only_system": false
+      }
+    ],
+    "geometry": [
+      {
+        "label": "Full packing, including the isolated rattler",
+        "kind": "domain",
+        "path": "/tmp/jaxdem-media-packing_analysis-6wcs1i8q/vtk/group_00/batch_00000000_domain.pvd",
+        "point_arrays": [
+          "Normals",
+          "TCoords"
+        ],
+        "frames": [
+          {
+            "time": 0.0,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              6.0,
+              0.0,
+              6.0,
+              0.0,
+              0.0
+            ],
+            "bytes": 3046,
+            "physical_summary": {}
+          }
+        ]
+      },
+      {
+        "label": "Full packing, including the isolated rattler",
+        "kind": "particles",
+        "path": "/tmp/jaxdem-media-packing_analysis-6wcs1i8q/vtk/group_00/batch_00000000_spheres.pvd",
+        "point_arrays": [
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "rad",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_id",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 0.0,
+            "points": 8,
+            "cells": 0,
+            "bounds": [
+              1.0,
+              4.0,
+              0.85,
+              4.15,
+              0.0,
+              0.0
+            ],
+            "bytes": 6566,
+            "physical_summary": {
+              "radius_min": 0.5,
+              "radius_max": 0.5,
+              "speed_max": 0.0,
+              "force_norm_max": 13371.226040601236
+            }
+          }
+        ]
+      },
+      {
+        "label": "within species",
+        "kind": "edges",
+        "path": "/tmp/jaxdem-media-packing_analysis-6wcs1i8q/vtk/contacts/within_species.pvd",
+        "point_arrays": [
+          "force_magnitude",
+          "tube_radius"
+        ],
+        "frames": [
+          {
+            "time": 0.0,
+            "points": 2,
+            "cells": 1,
+            "bounds": [
+              1.0,
+              1.8,
+              1.0,
+              1.0,
+              0.0,
+              0.0
+            ],
+            "bytes": 2696,
+            "physical_summary": {}
+          }
+        ]
+      },
+      {
+        "label": "between species",
+        "kind": "edges",
+        "path": "/tmp/jaxdem-media-packing_analysis-6wcs1i8q/vtk/contacts/between_species.pvd",
+        "point_arrays": [
+          "force_magnitude",
+          "tube_radius"
+        ],
+        "frames": [
+          {
+            "time": 0.0,
+            "points": 4,
+            "cells": 2,
+            "bounds": [
+              1.0,
+              1.8,
+              1.0,
+              1.7,
+              0.0,
+              0.0
+            ],
+            "bytes": 2712,
+            "physical_summary": {}
+          }
+        ]
+      }
+    ]
+  }
+}

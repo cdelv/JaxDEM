@@ -1,0 +1,6 @@
+jaxdem.utils.randomize\_orientations
+====================================
+
+.. currentmodule:: jaxdem.utils
+
+.. autofunction:: randomize_orientations

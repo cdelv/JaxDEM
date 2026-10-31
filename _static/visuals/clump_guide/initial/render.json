@@ -1,0 +1,159 @@
+{
+  "title": "A rigid clump built from multiple spheres",
+  "renderer": "ParaView",
+  "paraview_version": "6.2.0",
+  "manifest": "/tmp/jaxdem-media-clump_guide-qls4jsa_/initial.json",
+  "size": [
+    960,
+    600
+  ],
+  "camera": "xy",
+  "bounds": [
+    0.9007700681686401,
+    6.998716354370117,
+    -0.9987165331840515,
+    0.9987165331840515,
+    -1.0,
+    1.0
+  ],
+  "poster_time": 0.0,
+  "time_label": "t",
+  "native_times": [
+    0.0
+  ],
+  "animation_times": [],
+  "fps": 8,
+  "end_hold_frames": 0,
+  "end_hold_seconds": 0.0,
+  "encoded_frame_count": 0,
+  "series": [
+    {
+      "path": "/tmp/jaxdem-media-clump_guide-qls4jsa_/initial/vtk/group_00/batch_00000000_spheres.pvd",
+      "kind": "particles",
+      "native_times": [
+        0.0
+      ],
+      "source_points": 3,
+      "source_cells": 0,
+      "point_arrays": [
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "rad",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_id",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color_by": "clump_id",
+        "color": [
+          0.12,
+          0.48,
+          0.72
+        ]
+      },
+      "geometry_points": 4326,
+      "geometry_cells": 8640
+    }
+  ],
+  "outputs": {
+    "scene.png": 47343
+  },
+  "simulation": {
+    "slug": "clump_guide",
+    "source": "Current example State/System snapshots via VTKWriter; derived diagnostics via native VTK",
+    "groups": [
+      {
+        "label": "Saved trajectory",
+        "source_frames": 1,
+        "exported_frames": 1,
+        "selected_indices": [
+          0
+        ],
+        "particle_rows": [
+          3
+        ],
+        "source_step_counts": [
+          0
+        ],
+        "source_times": [
+          0.0
+        ],
+        "collection_times": [
+          0.0
+        ],
+        "offset": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "geometry_only_system": false
+      }
+    ],
+    "geometry": [
+      {
+        "label": "Saved trajectory",
+        "kind": "particles",
+        "path": "/tmp/jaxdem-media-clump_guide-qls4jsa_/initial/vtk/group_00/batch_00000000_spheres.pvd",
+        "point_arrays": [
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "rad",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_id",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 0.0,
+            "points": 3,
+            "cells": 0,
+            "bounds": [
+              1.5,
+              6.0,
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "bytes": 6410,
+            "physical_summary": {
+              "radius_min": 0.6,
+              "radius_max": 1.0,
+              "speed_max": 0.0,
+              "force_norm_max": 0.0
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "example_sha256": "c1eb544df8b48e9d5f8aeb9d5db01cd7276130a3cd4e1b5abfff4382aa0f3ae5",
+  "library_revision": "9915b7d8d5b93e287f8f095c68dc6aa1dd6d2265",
+  "library_sha256": "df9920bdc26265a6cb7fdc6748fa7b2c1243981c76c49bbc80785fe0f7fb6d30"
+}

@@ -1,0 +1,229 @@
+{
+  "title": "Clump construction pipeline",
+  "renderer": "ParaView",
+  "paraview_version": "6.2.0",
+  "manifest": "/tmp/jaxdem-media-clump_construction_pipeline-579c0hk5/scene.json",
+  "size": [
+    960,
+    600
+  ],
+  "camera": "isometric",
+  "bounds": [
+    0.0,
+    2.191936731338501,
+    0.0,
+    1.9170829057693481,
+    0.0,
+    2.289172887802124
+  ],
+  "poster_time": 0.01,
+  "time_label": "t",
+  "native_times": [
+    0.01
+  ],
+  "animation_times": [],
+  "fps": 8,
+  "end_hold_frames": 0,
+  "end_hold_seconds": 0.0,
+  "encoded_frame_count": 0,
+  "series": [
+    {
+      "path": "/tmp/jaxdem-media-clump_construction_pipeline-579c0hk5/vtk/group_00/batch_00000000_domain.pvd",
+      "kind": "domain",
+      "native_times": [
+        0.01
+      ],
+      "source_points": 24,
+      "source_cells": 6,
+      "point_arrays": [
+        "Normals",
+        "TCoords"
+      ],
+      "representation": {},
+      "geometry_points": 24,
+      "geometry_cells": 6
+    },
+    {
+      "path": "/tmp/jaxdem-media-clump_construction_pipeline-579c0hk5/vtk/group_00/batch_00000000_spheres.pvd",
+      "kind": "particles",
+      "native_times": [
+        0.01
+      ],
+      "source_points": 21,
+      "source_cells": 0,
+      "point_arrays": [
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "rad",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_id",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color_by": "rad",
+        "color": [
+          0.12,
+          0.48,
+          0.72
+        ]
+      },
+      "geometry_points": 7098,
+      "geometry_cells": 14112
+    }
+  ],
+  "interactive_viewer": "viewer.html",
+  "interactive_scene": "scene.vtkjs",
+  "viewer_source": "/home/runner/work/_temp/paraview/ParaView-6.2.0-MPI-Linux-Python3.12-x86_64/share/paraview-6.2/web/glance/ParaViewGlance.html",
+  "viewer_sha256": "5e83635bd1043df973772b90d00ce084e18c4b9a4e0c4fd92511e27eabf21f7f",
+  "viewer_bytes": 16080233,
+  "removed_optional_script_tags": 2,
+  "constant_lut_range_padding": {
+    "patched_setters": 1,
+    "relative": 0.01,
+    "absolute_minimum": 1e-06,
+    "preserves_field_values_and_ranges": true
+  },
+  "viewer_license_files": [
+    "vendors.10c89adbf1710d24c1bf.js.LICENSE.txt"
+  ],
+  "interactive_point_arrays": {
+    "Glyph1": [
+      "Normals",
+      "clump_id",
+      "rad"
+    ],
+    "domain_0": [
+      "Normals"
+    ]
+  },
+  "outputs": {
+    "scene.png": 52059,
+    "scene.vtkjs": 91752
+  },
+  "example": "clump_construction_pipeline.py",
+  "example_sha256": "c44a2f8d454c878b6718d801506d9acbbd0a9629ab940d6afcb4b1877bd79cbd",
+  "library_revision": "9915b7d8d5b93e287f8f095c68dc6aa1dd6d2265",
+  "library_sha256": "df9920bdc26265a6cb7fdc6748fa7b2c1243981c76c49bbc80785fe0f7fb6d30",
+  "media_seconds": 4.538,
+  "simulation": {
+    "slug": "clump_construction_pipeline",
+    "source": "Current example State/System snapshots via VTKWriter; derived diagnostics via native VTK",
+    "groups": [
+      {
+        "label": "Final configuration",
+        "source_frames": 1,
+        "exported_frames": 1,
+        "selected_indices": [
+          0
+        ],
+        "particle_rows": [
+          21
+        ],
+        "source_step_counts": [
+          10
+        ],
+        "source_times": [
+          0.010000000000000002
+        ],
+        "collection_times": [
+          0.010000000000000002
+        ],
+        "offset": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "geometry_only_system": false
+      }
+    ],
+    "geometry": [
+      {
+        "label": "Final configuration",
+        "kind": "domain",
+        "path": "/tmp/jaxdem-media-clump_construction_pipeline-579c0hk5/vtk/group_00/batch_00000000_domain.pvd",
+        "point_arrays": [
+          "Normals",
+          "TCoords"
+        ],
+        "frames": [
+          {
+            "time": 0.01,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              1.9170829057693481,
+              0.0,
+              1.9170829057693481,
+              0.0,
+              1.9170829057693481
+            ],
+            "bytes": 3066,
+            "physical_summary": {}
+          }
+        ]
+      },
+      {
+        "label": "Final configuration",
+        "kind": "particles",
+        "path": "/tmp/jaxdem-media-clump_construction_pipeline-579c0hk5/vtk/group_00/batch_00000000_spheres.pvd",
+        "point_arrays": [
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "rad",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_id",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 0.01,
+            "points": 21,
+            "cells": 0,
+            "bounds": [
+              0.4208619049581451,
+              2.092484554676762,
+              0.20013130469977972,
+              1.5574728051192646,
+              0.2562580549424881,
+              2.189172883937809
+            ],
+            "bytes": 7563,
+            "physical_summary": {
+              "radius_min": 0.1,
+              "radius_max": 0.4,
+              "speed_max": 0.0,
+              "force_norm_max": 0.0
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

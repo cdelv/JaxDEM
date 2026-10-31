@@ -1,0 +1,126 @@
+{
+  "description": "Prepared starting configuration for the soft-mode/rearrangement example; no trajectories, modes or expected results are stored.",
+  "positions": [
+    [
+      0.9594420894540039,
+      1.7075745392347532
+    ],
+    [
+      3.1563592364837856,
+      4.716578319080777
+    ],
+    [
+      1.1000885451193692,
+      2.703494320005221
+    ],
+    [
+      1.8644963520525233,
+      2.1008767956874284
+    ],
+    [
+      1.9926080302184839,
+      -0.17122991035855062
+    ],
+    [
+      1.6566064128613625,
+      0.755733094104246
+    ],
+    [
+      3.245985922362909,
+      3.7196222099129383
+    ],
+    [
+      3.703501247098548,
+      0.7670190066043053
+    ],
+    [
+      2.6880192968569068,
+      1.284204390182997
+    ],
+    [
+      4.5682897637029365,
+      3.006128046607365
+    ],
+    [
+      0.7858504091189075,
+      -0.7076526502102242
+    ],
+    [
+      4.275096734912925,
+      4.300520478576162
+    ],
+    [
+      5.1093094410387625,
+      0.6015384781227239
+    ],
+    [
+      4.370112761333726,
+      1.701300036099422
+    ],
+    [
+      3.2883889941960636,
+      2.522350617649613
+    ],
+    [
+      2.162863799035124,
+      3.244962525912648
+    ]
+  ],
+  "radii": [
+    0.5,
+    0.5,
+    0.5,
+    0.5,
+    0.5,
+    0.5,
+    0.5,
+    0.5,
+    0.7,
+    0.7,
+    0.7,
+    0.7,
+    0.7,
+    0.7,
+    0.7,
+    0.7
+  ],
+  "box_size": [
+    4.6006842370796015,
+    4.6006842370796015
+  ],
+  "gamma": 0.04600000000000003,
+  "material": {
+    "young": 1.0,
+    "poisson": 0.3,
+    "density": 1.0
+  },
+  "provenance": {
+    "generator": "examples/shear_jammed_disks.py preparation, extended to sixteen disks and the parameters below",
+    "jax_enable_x64": true,
+    "N": 16,
+    "random_key": 1,
+    "initial_packing_fraction": 0.65,
+    "mass_per_disk": 1.0,
+    "radii_order": "Eight disks of radius 0.5 followed by eight disks of radius 0.7",
+    "bisection_jam": {
+      "pe_tol": 1e-08,
+      "pe_band_factor": 4.0,
+      "packing_fraction_increment": 0.04,
+      "packing_fraction_tolerance": 0.0001,
+      "n_jamming_steps": 80,
+      "minimizer_kwargs": {
+        "max_steps": 5000,
+        "force_tol": 1e-07,
+        "torque_tol": 1e-07
+      }
+    },
+    "packing_fraction_above_jamming": 0.06,
+    "finite_system_jamming_fraction": 0.8186718749999999,
+    "minimizer": "FIRE",
+    "fire_dt": 0.05,
+    "preparation_force_tolerance": 1e-09,
+    "preparation_max_steps": 12000,
+    "aqs_preparation": "Relax the compressed state at gamma=0, then apply 23 affine shear increments of 0.002, minimizing after each increment.",
+    "checkpoint_validation": "The example recomputes force balance, the Hessian and every subsequent AQS state; only this initial preparation is cached."
+  }
+}

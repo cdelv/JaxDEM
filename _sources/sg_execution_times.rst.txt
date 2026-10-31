@@ -1,0 +1,157 @@
+
+:orphan:
+
+.. _sphx_glr_sg_execution_times:
+
+
+Computation times
+=================
+**10:04.847** total execution time for 41 files **from all galleries**:
+
+.. container::
+
+  .. raw:: html
+
+    <style scoped>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet" />
+    </style>
+    <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <script type="text/javascript" class="init">
+    $(document).ready( function () {
+        $('table.sg-datatable').DataTable({order: [[1, 'desc']]});
+    } );
+    </script>
+
+  .. list-table::
+   :header-rows: 1
+   :class: table table-striped sg-datatable
+
+   * - Example
+     - Time
+     - Mem (MB)
+   * - :ref:`sphx_glr_auto_examples_rotating_drum.py` (``../../examples/rotating_drum.py``)
+     - 01:05.483
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_rigid_elastic_viscoplastic_loading.py` (``../../examples/rigid_elastic_viscoplastic_loading.py``)
+     - 00:42.180
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_facets_guide.py` (``../../examples/facets_guide.py``)
+     - 00:37.675
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_intro_to_rl.py` (``../../examples/intro_to_rl.py``)
+     - 00:37.054
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_deformable_particle_guide.py` (``../../examples/deformable_particle_guide.py``)
+     - 00:25.599
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_clump_jamming_dynamical_matrix_and_friction.py` (``../../examples/clump_jamming_dynamical_matrix_and_friction.py``)
+     - 00:21.368
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_general_particle_construction.py` (``../../examples/general_particle_construction.py``)
+     - 00:20.405
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_clump_guide.py` (``../../examples/clump_guide.py``)
+     - 00:18.295
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_sphere_construction.py` (``../../examples/sphere_construction.py``)
+     - 00:17.879
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_packing_analysis.py` (``../../examples/packing_analysis.py``)
+     - 00:16.979
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_vicsek_model.py` (``../../examples/vicsek_model.py``)
+     - 00:16.118
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_dp_construction_pipeline.py` (``../../examples/dp_construction_pipeline.py``)
+     - 00:15.845
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_environment_custom_policy.py` (``../../examples/environment_custom_policy.py``)
+     - 00:15.614
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_sphere_jamming_rattlers_dynamical_matrix.py` (``../../examples/sphere_jamming_rattlers_dynamical_matrix.py``)
+     - 00:15.478
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_clump_construction_pipeline.py` (``../../examples/clump_construction_pipeline.py``)
+     - 00:15.141
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_soft_mode_rearrangement.py` (``../../examples/soft_mode_rearrangement.py``)
+     - 00:14.914
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_packing_fraction_protocol.py` (``../../examples/packing_fraction_protocol.py``)
+     - 00:14.899
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_temperature_density_control.py` (``../../examples/temperature_density_control.py``)
+     - 00:14.163
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_multi_gpu_guide.py` (``../../examples/multi_gpu_guide.py``)
+     - 00:13.353
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_introduction.py` (``../../examples/introduction.py``)
+     - 00:12.032
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_vtk_writer_guide.py` (``../../examples/vtk_writer_guide.py``)
+     - 00:11.698
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_particle_level_friction_calculation.py` (``../../examples/particle_level_friction_calculation.py``)
+     - 00:11.603
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_jam_spheres.py` (``../../examples/jam_spheres.py``)
+     - 00:11.190
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_sasa_calculation.py` (``../../examples/sasa_calculation.py``)
+     - 00:11.037
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_batched_granular_experiments.py` (``../../examples/batched_granular_experiments.py``)
+     - 00:10.961
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_force_model_guide.py` (``../../examples/force_model_guide.py``)
+     - 00:10.660
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_shear_jammed_disks.py` (``../../examples/shear_jammed_disks.py``)
+     - 00:10.259
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_minimize_spheres.py` (``../../examples/minimize_spheres.py``)
+     - 00:10.073
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_state_guide.py` (``../../examples/state_guide.py``)
+     - 00:09.264
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_shear_flow_disks.py` (``../../examples/shear_flow_disks.py``)
+     - 00:08.869
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_infer_contact_stiffness.py` (``../../examples/infer_contact_stiffness.py``)
+     - 00:07.990
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_domain_guide.py` (``../../examples/domain_guide.py``)
+     - 00:07.753
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_checkpoint_guide.py` (``../../examples/checkpoint_guide.py``)
+     - 00:06.920
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_integrator_guide.py` (``../../examples/integrator_guide.py``)
+     - 00:05.335
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_system_guide.py` (``../../examples/system_guide.py``)
+     - 00:04.840
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_collider_guide.py` (``../../examples/collider_guide.py``)
+     - 00:03.792
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_force_manager_guide.py` (``../../examples/force_manager_guide.py``)
+     - 00:03.664
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_custom_modules_guide.py` (``../../examples/custom_modules_guide.py``)
+     - 00:03.412
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_pseudo_log_rollout.py` (``../../examples/pseudo_log_rollout.py``)
+     - 00:03.123
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_materials_guide.py` (``../../examples/materials_guide.py``)
+     - 00:01.931
+     - 0.0
+   * - :ref:`sphx_glr_auto_examples_installation_guide.py` (``../../examples/installation_guide.py``)
+     - 00:00.000
+     - 0.0

@@ -1,0 +1,775 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Find rattlers and draw a contact network &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=6cb5ae24" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'auto_examples/packing_analysis';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Packing-fraction protocol: integrate with a scheduled box rescale" href="packing_fraction_protocol.html" />
+    <link rel="prev" title="Jammed rigid clumps: contacts, rattlers, dynamical matrix, and friction" href="clump_jamming_dynamical_matrix_and_friction.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar">
+  <svg class="pst-icon" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sphere_construction.html">Polydisperse sphere packing in one call</a></li>
+<li class="toctree-l1"><a class="reference internal" href="general_particle_construction.html">Catch-all builder: polydisperse GA/DP packings in one call</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clump_construction_pipeline.html">Rigid geometric-asperity clumps: step-by-step pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dp_construction_pipeline.html">Geometric-asperity deformable particles: step-by-step pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="minimize_spheres.html">Minimization of bidisperse spheres (or disks).</a></li>
+
+<li class="toctree-l1"><a class="reference internal" href="jam_spheres.html">Jamming of bidisperse spheres (or disks).</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sphere_jamming_rattlers_dynamical_matrix.html">Jammed bidisperse packing: contacts, rattlers, and the dynamical matrix</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clump_jamming_dynamical_matrix_and_friction.html">Jammed rigid clumps: contacts, rattlers, dynamical matrix, and friction</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Find rattlers and draw a contact network</a></li>
+<li class="toctree-l1"><a class="reference internal" href="packing_fraction_protocol.html">Packing-fraction protocol: integrate with a scheduled box rescale</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pseudo_log_rollout.html">Save selected quantities on a pseudo-logarithmic schedule</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sasa_calculation.html">SASA of a rigid clump via a spherical tracer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="particle_level_friction_calculation.html">Particle-level friction coefficient of a rigid clump</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="rotating_drum.html">A rotating drum loaded from an STL mesh</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temperature_density_control.html">Temperature and density control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="shear_flow_disks.html">Constant-rate shear below a finite packing’s jamming threshold</a></li>
+<li class="toctree-l1"><a class="reference internal" href="shear_jammed_disks.html">Quasistatic shear of a small jammed disk packing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vicsek_model.html">Vicsek alignment of rigid dumbbells</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="infer_contact_stiffness.html">Infer contact stiffness from observed trajectories</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rigid_elastic_viscoplastic_loading.html">Rigid, elastic and viscoplastic grains under the same load</a></li>
+<li class="toctree-l1"><a class="reference internal" href="soft_mode_rearrangement.html">Watch a soft mode develop into a rearrangement</a></li>
+<li class="toctree-l1"><a class="reference internal" href="batched_granular_experiments.html">Run an ensemble of granular compaction experiments</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="environment_custom_policy.html">Drive vectorized environments with a custom policy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="data/index.html">Scenario data</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../examples/index.html" class="nav-link">Examples</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Find rattlers and draw a contact network</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-packing-analysis-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code.</p>
+</div>
+<section class="sphx-glr-example-title" id="find-rattlers-and-draw-a-contact-network">
+<span id="sphx-glr-auto-examples-packing-analysis-py"></span><h1>Find rattlers and draw a contact network<a class="headerlink" href="#find-rattlers-and-draw-a-contact-network" title="Link to this heading">#</a></h1>
+<p>Which grains participate in a packing’s contact network, and does an isolated
+grain change its pressure? Build four small two-disk clumps, remove the isolated
+one, and compare the results with
+<a class="reference internal" href="../reference/generated/jaxdem.utils.post_processing.html#jaxdem.utils.post_processing.analyze_packing" title="jaxdem.utils.post_processing.analyze_packing"><code class="xref py py-func docutils literal notranslate"><span class="pre">analyze_packing()</span></code></a>.</p>
+<p>The positions are prescribed: this example analyzes one snapshot without
+running dynamics or minimizing it. Eight disks keep the calculation small.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jd</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxdem.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">analyze_packing</span>
+</pre></div>
+</div>
+<section id="make-three-contacting-clumps-and-one-isolated-clump">
+<h2>Make three contacting clumps and one isolated clump<a class="headerlink" href="#make-three-contacting-clumps-and-one-isolated-clump" title="Link to this heading">#</a></h2>
+<p>Each clump contains two overlapping disks. Supply their union area as the
+body volume so <a class="reference internal" href="../reference/generated/jaxdem.utils.post_processing.html#jaxdem.utils.post_processing.PackingData.packing_fraction" title="jaxdem.utils.post_processing.PackingData.packing_fraction"><code class="xref py py-attr docutils literal notranslate"><span class="pre">packing_fraction</span></code></a>
+does not count the internal overlap twice. The periodic box stays the same
+throughout the comparison. <a class="reference internal" href="../reference/generated/jaxdem.state.html#jaxdem.state.State.create" title="jaxdem.state.State.create"><code class="xref py py-meth docutils literal notranslate"><span class="pre">create()</span></code></a> and
+<a class="reference internal" href="../reference/generated/jaxdem.system.html#jaxdem.system.System.create" title="jaxdem.system.System.create"><code class="xref py py-meth docutils literal notranslate"><span class="pre">create()</span></code></a> construct the configuration below.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">centers</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">1.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.8</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.4</span><span class="p">,</span> <span class="mf">1.7</span><span class="p">],</span> <span class="p">[</span><span class="mf">4.0</span><span class="p">,</span> <span class="mf">4.0</span><span class="p">]])</span>
+<span class="n">offsets</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="mf">0.0</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.15</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.15</span><span class="p">]])</span>
+<span class="n">clump_area</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">pi</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">arccos</span><span class="p">(</span><span class="mf">0.3</span><span class="p">)</span> <span class="o">+</span> <span class="mf">0.15</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="mf">0.3</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">state</span> <span class="o">=</span> <span class="n">jd</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">centers</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+    <span class="n">pos_p</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">offsets</span><span class="p">,</span> <span class="p">(</span><span class="mi">4</span><span class="p">,</span> <span class="mi">1</span><span class="p">)),</span>
+    <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">),</span>
+    <span class="n">volume</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="n">clump_area</span><span class="p">),</span>
+    <span class="n">clump_id</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">4</span><span class="p">),</span> <span class="mi">2</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">system</span> <span class="o">=</span> <span class="n">jd</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">state</span><span class="o">=</span><span class="n">state</span><span class="p">,</span>
+    <span class="n">collider_type</span><span class="o">=</span><span class="s2">"naive"</span><span class="p">,</span>
+    <span class="n">domain_type</span><span class="o">=</span><span class="s2">"periodic"</span><span class="p">,</span>
+    <span class="n">domain_kw</span><span class="o">=</span><span class="p">{</span><span class="s2">"box_size"</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mf">6.0</span><span class="p">)},</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="remove-rattlers-and-compare-two-measurements">
+<h2>Remove rattlers and compare two measurements<a class="headerlink" href="#remove-rattlers-and-compare-two-measurements" title="Link to this heading">#</a></h2>
+<p>A rattler has too few contacts to survive the chosen contact-count pruning;
+removal is repeated because removing one body may put another below the threshold.
+Here the isolated clump is the only rattler. The two species labels on the
+contacting cluster will later let us distinguish within-species contacts from
+contacts between species. These labels affect analysis, not the force law.</p>
+<p><a class="reference internal" href="../reference/generated/jaxdem.utils.post_processing.html#jaxdem.utils.post_processing.analyze_packing" title="jaxdem.utils.post_processing.analyze_packing"><code class="xref py py-func docutils literal notranslate"><span class="pre">analyze_packing()</span></code></a> uses the configured
+collider and returns matching <a class="reference internal" href="../reference/generated/jaxdem.utils.post_processing.html#jaxdem.utils.post_processing.PackingData" title="jaxdem.utils.post_processing.PackingData"><code class="xref py py-class docutils literal notranslate"><span class="pre">PackingData</span></code></a>
+objects for the full and non-rattler configurations. It also computes dense
+energy Hessians and their spectra on every call: storage grows quadratically
+with the number of coordinates, so this convenience function suits small
+configurations. This example needs only 12 coordinates before removal.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">analysis</span> <span class="o">=</span> <span class="n">analyze_packing</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">clump_species_ids</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">])</span>
+<span class="n">full</span> <span class="o">=</span> <span class="n">analysis</span><span class="o">.</span><span class="n">full</span>
+<span class="n">remaining</span> <span class="o">=</span> <span class="n">analysis</span><span class="o">.</span><span class="n">non_rattlers</span>
+<span class="n">full</span><span class="o">.</span><span class="n">system</span><span class="o">.</span><span class="n">check_overflow</span><span class="p">()</span>
+<span class="n">remaining</span><span class="o">.</span><span class="n">system</span><span class="o">.</span><span class="n">check_overflow</span><span class="p">()</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Removed input clump IDs:"</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">analysis</span><span class="o">.</span><span class="n">rattler_ids</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">"Packing fraction: </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">full</span><span class="o">.</span><span class="n">packing_fraction</span><span class="p">)</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> -&gt; "</span>
+    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">remaining</span><span class="o">.</span><span class="n">packing_fraction</span><span class="p">)</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">"</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">"Contact pressure: </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">full</span><span class="o">.</span><span class="n">pressure</span><span class="p">)</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2"> -&gt; "</span>
+    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">remaining</span><span class="o">.</span><span class="n">pressure</span><span class="p">)</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">"</span>
+<span class="p">)</span>
+<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">array_equal</span><span class="p">(</span><span class="n">analysis</span><span class="o">.</span><span class="n">rattler_ids</span><span class="p">,</span> <span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">remaining</span><span class="o">.</span><span class="n">packing_fraction</span><span class="p">,</span> <span class="mf">0.75</span> <span class="o">*</span> <span class="n">full</span><span class="o">.</span><span class="n">packing_fraction</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">np</span><span class="o">.</span><span class="n">isclose</span><span class="p">(</span><span class="n">remaining</span><span class="o">.</span><span class="n">pressure</span><span class="p">,</span> <span class="n">full</span><span class="o">.</span><span class="n">pressure</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Removed input clump IDs: [3]
+Packing fraction: 0.1201 -&gt; 0.0901
+Contact pressure: 234.0382 -&gt; 234.0382
+</pre></div>
+</div>
+<p>Removing one of four equal-volume clumps reduces the packing fraction by
+one quarter. Pressure stays unchanged: the isolated clump carried no contact
+force. This <a class="reference internal" href="../reference/generated/jaxdem.utils.post_processing.html#jaxdem.utils.post_processing.PackingData.pressure" title="jaxdem.utils.post_processing.PackingData.pressure"><code class="xref py py-attr docutils literal notranslate"><span class="pre">pressure</span></code></a>
+is contact virial pressure, without kinetic or wall contributions.</p>
+<p>For subsequent queries, keep the returned
+<a class="reference internal" href="../reference/generated/jaxdem.utils.post_processing.html#jaxdem.utils.post_processing.PackingData.state" title="jaxdem.utils.post_processing.PackingData.state"><code class="xref py py-attr docutils literal notranslate"><span class="pre">state</span></code></a> and
+<a class="reference internal" href="../reference/generated/jaxdem.utils.post_processing.html#jaxdem.utils.post_processing.PackingData.system" title="jaxdem.utils.post_processing.PackingData.system"><code class="xref py py-attr docutils literal notranslate"><span class="pre">system</span></code></a> together; the
+system contains refreshed search caches. Check
+<a class="reference internal" href="../reference/generated/jaxdem.system.html#jaxdem.system.System.check_overflow" title="jaxdem.system.System.check_overflow"><code class="xref py py-meth docutils literal notranslate"><span class="pre">check_overflow()</span></code></a> after a completed analysis or
+simulation chunk, especially when replacing the naive all-pairs collider
+with a spatial search that has limited capacity.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">remaining</span><span class="o">.</span><span class="n">state</span><span class="p">,</span> <span class="n">remaining</span><span class="o">.</span><span class="n">system</span>
+</pre></div>
+</div>
+</section>
+<section id="count-contacts-between-species">
+<h2>Count contacts between species<a class="headerlink" href="#count-contacts-between-species" title="Link to this heading">#</a></h2>
+<p><a class="reference internal" href="../reference/generated/jaxdem.utils.post_processing.html#jaxdem.utils.post_processing.PackingData.clump_contacts" title="jaxdem.utils.post_processing.PackingData.clump_contacts"><code class="xref py py-attr docutils literal notranslate"><span class="pre">clump_contacts</span></code></a> stores
+directed pairs: each physical edge appears as both <span class="math notranslate nohighlight">\((I,J)\)</span> and
+<span class="math notranslate nohighlight">\((J,I)\)</span>. Select <span class="math notranslate nohighlight">\(I&lt;J\)</span> to count or draw it once. For <span class="math notranslate nohighlight">\(N_b\)</span>
+bodies and <span class="math notranslate nohighlight">\(N_c\)</span> distinct body-pair edges, mean body coordination is</p>
+<div class="math notranslate nohighlight">
+\[\overline{z}=\frac{2N_c}{N_b}.\]</div>
+<p>Several disk contacts may belong to one body-pair edge. Surviving rattler
+pruning therefore does not prove mechanical stability. This prescribed
+cluster has negative energy-curvature modes; it is not an energy minimum.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">network</span> <span class="o">=</span> <span class="n">remaining</span><span class="o">.</span><span class="n">clump_contacts</span>
+<span class="n">pairs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">network</span><span class="o">.</span><span class="n">pair_ids</span><span class="p">)</span>
+<span class="n">species</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">network</span><span class="o">.</span><span class="n">pair_species</span><span class="p">)</span>
+<span class="n">unique</span> <span class="o">=</span> <span class="n">pairs</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">&lt;</span> <span class="n">pairs</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
+<span class="n">same_species</span> <span class="o">=</span> <span class="n">species</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">species</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">]</span>
+<span class="n">within</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">unique</span> <span class="o">&amp;</span> <span class="n">same_species</span><span class="p">))</span>
+<span class="n">between</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">unique</span> <span class="o">&amp;</span> <span class="o">~</span><span class="n">same_species</span><span class="p">))</span>
+<span class="n">mean_coordination</span> <span class="o">=</span> <span class="mi">2</span> <span class="o">*</span> <span class="nb">int</span><span class="p">(</span><span class="n">unique</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">remaining</span><span class="o">.</span><span class="n">clump_ids</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Within-species edges:"</span><span class="p">,</span> <span class="n">within</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Between-species edges:"</span><span class="p">,</span> <span class="n">between</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Mean body coordination:"</span><span class="p">,</span> <span class="n">mean_coordination</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">"Negative energy modes:"</span><span class="p">,</span> <span class="n">remaining</span><span class="o">.</span><span class="n">negative_mode_count</span><span class="p">)</span>
+<span class="k">assert</span> <span class="p">(</span><span class="n">within</span><span class="p">,</span> <span class="n">between</span><span class="p">)</span> <span class="o">==</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">mean_coordination</span> <span class="o">==</span> <span class="mf">2.0</span>
+<span class="k">assert</span> <span class="n">remaining</span><span class="o">.</span><span class="n">negative_mode_count</span> <span class="o">&gt;</span> <span class="mi">0</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Within-species edges: 1
+Between-species edges: 2
+Mean body coordination: 2.0
+Negative energy modes: 2
+</pre></div>
+</div>
+</section>
+<section id="draw-the-force-network">
+<h2>Draw the force network<a class="headerlink" href="#draw-the-force-network" title="Link to this heading">#</a></h2>
+<p><a class="reference internal" href="../reference/generated/jaxdem.utils.post_processing.html#jaxdem.utils.post_processing.ClumpContactNetwork.displacements" title="jaxdem.utils.post_processing.ClumpContactNetwork.displacements"><code class="xref py py-attr docutils literal notranslate"><span class="pre">displacements</span></code></a>
+points from destination to source using the domain’s periodic image rule.
+Draw each edge from <span class="math notranslate nohighlight">\(\mathbf{x}_I\)</span> to
+<span class="math notranslate nohighlight">\(\mathbf{x}_I-\mathbf{r}_{IJ}\)</span>; joining wrapped center coordinates
+directly could draw a long line across a periodic boundary.</p>
+<p>Network indices address the returned state. Use
+<a class="reference internal" href="../reference/generated/jaxdem.utils.post_processing.html#jaxdem.utils.post_processing.PackingData.original_clump_ids" title="jaxdem.utils.post_processing.PackingData.original_clump_ids"><code class="xref py py-attr docutils literal notranslate"><span class="pre">original_clump_ids</span></code></a>
+when mapping them back to the input. Line width below represents net contact
+<a class="reference internal" href="../reference/generated/jaxdem.utils.post_processing.html#jaxdem.utils.post_processing.ClumpContactNetwork.forces" title="jaxdem.utils.post_processing.ClumpContactNetwork.forces"><code class="xref py py-attr docutils literal notranslate"><span class="pre">force</span></code></a>
+magnitude in the ParaView view, while color distinguishes the two species
+comparisons. The isolated fourth clump remains visible for context.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">starts</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">remaining</span><span class="o">.</span><span class="n">clump_positions</span><span class="p">)[</span><span class="n">pairs</span><span class="p">[</span><span class="n">unique</span><span class="p">,</span> <span class="mi">0</span><span class="p">]]</span>
+<span class="n">ends</span> <span class="o">=</span> <span class="n">starts</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">network</span><span class="o">.</span><span class="n">displacements</span><span class="p">)[</span><span class="n">unique</span><span class="p">]</span>
+<span class="n">segments</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">stack</span><span class="p">((</span><span class="n">starts</span><span class="p">,</span> <span class="n">ends</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">strength</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">network</span><span class="o">.</span><span class="n">forces</span><span class="p">)[</span><span class="n">unique</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">widths</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">+</span> <span class="mf">3.0</span> <span class="o">*</span> <span class="n">strength</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">strength</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">initial</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)),</span> <span class="mf">1e-12</span><span class="p">)</span>
+<span class="n">colors</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">same_species</span><span class="p">[</span><span class="n">unique</span><span class="p">],</span> <span class="s2">"tab:blue"</span><span class="p">,</span> <span class="s2">"tab:orange"</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="compare-geometry-force-transmission-and-stability">
+<h2>Compare geometry, force transmission and stability<a class="headerlink" href="#compare-geometry-force-transmission-and-stability" title="Link to this heading">#</a></h2>
+<p>The signed spectrum makes the negative curvature visible: pruning an
+isolated clump removes its free coordinates, but does not stabilize the
+contacting cluster. Indices in the two spectra belong to their respective
+coordinate spaces, rather than matched eigenmodes.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">7</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">)</span>
+<span class="n">labels</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"Full packing"</span><span class="p">,</span> <span class="s2">"Rattler removed"</span><span class="p">]</span>
+<span class="n">comparison_colors</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"#7b8794"</span><span class="p">,</span> <span class="s2">"#258685"</span><span class="p">]</span>
+<span class="k">for</span> <span class="n">data</span><span class="p">,</span> <span class="n">label</span><span class="p">,</span> <span class="n">color</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+    <span class="p">(</span><span class="n">full</span><span class="p">,</span> <span class="n">remaining</span><span class="p">),</span> <span class="n">labels</span><span class="p">,</span> <span class="n">comparison_colors</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span>
+<span class="p">):</span>
+    <span class="n">eigenvalues</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">eigenvalues</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span>
+        <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">eigenvalues</span><span class="o">.</span><span class="n">size</span><span class="p">),</span> <span class="n">eigenvalues</span><span class="p">,</span> <span class="s2">"o-"</span><span class="p">,</span> <span class="n">ms</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">color</span>
+    <span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"0.4"</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mf">0.8</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set</span><span class="p">(</span>
+    <span class="n">xlabel</span><span class="o">=</span><span class="s2">"Ordered eigenvalue index"</span><span class="p">,</span>
+    <span class="n">ylabel</span><span class="o">=</span><span class="s2">"Signed energy curvature"</span><span class="p">,</span>
+    <span class="n">yscale</span><span class="o">=</span><span class="s2">"symlog"</span><span class="p">,</span>
+    <span class="n">title</span><span class="o">=</span><span class="s2">"Rattler pruning does not prove stability"</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="c1"># Set headroom after selecting the signed scale so every measured endpoint</span>
+<span class="c1"># remains visible, including the largest positive curvature after pruning.</span>
+<span class="n">spectrum_min</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">eigenvalues</span><span class="p">))</span> <span class="k">for</span> <span class="n">data</span> <span class="ow">in</span> <span class="p">(</span><span class="n">full</span><span class="p">,</span> <span class="n">remaining</span><span class="p">))</span>
+<span class="n">spectrum_max</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">eigenvalues</span><span class="p">))</span> <span class="k">for</span> <span class="n">data</span> <span class="ow">in</span> <span class="p">(</span><span class="n">full</span><span class="p">,</span> <span class="n">remaining</span><span class="p">))</span>
+<span class="n">curvature_scale</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">spectrum_min</span><span class="p">),</span> <span class="nb">abs</span><span class="p">(</span><span class="n">spectrum_max</span><span class="p">),</span> <span class="mf">1.0</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">(</span>
+    <span class="mf">1.5</span> <span class="o">*</span> <span class="n">spectrum_min</span> <span class="k">if</span> <span class="n">spectrum_min</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="o">-</span><span class="mf">0.05</span> <span class="o">*</span> <span class="n">curvature_scale</span><span class="p">,</span>
+    <span class="mf">1.5</span> <span class="o">*</span> <span class="n">spectrum_max</span> <span class="k">if</span> <span class="n">spectrum_max</span> <span class="o">&gt;</span> <span class="mi">0</span> <span class="k">else</span> <span class="mf">0.05</span> <span class="o">*</span> <span class="n">curvature_scale</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">fontsize</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="s2">"y"</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.18</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../_images/sphx_glr_packing_analysis_001.png" srcset="../_images/sphx_glr_packing_analysis_001.png" alt="Rattler pruning does not prove stability" class = "sphx-glr-single-img"/><img src="../_images/sphx_glr_packing_analysis_002.png" srcset="../_images/sphx_glr_packing_analysis_002.png" alt="Packing analysis" class = "sphx-glr-single-img"/><p>Particles are colored by clump ID. Blue network edges connect equal analysis species; orange edges connect different species. Contact tubes use radii 0.025*(1+3F/Fmax) and are projected in a layer in front of the spheres for visibility; native VTK coordinates remain in the particle plane.</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> (0 minutes 16.979 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-packing-analysis-py">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/4c4e7eb78559494148f32b191d4c6e88/packing_analysis.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">packing_analysis.ipynb</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/3a760918a2f3db5160025823ecf87f6d/packing_analysis.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">packing_analysis.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-zip docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/ff8a6f9c335afa1b5ed41783a1a559a4/packing_analysis.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">zipped:</span> <span class="pre">packing_analysis.zip</span></code></a></p>
+</div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="clump_jamming_dynamical_matrix_and_friction.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Jammed rigid clumps: contacts, rattlers, dynamical matrix, and friction</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="packing_fraction_protocol.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Packing-fraction protocol: integrate with a scheduled box rescale</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#make-three-contacting-clumps-and-one-isolated-clump">Make three contacting clumps and one isolated clump</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#remove-rattlers-and-compare-two-measurements">Remove rattlers and compare two measurements</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#count-contacts-between-species">Count contacts between species</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#draw-the-force-network">Draw the force network</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#compare-geometry-force-transmission-and-stability">Compare geometry, force transmission and stability</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,204 @@
+{
+  "title": "Sasa calculation",
+  "renderer": "ParaView",
+  "paraview_version": "6.2.0",
+  "manifest": "/tmp/jaxdem-media-sasa_calculation-lu_8xe8s/scene.json",
+  "size": [
+    960,
+    600
+  ],
+  "camera": "isometric",
+  "bounds": [
+    -0.5107628133256598,
+    0.5242084732657678,
+    -0.4815529018518742,
+    0.44877597824472437,
+    -0.44999998807907104,
+    0.44999998807907104
+  ],
+  "poster_time": 0.0,
+  "time_label": "t",
+  "native_times": [
+    0.0
+  ],
+  "animation_times": [],
+  "fps": 8,
+  "end_hold_frames": 0,
+  "end_hold_seconds": 0.0,
+  "encoded_frame_count": 0,
+  "series": [
+    {
+      "path": "/tmp/jaxdem-media-sasa_calculation-lu_8xe8s/vtk/group_00/batch_00000000_spheres.pvd",
+      "kind": "particles",
+      "native_times": [
+        0.0
+      ],
+      "source_points": 9,
+      "source_cells": 0,
+      "point_arrays": [
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "rad",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_id",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color_by": "rad",
+        "color": [
+          0.12,
+          0.48,
+          0.72
+        ]
+      },
+      "geometry_points": 12978,
+      "geometry_cells": 25920
+    },
+    {
+      "path": "/tmp/jaxdem-media-sasa_calculation-lu_8xe8s/vtk/probe_surface/accessible_surface.pvd",
+      "kind": "surface",
+      "native_times": [
+        0.0
+      ],
+      "source_points": 192,
+      "source_cells": 380,
+      "point_arrays": [],
+      "representation": {
+        "color": [
+          0.76,
+          0.46,
+          0.16
+        ],
+        "opacity": 0.2
+      },
+      "geometry_points": 192,
+      "geometry_cells": 380
+    }
+  ],
+  "outputs": {
+    "scene.png": 61257
+  },
+  "example": "sasa_calculation.py",
+  "example_sha256": "76bab6c7c9ef4a1afcb5ae7fee08b70a4f5b040337382b83952969a4f5fab7c3",
+  "library_revision": "9915b7d8d5b93e287f8f095c68dc6aa1dd6d2265",
+  "library_sha256": "df9920bdc26265a6cb7fdc6748fa7b2c1243981c76c49bbc80785fe0f7fb6d30",
+  "media_seconds": 3.939,
+  "simulation": {
+    "slug": "sasa_calculation",
+    "source": "Current example State/System snapshots via VTKWriter; derived diagnostics via native VTK",
+    "groups": [
+      {
+        "label": "Probed rigid clump",
+        "source_frames": 1,
+        "exported_frames": 1,
+        "selected_indices": [
+          0
+        ],
+        "particle_rows": [
+          9
+        ],
+        "source_step_counts": [
+          0
+        ],
+        "source_times": [
+          0.0
+        ],
+        "collection_times": [
+          0.0
+        ],
+        "offset": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "geometry_only_system": true
+      }
+    ],
+    "geometry": [
+      {
+        "label": "Probed rigid clump",
+        "kind": "particles",
+        "path": "/tmp/jaxdem-media-sasa_calculation-lu_8xe8s/vtk/group_00/batch_00000000_spheres.pvd",
+        "point_arrays": [
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "rad",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_id",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 0.0,
+            "points": 9,
+            "cells": 0,
+            "bounds": [
+              -0.3907960492194419,
+              0.31287283704333285,
+              -0.3693901083075124,
+              0.3149505342287774,
+              -0.3500000000000001,
+              0.3500000000000001
+            ],
+            "bytes": 6983,
+            "physical_summary": {
+              "radius_min": 0.1,
+              "radius_max": 0.4,
+              "speed_max": 0.0,
+              "force_norm_max": 0.0
+            }
+          }
+        ]
+      },
+      {
+        "label": "Measured tracer-center surface",
+        "kind": "surface",
+        "path": "/tmp/jaxdem-media-sasa_calculation-lu_8xe8s/vtk/probe_surface/accessible_surface.pvd",
+        "point_arrays": [],
+        "frames": [
+          {
+            "time": 0.0,
+            "points": 192,
+            "cells": 380,
+            "bounds": [
+              -0.5107628133256598,
+              0.5242084732657678,
+              -0.4815529018518742,
+              0.44877597824472437,
+              -0.4476510938824324,
+              0.4476562128981938
+            ],
+            "bytes": 10829,
+            "physical_summary": {}
+          }
+        ]
+      }
+    ]
+  }
+}

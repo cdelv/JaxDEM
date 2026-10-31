@@ -1,0 +1,1040 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Vicsek alignment of rigid dumbbells &#8212; JaxDEM</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=6cb5ae24" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../_static/documentation_options.js?v=8a448e45"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'auto_examples/vicsek_model';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Infer contact stiffness from observed trajectories" href="infer_contact_stiffness.html" />
+    <link rel="prev" title="Quasistatic shear of a small jammed disk packing" href="shear_jammed_disks.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar">
+  <svg class="pst-icon" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="sphere_construction.html">Polydisperse sphere packing in one call</a></li>
+<li class="toctree-l1"><a class="reference internal" href="general_particle_construction.html">Catch-all builder: polydisperse GA/DP packings in one call</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clump_construction_pipeline.html">Rigid geometric-asperity clumps: step-by-step pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dp_construction_pipeline.html">Geometric-asperity deformable particles: step-by-step pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="minimize_spheres.html">Minimization of bidisperse spheres (or disks).</a></li>
+
+<li class="toctree-l1"><a class="reference internal" href="jam_spheres.html">Jamming of bidisperse spheres (or disks).</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sphere_jamming_rattlers_dynamical_matrix.html">Jammed bidisperse packing: contacts, rattlers, and the dynamical matrix</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clump_jamming_dynamical_matrix_and_friction.html">Jammed rigid clumps: contacts, rattlers, dynamical matrix, and friction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="packing_analysis.html">Find rattlers and draw a contact network</a></li>
+<li class="toctree-l1"><a class="reference internal" href="packing_fraction_protocol.html">Packing-fraction protocol: integrate with a scheduled box rescale</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pseudo_log_rollout.html">Save selected quantities on a pseudo-logarithmic schedule</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sasa_calculation.html">SASA of a rigid clump via a spherical tracer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="particle_level_friction_calculation.html">Particle-level friction coefficient of a rigid clump</a></li>
+</ul>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="rotating_drum.html">A rotating drum loaded from an STL mesh</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temperature_density_control.html">Temperature and density control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="shear_flow_disks.html">Constant-rate shear below a finite packing’s jamming threshold</a></li>
+<li class="toctree-l1"><a class="reference internal" href="shear_jammed_disks.html">Quasistatic shear of a small jammed disk packing</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Vicsek alignment of rigid dumbbells</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="infer_contact_stiffness.html">Infer contact stiffness from observed trajectories</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rigid_elastic_viscoplastic_loading.html">Rigid, elastic and viscoplastic grains under the same load</a></li>
+<li class="toctree-l1"><a class="reference internal" href="soft_mode_rearrangement.html">Watch a soft mode develop into a rearrangement</a></li>
+<li class="toctree-l1"><a class="reference internal" href="batched_granular_experiments.html">Run an ensemble of granular compaction experiments</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="environment_custom_policy.html">Drive vectorized environments with a custom policy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="data/index.html">Scenario data</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../examples/index.html" class="nav-link">Examples</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Vicsek alignment of rigid dumbbells</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-vicsek-model-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code.</p>
+</div>
+<section class="sphx-glr-example-title" id="vicsek-alignment-of-rigid-dumbbells">
+<span id="sphx-glr-auto-examples-vicsek-model-py"></span><h1>Vicsek alignment of rigid dumbbells<a class="headerlink" href="#vicsek-alignment-of-rigid-dumbbells" title="Link to this heading">#</a></h1>
+<p>This small 2D active-matter example extends Vicsek alignment to 16 rigid
+two-sphere clumps in periodic boundaries. Harmonic contact repulsion is added
+to the neighbor-alignment vector before normalization. This force-biased,
+finite-size dumbbell model is an extension of the canonical point-agent model;
+it is not a demonstration of its bulk ordering transition.</p>
+<p>The intrinsic variant rotates each body’s heading by a random angle in
+<code class="docutils literal notranslate"><span class="pre">[-pi</span> <span class="pre">*</span> <span class="pre">eta,</span> <span class="pre">pi</span> <span class="pre">*</span> <span class="pre">eta]</span></code>. The extrinsic variant adds a random vector before
+normalizing. Both prescribe speed <code class="docutils literal notranslate"><span class="pre">v0</span></code> rather than integrating Newton’s law.
+In these reduced units the contact-force and velocity contributions have unit
+weights. Physical mass and inertia therefore do not determine the motion.
+The rotational integrator is disabled: the dumbbell geometry keeps its
+orientation while its translational heading changes.</p>
+<p>We initialize nonaligned random headings and follow their alignment while all
+bodies already move at the prescribed speed. Polarization measures
+<code class="docutils literal notranslate"><span class="pre">|mean(v)|</span> <span class="pre">/</span> <span class="pre">v0</span></code>. A fixed seed makes the short run reproducible. Longer runs
+and larger ensembles are needed to study collective ordering.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">cast</span>
+
+<span class="n">jax</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s2">"jax_enable_x64"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>  <span class="c1"># type: ignore[no-untyped-call]</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jdem</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxdem.integrators</span><span class="w"> </span><span class="kn">import</span> <span class="n">free_mask</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">jaxdem.utils.linalg</span><span class="w"> </span><span class="kn">import</span> <span class="n">cross</span><span class="p">,</span> <span class="n">dot</span><span class="p">,</span> <span class="n">unit</span>
+</pre></div>
+</div>
+<section id="alignment-and-noise-equations">
+<h2>Alignment and noise equations<a class="headerlink" href="#alignment-and-noise-equations" title="Link to this heading">#</a></h2>
+<p>The neighbor query acts on constituent sphere centers. For each sphere i,
+include its own velocity in the average and then average those vectors over
+the members of body I:</p>
+<div class="math notranslate nohighlight">
+\[\mathbf a_i=
+  \frac{\mathbf v_i+\sum_{j\in\mathcal N_i}\mathbf v_j}
+       {1+|\mathcal N_i|},\qquad
+\mathbf b_I=\frac{1}{n_I}\sum_{i\in I}(\mathbf a_i+\mathbf F_i).\]</div>
+<p>Thus alignment is weighted by constituent-neighbor geometry, rather than
+counting each neighboring body once. Both the force and alignment vectors
+are averaged over the body’s <code class="docutils literal notranslate"><span class="pre">n_I</span></code> spheres. Their unit coefficients are
+a modeling choice in the reduced units used here.</p>
+<p>Intrinsic angular noise rotates the normalized base heading:</p>
+<div class="math notranslate nohighlight">
+\[\mathbf v_I^{n+1}
+  =v_0\,\mathcal R(\xi_I)\frac{\mathbf b_I}{|\mathbf b_I|},
+  \qquad \xi_I\sim\mathcal U[-\pi\eta,\pi\eta].\]</div>
+<p>If the base vector vanishes, the implementation retains the body’s current
+nonzero heading before rotating it. The extrinsic alternative adds a random
+unit vector <em>before</em> normalization:</p>
+<div class="math notranslate nohighlight">
+\[\mathbf v_I^{n+1}=v_0\,\operatorname{unit}
+      (\mathbf b_I+\eta\widehat{\boldsymbol\xi}_I).\]</div>
+<p>Angular and vectorial noise therefore represent different stochastic models,
+even at the same eta.
+Noise is sampled per body and broadcast to its members, preserving coherent
+translation. Positions advance by <span class="math notranslate nohighlight">\(\Delta t\,\mathbf v_I^{n+1}\)</span>;
+this is a prescribed active-velocity update, not a force-over-mass step.</p>
+<section id="local-vicsek-integrators">
+<h3>Local Vicsek integrators<a class="headerlink" href="#local-vicsek-integrators" title="Link to this heading">#</a></h3>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">_vicsek_alignment</span><span class="p">(</span>
+    <span class="n">state</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="p">,</span>
+    <span class="n">system</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="p">,</span>
+    <span class="n">neighbor_radius</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span>
+    <span class="n">max_neighbors</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="p">,</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Shared Vicsek pre-processing: neighbor query and clump-wise averages.</span>
+
+<span class="sd">    Build the neighbor list and average the neighbor velocities (including</span>
+<span class="sd">    self). Reduce the alignment vector and the accumulated force to one</span>
+<span class="sd">    clump-wise value each. Broadcast these values to all clump members.</span>
+<span class="sd">    Queries use the exact requested radius; incomplete queries propagate to</span>
+<span class="sd">    the system overflow flag so checked stepping can reject the result.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    Tuple[State, System, jax.Array, jax.Array]</span>
+<span class="sd">        The state and system, the clump-broadcast force,</span>
+<span class="sd">        and the clump-broadcast average neighbor velocity.</span>
+<span class="sd">    """</span>
+    <span class="c1"># Neighbor list query.</span>
+    <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">nl</span><span class="p">,</span> <span class="n">overflow</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">collider</span><span class="o">.</span><span class="n">create_neighbor_list</span><span class="p">(</span>
+        <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">neighbor_radius</span><span class="p">,</span> <span class="n">max_neighbors</span>
+    <span class="p">)</span>
+
+    <span class="n">system</span><span class="o">.</span><span class="n">search_overflow</span> <span class="o">|=</span> <span class="n">overflow</span>
+    <span class="n">vel</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">vel</span>
+
+    <span class="c1"># Gather neighbor velocities (with padding-safe indexing).</span>
+    <span class="n">safe_nl</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">nl</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">nbr_vel</span> <span class="o">=</span> <span class="n">vel</span><span class="p">[</span><span class="n">safe_nl</span><span class="p">]</span>  <span class="c1"># (N, K, dim)</span>
+    <span class="n">valid</span> <span class="o">=</span> <span class="n">nl</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span>
+
+    <span class="c1"># Average neighbor velocity including self.</span>
+    <span class="n">sum_v</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">nbr_vel</span> <span class="o">*</span> <span class="n">valid</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="n">vel</span>
+    <span class="n">count</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">valid</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">avg_v</span> <span class="o">=</span> <span class="n">sum_v</span> <span class="o">/</span> <span class="n">count</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+
+    <span class="c1"># Clump-wise average of avg_v (so each clump has a single alignment vector)</span>
+    <span class="c1"># and clump-wise force.</span>
+    <span class="n">counts</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">bincount</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="p">,</span> <span class="n">length</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="p">)</span>
+    <span class="n">counts_safe</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">counts</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="n">counts</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">avg_v</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span>
+    <span class="n">clump_values</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">jax</span><span class="o">.</span><span class="n">ops</span><span class="o">.</span><span class="n">segment_sum</span><span class="p">(</span>
+            <span class="n">jnp</span><span class="o">.</span><span class="n">concatenate</span><span class="p">((</span><span class="n">avg_v</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">force</span><span class="p">),</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">),</span>
+            <span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="p">,</span>
+            <span class="n">num_segments</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="o">/</span> <span class="n">counts_safe</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="n">clump_values</span> <span class="o">=</span> <span class="n">clump_values</span><span class="p">[</span><span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="p">]</span>
+    <span class="n">avg_v</span> <span class="o">=</span> <span class="n">clump_values</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="p">:</span> <span class="n">state</span><span class="o">.</span><span class="n">dim</span><span class="p">]</span>
+    <span class="n">force</span> <span class="o">=</span> <span class="n">clump_values</span><span class="p">[</span><span class="o">...</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">dim</span> <span class="p">:]</span>
+
+    <span class="k">return</span> <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">force</span><span class="p">,</span> <span class="n">avg_v</span>
+
+
+<span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span><span class="p">(</span><span class="n">inline</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_apply_desired_velocity</span><span class="p">(</span>
+    <span class="n">state</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="p">,</span> <span class="n">system</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="p">,</span> <span class="n">v_des</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="p">,</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Shared Vicsek tail: set the velocities of the free particles and advance the positions."""</span>
+    <span class="n">state</span><span class="o">.</span><span class="n">vel</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">free_mask</span><span class="p">(</span><span class="n">state</span><span class="p">),</span> <span class="n">v_des</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">vel</span><span class="p">)</span>
+    <span class="n">state</span><span class="o">.</span><span class="n">pos_c</span> <span class="o">=</span> <span class="n">state</span><span class="o">.</span><span class="n">pos_c</span> <span class="o">+</span> <span class="n">system</span><span class="o">.</span><span class="n">dt</span> <span class="o">*</span> <span class="n">state</span><span class="o">.</span><span class="n">vel</span>
+    <span class="k">return</span> <span class="n">state</span><span class="p">,</span> <span class="n">system</span>
+
+
+<span class="nd">@jdem</span><span class="o">.</span><span class="n">LinearIntegrator</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">"vicsek_extrinsic"</span><span class="p">)</span>
+<span class="nd">@jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">register_dataclass</span>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">VicsekExtrinsic</span><span class="p">(</span><span class="n">jdem</span><span class="o">.</span><span class="n">LinearIntegrator</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Vicsek-model integrator with **extrinsic** (vectorial) noise.</span>
+
+<span class="sd">    Each step, the integrator sets the translational velocity magnitude to</span>
+<span class="sd">    ``v0``. The direction comes from a vector that combines:</span>
+
+<span class="sd">    - the current accumulated force vector (from colliders + force functions),</span>
+<span class="sd">    - the average neighbor velocity direction (including self),</span>
+<span class="sd">    - an additive random unit vector scaled by ``eta`` (extrinsic noise).</span>
+
+<span class="sd">    Notes</span>
+<span class="sd">    -----</span>
+<span class="sd">    - The integrator draws the noise **per clump** (one sample per rigid body)</span>
+<span class="sd">      and broadcasts it to all clump members, so clumps move coherently.</span>
+<span class="sd">    - A collider may cache the neighbor list (e.g., NeighborList collider) or</span>
+<span class="sd">      sort the state (e.g., some cell-list builders). This integrator uses the</span>
+<span class="sd">      returned state from ``create_neighbor_list`` for consistency.</span>
+
+<span class="sd">    """</span>
+
+    <span class="n">neighbor_radius</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+    <span class="n">eta</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+    <span class="n">v0</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+    <span class="n">max_neighbors</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree</span><span class="o">.</span><span class="n">static</span><span class="p">()</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span><span class="p">(</span><span class="n">inline</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"VicsekExtrinsic.step_after_force"</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">step_after_force</span><span class="p">(</span>
+        <span class="n">state</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="p">,</span> <span class="n">system</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="p">,</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="p">]:</span>
+        <span class="n">vicsek</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span><span class="n">VicsekExtrinsic</span><span class="p">,</span> <span class="n">system</span><span class="o">.</span><span class="n">linear_integrator</span><span class="p">)</span>
+
+        <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">force</span><span class="p">,</span> <span class="n">avg_v</span> <span class="o">=</span> <span class="n">_vicsek_alignment</span><span class="p">(</span>
+            <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">vicsek</span><span class="o">.</span><span class="n">neighbor_radius</span><span class="p">,</span> <span class="n">vicsek</span><span class="o">.</span><span class="n">max_neighbors</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Random unit vector per clump (extrinsic/vectorial noise).</span>
+        <span class="n">system</span><span class="o">.</span><span class="n">key</span><span class="p">,</span> <span class="n">noise_key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">state</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">angles</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span>
+                <span class="n">noise_key</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="p">,),</span> <span class="n">minval</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">maxval</span><span class="o">=</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">pi</span>
+            <span class="p">)</span>
+            <span class="n">unit_clump</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">jnp</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">angles</span><span class="p">),</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">angles</span><span class="p">)],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># Isotropic direction in R^3 by normalizing a Gaussian vector.</span>
+            <span class="n">raw</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span>
+                <span class="n">noise_key</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">vel</span><span class="o">.</span><span class="n">dtype</span>
+            <span class="p">)</span>
+            <span class="n">unit_clump</span> <span class="o">=</span> <span class="n">unit</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+        <span class="n">noise_dir</span> <span class="o">=</span> <span class="n">unit_clump</span><span class="p">[</span><span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="p">]</span>
+
+        <span class="n">f</span> <span class="o">=</span> <span class="n">force</span> <span class="o">+</span> <span class="n">avg_v</span> <span class="o">+</span> <span class="n">vicsek</span><span class="o">.</span><span class="n">eta</span> <span class="o">*</span> <span class="n">noise_dir</span>
+        <span class="n">v_des</span> <span class="o">=</span> <span class="n">vicsek</span><span class="o">.</span><span class="n">v0</span> <span class="o">*</span> <span class="n">unit</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">_apply_desired_velocity</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">v_des</span><span class="p">)</span>
+
+
+<span class="nd">@jdem</span><span class="o">.</span><span class="n">LinearIntegrator</span><span class="o">.</span><span class="n">register</span><span class="p">(</span><span class="s2">"vicsek_intrinsic"</span><span class="p">)</span>
+<span class="nd">@jax</span><span class="o">.</span><span class="n">tree_util</span><span class="o">.</span><span class="n">register_dataclass</span>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">VicsekIntrinsic</span><span class="p">(</span><span class="n">jdem</span><span class="o">.</span><span class="n">LinearIntegrator</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Vicsek-model integrator with **intrinsic** noise.</span>
+
+<span class="sd">    This variant perturbs the *direction* of the desired motion. It applies a</span>
+<span class="sd">    random rotation to the normalized base direction. It does not add a random</span>
+<span class="sd">    vector in force space as the extrinsic (vectorial-noise) variant does.</span>
+
+<span class="sd">    The base direction comes from:</span>
+<span class="sd">    - the current accumulated force vector (from colliders + force functions),</span>
+<span class="sd">    - the average neighbor velocity direction (including self).</span>
+
+<span class="sd">    The integrator then applies the noise per clump and broadcasts it to all</span>
+<span class="sd">    clump members, so clumps move coherently.</span>
+<span class="sd">    """</span>
+
+    <span class="n">neighbor_radius</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+    <span class="n">eta</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+    <span class="n">v0</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span>
+    <span class="n">max_neighbors</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">tree</span><span class="o">.</span><span class="n">static</span><span class="p">()</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="nd">@jax</span><span class="o">.</span><span class="n">jit</span><span class="p">(</span><span class="n">inline</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="nd">@partial</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">named_call</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="s2">"VicsekIntrinsic.step_after_force"</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">step_after_force</span><span class="p">(</span>
+        <span class="n">state</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="p">,</span> <span class="n">system</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="p">,</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="p">]:</span>
+        <span class="n">vicsek</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span><span class="n">VicsekIntrinsic</span><span class="p">,</span> <span class="n">system</span><span class="o">.</span><span class="n">linear_integrator</span><span class="p">)</span>
+
+        <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">force</span><span class="p">,</span> <span class="n">avg_v</span> <span class="o">=</span> <span class="n">_vicsek_alignment</span><span class="p">(</span>
+            <span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">vicsek</span><span class="o">.</span><span class="n">neighbor_radius</span><span class="p">,</span> <span class="n">vicsek</span><span class="o">.</span><span class="n">max_neighbors</span>
+        <span class="p">)</span>
+
+        <span class="n">base_vector</span> <span class="o">=</span> <span class="n">force</span> <span class="o">+</span> <span class="n">avg_v</span>
+        <span class="c1"># Retain the current heading if force and alignment cancel exactly.</span>
+        <span class="n">base_dir</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">where</span><span class="p">(</span>
+            <span class="n">jnp</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">base_vector</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdims</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mf">0.0</span><span class="p">,</span>
+            <span class="n">unit</span><span class="p">(</span><span class="n">base_vector</span><span class="p">),</span>
+            <span class="n">unit</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">vel</span><span class="p">),</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Intrinsic noise: randomly rotate the base direction.</span>
+        <span class="c1"># Angle perturbation in [-pi, pi] scaled by eta, generated per clump.</span>
+        <span class="n">system</span><span class="o">.</span><span class="n">key</span><span class="p">,</span> <span class="n">noise_key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">dtheta_clump</span> <span class="o">=</span> <span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="n">noise_key</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="p">,))</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span>
+            <span class="n">jnp</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">vicsek</span><span class="o">.</span><span class="n">eta</span>
+        <span class="p">)</span>
+        <span class="n">dtheta</span> <span class="o">=</span> <span class="n">dtheta_clump</span><span class="p">[</span><span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">state</span><span class="o">.</span><span class="n">dim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="n">c</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">dtheta</span><span class="p">)</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">dtheta</span><span class="p">)</span>
+            <span class="c1"># Rotate base_dir by dtheta: [x', y'] = [c -s; s c] [x, y]</span>
+            <span class="n">rot</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">([</span><span class="n">c</span><span class="p">,</span> <span class="o">-</span><span class="n">s</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">c</span><span class="p">],</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">))</span>
+            <span class="n">dir_clump</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">einsum</span><span class="p">(</span><span class="s2">"nij,nj-&gt;ni"</span><span class="p">,</span> <span class="n">rot</span><span class="p">,</span> <span class="n">base_dir</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># 3D: sample random rotation axis (uniform on sphere), then rotate by angle.</span>
+            <span class="n">system</span><span class="o">.</span><span class="n">key</span><span class="p">,</span> <span class="n">axis_key</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">key</span><span class="p">)</span>
+            <span class="n">raw_axis_clump</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">normal</span><span class="p">(</span>
+                <span class="n">axis_key</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">N</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">vel</span><span class="o">.</span><span class="n">dtype</span>
+            <span class="p">)</span>
+            <span class="n">axis</span> <span class="o">=</span> <span class="n">unit</span><span class="p">(</span><span class="n">raw_axis_clump</span><span class="p">[</span><span class="n">state</span><span class="o">.</span><span class="n">clump_id</span><span class="p">])</span>
+
+            <span class="c1"># Rodrigues' rotation formula: v' = v c + (k x v) s + k (k·v) (1-c)</span>
+            <span class="n">c</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">dtheta</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+            <span class="n">s</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">dtheta</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">axis</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="n">base_dir</span>
+            <span class="n">k_cross_v</span> <span class="o">=</span> <span class="n">cross</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+            <span class="n">k_dot_v</span> <span class="o">=</span> <span class="n">dot</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)[</span><span class="o">...</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+            <span class="n">dir_clump</span> <span class="o">=</span> <span class="n">v</span> <span class="o">*</span> <span class="n">c</span> <span class="o">+</span> <span class="n">k_cross_v</span> <span class="o">*</span> <span class="n">s</span> <span class="o">+</span> <span class="n">k</span> <span class="o">*</span> <span class="n">k_dot_v</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="n">c</span><span class="p">)</span>
+
+        <span class="n">v_des</span> <span class="o">=</span> <span class="n">vicsek</span><span class="o">.</span><span class="n">v0</span> <span class="o">*</span> <span class="n">dir_clump</span>
+
+        <span class="k">return</span> <span class="n">_apply_desired_velocity</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">v_des</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>This function sets the initial data</p>
+<p>For one-call builders see
+<a class="reference internal" href="../reference/generated/jaxdem.utils.particle_creation.html#jaxdem.utils.particle_creation.build_sphere_system" title="jaxdem.utils.particle_creation.build_sphere_system"><code class="xref py py-func docutils literal notranslate"><span class="pre">build_sphere_system()</span></code></a> and
+<a class="reference internal" href="../reference/generated/jaxdem.utils.particle_creation.html#jaxdem.utils.particle_creation.build_ga_system" title="jaxdem.utils.particle_creation.build_ga_system"><code class="xref py py-func docutils literal notranslate"><span class="pre">build_ga_system()</span></code></a>
+(<a class="reference internal" href="sphere_construction.html"><span class="doc">sphere_construction</span></a> and
+<a class="reference internal" href="general_particle_construction.html"><span class="doc">general_particle_construction</span></a>
+examples).</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">build_microstate</span><span class="p">(</span>
+    <span class="n">N</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">phi</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">dt</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">neighbor_radius</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">eta</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">v0</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span>
+    <span class="n">seed</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">integrator_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"vicsek_extrinsic"</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="p">,</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="p">]:</span>
+    <span class="c1"># neighbor-list capacity per particle. It must be large enough that the</span>
+    <span class="c1"># collider does not overflow</span>
+    <span class="n">max_neighbors</span> <span class="o">=</span> <span class="n">N</span> <span class="o">-</span> <span class="mi">1</span>
+
+    <span class="c1"># Mono-disperse spheres of radius 1.0. The ratio lists are relative and</span>
+    <span class="c1"># normalize away. Only ``small_radius`` sets the absolute scale.</span>
+    <span class="n">particle_radii</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">dispersity</span><span class="o">.</span><span class="n">get_polydisperse_radii</span><span class="p">(</span>
+        <span class="n">N</span><span class="p">,</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">],</span> <span class="n">small_radius</span><span class="o">=</span><span class="mf">1.0</span>
+    <span class="p">)</span>
+
+    <span class="k">assert</span> <span class="n">N</span> <span class="o">%</span> <span class="mi">2</span> <span class="o">==</span> <span class="mi">0</span>
+    <span class="n">N_clumps</span> <span class="o">=</span> <span class="n">N</span> <span class="o">//</span> <span class="mi">2</span>
+    <span class="c1"># Bounding radius of each dumbbell: sphere radius 1.0 + center offset 0.5.</span>
+    <span class="n">clump_radii</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">utils</span><span class="o">.</span><span class="n">dispersity</span><span class="o">.</span><span class="n">get_polydisperse_radii</span><span class="p">(</span>
+        <span class="n">N_clumps</span><span class="p">,</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">1.0</span><span class="p">],</span> <span class="n">small_radius</span><span class="o">=</span><span class="mf">1.5</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">dim</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"This dumbbell construction is two-dimensional."</span><span class="p">)</span>
+    <span class="c1"># A square grid avoids a separate relaxation problem during construction.</span>
+    <span class="c1"># phi describes the bounding disks, not the overlapping dumbbell union.</span>
+    <span class="n">n_axis</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">N_clumps</span><span class="p">))</span>
+    <span class="k">if</span> <span class="n">n_axis</span><span class="o">**</span><span class="mi">2</span> <span class="o">!=</span> <span class="n">N_clumps</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"Use a square number of dumbbells for this grid."</span><span class="p">)</span>
+    <span class="n">side</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">pi</span> <span class="o">*</span> <span class="n">clump_radii</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">/</span> <span class="n">phi</span><span class="p">)</span>
+    <span class="n">centers</span> <span class="o">=</span> <span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">n_axis</span><span class="p">)</span> <span class="o">+</span> <span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">side</span> <span class="o">/</span> <span class="n">n_axis</span>
+    <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">centers</span><span class="p">,</span> <span class="n">centers</span><span class="p">,</span> <span class="n">indexing</span><span class="o">=</span><span class="s2">"ij"</span><span class="p">)</span>
+    <span class="n">pos_clumps</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">((</span><span class="n">x</span><span class="o">.</span><span class="n">ravel</span><span class="p">(),</span> <span class="n">y</span><span class="o">.</span><span class="n">ravel</span><span class="p">()),</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">box_size</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">full</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">side</span><span class="p">)</span>
+    <span class="n">angles</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span>
+        <span class="n">jax</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">key</span><span class="p">(</span><span class="n">seed</span><span class="p">),</span> <span class="p">(</span><span class="n">N_clumps</span><span class="p">,),</span> <span class="n">minval</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">maxval</span><span class="o">=</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">pi</span>
+    <span class="p">)</span>
+    <span class="n">headings</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">stack</span><span class="p">((</span><span class="n">jnp</span><span class="o">.</span><span class="n">cos</span><span class="p">(</span><span class="n">angles</span><span class="p">),</span> <span class="n">jnp</span><span class="o">.</span><span class="n">sin</span><span class="p">(</span><span class="n">angles</span><span class="p">)),</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">pos_c</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">pos_clumps</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">pos_p</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="o">-</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">],</span> <span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">]]),</span> <span class="p">(</span><span class="n">N_clumps</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="n">clump_id</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">N_clumps</span><span class="p">),</span> <span class="mi">2</span><span class="p">)</span>
+    <span class="c1"># No compute_clump_properties call here (cf. clump_guide Pitfall #1):</span>
+    <span class="c1"># the Vicsek integrators prescribe velocities directly, so the dynamics</span>
+    <span class="c1"># never use the clump mass and inertia.</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="n">pos</span><span class="o">=</span><span class="n">pos_c</span><span class="p">,</span>
+        <span class="n">pos_p</span><span class="o">=</span><span class="n">pos_p</span><span class="p">,</span>
+        <span class="n">vel</span><span class="o">=</span><span class="n">v0</span> <span class="o">*</span> <span class="n">jnp</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">headings</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">),</span>
+        <span class="n">rad</span><span class="o">=</span><span class="n">particle_radii</span><span class="p">,</span>
+        <span class="n">mass</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">N</span><span class="p">),</span>
+        <span class="n">clump_id</span><span class="o">=</span><span class="n">clump_id</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="n">mats</span> <span class="o">=</span> <span class="p">[</span><span class="n">jdem</span><span class="o">.</span><span class="n">Material</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">"elastic"</span><span class="p">,</span> <span class="n">young</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">poisson</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span> <span class="n">density</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)]</span>
+    <span class="n">matcher</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">MaterialMatchmaker</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">"harmonic"</span><span class="p">)</span>
+    <span class="n">mat_table</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">MaterialTable</span><span class="o">.</span><span class="n">from_materials</span><span class="p">(</span><span class="n">mats</span><span class="p">,</span> <span class="n">matcher</span><span class="o">=</span><span class="n">matcher</span><span class="p">)</span>
+
+    <span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+        <span class="n">state_shape</span><span class="o">=</span><span class="n">state</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span>
+        <span class="n">dt</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span>
+        <span class="c1"># Vicsek integrator:</span>
+        <span class="n">linear_integrator_type</span><span class="o">=</span><span class="n">integrator_type</span><span class="p">,</span>
+        <span class="n">linear_integrator_kw</span><span class="o">=</span><span class="p">{</span>
+            <span class="s2">"neighbor_radius"</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">neighbor_radius</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="s2">"eta"</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">eta</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="s2">"v0"</span><span class="p">:</span> <span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">v0</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+            <span class="s2">"max_neighbors"</span><span class="p">:</span> <span class="n">max_neighbors</span><span class="p">,</span>
+        <span class="p">},</span>
+        <span class="n">rotation_integrator_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">domain_type</span><span class="o">=</span><span class="s2">"periodic"</span><span class="p">,</span>
+        <span class="n">domain_kw</span><span class="o">=</span><span class="p">{</span><span class="s2">"box_size"</span><span class="p">:</span> <span class="n">box_size</span><span class="p">},</span>
+        <span class="n">force_model_type</span><span class="o">=</span><span class="s2">"spring"</span><span class="p">,</span>
+        <span class="n">mat_table</span><span class="o">=</span><span class="n">mat_table</span><span class="p">,</span>
+        <span class="c1"># here, we use the naive (double for-loop) collider because the system is small.</span>
+        <span class="c1"># For a larger system, use the CellList or the NeighborList instead.</span>
+        <span class="n">collider_type</span><span class="o">=</span><span class="s2">"naive"</span><span class="p">,</span>
+        <span class="n">seed</span><span class="o">=</span><span class="n">seed</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">initialize</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Build the initial data</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">build_microstate</span><span class="p">(</span>
+    <span class="n">N</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>  <span class="c1"># 32 spheres -&gt; 16 two-sphere clumps</span>
+    <span class="n">phi</span><span class="o">=</span><span class="mf">0.65</span><span class="p">,</span>  <span class="c1"># fraction occupied by the bounding disks</span>
+    <span class="n">dim</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>  <span class="c1"># 2D</span>
+    <span class="n">dt</span><span class="o">=</span><span class="mf">0.1</span><span class="p">,</span>  <span class="c1"># displacement v0*dt = 0.1, below sphere radius 1</span>
+    <span class="n">neighbor_radius</span><span class="o">=</span><span class="mf">3.5</span><span class="p">,</span>  <span class="c1"># center-distance query for constituent spheres</span>
+    <span class="n">eta</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span>  <span class="c1"># small noise component</span>
+    <span class="n">v0</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>  <span class="c1"># prescribed body speed in reduced units</span>
+    <span class="n">seed</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+    <span class="n">integrator_type</span><span class="o">=</span><span class="s2">"vicsek_intrinsic"</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Every movie frame spans the same physical interval, including the first.</span>
+<span class="c1"># Mixing dense early samples with sparse later samples at a uniform video</span>
+<span class="c1"># frame rate would make constant-speed motion appear to accelerate.</span>
+<span class="c1"># Here the 48 actual snapshots span 4.7 reduced time units: bodies travel</span>
+<span class="c1"># visibly from the start while their initially random headings align.</span>
+<span class="n">n_steps</span> <span class="o">=</span> <span class="mi">47</span>
+<span class="n">state_f</span><span class="p">,</span> <span class="n">system_f</span><span class="p">,</span> <span class="p">(</span><span class="n">traj_state</span><span class="p">,</span> <span class="n">traj_system</span><span class="p">)</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">trajectory_rollout</span><span class="p">(</span>
+    <span class="n">state</span><span class="p">,</span>
+    <span class="n">system</span><span class="p">,</span>
+    <span class="n">strides</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">([</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">n_steps</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">scene_states</span><span class="p">,</span> <span class="n">scene_systems</span> <span class="o">=</span> <span class="n">traj_state</span><span class="p">,</span> <span class="n">traj_system</span>
+</pre></div>
+</div>
+<p>The dimensionless polarization for <code class="docutils literal notranslate"><span class="pre">M</span></code> bodies is</p>
+<div class="math notranslate nohighlight">
+\[P=\frac{1}{Mv_0}\left|\sum_{I=1}^{M}\mathbf v_I\right|.\]</div>
+<p>Perfect alignment gives one; a finite disordered sample usually has a
+nonzero value from sampling fluctuations. The constituent mean below equals
+the body mean because every body has exactly two spheres. With unequal
+member counts, select one representative velocity per body to avoid weighting
+larger clumps more heavily. A single short trace does not establish a phase
+transition; ensemble averages and size/run-length studies are needed for that.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">system_f</span><span class="o">.</span><span class="n">check_overflow</span><span class="p">()</span>
+<span class="n">v0</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">system_f</span><span class="o">.</span><span class="n">linear_integrator</span><span class="o">.</span><span class="n">v0</span><span class="p">)</span>
+<span class="n">polarization</span> <span class="o">=</span> <span class="n">jnp</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">jnp</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">traj_state</span><span class="o">.</span><span class="n">vel</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">2</span><span class="p">),</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="n">v0</span>
+<span class="n">speeds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">traj_state</span><span class="o">.</span><span class="n">vel</span><span class="p">),</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="n">speeds</span><span class="p">,</span> <span class="n">v0</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-10</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-10</span><span class="p">)</span>
+<span class="n">time</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">traj_system</span><span class="o">.</span><span class="n">time</span><span class="p">)</span>
+<span class="n">frame_intervals</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">time</span><span class="p">)</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="n">frame_intervals</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">dt</span><span class="p">),</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-10</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-10</span><span class="p">)</span>
+<span class="c1"># Check actual position increments as well as stored velocity fields. This</span>
+<span class="c1"># catches a zero-motion startup or a sampling schedule that distorts speed.</span>
+<span class="n">displacements</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">traj_state</span><span class="o">.</span><span class="n">pos_c</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">box</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">box_size</span><span class="p">)</span>
+<span class="n">displacements</span> <span class="o">-=</span> <span class="n">box</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">round</span><span class="p">(</span><span class="n">displacements</span> <span class="o">/</span> <span class="n">box</span><span class="p">)</span>
+<span class="n">displacement_speeds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">displacements</span><span class="p">,</span> <span class="n">axis</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="n">frame_intervals</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span>
+<span class="n">np</span><span class="o">.</span><span class="n">testing</span><span class="o">.</span><span class="n">assert_allclose</span><span class="p">(</span><span class="n">displacement_speeds</span><span class="p">,</span> <span class="n">v0</span><span class="p">,</span> <span class="n">rtol</span><span class="o">=</span><span class="mf">1e-10</span><span class="p">,</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-10</span><span class="p">)</span>
+<span class="k">assert</span> <span class="nb">float</span><span class="p">(</span><span class="n">polarization</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">&lt;</span> <span class="mf">0.3</span>
+<span class="k">assert</span> <span class="nb">float</span><span class="p">(</span><span class="n">polarization</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span> <span class="o">&gt;</span> <span class="mf">0.8</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">"Polarization, initial/final (0 = disordered, 1 = aligned): "</span>
+    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">polarization</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> / </span><span class="si">{</span><span class="nb">float</span><span class="p">(</span><span class="n">polarization</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">"</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Body-speed range: </span><span class="si">{</span><span class="n">speeds</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">speeds</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Uniform movie-frame interval: </span><span class="si">{</span><span class="n">frame_intervals</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Polarization, initial/final (0 = disordered, 1 = aligned): 0.151 / 0.894
+Body-speed range: 1.000 to 1.000
+Uniform movie-frame interval: 0.100
+</pre></div>
+</div>
+</section>
+</section>
+<section id="collective-alignment">
+<h2>Collective alignment<a class="headerlink" href="#collective-alignment" title="Link to this heading">#</a></h2>
+<p>The first point measures the initial random headings. The ParaView arrows
+show translational velocity: the fixed orientation of each dumbbell is
+independent of its direction of travel in this nonrotating model.
+The speed invariant is checked above rather than plotted as a flat curve.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+
+<span class="n">fig</span><span class="p">,</span> <span class="n">axis</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">6</span><span class="p">,</span> <span class="mi">3</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">)</span>
+<span class="n">axis</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">time</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">polarization</span><span class="p">))</span>
+<span class="n">axis</span><span class="o">.</span><span class="n">set</span><span class="p">(</span>
+    <span class="n">xlabel</span><span class="o">=</span><span class="s2">"Time (reduced units)"</span><span class="p">,</span>
+    <span class="n">ylabel</span><span class="o">=</span><span class="s2">"Polarization"</span><span class="p">,</span>
+    <span class="n">ylim</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span>
+    <span class="n">title</span><span class="o">=</span><span class="s2">"Collective alignment from random headings"</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">axis</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">alpha</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../_images/sphx_glr_vicsek_model_001.png" srcset="../_images/sphx_glr_vicsek_model_001.png" alt="Collective alignment from random headings" class = "sphx-glr-single-img"/><div class="animation-poster docutils container">
+<img src="../_images/sphx_glr_vicsek_model_002.png" srcset="../_images/sphx_glr_vicsek_model_002.png" alt="Vicsek model" class = "sphx-glr-single-img"/></div>
+<p>Arrows show the instantaneous translational velocities, including the initial random headings. They are projected above the spheres for visibility; body orientations and native velocities are unchanged.</p>
+<figure class="simulation-media"><video controls loop muted playsinline preload="none" poster="../_static/visuals/vicsek_model/scene.png" aria-label="Vicsek model"><source src="../_static/visuals/vicsek_model/animation.mp4" type="video/mp4"><a href="../_static/visuals/vicsek_model/animation.mp4">Download the animation</a></video><figcaption>Saved states and playback frames are uniformly spaced in time, so the prescribed speed is visible from the first frame.</figcaption></figure><p class="sphx-glr-timing"><strong>Total running time of the script:</strong> (0 minutes 16.118 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-vicsek-model-py">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/a8a213ae132615db78b8b4bcde603929/vicsek_model.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">vicsek_model.ipynb</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/41aea2a5f776039472d728213ea4f21d/vicsek_model.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">vicsek_model.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-zip docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/7459891c28c6fd7acea70cb6bff929d7/vicsek_model.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">zipped:</span> <span class="pre">vicsek_model.zip</span></code></a></p>
+</div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="shear_jammed_disks.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Quasistatic shear of a small jammed disk packing</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="infer_contact_stiffness.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Infer contact stiffness from observed trajectories</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#alignment-and-noise-equations">Alignment and noise equations</a><ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#local-vicsek-integrators">Local Vicsek integrators</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#collective-alignment">Collective alignment</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

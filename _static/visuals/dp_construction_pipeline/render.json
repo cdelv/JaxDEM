@@ -1,0 +1,289 @@
+{
+  "title": "Dp construction pipeline",
+  "renderer": "ParaView",
+  "paraview_version": "6.2.0",
+  "manifest": "/tmp/jaxdem-media-dp_construction_pipeline-gbeyrtt3/scene.json",
+  "size": [
+    960,
+    600
+  ],
+  "camera": "xy",
+  "bounds": [
+    0.0,
+    3.73500919342041,
+    0.0,
+    3.36299467086792,
+    -0.10000000149011612,
+    0.10000000149011612
+  ],
+  "poster_time": 0.01,
+  "time_label": "t",
+  "native_times": [
+    0.01
+  ],
+  "animation_times": [],
+  "fps": 8,
+  "end_hold_frames": 0,
+  "end_hold_seconds": 0.0,
+  "encoded_frame_count": 0,
+  "series": [
+    {
+      "path": "/tmp/jaxdem-media-dp_construction_pipeline-gbeyrtt3/vtk/group_00/batch_00000000_deformable_edges.pvd",
+      "kind": "edges",
+      "native_times": [
+        0.01
+      ],
+      "source_points": 18,
+      "source_cells": 18,
+      "point_arrays": [],
+      "representation": {
+        "color": [
+          0.22,
+          0.3,
+          0.36
+        ],
+        "tube_radius": 0.012
+      },
+      "geometry_points": 720,
+      "geometry_cells": 216
+    },
+    {
+      "path": "/tmp/jaxdem-media-dp_construction_pipeline-gbeyrtt3/vtk/group_00/batch_00000000_deformable_elements.pvd",
+      "kind": "surface",
+      "native_times": [
+        0.01
+      ],
+      "source_points": 18,
+      "source_cells": 18,
+      "point_arrays": [],
+      "representation": {
+        "color": [
+          0.12,
+          0.48,
+          0.72
+        ],
+        "opacity": 0.38
+      },
+      "geometry_points": 18,
+      "geometry_cells": 18
+    },
+    {
+      "path": "/tmp/jaxdem-media-dp_construction_pipeline-gbeyrtt3/vtk/group_00/batch_00000000_domain.pvd",
+      "kind": "domain",
+      "native_times": [
+        0.01
+      ],
+      "source_points": 24,
+      "source_cells": 6,
+      "point_arrays": [
+        "Normals",
+        "TCoords"
+      ],
+      "representation": {},
+      "geometry_points": 24,
+      "geometry_cells": 6
+    },
+    {
+      "path": "/tmp/jaxdem-media-dp_construction_pipeline-gbeyrtt3/vtk/group_00/batch_00000000_spheres.pvd",
+      "kind": "particles",
+      "native_times": [
+        0.01
+      ],
+      "source_points": 18,
+      "source_cells": 0,
+      "point_arrays": [
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "rad",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_id",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color_by": "rad",
+        "color": [
+          0.12,
+          0.48,
+          0.72
+        ]
+      },
+      "geometry_points": 6084,
+      "geometry_cells": 12096
+    }
+  ],
+  "outputs": {
+    "scene.png": 34544
+  },
+  "example": "dp_construction_pipeline.py",
+  "example_sha256": "d8eb0fb63c1b4c27e8abe93dc9a1d00525fbe7b34ab75adfb38be488a8c6b578",
+  "library_revision": "9915b7d8d5b93e287f8f095c68dc6aa1dd6d2265",
+  "library_sha256": "df9920bdc26265a6cb7fdc6748fa7b2c1243981c76c49bbc80785fe0f7fb6d30",
+  "media_seconds": 4.215,
+  "simulation": {
+    "slug": "dp_construction_pipeline",
+    "source": "Current example State/System snapshots via VTKWriter; derived diagnostics via native VTK",
+    "groups": [
+      {
+        "label": "Final configuration",
+        "source_frames": 1,
+        "exported_frames": 1,
+        "selected_indices": [
+          0
+        ],
+        "particle_rows": [
+          18
+        ],
+        "source_step_counts": [
+          10
+        ],
+        "source_times": [
+          0.010000000000000002
+        ],
+        "collection_times": [
+          0.010000000000000002
+        ],
+        "offset": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "geometry_only_system": false
+      }
+    ],
+    "geometry": [
+      {
+        "label": "Final configuration",
+        "kind": "edges",
+        "path": "/tmp/jaxdem-media-dp_construction_pipeline-gbeyrtt3/vtk/group_00/batch_00000000_deformable_edges.pvd",
+        "point_arrays": [],
+        "frames": [
+          {
+            "time": 0.01,
+            "points": 18,
+            "cells": 18,
+            "bounds": [
+              0.934369127749109,
+              3.6355570097294505,
+              0.24541068447144498,
+              2.3152777233116315,
+              0.0,
+              0.0
+            ],
+            "bytes": 3652,
+            "physical_summary": {}
+          }
+        ]
+      },
+      {
+        "label": "Final configuration",
+        "kind": "surface",
+        "path": "/tmp/jaxdem-media-dp_construction_pipeline-gbeyrtt3/vtk/group_00/batch_00000000_deformable_elements.pvd",
+        "point_arrays": [],
+        "frames": [
+          {
+            "time": 0.01,
+            "points": 18,
+            "cells": 18,
+            "bounds": [
+              0.934369127749109,
+              3.6355570097294505,
+              0.24541068447144498,
+              2.3152777233116315,
+              0.0,
+              0.0
+            ],
+            "bytes": 5031,
+            "physical_summary": {}
+          }
+        ]
+      },
+      {
+        "label": "Final configuration",
+        "kind": "domain",
+        "path": "/tmp/jaxdem-media-dp_construction_pipeline-gbeyrtt3/vtk/group_00/batch_00000000_domain.pvd",
+        "point_arrays": [
+          "Normals",
+          "TCoords"
+        ],
+        "frames": [
+          {
+            "time": 0.01,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              3.36299467086792,
+              0.0,
+              3.36299467086792,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          }
+        ]
+      },
+      {
+        "label": "Final configuration",
+        "kind": "particles",
+        "path": "/tmp/jaxdem-media-dp_construction_pipeline-gbeyrtt3/vtk/group_00/batch_00000000_spheres.pvd",
+        "point_arrays": [
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "rad",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_id",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 0.01,
+            "points": 18,
+            "cells": 0,
+            "bounds": [
+              0.934369127749109,
+              3.6355570097294505,
+              0.24541068447144498,
+              2.3152777233116315,
+              0.0,
+              0.0
+            ],
+            "bytes": 8281,
+            "physical_summary": {
+              "radius_min": 0.1,
+              "radius_max": 0.1,
+              "speed_max": 8.394339139234092e-17,
+              "force_norm_max": 1.3990565232056818e-15
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

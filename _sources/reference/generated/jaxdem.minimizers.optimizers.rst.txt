@@ -1,0 +1,23 @@
+jaxdem.minimizers.optimizers
+============================
+
+.. automodule:: jaxdem.minimizers.optimizers
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      conjugate_gradient
+      damped_newtonian
+      fire
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      ConjugateGradientState
+      CustomGradientTransformation
+      DampedNewtonianState
+      FIREState
+   
