@@ -1050,13 +1050,10 @@ def _unique_edges_from_triangles(faces_global: np.ndarray) -> np.ndarray:
     """Collect unique undirected edge pairs from a (F, 3) triangle array."""
     if faces_global.size == 0:
         return np.empty((0, 2), dtype=int)
-    edge_set: set[tuple[int, int]] = set()
-    for face in faces_global:
-        a, b, c = int(face[0]), int(face[1]), int(face[2])
-        for p, q in ((a, b), (b, c), (c, a)):
-            lo, hi = (p, q) if p < q else (q, p)
-            edge_set.add((lo, hi))
-    return np.array(sorted(edge_set), dtype=int)
+    edges = np.sort(faces_global[:, [[0, 1], [1, 2], [2, 0]]].reshape(-1, 2), axis=1)
+    edges = edges[np.lexsort((edges[:, 1], edges[:, 0]))]
+    distinct = np.r_[True, np.any(edges[1:] != edges[:-1], axis=1)]
+    return edges[distinct].astype(int, copy=False)
 
 
 def _interior_struts(
@@ -1069,18 +1066,21 @@ def _interior_struts(
     """Return ``(S, 2)`` global edge pairs connecting interior nodes to surface nodes."""
     if interior_global.size == 0 or surface_global.size == 0:
         return np.empty((0, 2), dtype=int)
+    if strategy == "fan":
+        interior, surface = np.broadcast_arrays(
+            interior_global[:, None], surface_global[None, :]
+        )
+        edges = np.stack((interior, surface), axis=-1).reshape(-1, 2)
+        return np.sort(edges, axis=1).astype(int, copy=False)
     surface_pts = pos_np[surface_global]
     strut_pairs: list[tuple[int, int]] = []
     for i_global in interior_global:
-        if strategy == "fan":
-            targets = surface_global
-        else:  # nearest_k
-            dists = np.linalg.norm(surface_pts - pos_np[i_global], axis=-1)
-            k_eff = min(int(k_nearest or 0), surface_global.size)
-            if k_eff <= 0:
-                continue
-            nearest_local = np.argsort(dists)[:k_eff]
-            targets = surface_global[nearest_local]
+        dists = np.linalg.norm(surface_pts - pos_np[i_global], axis=-1)
+        k_eff = min(int(k_nearest or 0), surface_global.size)
+        if k_eff <= 0:
+            continue
+        nearest_local = np.argsort(dists)[:k_eff]
+        targets = surface_global[nearest_local]
         for s_global in targets:
             p, q = int(i_global), int(s_global)
             lo, hi = (p, q) if p < q else (q, p)

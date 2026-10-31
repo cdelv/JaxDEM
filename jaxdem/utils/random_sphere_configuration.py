@@ -15,7 +15,7 @@ import numpy as np
 from ..factory import _normalize_key
 from ..materials import Material, MaterialTable
 from ..material_matchmakers import MaterialMatchmaker
-from ..state import State
+from ..state import State, _hypersphere_volume
 from ..system import System
 from ..minimizers import TerminationReason, fire
 
@@ -32,9 +32,9 @@ def _broadcast(arr: Any, is_scalar: bool) -> jax.Array:
     return arr
 
 
-def _pad(arr: jax.Array, size: int) -> jax.Array:
+def _broadcast_system_axis(arr: jax.Array, size: int) -> jax.Array:
     assert not (arr.shape[0] != size and arr.shape[0] != 1)
-    return arr * jnp.ones((size, arr.shape[1]), dtype=arr.dtype)
+    return jnp.broadcast_to(arr, (size, arr.shape[1]))
 
 
 def random_sphere_configuration(
@@ -157,19 +157,14 @@ def random_sphere_configuration(
     N_systems = max(
         arr.shape[0] for arr in [particle_radii_arr, phi_arr, box_aspect_arr]
     )
-    particle_radii_arr = _pad(particle_radii_arr, N_systems)
-    phi_arr = _pad(phi_arr, N_systems)
-    box_aspect_arr = _pad(box_aspect_arr, N_systems)
+    particle_radii_arr = _broadcast_system_axis(particle_radii_arr, N_systems)
+    phi_arr = _broadcast_system_axis(phi_arr, N_systems)
+    box_aspect_arr = _broadcast_system_axis(box_aspect_arr, N_systems)
 
     N = particle_radii_arr.shape[1]
 
-    # V_d(r) = pi^(d/2) / Gamma(d/2 + 1) * r^d (same formula State.create uses
-    # for the default volume field).
-    vol_per_particle = jnp.exp(
-        0.5 * dim * jnp.log(jnp.pi)
-        + dim * jnp.log(particle_radii_arr)
-        - jax.scipy.special.gammaln(0.5 * dim + 1.0)
-    )
+    # Disk/sphere volumes, using the same formula as State.create.
+    vol_per_particle = _hypersphere_volume(particle_radii_arr, dim)
     total_vol = jnp.sum(vol_per_particle, axis=1)  # (S,)
     # l chosen so that prod(box_size) = prod(l * aspect) = total_vol / phi.
     l = (total_vol / (phi_arr[:, 0] * jnp.prod(box_aspect_arr, axis=1))) ** (1 / dim)
@@ -287,9 +282,9 @@ def minimize_sphere_configuration(
     N_systems = max(
         arr.shape[0] for arr in [particle_radii_arr, phi_arr, box_aspect_arr, pos_arr]
     )
-    particle_radii_arr = _pad(particle_radii_arr, N_systems)
-    phi_arr = _pad(phi_arr, N_systems)
-    box_aspect_arr = _pad(box_aspect_arr, N_systems)
+    particle_radii_arr = _broadcast_system_axis(particle_radii_arr, N_systems)
+    phi_arr = _broadcast_system_axis(phi_arr, N_systems)
+    box_aspect_arr = _broadcast_system_axis(box_aspect_arr, N_systems)
     if pos_arr.shape[0] == 1 and N_systems > 1:
         pos_arr = jnp.broadcast_to(pos_arr, (N_systems, *pos_arr.shape[1:]))
     assert (

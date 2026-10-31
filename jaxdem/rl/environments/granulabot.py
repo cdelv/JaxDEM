@@ -324,11 +324,6 @@ _STALL, _DAMPING, _FRICTION = (
 _Y_MIN = jnp.min(_OFFSETS[:, 1] - _RADII)
 
 
-def _magnetic_curve(r: ArrayLike) -> tuple[jax.Array, jax.Array]:
-    """Solid-cylinder coefficient and potential in simulation units."""
-    return magnetic_coefficient(r), magnetic_potential(r)
-
-
 def _neighbor_collider(system: System) -> NeighborList:
     """Require the cache topology used by the Granulabot contact kernels."""
     collider = system.collider
@@ -1006,11 +1001,6 @@ class Granulabot(Environment):
     @jax.jit
     def observation(env: Granulabot) -> jax.Array:
         """Compute per-robot observations from the live physical state."""
-        return Granulabot._observe(env)
-
-    @staticmethod
-    @jax.jit
-    def _observe(env: Granulabot) -> jax.Array:
         robot_idx = _indices(env.num_gears)
         idx = robot_idx[:, 0]
         s, p = env.state, env.env_params

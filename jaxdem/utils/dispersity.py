@@ -163,6 +163,4 @@ def get_polydisperse_radii(
             stacklevel=2,
         )
 
-    return jnp.array(
-        np.concatenate([np.ones(c) * s for c, s in zip(counts, sizes, strict=False)])
-    )
+    return jnp.asarray(np.repeat(sizes, counts))

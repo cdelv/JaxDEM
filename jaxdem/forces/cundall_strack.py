@@ -231,43 +231,6 @@ def _contact_response_with_coefficients(
     return normal_force, Ft, torque, new_history, mobilized
 
 
-@jax.jit(inline=True, static_argnames=("advance_history",))
-@partial(jax.named_call, name="cundall_strack_force")
-def _force_with_coefficients(
-    i: int,
-    j: int,
-    pos: jax.Array,
-    state: State,
-    system: System,
-    history: jax.Array,
-    kn: jax.Array,
-    kt: jax.Array,
-    gamma_n: jax.Array,
-    gamma_t: jax.Array,
-    mu_ij: jax.Array,
-    mu_r_ij: jax.Array,
-    *,
-    advance_history: bool,
-) -> tuple[jax.Array, jax.Array, jax.Array]:
-    """Return the combined force, torque, and updated pair history."""
-    normal, tangential, torque, new_history, _ = _contact_response_with_coefficients(
-        i,
-        j,
-        pos,
-        state,
-        system,
-        history,
-        kn,
-        kt,
-        gamma_n,
-        gamma_t,
-        mu_ij,
-        mu_r_ij,
-        advance_history=advance_history,
-    )
-    return normal + tangential, torque, new_history
-
-
 @jax.jit(inline=True)
 @partial(jax.named_call, name="cundall_strack_stiffnesses")
 def _pair_stiffnesses(
@@ -564,21 +527,24 @@ class CundallStrackForce(ForceModel):
             gamma_n = jnp.zeros_like(gamma_n)
             gamma_t = jnp.zeros_like(gamma_t)
             mu_r_ij = jnp.zeros_like(mu_r_ij)
-        return _force_with_coefficients(
-            i,
-            j,
-            pos,
-            state,
-            system,
-            history,
-            kn,
-            kt,
-            gamma_n,
-            gamma_t,
-            mu_ij,
-            mu_r_ij,
-            advance_history=advance_history,
+        normal, tangential, torque, new_history, _ = (
+            _contact_response_with_coefficients(
+                i,
+                j,
+                pos,
+                state,
+                system,
+                history,
+                kn,
+                kt,
+                gamma_n,
+                gamma_t,
+                mu_ij,
+                mu_r_ij,
+                advance_history=advance_history,
+            )
         )
+        return normal + tangential, torque, new_history
 
     @staticmethod
     @jax.jit(inline=True)

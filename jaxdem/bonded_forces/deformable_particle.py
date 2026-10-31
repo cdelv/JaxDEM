@@ -293,7 +293,7 @@ class DeformableParticleModel(BondedForceModel):
                 initial_element_normals,
                 computed_initial_element_measures,
                 partial_body_contents,
-            ) = jax.vmap(compute_fn)(vertices[elements])
+            ) = compute_fn(vertices[elements])
 
             if em is not None and initial_element_measures is None:
                 initial_element_measures = computed_initial_element_measures
@@ -314,7 +314,7 @@ class DeformableParticleModel(BondedForceModel):
                     "number of content elasticity coefficients (ec). "
                     f"ec.shape={ec.shape}."
                 )
-                partial_body_contents = jax.vmap(compute_fn)(
+                partial_body_contents = compute_fn(
                     _centered_elements(
                         vertices, elements_arr, elements_id_arr, ec.shape[-1]
                     )
@@ -801,7 +801,8 @@ class DeformableParticleModel(BondedForceModel):
         if dim == 3:
             compute_element_properties = compute_element_properties_3D
         elif dim == 2:
-            compute_element_properties = compute_element_properties_2D
+            # Mapping segments avoids an extra float64 GPU gradient buffer.
+            compute_element_properties = jax.vmap(compute_element_properties_2D)
         else:
             raise ValueError(
                 f"DeformableParticleModel only supports 2D or 3D, got dim={dim}."
@@ -822,9 +823,9 @@ class DeformableParticleModel(BondedForceModel):
                     dp_model.elements_id,
                     dp_model.ec.shape[-1],
                 )
-            element_normal, element_measure, partial_content = jax.vmap(
-                compute_element_properties
-            )(element_vertices)
+            element_normal, element_measure, partial_content = (
+                compute_element_properties(element_vertices)
+            )
 
         # Content
         if (
@@ -858,28 +859,10 @@ class DeformableParticleModel(BondedForceModel):
                 * jnp.square(element_measure - dp_model.initial_element_measures)
                 / dp_model.initial_element_measures
             )
-            if dp_model.gamma is not None:
-                measure_energies = jnp.sum(
-                    jnp.stack(
-                        (
-                            0.5 * norm_measure_energy,
-                            dp_model.gamma * element_measure,
-                        ),
-                        axis=-1,
-                    ),
-                    axis=0,
-                )
-                e_element = measure_energies[0]
-                e_gamma = measure_energies[1]
-            else:
-                e_element = jnp.sum(norm_measure_energy) / 2
+            e_element = jnp.sum(norm_measure_energy) / 2
 
         # Surface tension
-        if (
-            dp_model.elements is not None
-            and dp_model.gamma is not None
-            and (dp_model.em is None or dp_model.initial_element_measures is None)
-        ):
+        if dp_model.elements is not None and dp_model.gamma is not None:
             # sum_m gamma_m * M_m
             e_gamma = jnp.sum(dp_model.gamma * element_measure)
 
@@ -1094,7 +1077,7 @@ def current_bending_angles(
         compute_element_properties_3D if dim == 3 else compute_element_properties_2D
     )
     elements = cast(jax.Array, model.elements)
-    element_normal, _, _ = jax.vmap(compute_fn)(pos[elements])
+    element_normal, _, _ = compute_fn(pos[elements])
 
     if dim == 3:
         adjacency_edges = cast(jax.Array, model.element_adjacency_edges)
@@ -1140,9 +1123,10 @@ def _centered_elements(
 def compute_element_properties_3D(
     simplex: jax.Array,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
-    r1 = simplex[0]
-    r2 = simplex[1] - simplex[0]
-    r3 = simplex[2] - simplex[0]
+    """Return normal, area, and signed volume contribution for ``(..., 3, 3)`` triangles."""
+    r1 = simplex[..., 0, :]
+    r2 = simplex[..., 1, :] - r1
+    r3 = simplex[..., 2, :] - r1
     face_normal = cross(r2, r3) / 2
     partial_vol = dot(face_normal, r1) / 3
     unit_normal, area_face = unit_and_norm(face_normal)
@@ -1157,12 +1141,13 @@ def compute_element_properties_3D(
 def compute_element_properties_2D(
     simplex: jax.Array,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
-    r1 = simplex[0]
-    r2 = simplex[1]
+    """Return normal, length, and signed area contribution for ``(..., 2, 2)`` segments."""
+    r1 = simplex[..., 0, :]
+    r2 = simplex[..., 1, :]
     edge = r2 - r1
     tangent, length = unit_and_norm(edge)
-    normal = jnp.array([tangent[1], -tangent[0]])
-    partial_area = 0.5 * (r1[0] * r2[1] - r1[1] * r2[0])
+    normal = jnp.stack([tangent[..., 1], -tangent[..., 0]], axis=-1)
+    partial_area = 0.5 * (r1[..., 0] * r2[..., 1] - r1[..., 1] * r2[..., 0])
     return normal, length, partial_area
 
 

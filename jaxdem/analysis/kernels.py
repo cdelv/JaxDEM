@@ -77,19 +77,7 @@ def isf_self_isotropic_kernel(
     r = norm(dr)  # (N,) or (S,N)
     k_arr = jnp.asarray(k)
 
-    if k_arr.ndim == 0:
-        x = r * k_arr  # (N,) or (S,N)
-        if d == 2:
-            phi = j0_bessel(x)
-        elif d == 3:
-            phi = _spherical_j0(x)
-        else:
-            raise ValueError(
-                f"isf_self_isotropic_kernel only supports d=2 or d=3, got d={d}"
-            )
-        return jnp.mean(phi, axis=-1)  # () or (S,)
-
-    x = r[..., None] * k_arr  # (N,K) or (S,N,K)
+    x = r[..., None] * jnp.atleast_1d(k_arr)  # (N,K) or (S,N,K)
     if d == 2:
         phi = j0_bessel(x)
     elif d == 3:
@@ -98,7 +86,8 @@ def isf_self_isotropic_kernel(
         raise ValueError(
             f"isf_self_isotropic_kernel only supports d=2 or d=3, got d={d}"
         )
-    return jnp.mean(phi, axis=-2)  # (K,) or (S,K)
+    mean = jnp.mean(phi, axis=-2)  # (K,) or (S,K)
+    return mean[..., 0] if k_arr.ndim == 0 else mean
 
 
 def isf_self_kvecs_kernel(
@@ -139,6 +128,6 @@ def isf_angular_kernel_2d(
     """Angular ISF: <cos(θ₀ · Δθ)>."""
     dtheta = arrays["theta"][t1] - arrays["theta"][t0]
     theta_0_arr = jnp.asarray(theta_0)
-    if theta_0_arr.ndim == 0:
-        return jnp.mean(jnp.cos(theta_0_arr * dtheta), axis=-1)
-    return jnp.mean(jnp.cos(dtheta[..., None] * theta_0_arr), axis=-2)
+    phase = dtheta[..., None] * jnp.atleast_1d(theta_0_arr)
+    mean = jnp.mean(jnp.cos(phase), axis=-2)
+    return mean[..., 0] if theta_0_arr.ndim == 0 else mean

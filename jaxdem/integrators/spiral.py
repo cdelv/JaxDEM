@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING
 
+from ..utils.linalg import cross
 from ..utils.quaternion import Quaternion
 from . import RotationIntegrator, free_mask
 
@@ -27,13 +28,7 @@ def omega_dot(
     """Compute the time derivative of the angular velocity for diagonal inertia."""
     D = w.shape[-1]
     if D == 3:
-        wx, wy, wz = w[..., 0:1], w[..., 1:2], w[..., 2:3]
-        ix, iy, iz = inertia[..., 0:1], inertia[..., 1:2], inertia[..., 2:3]
-        tx, ty, tz = torque[..., 0:1], torque[..., 1:2], torque[..., 2:3]
-        cx = wy * (iz * wz) - wz * (iy * wy)
-        cy = wz * (ix * wx) - wx * (iz * wz)
-        cz = wx * (iy * wy) - wy * (ix * wx)
-        return jnp.concatenate([tx - cx, ty - cy, tz - cz], axis=-1) * inv_inertia
+        return (torque - cross(w, inertia * w)) * inv_inertia
     if D == 1:
         return torque * inv_inertia
 

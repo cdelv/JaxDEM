@@ -72,13 +72,11 @@ def cross(a: jax.Array, b: jax.Array) -> jax.Array:
     if a.shape[-1] == 2:
         return a[..., 0:1] * b[..., 1:2] - a[..., 1:2] * b[..., 0:1]
 
-    a_ext = jnp.concatenate([a, a], axis=-1)
-    b_ext = jnp.concatenate([b, b], axis=-1)
-    a_left = a_ext[..., 1:4]  # [y, z, x]
-    b_left = b_ext[..., 1:4]
-    a_right = a_ext[..., 2:5]  # [z, x, y]
-    b_right = b_ext[..., 2:5]
-    return a_left * b_right - a_right * b_left
+    ax, ay, az = a[..., 0:1], a[..., 1:2], a[..., 2:3]
+    bx, by, bz = b[..., 0:1], b[..., 1:2], b[..., 2:3]
+    return jnp.concatenate(
+        (ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx), axis=-1
+    )
 
 
 @jax.jit(inline=True)

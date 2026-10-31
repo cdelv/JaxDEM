@@ -94,18 +94,12 @@ def _compute_mean_and_mask(sums: PyTree, counts: jnp.ndarray, B: int) -> PyTree:
     """Compute per-bin mean from sums/counts and NaN-mask empty bins."""
 
     def mean_leaf(s: jnp.ndarray) -> jnp.ndarray:
-        denom = jnp.maximum(counts, 1).astype(jnp.promote_types(s.dtype, float))
         reshape = (B,) + (1,) * (s.ndim - 1)
-        return s / denom.reshape(reshape)
+        n = counts.reshape(reshape)
+        denom = jnp.maximum(n, 1).astype(jnp.promote_types(s.dtype, float))
+        return jnp.where(n == 0, jnp.nan, s / denom)
 
-    mean = tree_util.tree_map(mean_leaf, sums)
-
-    def mask_empty(m: jnp.ndarray) -> jnp.ndarray:
-        empty = counts == 0
-        reshape = (B,) + (1,) * (m.ndim - 1)
-        return jnp.where(empty.reshape(reshape), jnp.nan, m)
-
-    return tree_util.tree_map(mask_empty, mean)
+    return tree_util.tree_map(mean_leaf, sums)
 
 
 def evaluate_binned(

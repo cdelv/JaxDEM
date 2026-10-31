@@ -21,7 +21,6 @@ from .two_gears import (
     _measure,
     frictional_floor_force,
     inertia,
-    pos,
     pos_p,
     q,
     rad,
@@ -160,20 +159,16 @@ class ThreeGears(Environment):
         jitter = jax.random.uniform(key_x, (n,), minval=-jitter_amp, maxval=jitter_amp)
         xs = centers_x + jitter
 
-        y_shifted = y_floor - y_min
-        state = State.create()
-        for i in range(n):
-            pos_i_c = jnp.array([[xs[i], y_shifted]])
-            state = State.add_clump(
-                state,
-                pos=pos + pos_i_c,
-                rad=rad,
-                pos_p=pos_p,
-                volume=volume,
-                inertia=inertia,
-                q=q,
-            )
-        env.state = state
+        centers = jnp.stack((xs, jnp.full(n, y_floor - y_min)), axis=-1)
+        env.state = State.create(
+            pos=jnp.repeat(centers, N, axis=0),
+            pos_p=jnp.tile(pos_p, (n, 1)),
+            rad=jnp.tile(rad, n),
+            volume=jnp.full(n * N, volume),
+            inertia=jnp.full((n * N, 1), inertia),
+            q=jnp.broadcast_to(q, (n * N, 4)),
+            clump_id=jnp.repeat(jnp.arange(n), N),
+        )
 
         mat = Material.create(
             "elasticfrict", density=1.0 / volume, young=2e5, poisson=0.3, mu=0.1, e=0.88

@@ -366,24 +366,20 @@ class ForceManager:
 
         # COM-frame forces (applied at clump COM; should not induce torque via lever arm)
         F_com = system.force_manager.external_force_com
-        # 2. Apply Force Functions using tree_map
+        # 2. Sum the managed contributions before adding the external buffers.
         if system.force_manager.force_functions:
             pos = state.pos_c + r_i
-
-            def eval_force(
-                func: ForceFunction, is_com: bool
-            ) -> tuple[jax.Array, jax.Array, jax.Array]:
-                f, t = func(pos, state, system)
-                return (1.0 - is_com) * f, is_com * f, t
-
-            results = jax.tree.map(
-                eval_force,
+            fp: jax.Array | int = 0
+            fc: jax.Array | int = 0
+            tp: jax.Array | int = 0
+            for force_fn, is_com in zip(
                 system.force_manager.force_functions,
                 system.force_manager.is_com_force,
-            )
-
-            # Reduce (sum) across the tuple of results
-            fp, fc, tp = jax.tree.map(lambda *args: sum(args), *results)
+            ):
+                f, t = force_fn(pos, state, system)
+                fp += (1.0 - is_com) * f
+                fc += is_com * f
+                tp += t
             F_part += fp
             F_com += fc
             T_part += tp
@@ -461,20 +457,10 @@ class ForceManager:
 
         # 2. Custom Energy Functions
         if system.force_manager.energy_functions:
-
-            def eval_energy(func: EnergyFunction | None, is_com: bool) -> jax.Array:
-                if func is None:
-                    return jnp.array(0.0, dtype=float)
-                e = func(pos, state, system)
-                return jnp.sum(e)
-
-            # Evaluate all energy functions
-            custom_energies = jax.tree.map(
-                eval_energy,
-                system.force_manager.energy_functions,
-                system.force_manager.is_com_force,
-            )
-            pe_custom = jax.tree.map(lambda *args: sum(args), *custom_energies)
+            pe_custom: jax.Array | int = 0
+            for energy_fn in system.force_manager.energy_functions:
+                if energy_fn is not None:
+                    pe_custom += jnp.sum(energy_fn(pos, state, system))
             pe += pe_custom
 
         return pe

@@ -344,9 +344,8 @@ def valid_interaction_mask(
     :attr:`jaxdem.System.interact_same_bond_id <jaxdem.system.System.interact_same_bond_id>`).
     """
     is_bonded = jnp.any(bond_id_i == index_j[..., None], axis=-1)
-    mask1 = (clump_i != clump_j).astype(int)
-    mask2 = (~is_bonded | interact_same_bond_id).astype(int)
-    return mask1 * mask2
+    eligible = (clump_i != clump_j) & (~is_bonded | interact_same_bond_id)
+    return eligible.astype(int)
 
 
 def invalidate_collider(collider: Collider) -> Collider:
