@@ -60,7 +60,7 @@ print("Collider:", type(system.collider).__name__)
 #      - Low to moderate polydispersity systems and clumps
 #    * - ``"multi_cell_list"``
 #      - :py:class:`~jaxdem.colliders.multi_cell_list.DynamicMultiCellList`
-#      - :math:`O(N \cdot max\_hashes \log (N \cdot max\_hashes))`
+#      - :math:`O(N \log N)`
 #      - Highly polydisperse systems (wide size distributions)
 #    * - ``"neighbor_list"``
 #      - :py:class:`~jaxdem.colliders.neighbor_list.NeighborList`
@@ -102,7 +102,7 @@ print("Forces after one step:\n", state_out.force)
 # domains declare their compatible geometry through
 # :py:attr:`~jaxdem.domains.Domain.search_geometry`.
 #
-# It probes each cell with a `jax.lax.while_loop <https://docs.jax.dev/en/latest/_autosummary/jax.lax.while_loop.html>`_, so it handles high or
+# By default, it probes each cell with a `jax.lax.while_loop <https://docs.jax.dev/en/latest/_autosummary/jax.lax.while_loop.html>`_, so it handles high or
 # variable cell occupancy. This suits polydisperse systems and clumps.
 #
 # Key parameters (all have automatic defaults):
@@ -129,6 +129,35 @@ print("Cell size:", getattr(system_cl.collider, "cell_size", "n/a"))
 
 
 # %%
+# Fixed-Capacity Cell Traversal
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# For either ``CellList`` or ``MultiCellList``, ``static=False`` is the default.
+# Set ``static=True`` to use fixed tile traversal for forces and neighbor
+# queries. Without ``tile_capacity``, construction estimates a global budget
+# from the reference state. It uses the ``NeighborList`` density and packing
+# criteria. Cells share this budget. Each tile holds up to four candidates.
+#
+# A supplied ``tile_capacity`` selects static traversal and overrides the
+# estimate. For example, ``collider_kw={"tile_capacity": 32 * state_p.N}``
+# supplies an explicit budget. The estimate can overflow after clustering
+# or geometry changes. Check overflow after initialization and each completed
+# simulation chunk. Increase ``tile_capacity`` and restart from a valid state
+# if the budget overflows.
+
+for collider_type in ("CellList", "MultiCellList"):
+    system_static = jdem.System.create(
+        state=state_p,
+        collider_type=collider_type,
+        collider_kw={"static": True},
+    )
+    _, system_static = jdem.System.initialize(state_p, system_static)
+    system_static.check_overflow()
+    print(
+        collider_type, "estimated tile capacity:", system_static.collider.tile_capacity
+    )
+
+
+# %%
 # The Multi-Cell List Collider
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # :py:class:`~jaxdem.colliders.multi_cell_list.DynamicMultiCellList` (registered as ``"multi_cell_list"``)
@@ -142,7 +171,8 @@ print("Cell size:", getattr(system_cl.collider, "cell_size", "n/a"))
 #
 # Key parameters (all have automatic defaults):
 #
-# - ``cell_size`` — edge length of each grid cell. If None, it defaults to the minimum particle diameter.
+# - ``cell_size`` — edge length of each grid cell. If None, it defaults to the
+#   largest particle diameter.
 
 
 system_mcl = jdem.System.create(
@@ -199,12 +229,11 @@ system_cl.check_overflow()
 # it is linear in N only when the mean neighbor count stays bounded.
 #
 # .. warning::
-#    In a batched simulation (`jax.vmap <https://docs.jax.dev/en/latest/_autosummary/jax.vmap.html>`_ over many systems), the
-#    rebuild decision is a `jax.lax.cond <https://docs.jax.dev/en/latest/_autosummary/jax.lax.cond.html>`_, which `vmap <https://docs.jax.dev/en/latest/_autosummary/jax.vmap.html>`_ lowers to a
-#    ``select`` that executes **both** branches. Every batch member pays
-#    the full rebuild cost at every step, whether or not its list was
-#    stale. The neighbor list therefore loses its main advantage under
-#    `vmap <https://docs.jax.dev/en/latest/_autosummary/jax.vmap.html>`_ and may not be the best collider choice for batched systems.
+#    Under `jax.vmap <https://docs.jax.dev/en/latest/_autosummary/jax.vmap.html>`_,
+#    per-simulation rebuild branches can execute even for valid caches.
+#    With pair history, a shared guard skips rebuilding when every cache
+#    in the batch remains valid. Benchmark the collider and force law with
+#    your batch size and rebuild frequency.
 #
 # Key parameters:
 #
@@ -275,14 +304,15 @@ system_nl.check_overflow()
 #
 # Keep the returned :py:class:`~jaxdem.state.State` and
 # :py:class:`~jaxdem.system.System`, which include search-cache updates.
-# Neighbor lists report pooled-pair or hash overflow; direct cell colliders
-# report hash overflow during force and energy evaluation. Check
-# :py:meth:`~jaxdem.system.System.check_overflow` before using spatial-search results.
+# Neighbor lists report pair or hash overflow. Static cell traversal also
+# reports tile overflow. Check
+# :py:meth:`~jaxdem.system.System.check_overflow` before you use spatial-search results.
 #
-# Naive and neighbor-list force/energy queries support forward and reverse
-# differentiation. Direct cell traversals support forward mode; their dynamic
-# loops cannot be transposed for reverse mode. Use naive or neighbor-list
-# colliders for reverse-mode gradients or Hessians.
+# Naive, neighbor-list, and static cell force/energy queries support forward
+# and reverse differentiation. Dynamic cell traversals support forward mode.
+# Their occupancy-dependent loops cannot be transposed for reverse mode.
+# Use static cell traversal, naive, or neighbor-list colliders for gradients
+# and Hessians that need reverse differentiation.
 
 state_pe = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
