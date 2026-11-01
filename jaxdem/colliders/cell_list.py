@@ -21,7 +21,11 @@ except ImportError:  # pragma: no cover
 from ..utils.linalg import cross, norm2
 from ..domains import SearchGeometry
 from . import Collider, valid_interaction_mask
-from ._cell_options import validate_cell_options
+from ._cell_options import (
+    resolve_cell_tile_capacity,
+    validate_cell_capacity_estimate,
+    validate_cell_options,
+)
 from ._cell_lookup import _cell_starts
 from ._partition import (
     NEIGHBOR_QUERY_BATCH_SIZE,
@@ -165,11 +169,15 @@ class DynamicCellList(Collider):
     hashes place each cell's members in one contiguous run. A fixed stencil
     selects the cells that can contain contact candidates.
 
-    With ``tile_capacity=None``, occupancy sets the dynamic traversal bound.
+    With ``static=False`` and ``tile_capacity=None``, occupancy sets the dynamic
+    traversal bound.
     Explicit environment batches share the longest active bound within each
     bounded query batch. The dynamic path has no per-cell occupancy limit.
 
-    Set ``tile_capacity`` to a nonnegative Python integer for static traversal.
+    Set ``static=True`` to estimate a fixed tile budget from the reference
+    density and particle packing, with the same criteria as ``NeighborList``.
+    The estimate can overflow after geometry changes or particle clustering.
+    Set ``tile_capacity`` to a nonnegative Python integer for an explicit budget.
     This global budget covers four-candidate tiles across all source particles
     and stencil cells in one environment. Dense cells can use spare capacity
     from other cells. The static path has no per-cell occupancy limit.
@@ -225,6 +233,7 @@ class DynamicCellList(Collider):
         box_size: ArrayLike | None = None,
         tile_capacity: int | None = None,
         clump_aware: bool = False,
+        static: bool = False,
     ) -> Self:
         """Create a DynamicCellList instance from the reference state.
 
@@ -244,18 +253,32 @@ class DynamicCellList(Collider):
 
         tile_capacity : int, optional
             Global budget of four-candidate traversal tiles per environment.
-            None keeps dynamic traversal. A supplied integer selects static
-            traversal, including zero for an empty budget.
+            None keeps dynamic traversal unless ``static=True``. A supplied
+            integer selects static traversal, including zero for an empty budget.
         clump_aware : bool, optional
             Exclude same-clump members before static tile allocation. This
             option affects allocation only in the static mode.
+        static : bool, optional
+            Estimate a fixed tile budget when ``tile_capacity`` is None.
+            A supplied ``tile_capacity`` takes precedence over this option.
+            False keeps dynamic traversal without an explicit budget.
+
+            The estimate applies ``NeighborList`` density and packing criteria
+            to a sphere that contains one grid cell. It uses density floor
+            1.0 and safety factor 1.2. The budget is ``N * stencil_size`` times
+            the estimated tiles per cell, rounded up to four candidates.
+            The estimate requires concrete reference data. Overflow checks
+            remain necessary because cell occupancy can change.
+            This conservative estimate can use more memory than a tuned
+            explicit budget, especially in 3D.
 
         Returns
         -------
         DynamicCellList
             A configured DynamicCellList instance.
         """
-        validate_cell_options(tile_capacity, clump_aware)
+        validate_cell_options(tile_capacity, clump_aware, static)
+        validate_cell_capacity_estimate(state, cell_size, tile_capacity, static)
         max_rad = jnp.max(state._rad, initial=0.0)
         if cell_size is None:
             min_rad = jnp.min(state._rad, initial=jnp.inf)
@@ -323,6 +346,9 @@ class DynamicCellList(Collider):
         r = jnp.arange(-resolved_search_range, resolved_search_range + 1, dtype=int)
         mesh = jnp.meshgrid(*([r] * state.dim), indexing="ij")
         neighbor_mask = jnp.stack([m.ravel() for m in mesh], axis=1)
+        tile_capacity = resolve_cell_tile_capacity(
+            state, cell_size, neighbor_mask.shape[0], tile_capacity, static
+        )
 
         return cls(
             neighbor_mask=neighbor_mask.astype(int),

@@ -18,6 +18,7 @@ except ImportError:
     from typing_extensions import Self
 
 from . import Collider
+from ._cell_options import estimate_neighbor_capacity
 
 if TYPE_CHECKING:
     from ..domains import Domain
@@ -334,8 +335,9 @@ class NeighborList(Collider):
             Keyword arguments for the constructor of the internal collider.
             If None and the internal collider is a cell list, ``cell_size``
             defaults to ``cutoff + skin``.
-            For CellList or MultiCellList, supply ``tile_capacity`` to use
-            fixed pooled traversal for construction and cached forces.
+            For CellList or MultiCellList, set ``static=True`` to estimate
+            a fixed tile budget, or supply an explicit ``tile_capacity``.
+            Both options use fixed traversal for construction and cached forces.
         Returns
         -------
         NeighborList
@@ -392,34 +394,9 @@ class NeighborList(Collider):
             # Estimate capacity only when the caller omits it. An explicit
             # capacity is an exact static buffer width, including widths
             # larger than the current particle count.
-            max_rad = jnp.max(state._rad)
-            pos_min = jnp.min(state.pos, axis=0)
-            pos_max = jnp.max(state.pos, axis=0)
-            box_size = jnp.maximum(pos_max - pos_min + 2.0 * max_rad, 1.0)
-            number_density_est = (state.N / jnp.prod(box_size)).item()
-            effective_density = jnp.maximum(number_density, number_density_est).item()
-            mean_rad = jnp.mean(state._rad)
-            r_eff_mean = 0.9 * mean_rad
-            typical_max_neighbors = int(
-                jnp.where(
-                    r_eff_mean > 0,
-                    jnp.ceil(((list_cutoff + r_eff_mean) / r_eff_mean) ** state.dim),
-                    state.N,
-                ).item()
+            max_neighbors = estimate_neighbor_capacity(
+                state, list_cutoff, number_density, safety_factor
             )
-            # Estimate neighbors based on volume and density
-            nl_volume = (
-                jnp.pi
-                * list_cutoff**state.dim
-                * (1.0 if state.dim == 2 else (4.0 / 3.0))
-            )
-            max_neighbors_density = int(
-                jnp.ceil(safety_factor * nl_volume * effective_density).item()
-            )
-
-            # Ensure we can handle local dense clusters of typical particles
-            max_neighbors = max(max_neighbors_density, typical_max_neighbors)
-            max_neighbors = min(max(max_neighbors, 0), state.N)
 
         if secondary_collider_kw is None:
             secondary_collider_kw = {}
