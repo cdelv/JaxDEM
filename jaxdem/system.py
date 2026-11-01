@@ -24,7 +24,6 @@ from .materials import Material, MaterialTable
 if TYPE_CHECKING:
     from .minimizers import MinimizationResult
     from .state import State
-    from .simulation_status import StepResult
 
 
 def _check_material_table(table: MaterialTable, required: Sequence[str]) -> None:
@@ -943,37 +942,6 @@ class System:
         state, system = body(state, system, n)
 
         return state, system
-
-    @staticmethod
-    def step_checked(state: State, system: System, *, n: int = 1) -> StepResult:
-        """Advance at most ``n`` steps, stopping and rolling back on failure.
-
-        Unlike :meth:`step <jaxdem.system.System.step>`, this opt-in device loop checks finite particle
-        state and spatial-search overflow after every step. ``result.steps``
-        counts accepted steps; ``result.status`` preserves failure even though
-        the returned state/system precede the failed step. An invalid input is
-        returned unchanged with zero accepted steps. Check ``result.check()``
-        on the host before continuing or writing successful output.
-
-        Initialization and physical setup validation remain explicit. A batch
-        returns one status/count per snapshot. This dynamic stopping loop does
-        not support reverse-mode differentiation. No automatic retry changes
-        the timestep, neighbor capacity, or physical history.
-        """
-        from .simulation_status import checked_steps
-
-        if isinstance(n, bool) or not isinstance(n, int) or n < 0:
-            raise ValueError(
-                "System.step_checked() requires a nonnegative Python integer `n`."
-            )
-        rank = state.pos_c.ndim
-        if rank not in (2, 3) or system.dt.ndim != rank - 2:
-            raise ValueError(
-                "System.step_checked() requires matching state and system layouts."
-            )
-        if rank == 3:
-            return jax.vmap(checked_steps, in_axes=(0, 0, None))(state, system, n)
-        return checked_steps(state, system, n)
 
     @staticmethod
     @jax.jit(inline=True)

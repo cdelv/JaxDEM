@@ -45,7 +45,6 @@ from .materials import Material, MaterialTable
 from .minimizers import damped_newtonian, fire, minimize
 from .state import State
 from .system import System
-from .simulation_status import SimulationStatus, StepResult
 from .topology import BodyTopology, body_topology
 
 if TYPE_CHECKING:
@@ -82,8 +81,6 @@ __all__ = [
     "RotationIntegrator",
     "State",
     "System",
-    "SimulationStatus",
-    "StepResult",
     "VTKBaseWriter",
     "VTKWriter",
     "utils",
