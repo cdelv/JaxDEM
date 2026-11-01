@@ -48,9 +48,6 @@ all = ["JaxDEM[io,rl,docs,test]"]
 where = ["."]
 include = ["jaxdem", "jaxdem.*"]
 
-[tool.setuptools.package-data]
-jaxdem = ["py.typed"]
-
 [tool.mypy]
 strict = true
 warn_return_any = false

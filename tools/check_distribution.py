@@ -15,8 +15,8 @@ def check_distribution(directory: Path) -> None:
         raise ValueError("Expected exactly one wheel and one sdist")
     with zipfile.ZipFile(wheels[0]) as archive:
         names = archive.namelist()
-        if "jaxdem/py.typed" not in names:
-            raise ValueError("Wheel is missing jaxdem/py.typed")
+        if "jaxdem/py.typed" in names:
+            raise ValueError("Wheel includes removed jaxdem/py.typed")
         for name in names:
             if not (name.startswith("jaxdem/") or ".dist-info/" in name):
                 raise ValueError(f"Unexpected wheel entry: {name}")

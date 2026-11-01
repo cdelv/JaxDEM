@@ -10,6 +10,8 @@ __pycache__/
 
 # Benchmarks
 docs/source/benchmarks/*
+/benchmarks/results/*/
+/rl_parity_report.md
 
 # C extensions
 *.so
