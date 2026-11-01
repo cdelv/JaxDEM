@@ -13,7 +13,7 @@ import pytest
 import jaxdem as jd
 import jaxdem.colliders.cell_list as cell_list_module
 import jaxdem.colliders.multi_cell_list as multi_cell_list_module
-from jaxdem.colliders._partition import _cell_starts
+from jaxdem.colliders._cell_lookup import _cell_starts
 
 
 @pytest.fixture(

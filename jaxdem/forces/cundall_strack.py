@@ -104,7 +104,7 @@ def _rotate_about_axis(v: jax.Array, axis: jax.Array, angle: jax.Array) -> jax.A
     """Rotate a 3-vector about a unit axis with Rodrigues' formula."""
     c = jnp.cos(angle)[..., None]
     s = jnp.sin(angle)[..., None]
-    return v * c + jnp.cross(axis, v) * s + axis * dot(axis, v)[..., None] * (1 - c)
+    return v * c + cross(axis, v) * s + axis * dot(axis, v)[..., None] * (1 - c)
 
 
 def _transport_tangent(

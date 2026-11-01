@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from ._pair_candidates import _analysis_search_radii, _collect_pair_candidates
-from .linalg import norm2
+from .linalg import cross, norm2
 
 if TYPE_CHECKING:
     from ..state import State
@@ -72,8 +72,8 @@ def _rotation_perturbation(omega: jax.Array, p_lab: jax.Array) -> jax.Array:
     if p_lab.shape[-1] == 2:
         w = omega[0]
         return w * jnp.stack([-p_lab[1], p_lab[0]]) - 0.5 * w**2 * p_lab
-    first = jnp.cross(omega, p_lab)
-    return first + 0.5 * jnp.cross(omega, first)
+    first = cross(omega, p_lab)
+    return first + 0.5 * cross(omega, first)
 
 
 def _pair_hessian_block(
