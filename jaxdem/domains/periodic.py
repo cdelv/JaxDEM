@@ -106,10 +106,12 @@ class PeriodicDomain(Domain):
         vj: jax.Array,
         system: System,
     ) -> jax.Array:
-        """Subtract the velocity of the image selected by ``displacement``."""
+        """Subtract the moving-image velocity from the contact relative velocity.
+
+        Particle centers select the image, even when velocities include rotation.
+        """
         domain = cast("PeriodicDomain", system.domain)
-        image = jnp.round((ri - rj) / domain.box_size)
-        return vi - vj - image * domain.box_rate
+        return vi - vj - jnp.round((ri - rj) / domain.box_size) * domain.box_rate
 
     def search_geometry_snapshot(self) -> jax.Array:
         """Return periodic box geometry used by search caches."""

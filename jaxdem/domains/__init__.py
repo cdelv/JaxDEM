@@ -38,7 +38,8 @@ class Domain(Factory, ABC):
     """The base interface for the simulation domain and its boundary conditions.
 
     The `Domain` class defines:
-        - How to compute relative displacement vectors between particles.
+        - Pair displacement through ``displacement``.
+        - Contact relative velocity through ``relative_velocity``.
         - How to "shift" or constrain particle positions so they stay within
           the simulation boundaries.
 
@@ -235,12 +236,11 @@ class Domain(Factory, ABC):
         vj: jax.Array,
         system: System,
     ) -> jax.Array:
-        """Return relative velocity for the image selected by ``displacement``.
+        """Return contact relative velocity for the image selected by displacement.
 
-        ``ri`` and ``rj`` are the particle centers used to select that image.
-        ``vi`` and ``vj`` may include rotational contact-point velocities.
-        Domains with moving periodic images override this operation to add
-        the image's translational velocity offset.
+        Particle centers select the image. The supplied velocities can include
+        rotation at the contact points. The base rule has no moving images.
+        Custom domains override this method for image motion or other velocity rules.
         """
         return vi - vj
 

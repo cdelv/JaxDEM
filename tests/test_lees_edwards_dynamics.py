@@ -15,6 +15,78 @@ import pytest
 import jaxdem as jd
 
 
+@pytest.mark.parametrize("kind", ["free", "periodic", "leesedwards"])
+@pytest.mark.parametrize("x64", [False, True])
+def test_displacement_and_relative_velocity_select_the_same_image(kind, x64):
+    with jax.enable_x64(x64):
+        state = jd.State.create(pos=jnp.zeros((1, 3)))
+        kw = {"box_size": jnp.array([2.0, 3.0, 4.0])}
+        if kind != "free":
+            kw["box_rate"] = jnp.array([0.2, -0.1, 0.3])
+        if kind == "leesedwards":
+            kw.update(gamma=0.31, gamma_dot=-0.17, alpha=2, beta=0)
+        system = jd.System.create(
+            state=state, collider_type="", domain_type=kind, domain_kw=kw
+        )
+        ri = jnp.array([[1.0, 1.5, 2.0], [9.0, -10.0, 17.0], [-5.0, 7.0, -12.0]])
+        rj = jnp.array([[0.0, 0.0, 0.0], [-1.0, 2.0, 1.0], [2.0, 1.0, -1.0]])
+        # Fixed physical images cover half-box ties and multiple unwrapped boxes.
+        expected_displacement = jnp.array(
+            {
+                "free": [[1.0, 1.5, 2.0], [10.0, -12.0, 16.0], [-7.0, 6.0, -11.0]],
+                "periodic": [[1.0, 1.5, 2.0], [0.0, 0.0, 0.0], [1.0, 0.0, 1.0]],
+                "leesedwards": [[1.0, 1.5, 2.0], [0.0, 0.0, 0.9], [1.0, 0.0, -0.52]],
+            }[kind]
+        )
+        expected_image_velocity = jnp.array(
+            {
+                "free": [[0.0, 0.0, 0.0]] * 3,
+                "periodic": [[0.0, 0.0, 0.0], [1.0, 0.4, 1.2], [-0.8, -0.2, -0.9]],
+                "leesedwards": [
+                    [0.0, 0.0, 0.0],
+                    [1.0, 0.4, -0.49],
+                    [-0.8, -0.2, 0.512],
+                ],
+            }[kind]
+        )
+        displacement = system.domain.displacement(ri, rj, system)
+        tolerance = 1e-13 if x64 else 2e-6
+        np.testing.assert_allclose(displacement, expected_displacement, atol=tolerance)
+        vi, vj = jnp.ones_like(ri) * 0.3, jnp.ones_like(rj) * -0.2
+        np.testing.assert_allclose(
+            system.domain.relative_velocity(ri, rj, vi, vj, system),
+            vi - vj - expected_image_velocity,
+            atol=tolerance,
+        )
+        assert not hasattr(system.domain, "pair_geometry")
+        np.testing.assert_allclose(
+            system.domain._displacement(ri, rj, system),
+            expected_displacement,
+            atol=tolerance,
+        )
+        if kind != "free":
+            # Away from image switches, image position differentiates to its
+            # velocity, including simultaneous shear and changing box length.
+            def image_offset(t):
+                motion = {
+                    "box_size": system.domain.box_size + t * system.domain.box_rate
+                }
+                if kind == "leesedwards":
+                    motion["gamma"] = system.domain.gamma + t * system.domain.gamma_dot
+                moving = replace(system.domain, **motion)
+                dr = moving.displacement(
+                    ri[1:2], rj[1:2], replace(system, domain=moving)
+                )
+                return ri[1:2] - rj[1:2] - dr
+
+            np.testing.assert_allclose(
+                jax.jvp(image_offset, (jnp.array(0.0),), (jnp.array(1.0),))[1],
+                expected_image_velocity[1:2],
+                rtol=2e-6,
+                atol=2e-6,
+            )
+
+
 @pytest.mark.parametrize("dim,alpha,beta", [(2, 0, 1), (2, 1, 0), (3, 2, 0)])
 @pytest.mark.parametrize("dgamma", [-0.07, 0.07])
 def test_shear_deforms_periodic_displacements(dim, alpha, beta, dgamma):

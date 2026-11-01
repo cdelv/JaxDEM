@@ -321,13 +321,15 @@ class LeesEdwardsDomain(PeriodicDomain):
                 - Rounding uses ties to even at half-box displacements.
 
         """
-        le_domain = cast("LeesEdwardsDomain", system.domain)
-        rij = ri - rj
-        gamma = le_domain.gamma
-        beta_length = le_domain.box_size[le_domain.beta]
-        shear_image = jnp.round(rij[..., le_domain.beta] / beta_length)
-        rij = rij.at[..., le_domain.alpha].add(-shear_image * beta_length * gamma)
-        return rij - le_domain.box_size * jnp.round(rij / le_domain.box_size)
+        domain = cast("LeesEdwardsDomain", system.domain)
+        raw = ri - rj
+        beta_length = domain.box_size[domain.beta]
+        shear_image = jnp.round(raw[..., domain.beta] / beta_length)
+        shifted = raw.at[..., domain.alpha].add(
+            -shear_image * beta_length * domain.gamma
+        )
+        image = jnp.round(shifted / domain.box_size)
+        return shifted - domain.box_size * image
 
     @staticmethod
     @jax.jit(inline=True)
@@ -339,20 +341,18 @@ class LeesEdwardsDomain(PeriodicDomain):
         vj: jax.Array,
         system: System,
     ) -> jax.Array:
-        """Subtract the velocity of the same image used by ``displacement``.
+        """Subtract the velocity of the same sequentially selected image.
 
-        The image of ``j`` sits at ``rj + n * L + n_beta * gamma * L_beta e_alpha``
-        with integer image counts ``n``. Its velocity is ``n * box_rate`` plus
-        ``n_beta * (gamma_dot * L_beta + gamma * box_rate_beta)`` along
-        ``alpha``. Image counts use the supplied unwrapped particle centers,
-        including when they span multiple boxes.
+        Include both box motion and the shear-offset rate.
         """
         domain = cast("LeesEdwardsDomain", system.domain)
-        rij = ri - rj
+        raw = ri - rj
         beta_length = domain.box_size[domain.beta]
-        shear_image = jnp.round(rij[..., domain.beta] / beta_length)
-        rij = rij.at[..., domain.alpha].add(-shear_image * beta_length * domain.gamma)
-        image = jnp.round(rij / domain.box_size)
+        shear_image = jnp.round(raw[..., domain.beta] / beta_length)
+        shifted = raw.at[..., domain.alpha].add(
+            -shear_image * beta_length * domain.gamma
+        )
+        image = jnp.round(shifted / domain.box_size)
         image_velocity = image * domain.box_rate
         image_velocity = image_velocity.at[..., domain.alpha].add(
             shear_image
