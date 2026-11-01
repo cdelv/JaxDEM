@@ -436,10 +436,10 @@ def advance_history(
     return state, system
 
 
-from .cell_list import DynamicCellList
-from .multi_cell_list import DynamicMultiCellList
-from .naive import NaiveSimulator
-from .neighbor_list import NeighborList
+from .cell_list import DynamicCellList  # noqa: E402
+from .multi_cell_list import DynamicMultiCellList  # noqa: E402
+from .naive import NaiveSimulator  # noqa: E402
+from .neighbor_list import NeighborList  # noqa: E402
 
 __all__ = [
     "Collider",

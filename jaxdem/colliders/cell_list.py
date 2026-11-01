@@ -11,7 +11,7 @@ from jax.typing import ArrayLike
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 try:  # Python 3.11+
     from typing import Self
@@ -21,13 +21,17 @@ except ImportError:  # pragma: no cover
 from ..utils.linalg import cross, norm2
 from ..domains import SearchGeometry
 from . import Collider, valid_interaction_mask
+from ._cell_options import validate_cell_options
+from ._cell_lookup import _cell_starts
 from ._partition import (
     NEIGHBOR_QUERY_BATCH_SIZE,
     PAIR_TRAVERSAL_BATCH_SIZE,
-    _cell_starts,
+    PAIR_UNROLL,
+    _dedup_stencil_hashes,
     _energy_pair_fn,
     _force_pair_fn,
-    _grid_params,
+    _get_spatial_partition,
+    _make_direct_row_body,
 )
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -35,218 +39,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
-@jax.jit
-@partial(jax.named_call, name="cell_list._get_spatial_partition")
-def _get_spatial_partition(
-    pos: jax.Array,
-    system: System,
-    cell_size: jax.Array,
-    neighbor_mask: jax.Array,
-    iota: jax.Array,
-) -> tuple[jax.Array, ...]:
-    """Compute the spatial hashing and partitioning of the cell list.
-
-    Returns
-    -------
-    tuple[jax.Array, ...]
-        ``(perm, p_cell_hash, neighbor_cell_hashes, hash_overflow)``.
-    """
-    grid_dims, grid_strides, cell_size, hash_overflow = _grid_params(
-        system.domain.box_size, cell_size, system.domain.periodic
-    )
-
-    hash_dtype = grid_strides.dtype
-    hash_sentinel = jnp.bitwise_not(jnp.asarray(0, hash_dtype))
-    pos = system.domain._shift(pos, system)
-    if system.domain.periodic:
-        p_cell_coords = jnp.floor(
-            (((pos - system.domain.anchor) / system.domain.box_size) % 1) * grid_dims
-        ).astype(hash_dtype)
-    else:
-        p_cell_coords = jnp.floor((pos - system.domain.anchor) / cell_size).astype(
-            hash_dtype
-        )
-
-    p_cell_hash = jnp.dot(p_cell_coords, grid_strides)
-
-    p_cell_hash, perm = jax.lax.sort([p_cell_hash, iota], num_keys=1)
-
-    # Note: we compute neighbor coords using original (unsorted) p_cell_coords
-    base_coords = p_cell_coords[:, None, :]
-    offsets = neighbor_mask[None, :, :]
-    nonnegative = offsets >= 0
-    offset_magnitude = jnp.where(nonnegative, offsets, -offsets).astype(hash_dtype)
-
-    def wrapped_offset_coords() -> tuple[jax.Array, jax.Array]:
-        """Unsigned modular coordinates plus signed periodic image counts."""
-        dims = grid_dims[None, None, :]
-        quotient = offset_magnitude // dims
-        remainder = offset_magnitude % dims
-        positive_carry = base_coords >= (dims - remainder)
-        positive_coords = jnp.where(
-            (remainder == 0) | ~positive_carry,
-            base_coords + remainder,
-            base_coords - (dims - remainder),
-        )
-        negative_borrow = remainder > base_coords
-        negative_coords = jnp.where(
-            negative_borrow,
-            dims - (remainder - base_coords),
-            base_coords - remainder,
-        )
-        coords = jnp.where(nonnegative, positive_coords, negative_coords)
-        image = jnp.where(
-            nonnegative,
-            quotient.astype(offsets.dtype) + positive_carry.astype(offsets.dtype),
-            -quotient.astype(offsets.dtype) - negative_borrow.astype(offsets.dtype),
-        )
-        return coords, image
-
-    if system.domain.periodic:
-        neighbor_cell_coords, periodic_image = wrapped_offset_coords()
-
-        neighbor_cell_coords = system.domain.neighbor_cells(
-            neighbor_cell_coords, periodic_image, grid_dims, cell_size
-        )
-        neighbor_cell_hashes = jnp.dot(
-            neighbor_cell_coords.astype(hash_dtype), grid_strides
-        )
-    else:
-        positive_oob = offset_magnitude >= grid_dims - base_coords
-        negative_oob = offset_magnitude > base_coords
-        out_of_bounds = jnp.any(
-            jnp.where(nonnegative, positive_oob, negative_oob), axis=-1
-        )
-        neighbor_cell_coords = jnp.where(
-            nonnegative, base_coords + offset_magnitude, base_coords - offset_magnitude
-        )
-        neighbor_cell_hashes = jnp.dot(neighbor_cell_coords, grid_strides)
-        neighbor_cell_hashes = jnp.where(
-            out_of_bounds, hash_sentinel, neighbor_cell_hashes
-        )
-
-    return (
-        perm,
-        p_cell_hash,
-        neighbor_cell_hashes,
-        hash_overflow,
-    )
-
-
-@jax.jit(inline=True)
-@partial(jax.named_call, name="cell_list._dedup_stencil_hashes")
-def _dedup_stencil_hashes(stencil_hashes: jax.Array) -> jax.Array:
-    """Deduplicate one particle's stencil hashes using the unsigned sentinel."""
-    indices = jnp.arange(stencil_hashes.size)
-    is_duplicate = jnp.zeros(stencil_hashes.shape, dtype=bool)
-    # Small static slices fuse with their reductions instead of materializing
-    # an (N, stencil, stencil) temporary for a large shear-periodic stencil.
-    for start in range(0, stencil_hashes.size, 16):
-        end = min(start + 16, stencil_hashes.size)
-        mask = (indices[start:end, None] < indices[None, :]) & (
-            stencil_hashes[start:end, None] == stencil_hashes[None, :]
-        )
-        is_duplicate |= jnp.any(mask, axis=0)
-    sentinel = jnp.bitwise_not(jnp.asarray(0, stencil_hashes.dtype))
-    return jnp.where(is_duplicate, sentinel, stencil_hashes)
-
-
-def _make_direct_row_body(
-    sorted_hashes: jax.Array,
-    n_db: int | jax.Array,
-    local_capacity: int,
-    candidate_valid: Callable[[jax.Array], jax.Array],
-) -> Callable[[jax.Array, jax.Array], tuple[jax.Array, jax.Array]]:
-    """Build one neighbor row directly while walking its stencil in order.
-
-    The returned function carries one ``local_capacity``-wide row across all
-    stencil cells. This avoids materializing per-cell rows of shape
-    ``(stencil_size, local_capacity)`` before packing.
-
-    Parameters
-    ----------
-    sorted_hashes : jax.Array
-        Cell hashes of the database points, sorted ascending.
-    n_db : int | jax.Array
-        Number of database points.
-    local_capacity : int
-        Static size of the output neighbor row.
-    candidate_valid : Callable[[jax.Array], jax.Array]
-        Boolean predicate evaluated on each candidate database index.
-    """
-
-    @jax.jit(inline=True)
-    def row_body(
-        stencil: jax.Array, cell_starts: jax.Array
-    ) -> tuple[jax.Array, jax.Array]:
-        j_arr = jax.lax.iota(dtype=int, size=PAIR_UNROLL)
-        init_carry = (
-            jnp.array(0, dtype=int),
-            cell_starts[0],
-            jnp.array(0, dtype=int),
-            jnp.full((local_capacity,), -1, dtype=int),
-            jnp.array(False),  # overflow flag
-        )
-
-        def cond_fun(
-            val: tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array],
-        ) -> bool:
-            stencil_idx, _, c, _, _ = val
-            in_stencil = stencil_idx < stencil.shape[0]
-            has_space = c < local_capacity + 1
-            return cast(bool, in_stencil * has_space)
-
-        def body_fun(
-            val: tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array],
-        ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
-            stencil_idx, k, c, nl, overflow = val
-            target_cell_hash = stencil[stencil_idx]
-            actual_k_arr = k + j_arr
-            safe_k_arr = jnp.minimum(actual_k_arr, jnp.maximum(1, n_db) - 1)
-            in_cell_arr = (actual_k_arr < n_db) * (
-                sorted_hashes[safe_k_arr] == target_cell_hash
-            )
-            valid_arr = jax.vmap(candidate_valid)(safe_k_arr) * in_cell_arr
-
-            valid_counts = valid_arr.astype(c.dtype)
-            num_valid = jnp.sum(valid_counts)
-
-            cumsum = jnp.cumsum(valid_counts) - valid_counts
-            write_idx_arr = c + cumsum
-            write_idx_arr = jnp.where(valid_arr, write_idx_arr, local_capacity)
-
-            nl = nl.at[write_idx_arr].set(safe_k_arr, mode="drop")
-            c = c + num_valid
-            overflow = overflow | (c > local_capacity)
-
-            next_k = k + PAIR_UNROLL
-            safe_next_k = jnp.minimum(next_k, jnp.maximum(1, n_db) - 1)
-            remains_in_cell = (next_k < n_db) & (
-                sorted_hashes[safe_next_k] == target_cell_hash
-            )
-            next_stencil_idx = jnp.where(remains_in_cell, stencil_idx, stencil_idx + 1)
-            safe_stencil_idx = jnp.minimum(next_stencil_idx, stencil.shape[0] - 1)
-            next_k = jnp.where(remains_in_cell, next_k, cell_starts[safe_stencil_idx])
-            return next_stencil_idx, next_k, c, nl, overflow
-
-        _, _, _, neighbor_row, row_overflow = jax.lax.while_loop(
-            cond_fun, body_fun, init_carry
-        )
-        return neighbor_row, row_overflow
-
-    return row_body
-
-
-#: Number of candidate particles each while-loop iteration of the pair
-#: traversals visits. A vmapped ``lax.while_loop`` runs until the longest
-#: lane finishes. Visiting several candidates reduces loop iterations at
-#: the price of at most ``PAIR_UNROLL - 1`` extra masked pair evaluations
-#: per lane.
-PAIR_UNROLL = 4
-
-
 @jax.jit(inline=True, static_argnames=("pair_fn",))
-def _traverse_pairs(
+def _traverse_pairs_legacy(
     state: State,
     system: System,
     cell_size: jax.Array,
@@ -330,112 +124,74 @@ def _traverse_pairs(
     return acc, hash_overflow
 
 
+@jax.jit(inline=True, static_argnames=("pair_fn",))
+def _traverse_pairs(
+    state: State,
+    system: System,
+    cell_size: jax.Array,
+    neighbor_mask: jax.Array,
+    pair_fn: Callable[..., Any],
+    init_acc: Any,
+) -> tuple[Any, jax.Array]:
+    """Keep scalar traversal and share loop bounds under explicit batching."""
+    from ._dynamic_pairs import _can_share_pair_loop, _dispatch_pair_traversal
+
+    if _can_share_pair_loop(pair_fn):
+        return _dispatch_pair_traversal(
+            state,
+            system,
+            cell_size,
+            neighbor_mask,
+            pair_fn,
+            init_acc,
+            pair_system=cast(partial[Any], pair_fn).keywords["system"],
+            legacy=_traverse_pairs_legacy,
+            prune_cells=False,
+            pair_unroll=PAIR_UNROLL,
+            batch_size=PAIR_TRAVERSAL_BATCH_SIZE,
+        )
+    return _traverse_pairs_legacy(
+        state, system, cell_size, neighbor_mask, pair_fn, init_acc
+    )
+
+
 @Collider.register("CellList")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class DynamicCellList(Collider):
-    r"""Implicit cell-list (spatial hashing) collider using dynamic while-loops.
+    r"""Cell-list collider with dynamic or fixed-capacity static traversal.
 
-    This collider accelerates short-range pair interactions by partitioning the
-    domain into a regular grid of cubic/square cells of side length ``cell_size``.
-    It assigns each particle to a cell and permutes the particles internally by
-    cell hash. It evaluates interactions only against particles in the same cell
-    or in the neighboring cells given by ``neighbor_mask``.
+    A regular grid assigns each particle center to one cell. Sorted cell
+    hashes place each cell's members in one contiguous run. A fixed stencil
+    selects the cells that can contain contact candidates.
 
-    This implementation does not use a fixed ``max_occupancy`` array padding.
-    Instead, it uses a dynamic ``jax.lax.while_loop`` to iterate over the exact number of particles present in each neighboring cell.
+    With ``tile_capacity=None``, occupancy sets the dynamic traversal bound.
+    Explicit environment batches share the longest active bound within each
+    bounded query batch. The dynamic path has no per-cell occupancy limit.
 
-    The collider runs the following nested loop:
+    Set ``tile_capacity`` to a nonnegative Python integer for static traversal.
+    This global budget covers four-candidate tiles across all source particles
+    and stencil cells in one environment. Dense cells can use spare capacity
+    from other cells. The static path has no per-cell occupancy limit.
+    Every environment in a batch uses the same static budget.
 
-    .. code-block:: python
+    Set ``clump_aware=True`` to exclude same-clump members before static tile
+    allocation. All paths exclude same-clump interactions during evaluation.
+    External candidates can still exhaust the global tile budget.
 
-        for particle in particles: # parallel
-            for hash in stencil(particle): # parallel
-                while next_neighbor in cell(hash): # sequential
-                    ...
+    An overflow invalidates the result. After force or energy evaluation,
+    call ``system.check_overflow()``. For neighbor queries, check the returned
+    overflow flag. The static path reports both tile and hash overflow.
+    The dynamic path reports hash overflow.
 
-    Because the collider evaluates the innermost loop sequentially, the
-    *average* cell occupancy drives the computational cost, not the maximum
-    possible occupancy. This gives the total theoretical cost:
+    For a fixed stencil, dynamic storage scales as :math:`O(N)`.
+    Static storage scales as :math:`O(N + C)`, where :math:`C` is
+    ``tile_capacity``. Sorting costs :math:`O(N \log N)` in both paths.
+    Traversal work depends on cell occupancy and the selected tile budget.
 
-    .. math::
-        O(N \cdot \text{neighbor\_mask\_size} \cdot \langle K \rangle)
-
-    where :math:`\langle K \rangle` is the average cell occupancy. The cost
-    has two components:
-
-    * Stencil size:
-        The stencil size depends on the ratio between the cell size (:math:`L`) and
-        the radius of the largest particle (:math:`r_{max}`).
-
-        .. math::
-            \text{neighbor\_mask\_size} = \left( 2\left\lceil \frac{2r_{max}}{L} \right\rceil + 1 \right)^{dim}
-
-    * Average occupancy:
-        The average number of particles that occupy a cell depends on the cell
-        volume and the macroscopic number density (:math:`\rho`):
-
-        .. math::
-            \langle K \rangle = \rho L^{dim}
-
-    To express this in terms of the local volume fraction :math:`\phi` (the ratio of
-    volume actually occupied by particles to the total cell volume) and our
-    normalized cell size :math:`L^\prime = L/r_{max}`, we use the average particle
-    volume :math:`\langle V \rangle`:
-
-    .. math::
-        \langle K \rangle = \phi \frac{L^{dim}}{\langle V \rangle} = \phi \frac{(L^\prime r_{max})^{dim}}{\langle V \rangle}
-
-    The volume of the largest particle is :math:`V_{max} = k_v r_{max}^{dim}`,
-    where :math:`k_v` is the geometric volume factor (such as :math:`4\pi/3`
-    in 3D or :math:`\pi` in 2D). This gives the final theoretical cost:
-
-    .. math::
-        \text{cost} \approx N \left( 2\left\lceil \frac{2}{L^\prime} \right\rceil + 1 \right)^{dim} \left( \frac{\phi}{k_v} \frac{V_{max}}{\langle V \rangle} (L^\prime)^{dim} \right)
-
-    * The Polydispersity Advantage:
-        In the static cell list, cost scales with the ratio of the largest to smallest
-        particle volume (:math:`V_{max}/V_{min} \propto \alpha^{dim}`, where
-        :math:`\alpha = r_{max}/r_{min}`). In this dynamic list, the cost scales with
-        the ratio of the largest to the *average* particle volume
-        (:math:`V_{max}/\langle V \rangle`). This dynamic list therefore reduces
-        or offsets the severe :math:`O(\alpha^{dim})` padding penalty.
-
-    Constructor Parameters
-    ----------------------
-    - **cell_size**: Linear size of the grid cells. A larger cell size reduces neighbor
-      stencil size but increases cell occupancy (longer sequential loops). A smaller cell
-      size reduces occupancy but expands the stencil exponentially, which increases compilation
-      overhead. If None, defaults to :math:`2 r_{max}` (for systems with low polydispersity
-      :math:`\alpha < 2.5`), or :math:`0.5 r_{max}` (for highly polydisperse systems).
-    - **search_range**: Neighborhood range in cell units. Sets how many cells the stencil
-      searches along each dimension. If None, the constructor computes it so the stencil
-      visits all potential contacts within :math:`2 r_{max}`. A higher value expands the
-      search stencil.
-    - **box_size**: Bounding dimensions of the physical domain. Needed only when the box is
-      small compared with the cell size, to meet the minimum grid size of
-      ``2 * search_range + 1`` cells per axis under periodic boundary conditions.
-
-    This collider suits large systems with low to moderate polydispersity (:math:`\alpha < 2.5`) and medium to high packing fractions. Highly polydisperse systems (:math:`\alpha \ge 3.0`) or systems containing rigid clumps with large internal overlaps reduce performance significantly. Overlaps artificially inflate the local cell occupancy :math:`\langle K \rangle` far beyond the macroscopic physical volume fraction :math:`\phi`. This lengthens the sequential loops and reduces GPU thread efficiency.
-
-    Complexity
-    ----------
-    - Time: :math:`O(N)` - :math:`O(N \log N)` from sorting internally, plus :math:`O(N \cdot M \cdot \langle K \rangle)`
-      for neighbor probing (M = ``neighbor_mask_size``, :math:`\langle K \rangle` = average occupancy).
-    - Memory: :math:`O(N)`.
-
-    Notes
-    -----
-    - **Differentiation**: Direct force and energy traversal supports forward
-      mode. Its dynamic ``lax.while_loop`` cannot be transposed for reverse
-      mode. For ``jax.grad`` or reverse differentiation through simulation
-      steps, use ``NeighborList`` with ``secondary_collider_type="CellList"``.
-    - **Batching with ``vmap``**: If you use ``jax.vmap`` to evaluate multiple
-      simulation environments simultaneously, be aware of JAX's SIMD execution model.
-      The innermost ``while`` loop executes sequentially. It must keep
-      running for *all* environments in the batch until the environment with the highest
-      local cell occupancy finishes its iterations. The single worst-case occupancy
-      across the entire batch therefore sets the cost of a batched execution.
+    The dynamic path supports forward differentiation. Its occupancy-dependent
+    loops do not support reverse differentiation. Set ``tile_capacity`` for
+    reverse differentiation, or use a ``NeighborList`` cache.
     """
 
     supported_search_geometries = frozenset(
@@ -448,6 +204,14 @@ class DynamicCellList(Collider):
     cell_size: jax.Array
     """Linear size of a grid cell (scalar)."""
 
+    tile_capacity: int | None = jax.tree.static(default=None)
+    """Global tile budget; None selects the occupancy-dependent traversal."""
+
+    clump_aware: bool = jax.tree.static(default=False)
+    """Exclude same-clump members before static tile allocation."""
+
+    _prune_cells: ClassVar[bool] = False
+
     @property
     def stateful(self) -> bool:
         return True
@@ -459,6 +223,8 @@ class DynamicCellList(Collider):
         cell_size: ArrayLike | None = None,
         search_range: ArrayLike | None = None,
         box_size: ArrayLike | None = None,
+        tile_capacity: int | None = None,
+        clump_aware: bool = False,
     ) -> Self:
         """Create a DynamicCellList instance from the reference state.
 
@@ -476,11 +242,20 @@ class DynamicCellList(Collider):
             Bounding dimensions of the physical box. Needed only when the box
             size is small compared with the cell size.
 
+        tile_capacity : int, optional
+            Global budget of four-candidate traversal tiles per environment.
+            None keeps dynamic traversal. A supplied integer selects static
+            traversal, including zero for an empty budget.
+        clump_aware : bool, optional
+            Exclude same-clump members before static tile allocation. This
+            option affects allocation only in the static mode.
+
         Returns
         -------
         DynamicCellList
             A configured DynamicCellList instance.
         """
+        validate_cell_options(tile_capacity, clump_aware)
         max_rad = jnp.max(state._rad, initial=0.0)
         if cell_size is None:
             min_rad = jnp.min(state._rad, initial=jnp.inf)
@@ -552,6 +327,8 @@ class DynamicCellList(Collider):
         return cls(
             neighbor_mask=neighbor_mask.astype(int),
             cell_size=jnp.asarray(cell_size, dtype=float),
+            tile_capacity=tile_capacity,
+            clump_aware=clump_aware,
         )
 
     @staticmethod
@@ -578,6 +355,13 @@ class DynamicCellList(Collider):
         Tuple[State, System]
             The updated state and system, including search bounds and overflow status.
         """
+        if cast(DynamicCellList, system.collider).tile_capacity is not None:
+            from ._static_cell import _static_compute_force
+
+            return _static_compute_force(
+                state, system, advance_history=advance_history, quasistatic=quasistatic
+            )
+
         collider = cast(DynamicCellList, system.collider)
         search_radius = jnp.max(
             system.force_model.search_radii(state, system), initial=0.0
@@ -592,8 +376,8 @@ class DynamicCellList(Collider):
             collider.neighbor_mask,
             partial(_force_pair_fn, system=system, quasistatic=quasistatic),
             (
-                jnp.zeros(state.force.shape[1:], dtype=state.force.dtype),
-                jnp.zeros(state.torque.shape[1:], dtype=state.torque.dtype),
+                jnp.zeros_like(state.force, shape=state.force.shape[1:]),
+                jnp.zeros_like(state.torque, shape=state.torque.shape[1:]),
             ),
         )
         state.force = sum_f
@@ -621,6 +405,11 @@ class DynamicCellList(Collider):
         Tuple[State, System, jax.Array]
             Tuple of (state, system, energy).
         """
+        if cast(DynamicCellList, system.collider).tile_capacity is not None:
+            from ._static_cell import _static_compute_potential_energy
+
+            return _static_compute_potential_energy(state, system)
+
         collider = cast(DynamicCellList, system.collider)
         search_radius = jnp.max(
             system.force_model.search_radii(state, system), initial=0.0
@@ -634,7 +423,7 @@ class DynamicCellList(Collider):
             cell_size,
             collider.neighbor_mask,
             partial(_energy_pair_fn, system=system),
-            jnp.asarray(0.0, dtype=float),
+            jnp.zeros_like(state.pos_c, shape=(), dtype=float),
         )
         system.collider.overflow = hash_overflow
         return state, system, jnp.sum(energy)
@@ -662,6 +451,11 @@ class DynamicCellList(Collider):
         Tuple[State, System, jax.Array, jax.Array]
             State, system, neighbor list, and overflow flag.
         """
+        if cast(DynamicCellList, system.collider).tile_capacity is not None:
+            from ._static_cell import _static_create_neighbor_list
+
+            return _static_create_neighbor_list(state, system, cutoff, max_neighbors)
+
         if max_neighbors < 0:
             raise ValueError("max_neighbors must be non-negative")
         cutoff_sq = cutoff**2
@@ -772,6 +566,13 @@ class DynamicCellList(Collider):
         Tuple[jax.Array, jax.Array]
             Cross-neighbor list of shape (N_A, max_neighbors) and overflow flag.
         """
+        if cast(DynamicCellList, system.collider).tile_capacity is not None:
+            from ._static_cell import _static_create_cross_neighbor_list
+
+            return _static_create_cross_neighbor_list(
+                pos_a, pos_b, system, cutoff, max_neighbors
+            )
+
         if max_neighbors < 0:
             raise ValueError("max_neighbors must be non-negative")
         n_a = pos_a.shape[0]

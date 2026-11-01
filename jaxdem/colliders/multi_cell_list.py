@@ -11,7 +11,7 @@ from jax.typing import ArrayLike
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 try:  # Python 3.11+
     from typing import Self
@@ -21,16 +21,17 @@ except ImportError:  # pragma: no cover
 from ..utils.linalg import cross, norm2
 from ..domains import SearchGeometry
 from . import Collider, valid_interaction_mask
+from ._cell_options import validate_cell_options
+from ._cell_lookup import _cell_starts
 from ._partition import (
     NEIGHBOR_QUERY_BATCH_SIZE,
     PAIR_TRAVERSAL_BATCH_SIZE,
-    _cell_starts,
+    PAIR_UNROLL,
+    _dedup_stencil_hashes,
     _energy_pair_fn,
     _force_pair_fn,
-)
-from .cell_list import (
-    _dedup_stencil_hashes,
     _get_spatial_partition,
+    _loose_cell_aabbs,
     _make_direct_row_body,
 )
 
@@ -39,49 +40,8 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
-#: Number of candidate particles each ``while_loop`` iteration of the pair and
-#: neighbor-list traversals visits. A vmapped ``lax.while_loop`` runs until the
-#: *longest* lane finishes, and every iteration costs a device->host round-trip
-#: of the loop predicate on GPU (stalling async dispatch), so visiting several
-#: candidates per iteration divides the number of synchronizations by
-#: ``PAIR_UNROLL`` at the price of at most ``PAIR_UNROLL - 1`` extra masked
-#: pair evaluations per lane. Empirically ``4`` is the sweet spot on both CPU
-#: and GPU.
-PAIR_UNROLL = 4
-
-
-@jax.jit(inline=True)
-@partial(jax.named_call, name="multi_cell_list._loose_cell_aabbs")
-def _loose_cell_aabbs(
-    member_min: jax.Array,
-    member_max: jax.Array,
-    sorted_hash: jax.Array,
-) -> tuple[jax.Array, jax.Array]:
-    """Per-loose-cell axis-aligned bounding box, broadcast to each member.
-
-    The hash-sorted particles of a loose cell form a contiguous run. The
-    function therefore computes the cell's expandable AABB (the union of
-    every member's box ``[member_min, member_max]``) as a segmented min/max
-    reduction over those runs. It returns the result as
-    ``(cell_center, cell_half_extent)`` indexed by sorted particle.
-    """
-    N = member_min.shape[0]
-    # Dense, contiguous segment id per sorted particle (0-based cell rank).
-    seg_start = jnp.concatenate(
-        [jnp.array([True]), sorted_hash[1:] != sorted_hash[:-1]]
-    )
-    seg_id = jnp.cumsum(seg_start) - 1
-
-    cell_min = jax.ops.segment_min(member_min, seg_id, num_segments=N)[seg_id]
-    cell_max = jax.ops.segment_max(member_max, seg_id, num_segments=N)[seg_id]
-
-    cell_center = 0.5 * (cell_min + cell_max)
-    cell_half = 0.5 * (cell_max - cell_min)
-    return cell_center, cell_half
-
-
 @jax.jit(inline=True, static_argnames=("pair_fn",))
-def _traverse_pairs(
+def _traverse_pairs_legacy(
     state: State,
     system: System,
     cell_size: jax.Array,
@@ -206,74 +166,75 @@ def _traverse_pairs(
     return acc, hash_overflow
 
 
+@jax.jit(inline=True, static_argnames=("pair_fn",))
+def _traverse_pairs(
+    state: State,
+    system: System,
+    cell_size: jax.Array,
+    neighbor_mask: jax.Array,
+    pair_fn: Callable[..., Any],
+    init_acc: Any,
+) -> tuple[Any, jax.Array]:
+    """Keep scalar traversal and share loop bounds under explicit batching."""
+    from ._dynamic_pairs import _can_share_pair_loop, _dispatch_pair_traversal
+
+    if _can_share_pair_loop(pair_fn):
+        return _dispatch_pair_traversal(
+            state,
+            system,
+            cell_size,
+            neighbor_mask,
+            pair_fn,
+            init_acc,
+            pair_system=cast(partial[Any], pair_fn).keywords["system"],
+            legacy=_traverse_pairs_legacy,
+            prune_cells=True,
+            pair_unroll=PAIR_UNROLL,
+            batch_size=PAIR_TRAVERSAL_BATCH_SIZE,
+        )
+    return _traverse_pairs_legacy(
+        state, system, cell_size, neighbor_mask, pair_fn, init_acc
+    )
+
+
 @Collider.register("MultiCellList")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class DynamicMultiCellList(Collider):
-    r"""Multi-cell (loose-grid / UGrid) collider — a JAX port of dragon-space's loose/tight grid.
+    r"""Loose-cell collider with dynamic or fixed-capacity static traversal.
 
-    This collider adapts the spatial-partitioning strategy of the ``UGrid`` /
-    loose-grid structure to JAX's static-shape, rebuilt-every-frame, fully
-    vectorized model. dragon-space popularized the loose/tight "double grid".
-    It was the fastest CPU collider in the
-    ``DynamicSpatialPartitioning`` benchmarks.
+    A regular grid assigns each particle center to one cell. Sorted cell
+    hashes place each cell's members in one contiguous run. Each loose cell
+    also stores the union of its members' axis-aligned search boxes.
 
-    **Loose grid.** As in a cell list, the domain is a regular grid and the
-    collider bins every particle into exactly one cell by its *center*. To
-    build the cell index, an internal permutation sorts the hashes so each
-    cell's members form a contiguous run. Unlike a plain cell list, each loose
-    cell also carries an **expandable AABB** — the union of its members' boxes
-    ``center +/- rad``. A segmented min/max reduction over the sorted runs
-    computes this AABB.
+    A fixed stencil selects candidate cells. A conservative box test skips
+    cells whose members cannot contact the query particle. Shear-periodic
+    domains skip this box rejection and retain the conservative stencil.
 
-    **Query.** For every particle ``i``, the fixed ``neighbor_mask`` stencil
-    enumerates candidate loose cells. Before the walk of a cell's member run,
-    the collider tests the cell's expandable AABB against the query box of
-    ``i``. It skips non-overlapping cells entirely. This loose-cell pruning
-    replaces the original algorithm's *tight grid* in a vectorized,
-    periodic-correct way. The tight grid's only job on a scalar CPU was to
-    enumerate the few loose cells near a query instead of a full fixed
-    stencil.
+    With ``tile_capacity=None``, occupancy sets the dynamic traversal bound.
+    Explicit environment batches share the longest active bound within each
+    bounded query batch. The dynamic path has no per-cell occupancy limit.
 
-    The prune only skips cells whose members are all non-contacting, so
-    forces are bit-identical to :class:`~jaxdem.colliders.cell_list.DynamicCellList`.
-    The two coincide when every loose cell is full and tight. This collider
-    is faster when stencil cells are sparsely or asymmetrically occupied, so
-    their boxes do not reach the query. That regime — polydispersity, loose
-    packings, cells larger than the contact range — motivates the loose/tight
-    design.
+    Set ``tile_capacity`` to a nonnegative Python integer for static traversal.
+    This global budget covers four-candidate tiles across all source particles
+    and stencil cells in one environment. Rejected cells allocate no tiles.
+    Dense cells can use spare capacity from other cells. The static path has
+    no per-cell occupancy limit. Each environment uses the same static budget.
 
-    The incremental ``insert``/``move``/``remove`` operations of the CPU
-    original do **not** carry over. JAX rebuilds the partition functionally
-    each step as a permutation plus a segmented reduction to run on GPU/TPU
-    and support batching with ``vmap``.
+    Set ``clump_aware=True`` to exclude same-clump members before static tile
+    allocation. All paths exclude same-clump interactions during evaluation.
+    External candidates can still exhaust the global tile budget.
 
-    Constructor Parameters
-    ----------------------
-    - **cell_size**: Loose-cell side length. Larger cells give fewer, fuller
-      cells: longer member runs, a smaller stencil, and more effective AABB
-      pruning. Smaller cells give a larger stencil. If ``None``, defaults to
-      :math:`2 r_{max}`.
-    - **search_range**: Stencil reach in cells per axis. If ``None``, the
-      constructor chooses it so the stencil covers every contact within
-      :math:`2 r_{max}`.
-    - **box_size**: Physical box extents. Needed only when the box is small
-      relative to the cell size under periodic boundaries.
+    An overflow invalidates the result. After force or energy evaluation,
+    call ``system.check_overflow()``. For neighbor queries, check the returned
+    overflow flag. The static path reports tile and hash overflow.
 
-    Complexity
-    ----------
-    - Time: :math:`O(N \log N)` from the sort, plus
-      :math:`O(N \cdot M \cdot \langle K \rangle)` for traversal (``M`` =
-      stencil size, :math:`\langle K \rangle` = average occupancy), reduced by
-      AABB cell-skipping.
-    - Memory: :math:`O(N)`.
+    For a fixed stencil, dynamic storage scales as :math:`O(N)`.
+    Static storage scales as :math:`O(N + C)`, where :math:`C` is
+    ``tile_capacity``. Sorting costs :math:`O(N \log N)` in both paths.
 
-    Notes
-    -----
-    Direct force and energy traversal supports forward differentiation.
-    Its dynamic ``lax.while_loop`` cannot be transposed for reverse mode.
-    For ``jax.grad`` or reverse differentiation through simulation steps, use
-    ``NeighborList`` with ``secondary_collider_type="MultiCellList"``.
+    The dynamic path supports forward differentiation. Set ``tile_capacity``
+    or use a ``NeighborList`` cache for reverse differentiation.
     """
 
     supported_search_geometries = frozenset(
@@ -285,6 +246,14 @@ class DynamicMultiCellList(Collider):
 
     cell_size: jax.Array
     """Linear size of a loose grid cell (scalar)."""
+
+    tile_capacity: int | None = jax.tree.static(default=None)
+    """Global tile budget; None selects the occupancy-dependent traversal."""
+
+    clump_aware: bool = jax.tree.static(default=False)
+    """Exclude same-clump members before static tile allocation."""
+
+    _prune_cells: ClassVar[bool] = True
 
     @property
     def stateful(self) -> bool:
@@ -298,6 +267,8 @@ class DynamicMultiCellList(Collider):
         search_range: ArrayLike | None = None,
         box_size: ArrayLike | None = None,
         max_hashes: int | None = None,
+        tile_capacity: int | None = None,
+        clump_aware: bool = False,
     ) -> Self:
         """Create a DynamicMultiCellList instance from the reference state.
 
@@ -317,6 +288,14 @@ class DynamicMultiCellList(Collider):
             the previous AABB-registration multi-cell list. The loose-grid
             implementation stores every particle in a single cell.
 
+        tile_capacity : int, optional
+            Global budget of four-candidate traversal tiles per environment.
+            None keeps dynamic traversal. A supplied integer selects static
+            traversal, including zero for an empty budget.
+        clump_aware : bool, optional
+            Exclude same-clump members before static tile allocation. This
+            option affects allocation only in the static mode.
+
         Returns
         -------
         DynamicMultiCellList
@@ -324,6 +303,7 @@ class DynamicMultiCellList(Collider):
         """
         del max_hashes  # deprecated no-op, kept for API compatibility
 
+        validate_cell_options(tile_capacity, clump_aware)
         max_rad = jnp.max(state._rad, initial=0.0)
 
         if cell_size is None:
@@ -363,6 +343,8 @@ class DynamicMultiCellList(Collider):
         return cls(
             neighbor_mask=neighbor_mask.astype(int),
             cell_size=jnp.asarray(cell_size, dtype=float),
+            tile_capacity=tile_capacity,
+            clump_aware=clump_aware,
         )
 
     @staticmethod
@@ -389,6 +371,13 @@ class DynamicMultiCellList(Collider):
         Tuple[State, System]
             The updated state and system, including search bounds and overflow status.
         """
+        if cast(DynamicMultiCellList, system.collider).tile_capacity is not None:
+            from ._static_cell import _static_compute_force
+
+            return _static_compute_force(
+                state, system, advance_history=advance_history, quasistatic=quasistatic
+            )
+
         collider = cast(DynamicMultiCellList, system.collider)
         search_radius = jnp.max(
             system.force_model.search_radii(state, system), initial=0.0
@@ -403,8 +392,8 @@ class DynamicMultiCellList(Collider):
             collider.neighbor_mask,
             partial(_force_pair_fn, system=system, quasistatic=quasistatic),
             (
-                jnp.zeros(state.force.shape[1:], dtype=state.force.dtype),
-                jnp.zeros(state.torque.shape[1:], dtype=state.torque.dtype),
+                jnp.zeros_like(state.force, shape=state.force.shape[1:]),
+                jnp.zeros_like(state.torque, shape=state.torque.shape[1:]),
             ),
         )
         state.force = sum_f
@@ -432,6 +421,11 @@ class DynamicMultiCellList(Collider):
         Tuple[State, System, jax.Array]
             Tuple of (state, system, energy).
         """
+        if cast(DynamicMultiCellList, system.collider).tile_capacity is not None:
+            from ._static_cell import _static_compute_potential_energy
+
+            return _static_compute_potential_energy(state, system)
+
         collider = cast(DynamicMultiCellList, system.collider)
         search_radius = jnp.max(
             system.force_model.search_radii(state, system), initial=0.0
@@ -445,7 +439,7 @@ class DynamicMultiCellList(Collider):
             cell_size,
             collider.neighbor_mask,
             partial(_energy_pair_fn, system=system),
-            jnp.asarray(0.0, dtype=float),
+            jnp.zeros_like(state.pos_c, shape=(), dtype=float),
         )
         system.collider.overflow = hash_overflow
         return state, system, jnp.sum(energy)
@@ -474,6 +468,11 @@ class DynamicMultiCellList(Collider):
         Tuple[State, System, jax.Array, jax.Array]
             State, system, neighbor list, and overflow flag.
         """
+        if cast(DynamicMultiCellList, system.collider).tile_capacity is not None:
+            from ._static_cell import _static_create_neighbor_list
+
+            return _static_create_neighbor_list(state, system, cutoff, max_neighbors)
+
         if max_neighbors < 0:
             raise ValueError("max_neighbors must be non-negative")
         cutoff_sq = cutoff**2
@@ -601,6 +600,13 @@ class DynamicMultiCellList(Collider):
         Tuple[jax.Array, jax.Array]
             Cross-neighbor list of shape (N_A, max_neighbors) and overflow flag.
         """
+        if cast(DynamicMultiCellList, system.collider).tile_capacity is not None:
+            from ._static_cell import _static_create_cross_neighbor_list
+
+            return _static_create_cross_neighbor_list(
+                pos_a, pos_b, system, cutoff, max_neighbors
+            )
+
         if max_neighbors < 0:
             raise ValueError("max_neighbors must be non-negative")
         n_a = pos_a.shape[0]

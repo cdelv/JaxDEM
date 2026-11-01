@@ -232,6 +232,9 @@ class NeighborList(Collider):
             secondary_kw["search_range"] = int(
                 jnp.max(jnp.abs(secondary.neighbor_mask))
             )
+        for name in ("tile_capacity", "clump_aware"):
+            if hasattr(secondary, name):
+                secondary_kw[name] = getattr(secondary, name)
         new = type(self).Create(
             state=state,
             cutoff=self.cutoff,
@@ -331,6 +334,8 @@ class NeighborList(Collider):
             Keyword arguments for the constructor of the internal collider.
             If None and the internal collider is a cell list, ``cell_size``
             defaults to ``cutoff + skin``.
+            For CellList or MultiCellList, supply ``tile_capacity`` to use
+            fixed pooled traversal for construction and cached forces.
         Returns
         -------
         NeighborList

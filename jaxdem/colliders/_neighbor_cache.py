@@ -3,28 +3,138 @@
 """Fixed-capacity packed directed pairs for the Verlet cache.
 
 Two search passes count neighbors and fill a shared pool without a per-particle
-capacity. CSR offsets identify each row. Force and energy evaluation visit occupied
-CSR rows in bounded batches. Small pools use a single flat pass to avoid
-row-loop launch overhead.
+capacity. The static cell path instead filters and packs fixed tile batches
+in one pass. CSR offsets identify each row. The static cell path evaluates
+fixed pair batches. Other backends evaluate occupied CSR rows in bounded
+batches. Small pools use a single flat pass to reduce launch overhead.
 """
 
 from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+from jax.custom_batching import custom_vmap
 
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from functools import partial
 from typing import Any
 
 from ..utils.linalg import cross, norm2
 from . import valid_interaction_mask
-from ._partition import _cell_starts
-from .cell_list import _dedup_stencil_hashes, _get_spatial_partition
+from ._cell_lookup import _cell_starts
+from ._dynamic_loop import shared_bounded_loop
+from ._partition import (
+    _capacity_offsets,
+    _dedup_stencil_hashes,
+    _get_spatial_partition,
+    _sorted_cell_run_ends,
+)
 
 _SEARCH_BATCH_SIZE = 16_384
 # Keep the more expensive 3D contact kernel within a smaller working set.
 _ROW_BATCH_SIZE = {2: 65_536, 3: 16_384}
+# Bound the force-law working set independently of the allocated pair pool.
+_FIXED_PAIR_BATCH_SIZE = 262_144
+
+
+def _prefix_capacities(capacity: int) -> tuple[int, ...]:
+    """List fixed pair prefixes in doubling steps."""
+    prefixes = []
+    prefix = min(capacity, _FIXED_PAIR_BATCH_SIZE)
+    while prefix < capacity:
+        prefixes.append(prefix)
+        prefix = min(2 * prefix, capacity)
+    return (*prefixes, capacity)
+
+
+def _prefix_dispatch(evaluate: Any) -> Any:
+    """Select one fixed prefix after the maximum over explicit batch axes."""
+
+    @custom_vmap
+    def dispatch(state: Any, system: Any) -> Any:
+        capacities = _prefix_capacities(system.collider.neighbor_list.shape[-1])
+        if len(capacities) == 1:
+            return evaluate(capacities[0], state, system)
+        used = jnp.max(system.collider.row_offsets[..., -1], initial=0)
+        index = sum(used > prefix for prefix in capacities[:-1])
+        branches = tuple(partial(evaluate, prefix) for prefix in capacities)
+        return jax.lax.switch(index, branches, state, system)
+
+    @dispatch.def_vmap
+    def mapped(axis_size: int, in_batched: Any, state: Any, system: Any) -> Any:
+        axes = jax.tree.map(lambda batched: 0 if batched else None, in_batched)
+
+        def evaluate_batch(prefix: int, states: Any, systems: Any) -> Any:
+            return jax.vmap(
+                partial(evaluate, prefix), in_axes=tuple(axes), axis_size=axis_size
+            )(states, systems)
+
+        # A fresh dispatcher lets an outer vmap collect another explicit axis.
+        # Only the outermost call selects a prefix for the whole current batch.
+        output = _prefix_dispatch(evaluate_batch)(state, system)
+        return output, jax.tree.map(lambda _: True, output)
+
+    return dispatch
+
+
+def _uses_static_cache(col: Any) -> bool:
+    """Select fixed traversal for the static cell backend."""
+    return _uses_static_tiles(col.secondary_collider)
+
+
+def _uses_static_tiles(collider: Any) -> bool:
+    """Select static traversal when the cell backend has a tile budget."""
+    return getattr(collider, "tile_capacity", None) is not None
+
+
+def _fixed_pool_reduce(
+    col: Any,
+    initial: Any,
+    evaluate: Any,
+    history: Any = None,
+    prefix_capacity: int | None = None,
+) -> Any:
+    """Visit a fixed pair prefix in batches with fixed loop bounds.
+
+    CSR rows can hold any fraction of the pool. The selected prefix covers all
+    occupied slots without an occupancy bound for individual rows.
+    The pair law only needs a fixed batch of temporary arrays at each step.
+    """
+    n = col.row_offsets.size - 1
+    capacity = col.neighbor_list.size if prefix_capacity is None else prefix_capacity
+    totals = jax.tree.map(lambda x: jnp.broadcast_to(x, (n,) + x.shape), initial)
+    if n == 0 or capacity == 0:
+        return totals, history
+    sources = pair_sources(replace(col, neighbor_list=col.neighbor_list[:capacity]))
+    width = min(capacity, _FIXED_PAIR_BATCH_SIZE)
+    full = capacity // width * width
+
+    def batch(totals: Any, history: Any, slots: Any) -> Any:
+        src = sources[slots]
+        values, updated = evaluate(
+            jnp.minimum(src, n - 1), col.neighbor_list[slots], slots
+        )
+        # Padding has source N and drops outside the output. CSR source IDs
+        # retain the same directed-pair order as the existing cache.
+        totals = jax.tree.map(
+            lambda total, value: total.at[src].add(value, mode="drop"),
+            totals,
+            values,
+        )
+        if history is not None:
+            history = history.at[slots].set(updated, unique_indices=True)
+        return totals, history
+
+    def step(index: Any, carry: Any) -> Any:
+        return batch(carry[0], carry[1], index * width + jnp.arange(width))
+
+    # The first batch gives each carry the force law's manual-axis variance.
+    # This also covers a shared state with different histories per replica.
+    totals, history = batch(totals, history, jnp.arange(width))
+    totals, history = jax.lax.fori_loop(1, full // width, step, (totals, history))
+    if full < capacity:
+        totals, history = batch(totals, history, jnp.arange(full, capacity))
+    return totals, history
 
 
 def pair_sources(col: Any) -> jax.Array:
@@ -41,21 +151,6 @@ def pair_sources(col: Any) -> jax.Array:
     return jnp.where(jnp.arange(capacity) < col.row_offsets[-1], sources, n)
 
 
-def _capacity_offsets(counts: jax.Array, capacity: int) -> tuple[jax.Array, jax.Array]:
-    """Saturate at capacity + 1 so even severe overflows cannot wrap integers."""
-    limit = capacity + 1
-    totals = jax.lax.associative_scan(
-        lambda a, b: a + jnp.minimum(b, limit - a), jnp.minimum(counts, limit)
-    )
-    overflow = totals[-1] > capacity
-    return (
-        jnp.concatenate(
-            (jnp.zeros(1, dtype=counts.dtype), jnp.minimum(totals, capacity))
-        ),
-        overflow,
-    )
-
-
 def build_pairs(
     state: Any,
     system: Any,
@@ -66,6 +161,12 @@ def build_pairs(
     skin: Any = 0.0,
 ) -> tuple[Any, ...]:
     """Build pairs within a scalar search bound and optional per-pair reaches."""
+    from ._static_cell import _search_neighbor_pairs
+
+    if _uses_static_tiles(system.collider):
+        return _search_neighbor_pairs(
+            state, system, cutoff, capacity, search_radii, skin
+        )
     return _search_pairs(state, system, cutoff, capacity, search_radii, skin)
 
 
@@ -78,12 +179,207 @@ def count_pairs(
     search_radii: Any | None = None,
     skin: Any = 0.0,
 ) -> tuple[Any, Any]:
-    """Return directed row counts and hash overflow without allocating pairs."""
+    """Return directed row counts and search overflow without allocating pairs."""
+    from ._static_cell import _search_neighbor_pairs
+
+    if _uses_static_tiles(system.collider):
+        counts, overflow = _search_neighbor_pairs(
+            state, system, cutoff, None, search_radii, skin
+        )
+        return counts, overflow
     counts, overflow = _search_pairs(state, system, cutoff, None, search_radii, skin)
     return counts, overflow
 
 
+def _search_pair_candidates(
+    data: Any, rows: Any, cursor: Any, end: Any
+) -> tuple[Any, Any]:
+    pos, perm, clumps, bonds, system, cutoff_sq, search_radii, skin = data
+    n = perm.shape[0]
+    indices = cursor[..., None] + jnp.arange(4)
+    safe = jnp.minimum(indices, n - 1)
+    src = jnp.minimum(rows, n - 1)
+    dst = perm[safe]
+    valid = (rows[:, None, None] < n) & (indices < end[..., None])
+    delta = system.domain.displacement(pos[src, None, None, :], pos[dst], system)
+    distance_sq = norm2(delta)
+    valid &= distance_sq <= cutoff_sq
+    if search_radii is not None:
+        reach = search_radii[src, None, None] + search_radii[dst] + skin
+        valid &= distance_sq <= reach**2
+    valid &= valid_interaction_mask(
+        clumps[dst],
+        clumps[src, None, None],
+        bonds[dst],
+        src[:, None, None],
+        system.interact_same_bond_id,
+    ).astype(bool)
+    return dst, valid
+
+
+def _count_search_step(index: Any, counts: Any, operands: Any) -> Any:
+    data, rows, begin, end = operands
+    _, valid = _search_pair_candidates(data, rows, begin + 4 * index, end)
+    return counts + valid.sum(axis=-1)
+
+
+def _fill_search_step(index: Any, carry: Any, operands: Any) -> Any:
+    data, rows, begin, end, slot_ends = operands
+    slots, neighbors = carry
+    dst, valid = _search_pair_candidates(data, rows, begin + 4 * index, end)
+    ranks = jnp.cumsum(valid, axis=-1) - 1
+    remaining = slot_ends - slots
+    writes = slots[..., None] + jnp.minimum(ranks, remaining[..., None])
+    capacity = neighbors.shape[0]
+    writes = jnp.where(valid & (ranks < remaining[..., None]), writes, capacity)
+    neighbors = neighbors.at[writes].set(dst, mode="drop")
+    return slots + jnp.minimum(valid.sum(axis=-1), remaining), neighbors
+
+
+_count_search_loop = shared_bounded_loop(_count_search_step, first_step=True)
+_fill_search_loop = shared_bounded_loop(_fill_search_step)
+
+
+@jax.tree_util.register_dataclass
+@dataclass(frozen=True, slots=True)
+class _SearchState:
+    """Particle data read by the discrete neighbor search."""
+
+    pos: Any
+    clump_id: Any
+    bond_id: Any
+
+    @property
+    def N(self) -> int:
+        return int(self.pos.shape[0])
+
+
+@jax.tree_util.register_dataclass
+@dataclass(frozen=True, slots=True)
+class _SearchCells:
+    """Cell geometry read by the discrete neighbor search."""
+
+    cell_size: Any
+    neighbor_mask: Any
+
+
+@jax.tree_util.register_dataclass
+@dataclass(frozen=True, slots=True)
+class _SearchSystem:
+    """Domain, cell geometry, and exclusions read by the neighbor search."""
+
+    domain: Any
+    collider: Any
+    interact_same_bond_id: Any
+
+
+def _compact_search_inputs(state: Any, system: Any) -> tuple[Any, Any] | None:
+    """Keep built-in search dependencies; preserve custom-domain system access."""
+    from ..domains.free import FreeDomain
+    from ..domains.lees_edwards import LeesEdwardsDomain
+    from ..domains.periodic import PeriodicDomain
+    from ..domains.reflect import ReflectDomain
+    from ..domains.reflect_sphere import ReflectSphereDomain
+    from .naive import NaiveSimulator
+
+    domain = system.domain
+    if type(domain) not in (
+        FreeDomain,
+        PeriodicDomain,
+        LeesEdwardsDomain,
+        ReflectDomain,
+        ReflectSphereDomain,
+    ):
+        return None
+    collider = system.collider
+    if hasattr(collider, "neighbor_mask"):
+        collider = _SearchCells(collider.cell_size, collider.neighbor_mask)
+    elif type(collider) is NaiveSimulator:
+        collider = replace(
+            collider, history=jnp.zeros((0, 0, 0)), overflow=jnp.asarray(False)
+        )
+    else:
+        return None
+
+    # Keep the built-in domain methods. Search does not read rate or cache
+    # fields, so local constants avoid retaining their input array arguments.
+    fields = {"inv_box_size": jnp.zeros(domain.box_size.shape, domain.box_size.dtype)}
+    if type(collider) is NaiveSimulator:
+        fields["anchor"] = jnp.zeros(domain.anchor.shape, domain.anchor.dtype)
+        if not domain.periodic:
+            fields["box_size"] = jnp.ones(domain.box_size.shape, domain.box_size.dtype)
+    if type(domain) is FreeDomain:
+        fields.update(
+            box_size=jnp.ones(domain.box_size.shape, domain.box_size.dtype),
+            anchor=jnp.zeros(domain.anchor.shape, domain.anchor.dtype),
+        )
+    if type(domain) in (PeriodicDomain, LeesEdwardsDomain):
+        fields["box_rate"] = jnp.zeros(domain.box_rate.shape, domain.box_rate.dtype)
+    if type(domain) is LeesEdwardsDomain:
+        for name in ("gamma_dot", "alpha_axis", "beta_axis"):
+            value = getattr(domain, name)
+            fields[name] = jnp.zeros(value.shape, value.dtype)
+    if type(domain) in (ReflectDomain, ReflectSphereDomain):
+        value = domain.restitution_coefficient
+        fields["restitution_coefficient"] = jnp.zeros(value.shape, value.dtype)
+    return (
+        _SearchState(state.pos, state.clump_id, state.bond_id),
+        _SearchSystem(
+            replace(domain, **fields), collider, system.interact_same_bond_id
+        ),
+    )
+
+
 def _search_pairs(
+    state: Any,
+    system: Any,
+    cutoff: Any,
+    capacity: int | None,
+    search_radii: Any | None,
+    skin: Any,
+) -> tuple[Any, ...]:
+    """Keep scalar search and share traversal for explicit environment batches."""
+    compact = _compact_search_inputs(state, system)
+    if compact is None:
+        # Custom domains can read any full-system field through their methods.
+        return _search_pairs_scalar(state, system, cutoff, capacity, search_radii, skin)
+    state, system = compact
+    # Search outputs are discrete. The later force evaluation reads the original
+    # differentiable state and system, outside this custom batching boundary.
+    state, system, cutoff, search_radii, skin = jax.tree.map(
+        jax.lax.stop_gradient, (state, system, cutoff, search_radii, skin)
+    )
+
+    @custom_vmap
+    def dispatch(
+        state: Any, system: Any, cutoff: Any, search_radii: Any, skin: Any
+    ) -> Any:
+        return _search_pairs_scalar(state, system, cutoff, capacity, search_radii, skin)
+
+    @dispatch.def_vmap
+    def mapped(
+        axis_size: int,
+        in_batched: Any,
+        state: Any,
+        system: Any,
+        cutoff: Any,
+        search_radii: Any,
+        skin: Any,
+    ) -> Any:
+        axes = jax.tree.map(lambda batched: 0 if batched else None, in_batched)
+        result = jax.vmap(
+            lambda state, system, cutoff, search_radii, skin: _search_pairs_batched(
+                state, system, cutoff, capacity, search_radii, skin
+            ),
+            in_axes=tuple(axes),
+            axis_size=axis_size,
+        )(state, system, cutoff, search_radii, skin)
+        return result, jax.tree.map(lambda _: True, result)
+
+    return dispatch(state, system, cutoff, search_radii, skin)
+
+
+def _search_pairs_scalar(
     state: Any,
     system: Any,
     cutoff: Any,
@@ -177,7 +473,12 @@ def _search_pairs(
                 & (hashes[jnp.minimum(x[0], n - 1)] == target)
             ),
             step,
-            (starts[safe_rows], jnp.zeros(target.shape, dtype=int)),
+            (
+                starts[safe_rows],
+                jnp.zeros_like(
+                    candidates(rows, starts[safe_rows], target)[1].sum(axis=-1)
+                ),
+            ),
         )[1]
 
     counts = jax.lax.map(count_batch, batches).reshape(padded_n, -1)[:n]
@@ -185,7 +486,7 @@ def _search_pairs(
         return counts.sum(axis=1), hash_overflow
     offsets, overflow = _capacity_offsets(counts.sum(axis=1), capacity)
     overflow = overflow | hash_overflow
-    neighbors = jnp.full((capacity,), -1, dtype=int)
+    neighbors = jnp.full_like(counts, -1, shape=(capacity,), dtype=int)
     if capacity == 0:
         return neighbors, offsets, overflow
 
@@ -224,6 +525,110 @@ def _search_pairs(
     return neighbors, offsets, overflow
 
 
+def _search_pairs_batched(
+    state: Any,
+    system: Any,
+    cutoff: Any,
+    capacity: int | None,
+    search_radii: Any | None,
+    skin: Any,
+) -> tuple[Any, ...]:
+    n = state.N
+    if n == 0:
+        if capacity is None:
+            return jnp.zeros((0,), dtype=int), jnp.asarray(False)
+        return (
+            jnp.full((capacity,), -1, dtype=int),
+            jnp.zeros((1,), dtype=int),
+            jnp.asarray(False),
+        )
+    collider = system.collider
+    rows = jnp.arange(n)
+    pos = state.pos
+    if hasattr(collider, "neighbor_mask"):
+        system = system.domain.update_bounds(pos, system, padding=cutoff)
+        reach = jnp.maximum(jnp.max(collider.neighbor_mask), 1)
+        cell_size = jnp.maximum(collider.cell_size, cutoff / reach)
+        perm, hashes, stencil, hash_overflow = _get_spatial_partition(
+            pos, system, cell_size, collider.neighbor_mask, rows
+        )
+        starts = _cell_starts(hashes, stencil)
+        if system.domain.periodic:
+            stencil = jax.vmap(_dedup_stencil_hashes)(stencil)
+        safe = jnp.minimum(starts, n - 1)
+        present = (starts < n) & (hashes[safe] == stencil)
+        ends = jnp.where(present, _sorted_cell_run_ends(hashes)[safe], starts)
+    else:
+        # The all-pairs backend uses one cell, retaining O(N^2) search cost.
+        from .naive import NaiveSimulator
+
+        if not isinstance(collider, NaiveSimulator):
+            raise ValueError("NeighborList requires CellList, MultiCellList, or naive")
+        perm = rows
+        starts = jnp.zeros((n, 1), dtype=int)
+        ends = jnp.full((n, 1), n, dtype=int)
+        hash_overflow = jnp.asarray(False)
+
+    batch_size = min(n, _SEARCH_BATCH_SIZE)
+    padded_n = (n + batch_size - 1) // batch_size * batch_size
+    batches = jnp.arange(padded_n).reshape(-1, batch_size)
+
+    # Explicit operands let the loop's batching rule share one bound while
+    # preserving independent domains and particle data in each environment.
+    data = (
+        pos,
+        perm,
+        state.clump_id,
+        state.bond_id,
+        system,
+        cutoff**2,
+        search_radii,
+        skin,
+    )
+
+    def count_batch(rows: Any) -> Any:
+        safe_rows = jnp.minimum(rows, n - 1)
+        begin = starts[safe_rows]
+        end = jnp.where(rows[:, None] < n, ends[safe_rows], begin)
+        steps = jnp.max((end - begin + 3) // 4, initial=0)
+        initial = jnp.zeros_like(pos, shape=begin.shape, dtype=int)
+        return _count_search_loop(steps, initial, (data, rows, begin, end))
+
+    counts = jax.lax.map(count_batch, batches).reshape(padded_n, -1)[:n]
+    if capacity is None:
+        return counts.sum(axis=1), hash_overflow
+    offsets, overflow = _capacity_offsets(counts.sum(axis=1), capacity)
+    overflow = overflow | hash_overflow
+    neighbors = jnp.full_like(counts, -1, shape=(capacity,), dtype=int)
+    if capacity == 0:
+        return neighbors, offsets, overflow
+
+    def fill_batch(neighbors: Any, rows: Any) -> Any:
+        safe_rows = jnp.minimum(rows, n - 1)
+        # Each cell owns a disjoint interval within its particle's pooled row.
+        # Clip before adding the base; padded particles receive no slots.
+        base = offsets[safe_rows, None]
+        budget = jnp.where(rows < n, offsets[safe_rows + 1] - offsets[safe_rows], 0)
+        slot_ends = base + jnp.minimum(
+            counts[safe_rows].cumsum(axis=1), budget[:, None]
+        )
+        slots = jnp.concatenate((base, slot_ends[:, :-1]), axis=1)
+        begin = starts[safe_rows]
+        end = jnp.where(rows[:, None] < n, ends[safe_rows], begin)
+        steps = jnp.max(
+            jnp.where(slot_ends > slots, (end - begin + 3) // 4, 0), initial=0
+        )
+        _, neighbors = _fill_search_loop(
+            steps,
+            (slots, neighbors),
+            (data, rows, begin, end, slot_ends),
+        )
+        return neighbors, None
+
+    neighbors, _ = jax.lax.scan(fill_batch, neighbors, batches)
+    return neighbors, offsets, overflow
+
+
 def remap_history(
     old: Any, old_src: Any, old_dst: Any, new_src: Any, new_dst: Any, initialized: Any
 ) -> Any:
@@ -233,8 +638,8 @@ def remap_history(
     src, dst, order = jax.lax.sort(
         (old_src, old_dst, jnp.arange(old_dst.size)), num_keys=2
     )
-    lo = jnp.zeros(new_dst.shape, dtype=int)
-    hi = jnp.full(new_dst.shape, old_dst.size, dtype=int)
+    lo = jnp.zeros_like(new_dst, dtype=int)
+    hi = jnp.full_like(new_dst, old_dst.size, dtype=int)
 
     def step(_: Any, bounds: Any) -> Any:
         lo, hi = bounds
@@ -243,7 +648,9 @@ def remap_history(
         less = (src[idx] < new_src) | ((src[idx] == new_src) & (dst[idx] < new_dst))
         return jnp.where(less, mid + 1, lo), jnp.where(less, hi, mid)
 
-    lo, _ = jax.lax.fori_loop(0, old_dst.size.bit_length(), step, (lo, hi))
+    # Old keys and new source IDs can have axes absent from new destinations.
+    lo, hi = step(0, (lo, hi))
+    lo, _ = jax.lax.fori_loop(1, old_dst.size.bit_length(), step, (lo, hi))
     idx = jnp.minimum(lo, old_dst.size - 1)
     found = (
         (lo < old_dst.size)
@@ -351,7 +758,9 @@ def check_and_rebuild(state: Any, system: Any) -> Any:
             search_radii=search_radii,
             skin=col.skin,
         )
-        initialized = system.force_model.init_history(nl.shape, state.dim)
+        initialized = system.force_model.init_history(
+            nl.shape, state.dim
+        ) + jnp.zeros_like(col.history)
         history = jax.lax.cond(
             col.n_build_times == 0,
             lambda _: initialized,
@@ -377,7 +786,7 @@ def check_and_rebuild(state: Any, system: Any) -> Any:
             physical_cutoff_snapshot=cutoff,
             skin_snapshot=col.skin,
             facet_id_snapshot=facet_id,
-            invalidated=jnp.asarray(False),
+            invalidated=jnp.zeros_like(col.invalidated),
         )
 
     def check_geometry(_: Any) -> Any:
@@ -478,8 +887,11 @@ def _row_reduce(col: Any, initial: Any, evaluate: Any, history: Any = None) -> A
 
 @jax.custom_jvp
 def energy(state: Any, system: Any) -> Any:
-    """Sum half-weighted directed-pair energies over occupied CSR rows."""
+    """Sum half-weighted directed-pair energies over the cache."""
     pos = state.pos
+
+    if _uses_static_cache(system.collider):
+        return _prefix_dispatch(_fixed_pool_energy)(state, system)
 
     def evaluate(i: Any, neighbors: Any, slots: Any) -> Any:
         j, valid = _valid_pairs(state, system, i, neighbors)
@@ -490,8 +902,28 @@ def energy(state: Any, system: Any) -> Any:
 
     rows, _ = _row_reduce(
         system.collider,
-        jnp.asarray(0.0, dtype=pos.dtype),
+        jnp.zeros_like(pos, shape=()),
         lambda i, neighbors, slots: (jax.vmap(evaluate)(i, neighbors, slots), None),
+    )
+    return 0.5 * rows.sum()
+
+
+def _fixed_pool_energy(prefix: int, state: Any, system: Any) -> Any:
+    """Evaluate one fixed prefix of the energy cache."""
+    pos = state.pos
+
+    def values(i: Any, neighbors: Any, slots: Any) -> Any:
+        j, valid = _valid_pairs(state, system, i, neighbors)
+        energies = jax.vmap(
+            lambda a, b, h: system.force_model.energy(a, b, pos, state, system, h)
+        )(i, j, system.collider.history[slots])
+        return jnp.where(valid, energies, 0.0), None
+
+    rows, _ = _fixed_pool_reduce(
+        system.collider,
+        jnp.zeros_like(pos, shape=()),
+        values,
+        prefix_capacity=prefix,
     )
     return 0.5 * rows.sum()
 
@@ -506,6 +938,16 @@ def forces(
     if n == 0 or capacity == 0:
         return jnp.zeros_like(state.force), jnp.zeros_like(state.torque), col.history
     pos = state.pos
+    if _uses_static_cache(col):
+        if capacity <= _FIXED_PAIR_BATCH_SIZE:
+            return _flat_forces(state, system, advance_history, quasistatic)
+
+        def evaluate_prefix(prefix: int, st: Any, sy: Any) -> Any:
+            return _fixed_pool_forces(
+                st, sy, advance_history, quasistatic, prefix_capacity=prefix
+            )
+
+        return _prefix_dispatch(evaluate_prefix)(state, system)
     # Choose by static buffer size, so small caches avoid a GPU row-loop launch.
     if capacity < 2 * state.dim * _ROW_BATCH_SIZE[state.dim]:
         return _flat_forces(state, system, advance_history, quasistatic)
@@ -530,12 +972,13 @@ def forces(
     (force, torque), history = _row_reduce(
         col,
         (
-            jnp.zeros(state.force.shape[1:], dtype=state.force.dtype),
-            jnp.zeros(state.torque.shape[1:], dtype=state.torque.dtype),
+            jnp.zeros_like(state.force, shape=state.force.shape[1:]),
+            jnp.zeros_like(state.torque, shape=state.torque.shape[1:]),
         ),
         evaluate_rows,
         (
             system.force_model.init_history((capacity,), state.dim)
+            + jnp.zeros_like(col.history)
             if write_history
             else None
         ),
@@ -547,8 +990,55 @@ def forces(
     )
 
 
-# Dynamic row loops cannot be transposed by JAX. Differentiate the same pair
-# laws over fixed cache slots; the force evaluator also serves small pools.
+def _fixed_pool_forces(
+    state: Any,
+    system: Any,
+    advance_history: bool,
+    quasistatic: bool,
+    prefix_capacity: int | None = None,
+) -> tuple[Any, ...]:
+    """Evaluate the fixed pool with bounded force-law intermediates."""
+    col = system.collider
+    pos = state.pos
+    write_history = col.history.size > 0 and advance_history
+
+    def evaluate(i: Any, neighbors: Any, slots: Any) -> Any:
+        f, t, h = pair_values(
+            state,
+            system,
+            pos,
+            i,
+            neighbors,
+            col.history[slots],
+            advance_history=advance_history,
+            quasistatic=quasistatic,
+        )
+        return (f, t), h if write_history else None
+
+    (force, torque), history = _fixed_pool_reduce(
+        col,
+        (
+            jnp.zeros_like(pos, shape=state.force.shape[1:], dtype=state.force.dtype),
+            jnp.zeros_like(pos, shape=state.torque.shape[1:], dtype=state.torque.dtype),
+        ),
+        evaluate,
+        (
+            system.force_model.init_history(col.neighbor_list.shape, state.dim)
+            + jnp.zeros_like(pos, shape=col.history.shape, dtype=col.history.dtype)
+            if write_history
+            else None
+        ),
+        prefix_capacity=prefix_capacity,
+    )
+    return (
+        force,
+        torque + cross(state._pos_p_rot, force),
+        history if write_history else col.history,
+    )
+
+
+# The dynamic backend cannot transpose its row loops. Differentiate the same
+# pair laws over fixed cache slots, which also serve small static pools.
 @energy.defjvp
 def _energy_jvp(primals: Any, tangents: Any) -> Any:
     def fixed_pairs(state: Any, system: Any) -> Any:
