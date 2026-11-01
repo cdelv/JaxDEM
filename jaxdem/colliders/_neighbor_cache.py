@@ -35,24 +35,65 @@ _SEARCH_BATCH_SIZE = 16_384
 _ROW_BATCH_SIZE = {2: 65_536, 3: 16_384}
 # Bound the force-law working set independently of the allocated pair pool.
 _FIXED_PAIR_BATCH_SIZE = 262_144
+_HISTORY_PAIR_BATCH_SIZE = 32_768
+_HISTORY_PREFIX_SIZE = 4_096
 
 
-def _prefix_capacities(capacity: int) -> tuple[int, ...]:
+@custom_vmap
+def _shared_any(required: Any) -> Any:
+    return required
+
+
+@_shared_any.def_vmap
+def _shared_any_mapped(axis_size: int, in_batched: Any, required: Any) -> Any:
+    return _shared_any(jnp.any(required)), False
+
+
+@custom_vmap
+def _shared_idle(required: Any) -> Any:
+    """Keep scalar checks unchanged and share one idle decision under vmap."""
+    return jnp.asarray(False)
+
+
+@_shared_idle.def_vmap
+def _shared_idle_mapped(axis_size: int, in_batched: Any, required: Any) -> Any:
+    return ~_shared_any(jnp.any(required)), False
+
+
+def _with_axes(current: Any, prototype: Any) -> Any:
+    """Join manual-axis variance without changing values or executing the prototype."""
+    return jax.tree.map(
+        lambda value, proposed: jax.lax.select(jnp.asarray(True), value, proposed),
+        current,
+        prototype,
+    )
+
+
+def _prefix_capacities(
+    capacity: int, minimum: int = _FIXED_PAIR_BATCH_SIZE
+) -> tuple[int, ...]:
     """List fixed pair prefixes in doubling steps."""
     prefixes = []
-    prefix = min(capacity, _FIXED_PAIR_BATCH_SIZE)
+    prefix = min(capacity, minimum)
     while prefix < capacity:
         prefixes.append(prefix)
         prefix = min(2 * prefix, capacity)
     return (*prefixes, capacity)
 
 
-def _prefix_dispatch(evaluate: Any) -> Any:
+def _prefix_dispatch(
+    evaluate: Any,
+    minimum: int = _FIXED_PAIR_BATCH_SIZE,
+    scalar_limit: int | None = None,
+) -> Any:
     """Select one fixed prefix after the maximum over explicit batch axes."""
 
     @custom_vmap
     def dispatch(state: Any, system: Any) -> Any:
-        capacities = _prefix_capacities(system.collider.neighbor_list.shape[-1])
+        capacity = system.collider.neighbor_list.shape[-1]
+        if scalar_limit is not None and capacity <= scalar_limit:
+            return evaluate(capacity, state, system)
+        capacities = _prefix_capacities(capacity, minimum)
         if len(capacities) == 1:
             return evaluate(capacities[0], state, system)
         used = jnp.max(system.collider.row_offsets[..., -1], initial=0)
@@ -71,7 +112,7 @@ def _prefix_dispatch(evaluate: Any) -> Any:
 
         # A fresh dispatcher lets an outer vmap collect another explicit axis.
         # Only the outermost call selects a prefix for the whole current batch.
-        output = _prefix_dispatch(evaluate_batch)(state, system)
+        output = _prefix_dispatch(evaluate_batch, minimum)(state, system)
         return output, jax.tree.map(lambda _: True, output)
 
     return dispatch
@@ -87,12 +128,37 @@ def _uses_static_tiles(collider: Any) -> bool:
     return getattr(collider, "tile_capacity", None) is not None
 
 
+def _uses_fixed_cache(col: Any, dim: int) -> bool:
+    """Use fixed blocks for static backends and small history caches."""
+    return _uses_static_cache(col) or (
+        col.history.size > 0 and col.neighbor_list.size < 2 * dim * _ROW_BATCH_SIZE[dim]
+    )
+
+
+def _uses_flat_cache(col: Any, dim: int) -> bool:
+    """Return the original flat traversal policy for output dtype compatibility."""
+    capacity = col.neighbor_list.size
+    if _uses_static_cache(col):
+        return capacity <= _FIXED_PAIR_BATCH_SIZE
+    return capacity < 2 * dim * _ROW_BATCH_SIZE[dim]
+
+
+def _same_manual_axes(left: Any, right: Any) -> bool:
+    """Keep independent force and torque axes when their reductions differ."""
+    left_type, right_type = jax.typeof(left), jax.typeof(right)
+    return getattr(left_type, "manual_axis_type", getattr(left_type, "vma", None)) == getattr(
+        right_type, "manual_axis_type", getattr(right_type, "vma", None)
+    )
+
+
 def _fixed_pool_reduce(
     col: Any,
     initial: Any,
     evaluate: Any,
     history: Any = None,
     prefix_capacity: int | None = None,
+    preserve_dtype: bool = True,
+    join_forces: bool = False,
 ) -> Any:
     """Visit a fixed pair prefix in batches with fixed loop bounds.
 
@@ -106,35 +172,75 @@ def _fixed_pool_reduce(
     if n == 0 or capacity == 0:
         return totals, history
     sources = pair_sources(replace(col, neighbor_list=col.neighbor_list[:capacity]))
-    width = min(capacity, _FIXED_PAIR_BATCH_SIZE)
+    width = min(
+        capacity,
+        _FIXED_PAIR_BATCH_SIZE if history is None else _HISTORY_PAIR_BATCH_SIZE,
+    )
     full = capacity // width * width
 
-    def batch(totals: Any, history: Any, slots: Any) -> Any:
+    def batch(totals: Any, slots: Any, cast_totals: bool = False) -> Any:
         src = sources[slots]
         values, updated = evaluate(
             jnp.minimum(src, n - 1), col.neighbor_list[slots], slots
         )
+        if cast_totals:
+            totals = jax.tree.map(
+                lambda total, value: total.astype(value.dtype), totals, values
+            )
         # Padding has source N and drops outside the output. CSR source IDs
         # retain the same directed-pair order as the existing cache.
-        totals = jax.tree.map(
-            lambda total, value: total.at[src].add(value, mode="drop"),
-            totals,
-            values,
-        )
-        if history is not None:
-            history = history.at[slots].set(updated, unique_indices=True)
-        return totals, history
-
-    def step(index: Any, carry: Any) -> Any:
-        return batch(carry[0], carry[1], index * width + jnp.arange(width))
+        if (
+            join_forces
+            and totals[0].dtype == totals[1].dtype
+            and values[0].dtype == values[1].dtype
+            and _same_manual_axes(totals[0], totals[1])
+            and _same_manual_axes(values[0], values[1])
+        ):
+            force_width = totals[0].shape[-1]
+            joined = jnp.concatenate(totals, axis=-1).at[src].add(
+                jnp.concatenate(values, axis=-1), mode="drop"
+            )
+            totals = (joined[..., :force_width], joined[..., force_width:])
+        else:
+            totals = jax.tree.map(
+                lambda total, value: total.at[src].add(value, mode="drop"),
+                totals,
+                values,
+            )
+        return totals, updated
 
     # The first batch gives each carry the force law's manual-axis variance.
     # This also covers a shared state with different histories per replica.
-    totals, history = batch(totals, history, jnp.arange(width))
-    totals, history = jax.lax.fori_loop(1, full // width, step, (totals, history))
+    totals, first = batch(totals, jnp.arange(width), not preserve_dtype)
+    if history is None:
+        totals = jax.lax.fori_loop(
+            1,
+            full // width,
+            lambda index, carry: batch(carry, index * width + jnp.arange(width))[0],
+            totals,
+        )
+        if full < capacity:
+            totals, _ = batch(totals, jnp.arange(full, capacity))
+        return totals, None
+
+    history_dtype = history.dtype if preserve_dtype else first.dtype
+
+    def step(totals: Any, index: Any) -> Any:
+        totals, updated = batch(totals, index * width + jnp.arange(width))
+        return totals, updated.astype(history_dtype)
+
+    # Each block writes disjoint slots. Carry only force totals through the loop.
+    totals, following = jax.lax.scan(step, totals, jnp.arange(1, full // width))
+    chunks = [
+        first.astype(history_dtype),
+        following.reshape((full - width,) + history.shape[1:]),
+    ]
     if full < capacity:
-        totals, history = batch(totals, history, jnp.arange(full, capacity))
-    return totals, history
+        totals, tail = batch(totals, jnp.arange(full, capacity))
+        chunks.append(tail.astype(history_dtype))
+    if capacity < history.shape[0]:
+        chunks.append(history[capacity:].astype(history_dtype))
+    return totals, jnp.concatenate(chunks, axis=0)
 
 
 def pair_sources(col: Any) -> jax.Array:
@@ -761,6 +867,11 @@ def check_and_rebuild(state: Any, system: Any) -> Any:
         initialized = system.force_model.init_history(
             nl.shape, state.dim
         ) + jnp.zeros_like(col.history)
+        if col.history.size:
+            for source in (nl, offsets, col.neighbor_list, col.row_offsets):
+                initialized = initialized + jnp.zeros_like(
+                    source, shape=col.history.shape, dtype=col.history.dtype
+                )
         history = jax.lax.cond(
             col.n_build_times == 0,
             lambda _: initialized,
@@ -789,6 +900,9 @@ def check_and_rebuild(state: Any, system: Any) -> Any:
             invalidated=jnp.zeros_like(col.invalidated),
         )
 
+    if col.history.size:
+        col = _with_axes(col, build(None))
+
     def check_geometry(_: Any) -> Any:
         drift = system.domain.search_geometry_drift(col.metric_snapshot, col.old_pos)
         return jax.lax.cond(displacement + drift > col.skin, build, lambda _: col, None)
@@ -796,10 +910,19 @@ def check_and_rebuild(state: Any, system: Any) -> Any:
     def update(_: Any) -> Any:
         return jax.lax.cond(rebuild, build, check_geometry, None)
 
-    return replace(
-        system,
-        collider=jax.lax.cond(rebuild | geometry_changed, update, lambda _: col, None),
-    )
+    def update_if_needed(_: Any) -> Any:
+        return jax.lax.cond(rebuild | geometry_changed, update, lambda _: col, None)
+
+    if col.history.size:
+        collider = jax.lax.cond(
+            _shared_idle(rebuild | geometry_changed),
+            lambda _: col,
+            update_if_needed,
+            None,
+        )
+    else:
+        collider = update_if_needed(None)
+    return replace(system, collider=collider)
 
 
 @jax.jit
@@ -863,9 +986,13 @@ def _row_reduce(col: Any, initial: Any, evaluate: Any, history: Any = None) -> A
                 )
             return offset + width, totals, history
 
-        _, totals, history = jax.lax.while_loop(
-            lambda c: c[0] < limit, body, (0, totals, history)
-        )
+        carry = (0, totals, history)
+        if history is not None:
+            carry = _with_axes(carry, body(carry))
+            carry = jax.lax.cond(
+                _shared_any(limit > 0), body, lambda current: current, carry
+            )
+        _, totals, history = jax.lax.while_loop(lambda c: c[0] < limit, body, carry)
         return history, totals
 
     rows = (jnp.arange(n), col.row_offsets[:-1], col.row_offsets[1:])
@@ -873,6 +1000,9 @@ def _row_reduce(col: Any, initial: Any, evaluate: Any, history: Any = None) -> A
         history, totals = batch(history, rows)
         return totals, history
     full = n // batch_size * batch_size
+    if history is not None:
+        proposed, _ = batch(history, jax.tree.map(lambda x: x[:batch_size], rows))
+        history = _with_axes(history, proposed)
     history, batches = jax.lax.scan(
         batch,
         history,
@@ -890,8 +1020,13 @@ def energy(state: Any, system: Any) -> Any:
     """Sum half-weighted directed-pair energies over the cache."""
     pos = state.pos
 
-    if _uses_static_cache(system.collider):
-        return _prefix_dispatch(_fixed_pool_energy)(state, system)
+    if _uses_fixed_cache(system.collider, state.dim):
+        minimum = (
+            _HISTORY_PREFIX_SIZE
+            if system.collider.history.size
+            else _FIXED_PAIR_BATCH_SIZE
+        )
+        return _prefix_dispatch(_fixed_pool_energy, minimum)(state, system)
 
     def evaluate(i: Any, neighbors: Any, slots: Any) -> Any:
         j, valid = _valid_pairs(state, system, i, neighbors)
@@ -938,8 +1073,9 @@ def forces(
     if n == 0 or capacity == 0:
         return jnp.zeros_like(state.force), jnp.zeros_like(state.torque), col.history
     pos = state.pos
-    if _uses_static_cache(col):
-        if capacity <= _FIXED_PAIR_BATCH_SIZE:
+    if _uses_fixed_cache(col, state.dim):
+        minimum = _HISTORY_PREFIX_SIZE if col.history.size else _FIXED_PAIR_BATCH_SIZE
+        if capacity <= minimum:
             return _flat_forces(state, system, advance_history, quasistatic)
 
         def evaluate_prefix(prefix: int, st: Any, sy: Any) -> Any:
@@ -947,9 +1083,13 @@ def forces(
                 st, sy, advance_history, quasistatic, prefix_capacity=prefix
             )
 
-        return _prefix_dispatch(evaluate_prefix)(state, system)
+        return _prefix_dispatch(
+            evaluate_prefix,
+            minimum,
+            scalar_limit=_HISTORY_PAIR_BATCH_SIZE if col.history.size else None,
+        )(state, system)
     # Choose by static buffer size, so small caches avoid a GPU row-loop launch.
-    if capacity < 2 * state.dim * _ROW_BATCH_SIZE[state.dim]:
+    if _uses_flat_cache(col, state.dim):
         return _flat_forces(state, system, advance_history, quasistatic)
     write_history = col.history.size > 0 and advance_history
 
@@ -1029,6 +1169,12 @@ def _fixed_pool_forces(
             else None
         ),
         prefix_capacity=prefix_capacity,
+        preserve_dtype=not _uses_flat_cache(col, state.dim),
+        join_forces=(
+            col.history.size > 0
+            and col.neighbor_list.size <= _HISTORY_PAIR_BATCH_SIZE
+            and prefix_capacity in (None, col.neighbor_list.size)
+        ),
     )
     return (
         force,
@@ -1074,8 +1220,20 @@ def _flat_forces(
         advance_history=advance_history,
         quasistatic=quasistatic,
     )
-    force = jax.ops.segment_sum(f, src, num_segments=state.N + 1)[: state.N]
-    torque = jax.ops.segment_sum(t, src, num_segments=state.N + 1)[: state.N]
+    if (
+        col.history.size > 0
+        and col.neighbor_list.size <= _HISTORY_PAIR_BATCH_SIZE
+        and f.dtype == t.dtype
+        and _same_manual_axes(f, t)
+    ):
+        force_width = f.shape[-1]
+        joined = jax.ops.segment_sum(
+            jnp.concatenate((f, t), axis=-1), src, num_segments=state.N + 1
+        )[: state.N]
+        force, torque = joined[..., :force_width], joined[..., force_width:]
+    else:
+        force = jax.ops.segment_sum(f, src, num_segments=state.N + 1)[: state.N]
+        torque = jax.ops.segment_sum(t, src, num_segments=state.N + 1)[: state.N]
     return force, torque + cross(state._pos_p_rot, force), history
 
 

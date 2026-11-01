@@ -113,7 +113,7 @@ class NaiveSimulator(Collider):
         """Gather the dense history rows and columns of the surviving particles."""
         if self.history.size == 0:
             return system
-        history = self.history[new_to_old][:, new_to_old]
+        history = self.history[new_to_old[:, None], new_to_old[None, :]]
         collider = _naive_collider(system.collider)
         return replace(system, collider=replace(collider, history=history))
 
