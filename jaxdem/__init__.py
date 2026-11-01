@@ -43,9 +43,8 @@ from .integrators import Integrator, LinearIntegrator, RotationIntegrator
 from .material_matchmakers import MaterialMatchmaker
 from .materials import Material, MaterialTable
 from .minimizers import damped_newtonian, fire, minimize
-from .state import State
+from .state import BodyTopology, State, body_topology
 from .system import System
-from .topology import BodyTopology, body_topology
 
 if TYPE_CHECKING:
     from .writers import (

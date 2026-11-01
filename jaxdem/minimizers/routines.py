@@ -13,12 +13,11 @@ from enum import IntEnum
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ..forces.force_manager import default_energy_func
-from ..topology import BodyTopology, body_topology
 from ..utils.quaternion import Quaternion
 from ..utils.linalg import cross, dot, norm, norm2
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ..state import State
+    from ..state import BodyTopology, State
     from ..system import System
 
 
@@ -300,9 +299,7 @@ def _state_to_delta_params(
     rotations are raw quaternions, normalized only when constructing a State.
     Optimizer coordinates remain continuous throughout a minimization.
     """
-    topology = (
-        body_topology(state.clump_id, state.fixed) if topology is None else topology
-    )
+    topology = state.body_topology() if topology is None else topology
     body_pos = topology.gather_representatives(state.pos_c)
     width = 1 if state.dim == 2 else 4
     rotation = jnp.zeros(body_pos.shape[:-1] + (width,), dtype=body_pos.dtype)
@@ -325,9 +322,7 @@ def _delta_params_to_state(
     here does not modify the optimizer's parameters or accumulated state.
     A zero raw quaternion is invalid and produces a nonfinite evaluation.
     """
-    topology = (
-        body_topology(state.clump_id, state.fixed) if topology is None else topology
-    )
+    topology = state.body_topology() if topology is None else topology
     rotation = params["rotation"]
     if state.dim == 2:
         rotvec = jnp.concatenate([jnp.zeros_like(params["pos_c"]), rotation], axis=-1)
@@ -392,9 +387,7 @@ def _objective_energy(
     Tuple[jax.Array, Tuple[State, System]]
         A tuple containing the potential energy and a tuple of the evaluated State and System.
     """
-    topology = (
-        body_topology(state.clump_id, state.fixed) if topology is None else topology
-    )
+    topology = state.body_topology() if topology is None else topology
     trial_state = _delta_params_to_state(state, trial_params, topology)
     trial_state, eval_system, pe = _evaluate_energy(trial_state, system)
     return pe, (trial_state, eval_system)
@@ -409,9 +402,7 @@ def _objective_energy_fwd(
     tuple[jax.Array, tuple[State, System]],
     tuple[jax.Array, jax.Array],
 ]:
-    topology = (
-        body_topology(state.clump_id, state.fixed) if topology is None else topology
-    )
+    topology = state.body_topology() if topology is None else topology
     pe, (trial_state, eval_system) = _objective_energy(
         trial_params, state, system, topology
     )
@@ -565,7 +556,7 @@ def minimize(
         )
 
     torque_tol = force_tol if torque_tol is None else torque_tol
-    topology = body_topology(state.clump_id, state.fixed)
+    topology = state.body_topology()
     fixed = ~topology.valid | topology.fixed
     mask = ~fixed[..., None]
 
