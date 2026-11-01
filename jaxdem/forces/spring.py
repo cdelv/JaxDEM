@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Linear spring force model."""
+"""Linear spring force models with optional normal contact damping."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, cast
 
-from ..utils.linalg import cross, dot, norm, norm2, unit, unit_and_norm
+from ..utils.linalg import cross, dot, harmonic_mean, norm, norm2, unit, unit_and_norm
 from . import ForceModel
 from ._facet_incidence import get_facet_incidence
 from .facet_contact import (
@@ -187,6 +187,97 @@ class SpringForce(ForceModel):
         in :attr:`System.mat_table <jaxdem.system.System.mat_table>`. Used for validation.
         """
         return ("young_eff",)
+
+
+@ForceModel.register("dampedspring")
+@jax.tree_util.register_dataclass
+@dataclass(slots=True)
+class DampedSpringForce(SpringForce):
+    r"""Linear spring with a normal dashpot and no tangential friction.
+
+    For overlapping spheres the repulsive force magnitude is
+    :math:`\max(0, k\delta - \gamma v_n)`, with the same
+    ``young_eff`` stiffness :math:`k` as :class:`SpringForce`.
+    Here :math:`v_n` is the relative contact-point velocity along the normal,
+    including rigid-body rotation and the domain's image velocity.
+
+    Damping uses the smaller material restitution ``e`` and reduced body
+    mass :math:`m_* = m_i m_j / (m_i + m_j)`:
+    :math:`\gamma = 2\beta\sqrt{k m_*}`, where
+    :math:`\beta = -\log(e) / \sqrt{\pi^2 + \log(e)^2}`.
+    Restitution zero selects critical damping. One disables damping.
+    The repulsive clamp can change the achieved collision restitution.
+
+    The law is stateless. Energy is the inherited elastic spring energy.
+    Quasistatic evaluations disable damping. Contact forces have no torque
+    about a sphere's center. Colliders add the moment about a clump's center of mass.
+    """
+
+    @property
+    def supports_analytical_energy_gradient(self) -> bool:
+        """The dissipative force is not the gradient of elastic energy."""
+        return False
+
+    @property
+    def required_material_properties(self) -> tuple[str, ...]:
+        """Require spring stiffness and per-material restitution."""
+        return ("young_eff", "e")
+
+    @staticmethod
+    @jax.jit(inline=True, static_argnames=("advance_history", "quasistatic"))
+    @partial(jax.named_call, name="DampedSpringForce.force")
+    def force(
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: State,
+        system: System,
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+        quasistatic: bool = False,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
+        """Return normal spring/dashpot force, zero torque, unchanged history."""
+        rij = system.domain._displacement(pos[i], pos[j], system)
+        normal, distance = unit_and_norm(rij)
+        overlap = jnp.maximum(0.0, state.rad[i] + state.rad[j] - distance)
+        contact = (overlap > 0.0) & (i != j)
+        mi, mj = state.mat_id[i], state.mat_id[j]
+        stiffness = system.mat_table.young_eff[mi, mj]
+        magnitude = stiffness * overlap
+
+        if not quasistatic:
+            restitution = jnp.minimum(system.mat_table.e[mi], system.mat_table.e[mj])
+            log_e = jnp.log(jnp.where(restitution > 0.0, restitution, 1.0))
+            beta = jnp.where(
+                restitution > 0.0,
+                -log_e / jnp.sqrt(jnp.pi**2 + log_e**2),
+                1.0,
+            )
+            mass = 0.5 * harmonic_mean(state.mass[i], state.mass[j])
+            # Separate roots avoid overflow or underflow in stiffness * mass.
+            # The zero convention also keeps contact derivatives finite.
+            stiffness_root = jnp.where(
+                stiffness > 0.0,
+                jnp.sqrt(jnp.where(stiffness > 0.0, stiffness, 1.0)),
+                0.0,
+            )
+            mass_root = jnp.where(
+                mass > 0.0,
+                jnp.sqrt(jnp.where(mass > 0.0, mass, 1.0)),
+                0.0,
+            )
+            damping = 2.0 * beta * stiffness_root * mass_root
+            vi = state.velocity_at(i, -state.rad[i][..., None] * normal)
+            vj = state.velocity_at(j, state.rad[j][..., None] * normal)
+            relative = system.domain.relative_velocity(pos[i], pos[j], vi, vj, system)
+            magnitude -= damping * dot(relative, normal)
+
+        force = (jnp.maximum(0.0, magnitude) * contact)[..., None] * normal
+        torque = jnp.zeros(
+            (*force.shape[:-1], state.torque.shape[-1]), state.torque.dtype
+        )
+        return force, torque, history
 
 
 def _inactive_facet_pair(i: jax.Array, j: jax.Array, pos: jax.Array) -> tuple[
@@ -765,4 +856,9 @@ class FacetFacetSpringForce(ForceModel):
         return _sum_facet_energies(_facet_facet_pair, i, j, pos, state, system)
 
 
-__all__ = ["SpringForce", "SphereFacetSpringForce", "FacetFacetSpringForce"]
+__all__ = [
+    "DampedSpringForce",
+    "SpringForce",
+    "SphereFacetSpringForce",
+    "FacetFacetSpringForce",
+]

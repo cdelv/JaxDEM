@@ -47,6 +47,7 @@ COMPONENTS = {
         jd.ForceModel,
         [
             "spring",
+            "dampedspring",
             "hertz",
             "wca",
             "wcashifted",
@@ -139,7 +140,7 @@ def configured_system(family, name):
     if family == "force_model":
         if name in {"wca", "wcashifted", "lennardjones"}:
             material = jd.Material.create("lj", epsilon=0.7, density=1.0)
-        if name in {"cundallstrack", "granulabotcontacts"}:
+        if name in {"cundallstrack", "granulabotcontacts", "dampedspring"}:
             material = jd.Material.create(
                 "elasticfrict", young=2.0, density=1.0, poisson=0.25, mu=0.6, e=0.8
             )
@@ -283,6 +284,9 @@ def assert_round_trip_and_continue(tmp_path, storage, state, system):
             writer.save(state, system)
         with jd.CheckpointLoader(tmp_path / "checkpoint") as loader:
             restored = loader.load()
+    if isinstance(system.force_model, jd.forces.DampedSpringForce):
+        assert system.collider.history.shape[-1] == 0
+        assert restored[1].collider.history.shape[-1] == 0
     _assert_leaves_equal(state, restored[0], "stored state")
     _assert_leaves_equal(system, restored[1], "stored system")
     expected = jd.System.step(state, system, n=3)

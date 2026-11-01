@@ -230,7 +230,12 @@ from .hertz import HertzianForce
 from .law_combiner import LawCombiner
 from .lennardjones import LennardJones
 from .router import ForceRouter
-from .spring import FacetFacetSpringForce, SphereFacetSpringForce, SpringForce
+from .spring import (
+    DampedSpringForce,
+    FacetFacetSpringForce,
+    SphereFacetSpringForce,
+    SpringForce,
+)
 from .wca import WCA
 from .wca_shifted import WCAShifted
 
@@ -238,6 +243,7 @@ __all__ = [
     "WCA",
     "CundallStrackContactData",
     "CundallStrackForce",
+    "DampedSpringForce",
     "ForceManager",
     "ForceModel",
     "ForceRouter",
