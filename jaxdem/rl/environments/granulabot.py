@@ -530,7 +530,7 @@ class MagnetPairs(BondedForceModel):
         if not isinstance(model, MagnetPairs):
             raise TypeError("Granulabot magnetic forces require a MagnetPairs model")
         i, j = model.pairs[:, 0], model.pairs[:, 1]
-        rho = pos[j] - pos[i]
+        rho = system.domain._displacement(pos[j], pos[i], system)
         r = jnp.sqrt(jnp.maximum(jnp.sum(rho * rho, axis=-1), 1e-24))
         c = magnetic_coefficient(r)
         f = (model.weights * c)[:, None] * rho
@@ -549,7 +549,9 @@ class MagnetPairs(BondedForceModel):
     def compute_potential_energy(
         self, pos: jax.Array, state: State, system: System
     ) -> jax.Array:
-        rho = pos[self.pairs[:, 1]] - pos[self.pairs[:, 0]]
+        rho = system.domain._displacement(
+            pos[self.pairs[:, 1]], pos[self.pairs[:, 0]], system
+        )
         u = magnetic_potential(
             jnp.sqrt(jnp.maximum(jnp.sum(rho * rho, axis=-1), 1e-24))
         )

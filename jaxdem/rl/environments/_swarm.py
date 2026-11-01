@@ -152,15 +152,24 @@ def vacant_objective_lidar(env: Any) -> jax.Array:
     This requires all local goal/peer detections before angular-bin reduction,
     so an occupied near goal can reveal a farther vacant goal in the same bin.
     The output is proximity in the original objective LiDAR bins, in 2-D/3-D.
+    Domain geometry selects the images for visibility and goal occupancy.
     """
     bins = env.n_lidar_rays * (env.n_lidar_elevation if env.state.dim == 3 else 1)
     if env.num_objectives == 0:
         return jnp.zeros((env.max_num_agents, bins))
-    displacement = env.env_params["objective"][None, :, :] - env.state.pos[:, None, :]
+    displacement = env.system.domain.displacement(
+        env.env_params["objective"][None, :, :],
+        env.state.pos[:, None, :],
+        env.system,
+    )
     distance_sq = jnp.sum(displacement**2, axis=-1)
     lr = env.env_params["lidar_range"]
     peer_distance_sq = jnp.sum(
-        (env.state.pos[None, :, :] - env.state.pos[:, None, :]) ** 2, axis=-1
+        env.system.domain.displacement(
+            env.state.pos[:, None, :], env.state.pos[None, :, :], env.system
+        )
+        ** 2,
+        axis=-1,
     )
     visible_peers = (peer_distance_sq < lr**2) & ~jnp.eye(
         env.max_num_agents, dtype=bool
