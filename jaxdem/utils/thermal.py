@@ -20,8 +20,11 @@ if TYPE_CHECKING:
 
 @jax.jit
 def _translational_ke_snapshot(state: State) -> jax.Array:
-    count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
-    weight = state.mass / count
+    if state.only_spheres:
+        weight = state.mass
+    else:
+        count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
+        weight = state.mass / count
     return 0.5 * weight * norm2(state.vel)
 
 
@@ -66,6 +69,8 @@ def compute_translational_kinetic_energy_per_particle(state: State) -> jax.Array
 
 @jax.jit
 def _rotational_ke_snapshot(state: State) -> jax.Array:
+    if state.only_spheres:
+        return 0.5 * dot(state.ang_vel, state.inertia * state.ang_vel)
     count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
     if state.dim == 2:
         w_body = state.ang_vel
@@ -212,11 +217,14 @@ def compute_energy(state: State, system: System) -> jax.Array:
 def _count_dynamic_dofs_snapshot(
     state: State, can_rotate: bool, subtract_drift: bool
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
-    counts = jnp.bincount(state.clump_id, length=state.N)
-    fixed_counts = jnp.bincount(
-        state.clump_id, weights=state.fixed.astype(int), length=state.N
-    )
-    free_count = jnp.sum((counts > 0) & (fixed_counts == 0))
+    if state.only_spheres:
+        free_count = jnp.sum(~state.fixed)
+    else:
+        counts = jnp.bincount(state.clump_id, length=state.N)
+        fixed_counts = jnp.bincount(
+            state.clump_id, weights=state.fixed.astype(int), length=state.N
+        )
+        free_count = jnp.sum((counts > 0) & (fixed_counts == 0))
     n_dof_v = (free_count - (subtract_drift & (free_count > 0))) * state.vel.shape[-1]
     n_dof_w = free_count * state.ang_vel.shape[-1] * can_rotate
     n_dof = n_dof_v + n_dof_w
@@ -415,8 +423,11 @@ def scale_to_temperature(
     _validate_temperature(state, target_temperature, k_B)
     free = ~state.fixed
     if subtract_drift:
-        count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
-        free_mass = state.mass / count * free
+        if state.only_spheres:
+            free_mass = state.mass * free
+        else:
+            count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
+            free_mass = state.mass / count * free
         total_free_mass = jnp.sum(free_mass, axis=-1, keepdims=True)
         # Guard only the all-fixed (zero total mass) case; clamping to 1.0
         # would silently corrupt the drift for total masses < 1.

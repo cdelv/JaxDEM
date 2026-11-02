@@ -319,7 +319,15 @@ class State:
     _pos_p_rot: jax.Array = field(default_factory=lambda: jnp.zeros((0, 0)))
     """
     Internal rotated offset ``R(q) @ pos_p``, refreshed automatically when
-    ``q`` or ``pos_p`` is replaced.
+    ``q`` or ``pos_p`` is replaced. Sphere mode keeps a zero-offset buffer
+    and disables cache updates.
+    """
+
+    only_spheres: bool = jax.tree.static(default=False, kw_only=True)
+    """Skip rigid-body work for independent spheres with isotropic inertia.
+
+    This static flag is a caller promise: clump IDs are unique, body offsets
+    are zero, and contact facets are absent. Sphere spin remains active.
     """
 
     def __post_init__(self) -> None:
@@ -339,15 +347,25 @@ class State:
                 )
         except (AttributeError, TypeError, IndexError):
             pass
+        if self.only_spheres:
+            try:
+                if self._pos_p_rot.shape != self.pos_p.shape:
+                    self._pos_p_rot = jnp.zeros(
+                        self.pos_p.shape, dtype=self.pos_p.dtype
+                    )
+            except (AttributeError, TypeError):
+                pass
         self._try_refresh_rotation_cache()
 
     def __setattr__(self, name: str, value: Any) -> None:
         object.__setattr__(self, name, value)
-        if name in ("q", "pos_p") and hasattr(self, "_pos_p_rot"):
+        if name in ("q", "pos_p", "only_spheres") and hasattr(self, "_pos_p_rot"):
             self._try_refresh_rotation_cache()
 
     def _try_refresh_rotation_cache(self) -> None:
         """Refresh when geometry is concrete; tolerate JAX reconstruction values."""
+        if getattr(self, "only_spheres", False):
+            return
         try:
             self.refresh_rotation_cache()
         except (AttributeError, TypeError, IndexError, ValueError):
@@ -362,7 +380,10 @@ class State:
         Whole-field assignment to ``state.q`` or ``state.pos_p`` refreshes the
         cache automatically, so ordinary geometry edits need no manual refresh.
         Unlike the reconstruction hooks, this method raises on invalid inputs.
+        It returns without updating the cache when ``only_spheres=True``.
         """
+        if self.only_spheres:
+            return self
         self._pos_p_rot = self.q.rotate(self.q, self.pos_p)
         return self
 
@@ -425,6 +446,8 @@ class State:
         ``pos = pos_c + R(q) @ pos_p`` where ``R(q)`` rotates ``pos_p`` to the
         lab frame.
         """
+        if self.only_spheres:
+            return self.pos_c
         return self.pos_c + self._pos_p_rot
 
     @partial(jax.jit, inline=True)
@@ -435,7 +458,7 @@ class State:
         The lever arm is measured from the rigid body's center of mass, so it
         includes the rotated body-frame member offset and ``offset``.
         """
-        arm = self._pos_p_rot[..., index, :] + offset
+        arm = offset if self.only_spheres else self._pos_p_rot[..., index, :] + offset
         return self.vel[..., index, :] + linalg.cross_3X3D_1X2D(
             self.ang_vel[..., index, :], arm
         )
@@ -575,11 +598,12 @@ class State:
         q_norm2 = self.q.w[..., 0] ** 2 + jnp.sum(self.q.xyz**2, axis=-1)
         if not bool(jnp.all(jnp.abs(q_norm2 - 1.0) <= quaternion_atol)):
             raise ValueError("State orientations must be unit quaternions.")
-        expected_pos_p_rot = self.q.rotate(self.q, self.pos_p)
-        if not bool(jnp.allclose(self._pos_p_rot, expected_pos_p_rot)):
-            raise ValueError(
-                "Rotated-offset cache is stale; call refresh_rotation_cache()."
-            )
+        if not self.only_spheres:
+            expected_pos_p_rot = self.q.rotate(self.q, self.pos_p)
+            if not bool(jnp.allclose(self._pos_p_rot, expected_pos_p_rot)):
+                raise ValueError(
+                    "Rotated-offset cache is stale; call refresh_rotation_cache()."
+                )
         if self.N:
             if bool(jnp.any((self.clump_id < 0) | (self.clump_id >= self.N))):
                 raise ValueError("clump_id entries must lie in [0, N).")
@@ -730,6 +754,7 @@ class State:
         pos: ArrayLike | None = None,
         *,
         dim: int | None = None,
+        only_spheres: bool = False,
         pos_p: ArrayLike | None = None,
         vel: ArrayLike | None = None,
         force: ArrayLike | None = None,
@@ -759,6 +784,10 @@ class State:
 
         Parameters
         ----------
+        only_spheres : bool, optional
+            Static opt-in for independent spheres. Defaults to False. Requires
+            unique clump IDs, zero body offsets, no facets, and isotropic inertia.
+            This promise skips body reductions and rotated-offset cache updates.
         pos : jax.typing.ArrayLike or None, optional
             Array of particle center of mass positions, equivalent to state.pos_c.
             Expected shape: `(..., N, dim)`.
@@ -1259,6 +1288,7 @@ class State:
             mat_id=mat_id,
             species_id=species_id,
             fixed=fixed,
+            only_spheres=only_spheres,
         )
 
         if not state.is_valid:
@@ -1354,11 +1384,13 @@ class State:
         f_offset = jnp.asarray(0, dtype=int)
         shifted: list[State] = []
         extra_count = max(s.facet_ids_extra.shape[-1] for s in non_empty)
+        only_spheres = all(s.only_spheres for s in non_empty)
         for s in non_empty:
             s = State._pad_facet_incidences(s, extra_count)
             shifted.append(
                 dataclasses.replace(
                     s,
+                    only_spheres=only_spheres,
                     clump_id=s.clump_id + c_offset,
                     bond_id=jnp.where(s.bond_id != -1, s.bond_id + idx_offset, -1),
                     facet_id=jnp.where(s.facet_id != -1, s.facet_id + f_offset, -1),
@@ -1524,6 +1556,7 @@ class State:
         """
         state2 = State.create(
             pos=pos,
+            only_spheres=state.only_spheres,
             pos_p=pos_p,
             vel=vel,
             force=force,
@@ -1616,6 +1649,8 @@ class State:
         # ---------- concatenate every leaf -----------------------------
         extra_count = max(s.facet_ids_extra.shape[-1] for s in states)
         states = [State._pad_facet_incidences(s, extra_count) for s in states]
+        if len({s.only_spheres for s in states}) > 1:
+            states = [dataclasses.replace(s, only_spheres=False) for s in states]
         stacked = jax.tree.map(lambda *xs: jnp.stack(xs), *states)
 
         if not stacked.is_valid:
@@ -2570,6 +2605,7 @@ class State:
                 padded_vertices[node, : len(vertices)] = vertices
         return dataclasses.replace(
             state,
+            only_spheres=False,
             facet_id=jnp.asarray(first_ids),
             facet_vertices=jnp.asarray(first_vertices),
             facet_ids_extra=jnp.asarray(padded_ids),

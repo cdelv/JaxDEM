@@ -410,6 +410,7 @@ class CheckpointWriter(BaseCheckpointManager):
                 state_metadata=ocp.args.JsonSave(
                     {
                         "shape": state.shape,
+                        "only_spheres": state.only_spheres,
                         "facet_incidence_layout": FACET_INCIDENCE_LAYOUT_VERSION,
                         "facet_ids_extra_shape": state.facet_ids_extra.shape,
                     }
@@ -485,7 +486,9 @@ class CheckpointLoader(BaseCheckpointManager):
             system_metadata.get("state_shape", state_shape)
         )
         bond_id_shape = system_metadata.pop("bond_id_shape", None)
-        state_kw: dict[str, Any] = {}
+        state_kw: dict[str, Any] = {
+            "only_spheres": metadata.state_metadata.get("only_spheres", False)
+        }
         if bond_id_shape is not None:
             state_kw["bond_id"] = jnp.full(tuple(bond_id_shape), -1, dtype=int)
         extra_shape = metadata.state_metadata.get("facet_ids_extra_shape")

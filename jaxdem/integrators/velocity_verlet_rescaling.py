@@ -129,8 +129,11 @@ class VelocityVerletRescaling(VelocityVerlet):
 
         free = free_mask(state)  # (..., N, 1) bool
         free_f = free.astype(state.vel.dtype)
-        member_count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
-        member_mass = state.mass / member_count
+        if state.only_spheres:
+            member_mass = state.mass
+        else:
+            member_count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
+            member_mass = state.mass / member_count
         free_mass = member_mass * free_f[..., 0]
         total_free_mass = jnp.sum(free_mass)
         total_free_mass = jnp.where(total_free_mass == 0, 1.0, total_free_mass)

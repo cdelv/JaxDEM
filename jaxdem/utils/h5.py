@@ -468,6 +468,9 @@ def _validate_schema3_tree(node: h5py.Group | h5py.Dataset) -> None:
         field_renames = _FIELD_RENAMES.get((cls.__module__, cls.__name__), {})
         saved = {field_renames.get(name, name) for name in node.keys()}
         required = {field.name for field in dataclasses.fields(cls)}
+        if cls.__name__ == "State" and cls.__module__.endswith(".state"):
+            # Earlier schema-3 states use the default rigid-body path.
+            required -= {"only_spheres"} - saved
         legacy_fields = LEGACY_FACET_FIELDS.get(_qualname(cls), frozenset())
         layout = node.attrs.get("__facet_incidence_layout__")
         if layout is not None and (

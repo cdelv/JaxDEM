@@ -43,6 +43,8 @@ class Spiral(RotationIntegrator):
 
     The implementation follows the velocity update described in
     `del Valle et al. (2023) <https://doi.org/10.1016/j.cpc.2023.109077>`_.
+    Sphere mode uses constant angular acceleration within each kick. It
+    retains the quaternion factors and frame conversions of this scheme.
     """
 
     @staticmethod
@@ -107,9 +109,12 @@ class Spiral(RotationIntegrator):
         else:
             ang_vel = state.ang_vel  # (N, 1)
             torque = state.torque  # (N, 1)
-        w_dot = omega_dot(ang_vel, torque, state.inertia, inv_inertia) * free_mask(
-            state
-        )
+        if state.only_spheres:
+            w_dot = torque * inv_inertia * free_mask(state)
+        else:
+            w_dot = omega_dot(ang_vel, torque, state.inertia, inv_inertia) * free_mask(
+                state
+            )
 
         # Rotation vectors whose half-angles are dt/2*|w| and (dt/2)^2*|w_dot|.
         rotvec1 = 2.0 * dt_2 * ang_vel
@@ -125,12 +130,15 @@ class Spiral(RotationIntegrator):
         q_next = state.q @ dq
         state.q = q_next.unit(q_next)
 
-        k1 = system.dt * w_dot
-        k2 = system.dt * omega_dot(ang_vel + k1, torque, state.inertia, inv_inertia)
-        k3 = system.dt * omega_dot(
-            ang_vel + 0.25 * (k1 + k2), torque, state.inertia, inv_inertia
-        )
-        ang_vel += free_mask(state) * (k1 + k2 + 4.0 * k3) / 6.0
+        if state.only_spheres:
+            ang_vel += system.dt * w_dot
+        else:
+            k1 = system.dt * w_dot
+            k2 = system.dt * omega_dot(ang_vel + k1, torque, state.inertia, inv_inertia)
+            k3 = system.dt * omega_dot(
+                ang_vel + 0.25 * (k1 + k2), torque, state.inertia, inv_inertia
+            )
+            ang_vel += free_mask(state) * (k1 + k2 + 4.0 * k3) / 6.0
 
         if state.dim == 3:
             state.ang_vel = state.q.rotate(state.q, ang_vel)  # to lab
