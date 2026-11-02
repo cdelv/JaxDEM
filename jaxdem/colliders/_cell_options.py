@@ -8,13 +8,16 @@ import jax.numpy as jnp
 import numpy as np
 
 from dataclasses import replace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from jax.typing import ArrayLike
 
     from ..state import State
     from ..system import System
+    from .cell_list import DynamicCellList
+    from .multi_cell_list import DynamicMultiCellList
+    from .neighbor_list import NeighborList
 
 
 def validate_cell_options(
@@ -123,6 +126,7 @@ def configure_cell_capacity(state: State, system: System) -> System:
     backend = getattr(collider, "secondary_collider", collider)
     if not getattr(backend, "_auto_capacity", False):
         return system
+    backend = cast("DynamicCellList | DynamicMultiCellList", backend)
     if any(
         isinstance(value, jax.core.Tracer) for value in jax.tree.leaves((state, system))
     ):
@@ -141,7 +145,7 @@ def configure_cell_capacity(state: State, system: System) -> System:
         capacity = _measure_cell_capacity(state, system)
     backend = replace(backend, tile_capacity=capacity)
     collider = (
-        replace(collider, secondary_collider=backend)
+        replace(cast("NeighborList", collider), secondary_collider=backend)
         if hasattr(collider, "secondary_collider")
         else backend
     )
@@ -154,7 +158,10 @@ def _measure_cell_capacity(state: State, system: System) -> int:
     from ._static_cell import _partition_tile_counts
 
     collider = system.collider
-    backend = getattr(collider, "secondary_collider", collider)
+    backend = cast(
+        "DynamicCellList | DynamicMultiCellList",
+        getattr(collider, "secondary_collider", collider),
+    )
     n = state.N
     if n == 0:
         return 0
@@ -162,7 +169,8 @@ def _measure_cell_capacity(state: State, system: System) -> int:
     radius = jnp.max(radii, initial=0.0)
     stencil_reach = jnp.maximum(jnp.max(jnp.abs(backend.neighbor_mask)), 1)
     if hasattr(collider, "secondary_collider"):
-        reach = jnp.maximum(collider.cutoff, 2 * radius) + collider.skin
+        neighbor = cast("NeighborList", collider)
+        reach = jnp.maximum(neighbor.cutoff, 2 * radius) + neighbor.skin
         member_radii, query_radii = None, reach
         padding = reach
         system = replace(system, collider=backend)
@@ -216,14 +224,15 @@ def align_cell_capacities(systems: list[System]) -> list[System]:
     capacities = [getattr(backend, "tile_capacity", None) for backend in backends]
     if not all(automatic) and len(set(capacities)) != 1:
         return systems
-    capacity = max(capacities)
+    capacity = max(cast(list[int], capacities))
     result = []
     for system, backend in zip(systems, backends):
+        backend = cast("DynamicCellList | DynamicMultiCellList", backend)
         backend = replace(
             backend, tile_capacity=capacity, _auto_capacity=all(automatic)
         )
         collider = (
-            replace(system.collider, secondary_collider=backend)
+            replace(cast("NeighborList", system.collider), secondary_collider=backend)
             if hasattr(system.collider, "secondary_collider")
             else backend
         )
