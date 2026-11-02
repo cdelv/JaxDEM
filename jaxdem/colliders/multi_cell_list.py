@@ -220,9 +220,10 @@ class DynamicMultiCellList(Collider):
     Explicit environment batches share the longest active bound within each
     bounded query batch. The dynamic path has no per-cell occupancy limit.
 
-    Set ``static=True`` to estimate a fixed tile budget from the reference
-    density and particle packing, with the same criteria as ``NeighborList``.
-    The estimate can overflow after geometry changes or particle clustering.
+    Set ``static=True`` for an automatic fixed tile budget. With a reference
+    state, ``System.create`` measures the actual cell work and adds headroom.
+    Standalone construction uses a density and packing estimate. Later
+    geometry changes or particle clustering can still cause overflow.
     Set ``tile_capacity`` to a nonnegative Python integer for an explicit budget.
     This global budget covers four-candidate tiles across all source particles
     and stencil cells in one environment. Rejected cells allocate no tiles.
@@ -261,6 +262,9 @@ class DynamicMultiCellList(Collider):
     clump_aware: bool = jax.tree.static(default=False)
     """Exclude same-clump members before static tile allocation."""
 
+    _auto_capacity: bool = jax.tree.static(default=False)
+    """Refine the constructor estimate from the full reference system."""
+
     _prune_cells: ClassVar[bool] = True
 
     @property
@@ -278,6 +282,8 @@ class DynamicMultiCellList(Collider):
         tile_capacity: int | None = None,
         clump_aware: bool = False,
         static: bool = False,
+        *,
+        _auto_capacity: bool = False,
     ) -> Self:
         """Create a DynamicMultiCellList instance from the reference state.
 
@@ -309,14 +315,17 @@ class DynamicMultiCellList(Collider):
             A supplied ``tile_capacity`` takes precedence over this option.
             False keeps dynamic traversal without an explicit budget.
 
-            The estimate applies ``NeighborList`` density and packing criteria
-            to a sphere that contains one grid cell. It uses density floor
-            1.0 and safety factor 1.2. The budget is ``N * stencil_size`` times
-            the estimated tiles per cell, rounded up to four candidates.
-            The estimate requires concrete reference data. Overflow checks
-            remain necessary because cell occupancy can change.
-            This conservative estimate can use more memory than a tuned
-            explicit budget, especially in 3D.
+            With ``System.create(state=...)``, the budget uses measured initial
+            cell work plus 50% headroom. A floor of one tile per stencil cell
+            per particle leaves room for later occupancy changes. Clump-aware
+            pools count only eligible members. The actual domain and force
+            search radii determine the measurement. Automatic batches share
+            the largest budget when stacked with ``System.stack``.
+
+            Standalone construction keeps a conservative density and packing
+            estimate until a full reference system is available. The budget
+            stays fixed during simulation. Check overflow at host boundaries
+            because later compression can exceed the initial headroom.
 
         Returns
         -------
@@ -326,6 +335,8 @@ class DynamicMultiCellList(Collider):
         del max_hashes  # deprecated no-op, kept for API compatibility
 
         validate_cell_options(tile_capacity, clump_aware, static)
+        if not isinstance(_auto_capacity, bool):
+            raise ValueError("_auto_capacity must be a Python boolean")
         validate_cell_capacity_estimate(state, cell_size, tile_capacity, static)
         max_rad = jnp.max(state._rad, initial=0.0)
 
@@ -362,6 +373,7 @@ class DynamicMultiCellList(Collider):
         r = jnp.arange(-search_range, search_range + 1, dtype=int)
         mesh = jnp.meshgrid(*([r] * state.dim), indexing="ij")
         neighbor_mask = jnp.stack([m.ravel() for m in mesh], axis=1)
+        auto_capacity = _auto_capacity or (static and tile_capacity is None)
         tile_capacity = resolve_cell_tile_capacity(
             state, cell_size, neighbor_mask.shape[0], tile_capacity, static
         )
@@ -371,6 +383,7 @@ class DynamicMultiCellList(Collider):
             cell_size=jnp.asarray(cell_size, dtype=float),
             tile_capacity=tile_capacity,
             clump_aware=clump_aware,
+            _auto_capacity=auto_capacity,
         )
 
     @staticmethod

@@ -231,7 +231,7 @@ class NeighborList(Collider):
             secondary_kw["search_range"] = int(
                 jnp.max(jnp.abs(secondary.neighbor_mask))
             )
-        for name in ("tile_capacity", "clump_aware"):
+        for name in ("tile_capacity", "clump_aware", "_auto_capacity"):
             if hasattr(secondary, name):
                 secondary_kw[name] = getattr(secondary, name)
         new = type(self).Create(

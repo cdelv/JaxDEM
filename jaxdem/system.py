@@ -627,7 +627,7 @@ class System:
             domain = Domain.create(domain_type, dim=dim, **domain_kw)
         collider.validate_domain(domain)
 
-        return System(
+        system = System(
             linear_integrator=(
                 LinearIntegrator.create(linear_integrator_type, **linear_integrator_kw)
                 if linear_integrator is None
@@ -657,6 +657,11 @@ class System:
             minimizer=minimizer_wrapped,
             target_fn=target_fn,
         )
+        if state is not None:
+            from .colliders._cell_options import configure_cell_capacity
+
+            system = configure_cell_capacity(state, system)
+        return system
 
     @staticmethod
     @jax.jit
@@ -995,7 +1000,9 @@ class System:
         systems = list(systems)
         if not systems:
             raise ValueError("System.stack() received an empty list")
+        from .colliders._cell_options import align_cell_capacities
 
+        systems = align_cell_capacities(systems)
         return jax.tree.map(lambda *xs: jnp.stack(xs), *systems)
 
     @staticmethod

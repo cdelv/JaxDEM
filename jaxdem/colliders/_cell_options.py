@@ -5,13 +5,16 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from jax.typing import ArrayLike
 
     from ..state import State
+    from ..system import System
 
 
 def validate_cell_options(
@@ -105,5 +108,124 @@ def resolve_cell_tile_capacity(
     occupancy = estimate_neighbor_capacity(state, cell_radius)
     tiles_per_cell = (occupancy + PAIR_UNROLL - 1) // PAIR_UNROLL
     capacity = state.N * stencil_size * tiles_per_cell
+    capacity = min(capacity, state.N * state.N)
+    index_limit = (1 << (63 if jax.config.jax_enable_x64 else 31)) - 1
+    if capacity >= index_limit:
+        # The full system measures the actual work before allocating a pool.
+        capacity = state.N * min(stencil_size, state.N)
     validate_cell_options(capacity, False, static)
     return capacity
+
+
+def configure_cell_capacity(state: State, system: System) -> System:
+    """Size an automatic pool once the search geometry and force law exist."""
+    collider = system.collider
+    backend = getattr(collider, "secondary_collider", collider)
+    if not getattr(backend, "_auto_capacity", False):
+        return system
+    if any(
+        isinstance(value, jax.core.Tracer) for value in jax.tree.leaves((state, system))
+    ):
+        raise ValueError(
+            "Automatic static capacity requires concrete reference data. "
+            "Set tile_capacity when constructing a system while tracing."
+        )
+    if state.pos_c.ndim > 2:
+        from ..state import State
+
+        capacity = max(
+            _measure_cell_capacity(snapshot, system)
+            for snapshot in State.unstack(state)
+        )
+    else:
+        capacity = _measure_cell_capacity(state, system)
+    backend = replace(backend, tile_capacity=capacity)
+    collider = (
+        replace(collider, secondary_collider=backend)
+        if hasattr(collider, "secondary_collider")
+        else backend
+    )
+    return replace(system, collider=collider)
+
+
+def _measure_cell_capacity(state: State, system: System) -> int:
+    """Add headroom to measured tiles, with room for occupied stencil cells."""
+    from ._partition import PAIR_UNROLL
+    from ._static_cell import _partition_tile_counts
+
+    collider = system.collider
+    backend = getattr(collider, "secondary_collider", collider)
+    n = state.N
+    if n == 0:
+        return 0
+    radii = system.force_model.search_radii(state, system)
+    radius = jnp.max(radii, initial=0.0)
+    stencil_reach = jnp.maximum(jnp.max(jnp.abs(backend.neighbor_mask)), 1)
+    if hasattr(collider, "secondary_collider"):
+        reach = jnp.maximum(collider.cutoff, 2 * radius) + collider.skin
+        member_radii, query_radii = None, reach
+        padding = reach
+        system = replace(system, collider=backend)
+    else:
+        reach = 2 * radius
+        member_radii, query_radii = radii, radii
+        padding = radius
+    cell_size = jnp.maximum(backend.cell_size, reach / stencil_reach)
+    geometry = system.domain.update_bounds(state.pos, system, padding=padding)
+    perm, starts, ends, counts, overflow = _partition_tile_counts(
+        state.pos,
+        geometry,
+        cell_size,
+        backend.neighbor_mask,
+        prune_cells=backend._prune_cells,
+        member_radii=member_radii,
+        query_radii=query_radii,
+    )
+    if bool(overflow):
+        raise ValueError("Reference cell grid exceeds the supported hash range")
+    stencil_size = backend.neighbor_mask.shape[0]
+    if backend.clump_aware:
+        from ._clump_exclusions import build_clump_index, clump_exclusion_ranges
+
+        index = build_clump_index(perm, state.clump_id)
+        own_start, own_end = clump_exclusion_ranges(index, state.clump_id, starts, ends)
+        eligible = ends - starts - (own_end - own_start)
+        counts = eligible // PAIR_UNROLL + (eligible % PAIR_UNROLL != 0)
+        _, inverse, sizes = np.unique(
+            np.asarray(state.clump_id), return_inverse=True, return_counts=True
+        )
+        available = n - sizes[inverse]
+        floor = int(np.minimum(available, stencil_size).sum(dtype=np.int64))
+        upper = int(available.sum(dtype=np.int64))
+    else:
+        floor = n * min(stencil_size, n)
+        upper = n * n
+    # Host int64 also handles dense reference states beyond the device index range.
+    required = int(np.asarray(counts).sum(dtype=np.int64))
+    capacity = min(max((3 * required + 1) // 2, floor), upper)
+    validate_cell_options(capacity, backend.clump_aware, True)
+    return capacity
+
+
+def align_cell_capacities(systems: list[System]) -> list[System]:
+    """Give stacked automatic pools one shared capacity without resizing explicit pools."""
+    backends = [getattr(s.collider, "secondary_collider", s.collider) for s in systems]
+    automatic = [getattr(backend, "_auto_capacity", False) for backend in backends]
+    if not any(automatic):
+        return systems
+    capacities = [getattr(backend, "tile_capacity", None) for backend in backends]
+    if not all(automatic) and len(set(capacities)) != 1:
+        return systems
+    capacity = max(capacities)
+    result = []
+    for system, backend in zip(systems, backends):
+        backend = replace(
+            backend, tile_capacity=capacity, _auto_capacity=all(automatic)
+        )
+        collider = (
+            replace(system.collider, secondary_collider=backend)
+            if hasattr(system.collider, "secondary_collider")
+            else backend
+        )
+        result.append(replace(system, collider=collider))
+    return result

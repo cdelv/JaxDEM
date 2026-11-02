@@ -471,6 +471,11 @@ def _validate_schema3_tree(node: h5py.Group | h5py.Dataset) -> None:
         if cls.__name__ == "State" and cls.__module__.endswith(".state"):
             # Earlier schema-3 states use the default rigid-body path.
             required -= {"only_spheres"} - saved
+        if cls.__name__ in {"DynamicCellList", "DynamicMultiCellList"} and (
+            cls.__module__.startswith("jaxdem.colliders.")
+        ):
+            # Earlier pools retain their saved capacity as an explicit budget.
+            required -= {"_auto_capacity"} - saved
         legacy_fields = LEGACY_FACET_FIELDS.get(_qualname(cls), frozenset())
         layout = node.attrs.get("__facet_incidence_layout__")
         if layout is not None and (

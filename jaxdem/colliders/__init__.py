@@ -57,6 +57,14 @@ class Collider(Factory, ABC):
     supported_search_geometries: ClassVar[frozenset[SearchGeometry] | None] = None
     """Supported hashed geometries, or ``None`` for displacement-only search."""
 
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Keep automatic pool sizing when a checkpoint rebuilds the collider."""
+        metadata = super(Collider, self).metadata
+        if getattr(self, "_auto_capacity", False):
+            metadata["_auto_capacity"] = True
+        return metadata
+
     def validate_domain(self, domain: Domain) -> None:
         """Validate construction-time compatibility with ``domain``."""
         supported = self.supported_search_geometries
