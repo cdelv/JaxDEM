@@ -913,15 +913,22 @@ def check_and_rebuild(state: Any, system: Any) -> Any:
     def update_if_needed(_: Any) -> Any:
         return jax.lax.cond(rebuild | geometry_changed, update, lambda _: col, None)
 
-    if col.history.size:
-        collider = jax.lax.cond(
-            _shared_idle(rebuild | geometry_changed),
+    def update_active_batch(_: Any) -> Any:
+        drift = system.domain.search_geometry_drift(col.metric_snapshot, col.old_pos)
+        geometry_required = geometry_changed & (displacement + drift > col.skin)
+        return jax.lax.cond(
+            _shared_idle(rebuild | geometry_required),
             lambda _: col,
             update_if_needed,
             None,
         )
-    else:
-        collider = update_if_needed(None)
+
+    collider = jax.lax.cond(
+        _shared_idle(rebuild | geometry_changed),
+        lambda _: col,
+        update_active_batch,
+        None,
+    )
     return replace(system, collider=collider)
 
 
@@ -1073,6 +1080,23 @@ def forces(
     if n == 0 or capacity == 0:
         return jnp.zeros_like(state.force), jnp.zeros_like(state.torque), col.history
     pos = state.pos
+    # Keep scalar flat kernels and select occupied prefixes for explicit batches.
+    if col.history.size == 0 and _uses_flat_cache(col, state.dim):
+        if capacity <= _HISTORY_PREFIX_SIZE:
+            return _flat_forces(state, system, advance_history, quasistatic)
+
+        def evaluate_flat_prefix(prefix: int, st: Any, sy: Any) -> Any:
+            if prefix == capacity:
+                return _flat_forces(st, sy, advance_history, quasistatic)
+            return _fixed_pool_forces(
+                st, sy, advance_history, quasistatic, prefix_capacity=prefix
+            )
+
+        return _prefix_dispatch(
+            evaluate_flat_prefix,
+            minimum=_HISTORY_PREFIX_SIZE,
+            scalar_limit=capacity,
+        )(state, system)
     if _uses_fixed_cache(col, state.dim):
         minimum = _HISTORY_PREFIX_SIZE if col.history.size else _FIXED_PAIR_BATCH_SIZE
         if capacity <= minimum:
@@ -1088,9 +1112,6 @@ def forces(
             minimum,
             scalar_limit=_HISTORY_PAIR_BATCH_SIZE if col.history.size else None,
         )(state, system)
-    # Choose by static buffer size, so small caches avoid a GPU row-loop launch.
-    if _uses_flat_cache(col, state.dim):
-        return _flat_forces(state, system, advance_history, quasistatic)
     write_history = col.history.size > 0 and advance_history
 
     def evaluate(i: Any, neighbors: Any, slots: Any) -> Any:
@@ -1220,6 +1241,7 @@ def _flat_forces(
         advance_history=advance_history,
         quasistatic=quasistatic,
     )
+    # Padding has source N. Drop it instead of adding to an extra bucket.
     if (
         col.history.size > 0
         and col.neighbor_list.size <= _HISTORY_PAIR_BATCH_SIZE
@@ -1228,12 +1250,12 @@ def _flat_forces(
     ):
         force_width = f.shape[-1]
         joined = jax.ops.segment_sum(
-            jnp.concatenate((f, t), axis=-1), src, num_segments=state.N + 1
-        )[: state.N]
+            jnp.concatenate((f, t), axis=-1), src, num_segments=state.N
+        )
         force, torque = joined[..., :force_width], joined[..., force_width:]
     else:
-        force = jax.ops.segment_sum(f, src, num_segments=state.N + 1)[: state.N]
-        torque = jax.ops.segment_sum(t, src, num_segments=state.N + 1)[: state.N]
+        force = jax.ops.segment_sum(f, src, num_segments=state.N)
+        torque = jax.ops.segment_sum(t, src, num_segments=state.N)
     return force, torque + cross(state._pos_p_rot, force), history
 
 

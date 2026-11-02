@@ -157,15 +157,13 @@ class NeighborList(Collider):
     When :math:`f_{rebuild}` approaches :math:`1` (rebuilding every step),
     the neighbor list becomes slower than direct spatial partitioning colliders because of the redundant list buffering.
 
-    .. warning::
-        **Batching with** ``jax.vmap`` **defeats the Verlet-list caching.**
-        The conditional rebuild uses ``jax.lax.cond``. Under ``jax.vmap``, JAX
-        lowers ``cond`` to ``select``, so **both** branches execute for every
-        batch element at every step. A full neighbor-list rebuild then happens
-        every timestep for every batched environment, and the collider loses
-        its performance benefit. For batched simulations, use the underlying
-        spatial-partitioning collider (e.g. ``"CellList"``) directly. This
-        warning does not apply to the naive collider, which has no cache.
+    .. note::
+        Explicit ``jax.vmap`` batches share a cache-validity check. If every
+        cache is valid, the whole batch skips neighbor-list construction.
+        Each simulation still controls its own rebuild counter, cached positions,
+        history, and overflow flag. If any cache needs work, the batch evaluates
+        the rebuild path and selects each simulation's result. Mixed batches can
+        therefore do extra search work for simulations whose caches remain valid.
     """
 
     secondary_collider: Collider
