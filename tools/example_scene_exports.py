@@ -28,6 +28,7 @@ import xml.etree.ElementTree as ET
 import numpy as np
 
 _DIAGNOSTICS_ONLY = {
+    "batched_policy_training_guide",
     "checkpoint_guide",
     "collider_guide",
     "custom_modules_guide",
