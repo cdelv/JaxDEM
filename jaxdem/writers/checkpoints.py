@@ -33,6 +33,7 @@ from ..materials import MaterialTable
 from ..state import State
 from ..system import System
 from ..utils import decode_callable
+from ..utils.serialization import supported_kwargs
 from ..utils.serialization_schema import (
     CURRENT_SCHEMA_VERSION,
     FACET_INCIDENCE_LAYOUT_VERSION,
@@ -562,7 +563,15 @@ class CheckpointLoader(BaseCheckpointManager):
             constructor_path = minimizer_meta.get("constructor")
             kw = minimizer_meta.get("kw", {})
             if constructor_path:
-                system_metadata["minimizer"] = decode_callable(constructor_path)
+                constructor = decode_callable(constructor_path)
+                kw, dropped = supported_kwargs(constructor, kw)
+                if dropped:
+                    warnings.warn(
+                        "Ignoring saved minimizer arguments no longer accepted "
+                        f"by {constructor_path}: {', '.join(dropped)}",
+                        stacklevel=2,
+                    )
+                system_metadata["minimizer"] = constructor
                 system_metadata["minimizer_kw"] = kw
 
         target_fn_path = system_metadata.pop("target_fn", None)

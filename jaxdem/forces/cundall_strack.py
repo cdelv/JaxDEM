@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Callable, Literal, NamedTuple, cast
 
 from ..utils.linalg import cross, dot, norm, norm2, unit, unit_and_norm
 from ..utils.linalg import harmonic_mean as _harmonic_mean
+from ..utils.quaternion import Quaternion
 from . import ForceModel
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -143,7 +144,62 @@ def _transport_tangent(
     return rotated - dot(rotated, normal)[..., None] * normal
 
 
-@jax.jit(inline=True, static_argnames=("advance_history",))
+def _quasistatic_center_step(index: int, state: State, dt: jax.Array) -> jax.Array:
+    """Recover a member sphere's net center displacement from the fictitious rates."""
+    offset = state._pos_p_rot[index]
+    rotation = state.ang_vel[index] * dt
+    if state.dim == 2:
+        angle = rotation[..., 0]
+        perpendicular = jnp.stack((-offset[..., 1], offset[..., 0]), axis=-1)
+        old_offset = (
+            jnp.cos(angle)[..., None] * offset
+            - jnp.sin(angle)[..., None] * perpendicular
+        )
+    else:
+        old_offset = Quaternion.rotate(Quaternion.from_rotvec(-rotation), offset)
+    return state.vel[index] * dt + (offset - old_offset)
+
+
+def _quasistatic_contact_fraction(
+    i: int, j: int, pos: jax.Array, state: State, system: System, rij: jax.Array
+) -> tuple[jax.Array, jax.Array]:
+    """Return the post-touch fraction and whether contact existed at the origin.
+
+    ``advance_history`` encodes the net configuration change as velocity * dt.
+    Interpolate sphere-center separation linearly between its endpoints and
+    solve |old_rij + t * step| = Ri + Rj for first touch. This prevents motion
+    before contact from charging a newly formed tangential spring.
+    """
+    step_i = _quasistatic_center_step(i, state, system.dt)
+    step_j = _quasistatic_center_step(j, state, system.dt)
+    # Use the same periodic image as the force, including its box/shear motion.
+    zero = jnp.zeros_like(step_i)
+    image_rate = system.domain.relative_velocity(pos[i], pos[j], zero, zero, system)
+    step = step_i - step_j + image_rate * system.dt
+    old_rij = rij - step
+    distance = norm(old_rij)
+    radius = state.rad[i] + state.rad[j]
+    existed = distance < radius
+    a = dot(step, step)
+    b = dot(old_rij, step)
+    c = (distance - radius) * (distance + radius)
+    discriminant = jnp.maximum(b * b - a * c, 0.0)
+    # c / (-b + sqrt(D)) is the cancellation-safe form of the entry root.
+    # Guard the square root and division so inactive pairs have finite AD.
+    root = jnp.where(
+        discriminant > 0.0,
+        jnp.sqrt(jnp.where(discriminant > 0.0, discriminant, 1.0)),
+        0.0,
+    )
+    denominator = -b + root
+    entry = jnp.where(
+        denominator > 0.0, c / jnp.where(denominator > 0.0, denominator, 1.0), 1.0
+    )
+    fraction = jnp.where(existed, 1.0, 1.0 - jnp.clip(entry, 0.0, 1.0))
+    return fraction, existed
+
+
+@jax.jit(inline=True, static_argnames=("advance_history", "resolve_contact_birth"))
 @partial(jax.named_call, name="cundall_strack_contact_response")
 def _contact_response_with_coefficients(
     i: int,
@@ -160,6 +216,7 @@ def _contact_response_with_coefficients(
     mu_r_ij: jax.Array,
     *,
     advance_history: bool,
+    resolve_contact_birth: bool = False,
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
     """Evaluate the shared linear spring-dashpot Cundall--Strack law."""
     R_i, R_j = state.rad[i], state.rad[j]
@@ -195,7 +252,15 @@ def _contact_response_with_coefficients(
         xi = _rotate_about_axis(
             xi, n, spin * system.dt if advance_history else jnp.zeros_like(spin)
         )
-    xi_trial = xi + vt_vec * system.dt
+    if resolve_contact_birth and advance_history:
+        # Only quasistatic updates encode a whole configuration increment in
+        # these velocities. Real time integration retains its usual DEM update.
+        # E.g. contact born halfway through a 0.4-rad rotation receives 0.2 rad.
+        fraction, existed = _quasistatic_contact_fraction(i, j, pos, state, system, rij)
+        xi = jnp.where(existed[..., None], xi, 0.0)
+        xi_trial = xi + vt_vec * (system.dt * fraction)[..., None]
+    else:
+        xi_trial = xi + vt_vec * system.dt
     xi_eval = xi_trial if advance_history else xi
 
     Ft_trial = -kt[..., None] * xi_eval - gamma_t[..., None] * vt_vec
@@ -510,7 +575,12 @@ class CundallStrackForce(ForceModel):
         quasistatic : bool, optional
             Evaluate with no time passing: the normal and tangential dashpots
             and rolling friction are switched off and the Coulomb cap uses
-            the elastic normal force only.
+            the elastic normal force only. When advancing history, motion is
+            interpreted as a net configuration increment. New contacts count
+            only its post-touch fraction, assuming linear center separation
+            and constant radii over the increment. This applies to every
+            quasistatic advancing update: affine box deformation and both
+            advancing minimizer history updates.
 
         Returns
         -------
@@ -542,6 +612,7 @@ class CundallStrackForce(ForceModel):
                 mu_ij,
                 mu_r_ij,
                 advance_history=advance_history,
+                resolve_contact_birth=quasistatic,
             )
         )
         return normal + tangential, torque, new_history

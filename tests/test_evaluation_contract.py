@@ -50,7 +50,7 @@ class _HistoryScaledSpring(_RememberingSpring):
         return force * scale, torque * scale, history + advance_history
 
 
-def _history_system() -> tuple[jd.State, jd.System]:
+def _history_system(skin: float = 0.1) -> tuple[jd.State, jd.System]:
     state = jd.State.create(
         pos=jnp.array([[0.0, 0.0], [0.3, 0.0]]),
         rad=jnp.full(2, 0.5),
@@ -63,7 +63,7 @@ def _history_system() -> tuple[jd.State, jd.System]:
         collider_kw={
             "max_neighbors": 2,
             "cutoff": 1.0,
-            "skin": 0.1,
+            "skin": skin,
             "secondary_collider_type": "naive",
         },
     )
@@ -71,9 +71,11 @@ def _history_system() -> tuple[jd.State, jd.System]:
 
 
 @pytest.mark.parametrize("optimizer", [jd.fire, jd.damped_newtonian])
-@pytest.mark.parametrize("advance_history", [False, True])
+@pytest.mark.parametrize(
+    ("history_update", "advances"), [("frozen", 0), ("path", 3), ("endpoint", 1)]
+)
 def test_relaxation_advances_history_per_step_and_preserves_loads(
-    optimizer, advance_history
+    optimizer, history_update, advances
 ) -> None:
     state, system = _history_system()
     state = dataclasses.replace(
@@ -87,17 +89,22 @@ def test_relaxation_advances_history_per_step_and_preserves_loads(
     system = system.force_manager.add_force(state, system, queued)
     history = np.asarray(system.collider.history).copy()
 
-    options = {"advance_history": True} if advance_history else {}
     result = system.minimize(
-        state, system, max_steps=3, force_tol=0.0, torque_tol=0.0, **options
+        state,
+        system,
+        max_steps=3,
+        force_tol=0.0,
+        torque_tol=0.0,
+        history_update=history_update,
     )
 
     assert int(result.steps) == 3
-    # The initial evaluation is read-only; each accepted step advances once.
+    # The initial evaluation is read-only. Path updates accumulate one advance
+    # per step; endpoint updates always restart from the stored history.
     valid = np.asarray(result.system.collider.neighbor_list) >= 0
     np.testing.assert_array_equal(
         np.asarray(result.system.collider.history)[valid],
-        history[valid] + 3 * advance_history,
+        history[valid] + advances,
     )
     np.testing.assert_array_equal(result.system.force_manager.external_force, queued)
     np.testing.assert_array_equal(result.state.vel, state.vel)
@@ -106,6 +113,87 @@ def test_relaxation_advances_history_per_step_and_preserves_loads(
     assert result.system.step_count == system.step_count
     observed, _ = jd.System.evaluate_forces(result.state, result.system)
     np.testing.assert_allclose(observed.force - result.state.force, queued)
+
+
+@pytest.mark.parametrize("optimizer", [jd.fire, jd.damped_newtonian])
+def test_endpoint_history_update_follows_rebuilds_without_extra_builds(optimizer) -> None:
+    # The pair stays cached while its separation is below the radii sum plus
+    # the skin. Repulsion vanishes at 1.0, and the optimizer's final step
+    # overshoots that, so the skin must cover the overshoot for the pair to
+    # survive to the end while still forcing several rebuilds on the way.
+    state, system = _history_system(skin=0.2)
+    state = dataclasses.replace(state, fixed=jnp.zeros_like(state.fixed))
+    system = dataclasses.replace(system, minimizer=optimizer(dt=1e-3))
+    stored = np.asarray(system.collider.history)[
+        np.asarray(system.collider.neighbor_list) >= 0
+    ]
+    assert stored.size and np.all(stored == stored.flat[0])
+
+    results = {
+        mode: system.minimize(
+            state, system, max_steps=1000, force_tol=1e-8, history_update=mode
+        )
+        for mode in ("path", "endpoint")
+    }
+    endpoint, path = results["endpoint"], results["path"]
+
+    assert bool(endpoint.converged)
+    np.testing.assert_array_equal(endpoint.state.pos, path.state.pos)
+    # Pushing the overlap apart moves each particle by several half-skins.
+    builds = int(endpoint.system.collider.n_build_times)
+    assert builds > int(system.collider.n_build_times) + 2
+    assert builds == int(path.system.collider.n_build_times)
+    # The surviving pair carries the stored history across every rebuild.
+    valid = np.asarray(endpoint.system.collider.neighbor_list) >= 0
+    assert valid.any()
+    np.testing.assert_array_equal(
+        np.asarray(endpoint.system.collider.history)[valid], stored.flat[0] + 1
+    )
+
+
+@pytest.mark.parametrize("optimizer", [jd.fire, jd.damped_newtonian])
+def test_endpoint_history_update_remaps_only_when_the_pair_layout_changes(
+    monkeypatch, optimizer
+) -> None:
+    from jaxdem.colliders.neighbor_list import NeighborList
+    from jaxdem.minimizers import routines
+
+    state, system = _history_system()
+    state = dataclasses.replace(state, fixed=jnp.zeros_like(state.fixed))
+    system = dataclasses.replace(system, minimizer=optimizer(dt=1e-3))
+    original = NeighborList.transfer_history
+    remaps: list[None] = []
+
+    def counted_transfer(self, previous, history, st, sy):
+        jax.debug.callback(
+            lambda _: remaps.append(None), history[0, 0], ordered=True
+        )
+        return original(self, previous, history, st, sy)
+
+    routines.minimize.clear_cache()
+    monkeypatch.setattr(NeighborList, "transfer_history", counted_transfer)
+    try:
+        result = system.minimize(
+            state, system, max_steps=1000, force_tol=-1.0, history_update="endpoint"
+        )
+        jax.block_until_ready(result)
+        jax.effects_barrier()
+    finally:
+        routines.minimize.clear_cache()
+
+    rebuilds = int(result.system.collider.n_build_times - system.collider.n_build_times)
+    assert int(result.steps) == 1000
+    # Several rebuilds happen, and the initial history is mapped exactly once
+    # per rebuild rather than on every step after the first one.
+    assert rebuilds > 2
+    assert len(remaps) == rebuilds
+
+
+def test_minimize_rejects_unknown_history_update() -> None:
+    state, system = _history_system()
+    system = dataclasses.replace(system, minimizer=jd.fire(dt=1e-3))
+    with pytest.raises(ValueError, match="history_update"):
+        system.minimize(state, system, history_update="trajectory")
 
 
 def test_evaluation_preserves_history_and_queued_load_until_step() -> None:

@@ -466,8 +466,9 @@ print("History advanced:", bool(jnp.any(history_system.collider.history != 0)))
 # Affine changes through :py:meth:`~jaxdem.domains.lees_edwards.LeesEdwardsDomain.shear`
 # and :py:meth:`~jaxdem.domains.Domain.resize` advance
 # displacement-dependent history with :py:func:`jaxdem.colliders.advance_history`.
-# Minimization freezes existing pair history by default. Opt in with
-# :py:meth:`~jaxdem.system.System.minimize` with ``advance_history=True`` to advance it after
-# accepted optimizer steps. This retains the stored spring
-# when updates are disabled; it does not reset frictional memory. Both modes
-# use ``quasistatic=True``, disabling velocity-dependent forces.
+# Minimization freezes existing pair history by default. Pass
+# ``history_update="path"`` to :py:meth:`~jaxdem.system.System.minimize` to
+# advance it along the accepted optimizer steps, or ``history_update="endpoint"``
+# to advance it as one step from the initial to the accepted configuration. The
+# frozen option retains the stored spring; it does not reset frictional memory.
+# Every option uses ``quasistatic=True``, disabling velocity-dependent forces.

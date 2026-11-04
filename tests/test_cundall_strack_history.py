@@ -602,9 +602,9 @@ def test_advance_history_does_not_depend_on_dt_or_damping() -> None:
     "optimizer", [jd.minimizers.fire, jd.minimizers.damped_newtonian]
 )
 @pytest.mark.parametrize("parameterization", ["elastic", "coefficients"])
-@pytest.mark.parametrize("advance_history", [False, True])
+@pytest.mark.parametrize("history_update", ["frozen", "path", "endpoint"])
 def test_force_minimizers_advance_contact_history(
-    optimizer, parameterization, advance_history
+    optimizer, parameterization, history_update
 ) -> None:
     state = jd.State.create(
         pos=jnp.array([[0.0, 0.0], [0.8, 0.0], [0.0, 0.85]]),
@@ -657,20 +657,20 @@ def test_force_minimizers_advance_contact_history(
     initial[: len(sources), :2] = 0.002 * tangents
     initial[: len(sources), 2:] = old_normals
     system = replace(system, collider=replace(col, history=jnp.asarray(initial)))
-    options = {"advance_history": True} if advance_history else {}
     result = system.minimize(
         state,
         system,
         max_steps=1,
         force_tol=-1.0,
         torque_tol=-1.0,
-        **options,
+        history_update=history_update,
     )
 
     valid = result.system.collider.neighbor_list >= 0
     tangential = result.system.collider.history[valid, : state.dim]
     assert int(result.steps) == 1
-    if advance_history:
+    # After one update, both advancing options take the same single step.
+    if history_update != "frozen":
         pos = np.asarray(result.state.pos)
         normal = pos[sources] - pos[targets]
         normal /= np.linalg.norm(normal, axis=-1, keepdims=True)
@@ -698,8 +698,263 @@ def test_force_minimizers_advance_contact_history(
     assert bool(jnp.isfinite(result.energy))
 
 
+def _pair_history(collider, n: int) -> dict[tuple[int, int], np.ndarray]:
+    sources = np.repeat(np.arange(n), np.diff(np.asarray(collider.row_offsets)))
+    targets = np.asarray(collider.neighbor_list)[: len(sources)]
+    history = np.asarray(collider.history)[: len(sources)]
+    return {
+        (int(i), int(j)): history[k]
+        for k, (i, j) in enumerate(zip(sources, targets, strict=True))
+        if j >= 0
+    }
+
+
+@pytest.mark.parametrize(
+    "optimizer", [jd.minimizers.fire, jd.minimizers.damped_newtonian]
+)
+def test_endpoint_history_update_is_one_step_from_the_initial_configuration(
+    optimizer,
+) -> None:
+    state = jd.State.create(
+        pos=jnp.array([[0.0, 0.0], [0.8, 0.0], [0.0, 0.85]]),
+        rad=jnp.full(3, 0.5),
+        mass=jnp.ones(3),
+        fixed=jnp.array([False, True, True]),
+    )
+    material = jd.Material.create(
+        "cundallstrackparams",
+        density=1.0,
+        k_n=100.0,
+        k_t=20.0,
+        b_n=0.5,
+        b_t=0.25,
+        mu=10.0,
+    )
+    system = jd.System.create(
+        state=state,
+        dt=1.0e-3,
+        force_model=jd.forces.CundallStrackForce(parameterization="coefficients"),
+        mat_table=jd.MaterialTable.from_materials([material]),
+        collider_type="NeighborList",
+        collider_kw={
+            "max_neighbors": 2,
+            "cutoff": 1.0,
+            "secondary_collider_type": "naive",
+        },
+        minimizer=optimizer,
+        minimizer_kw={"dt": 3.0e-3},
+    )
+    _, system = jd.System.evaluate_forces(state, system)
+    col = system.collider
+    initial = np.asarray(col.history).copy()
+    sources = np.repeat(np.arange(state.N), np.diff(np.asarray(col.row_offsets)))
+    targets = np.asarray(col.neighbor_list)[: len(sources)]
+    normals = np.asarray(state.pos)[sources] - np.asarray(state.pos)[targets]
+    normals /= np.linalg.norm(normals, axis=-1, keepdims=True)
+    initial[: len(sources), :2] = 0.02 * np.stack(
+        [-normals[:, 1], normals[:, 0]], axis=-1
+    )
+    initial[: len(sources), 2:] = normals
+    system = replace(system, collider=replace(col, history=jnp.asarray(initial)))
+
+    results = {
+        mode: system.minimize(
+            state,
+            system,
+            max_steps=40,
+            force_tol=-1.0,
+            torque_tol=-1.0,
+            history_update=mode,
+        )
+        for mode in ("path", "endpoint")
+    }
+    result = results["endpoint"]
+    expected_state, expected_system = jd.colliders.advance_history(
+        state, system, result.state, system
+    )
+
+    # The relaxation crosses several rebuilds while both contacts persist.
+    assert int(result.system.collider.n_build_times) > int(col.n_build_times) + 2
+    expected = _pair_history(expected_system.collider, state.N)
+    assert set(expected) == {(0, 1), (1, 0), (0, 2), (2, 0)}
+    assert all(np.abs(h[:2]).max() > 0.05 for h in expected.values())
+
+    actual = _pair_history(result.system.collider, state.N)
+    assert set(actual) == set(expected)
+    for pair, history in expected.items():
+        np.testing.assert_allclose(actual[pair], history, rtol=1e-6, atol=1e-8)
+    np.testing.assert_allclose(
+        result.state.force, expected_state.force, rtol=1e-6, atol=1e-8
+    )
+    np.testing.assert_allclose(
+        result.state.torque, expected_state.torque, rtol=1e-6, atol=1e-8
+    )
+
+    # Accumulating along the optimizer path rotates the spring step by step.
+    path = _pair_history(results["path"].system.collider, state.N)
+    assert max(np.abs(path[p] - expected[p]).max() for p in expected) > 1e-3
+
+
+def _scripted_history_optimizer(path, rotations):
+    """Force a known optimizer path independently of the contact forces."""
+    from jaxdem.minimizers.optimizers import CustomGradientTransformation
+
+    path_key = tuple(tuple(row) for row in path)
+    rotation_key = tuple(rotations)
+    translations = jnp.asarray(path_key)
+    angles = jnp.asarray(rotation_key)
+
+    def init(params):
+        return jnp.asarray(0)
+
+    def update(grads, step, params=None, **kwargs):
+        translation = jnp.zeros_like(params["pos_c"]).at[0].set(translations[step])
+        # 3D optimizer coordinates are raw quaternions with initial w = 2;
+        # choose z so their normalized orientation has the requested angle.
+        angle = angles[step]
+        coordinate = (
+            2.0 * jnp.tan(angle / 2.0)
+            if params["rotation"].shape[-1] == 4
+            else angle
+        )
+        rotation = jnp.zeros_like(params["rotation"]).at[0, -1].set(coordinate)
+        return {"pos_c": translation, "rotation": rotation}, step + 1
+
+    return CustomGradientTransformation(
+        init,
+        update,
+        _scripted_history_optimizer,
+        {"path": path_key, "rotations": rotation_key},
+        requires_value=False,
+    )
+
+
+def _history_regression_system(backend, separation, dim=2):
+    state = jd.State.create(
+        pos=jnp.zeros((2, dim)).at[1, 0].set(separation),
+        rad=jnp.full(2, 0.5),
+        mass=jnp.ones(2),
+        fixed=jnp.array([False, True]),
+    )
+    material = jd.Material.create(
+        "cundallstrackparams",
+        density=1.0,
+        k_n=1.0,
+        k_t=1.0,
+        b_n=0.0,
+        b_t=0.0,
+        mu=10.0,
+    )
+    system = jd.System.create(
+        state=state,
+        force_model=jd.forces.CundallStrackForce(parameterization="coefficients"),
+        mat_table=jd.MaterialTable.from_materials([material]),
+        domain_type="periodic",
+        domain_kw={"box_size": jnp.full(dim, 10.0)},
+        collider_type=backend,
+        collider_kw=(
+            {} if backend == "naive" else {
+                "max_neighbors": 2,
+                "cutoff": 1.0,
+                "skin": 0.05,
+                "secondary_collider_type": "naive",
+            }
+        ),
+    )
+    _, system = jd.System.evaluate_forces(state, system)
+    return state, system
+
+
+@pytest.mark.parametrize("backend", ["naive", "NeighborList"])
+@pytest.mark.parametrize("history_update", ["endpoint", "path"])
+def test_endpoint_history_recovers_pair_that_left_the_trial_cache(backend, history_update):
+    from jaxdem.colliders._neighbor_cache import pair_sources
+
+    state, system = _history_regression_system(backend, 0.8)
+    col = system.collider
+    if backend == "naive":
+        history = col.history.at[0, 1].set(jnp.array([0.0, 0.02, -1.0, 0.0]))
+        history = history.at[1, 0].set(jnp.array([0.0, -0.02, 1.0, 0.0]))
+    else:
+        source = pair_sources(col)
+        sign = jnp.where(source == 0, 1.0, -1.0)
+        values = jnp.stack([0.0 * sign, 0.02 * sign, -sign, 0.0 * sign], axis=-1)
+        history = jnp.where((col.neighbor_list >= 0)[:, None], values, 0.0)
+    system = replace(
+        system,
+        collider=replace(col, history=history),
+        minimizer=_scripted_history_optimizer([[-1.0, 0.0], [1.0, 0.0]], [0.0, 0.0]),
+    )
+    result = jd.minimize(
+        state, system, max_steps=2, force_tol=-1.0, torque_tol=-1.0,
+        history_update=history_update,
+    )
+    if backend == "NeighborList":
+        assert int(result.system.collider.n_build_times - col.n_build_times) == 2
+    np.testing.assert_allclose(result.state.pos_c, state.pos_c, atol=1e-12)
+    _, _, contacts = jd.forces.get_cundall_strack_contacts(result.state, result.system)
+    # A numerical excursion cannot erase initial history. Incremental history
+    # intentionally forgets the contact when the disks physically separate.
+    expected = 0.02 if history_update == "endpoint" else 0.0
+    np.testing.assert_allclose(
+        contacts.tangential_forces, [[0.0, -expected], [0.0, expected]], atol=1e-12
+    )
+    np.testing.assert_allclose(result.state.force[0, 1], -expected, atol=1e-12)
+
+
+@pytest.mark.parametrize("backend", ["naive", "NeighborList"])
+@pytest.mark.parametrize("dim", [2, 3])
+@pytest.mark.parametrize("history_update", ["endpoint", "path"])
+def test_quasistatic_new_contact_counts_only_rotation_after_touch(
+    backend, dim, history_update
+):
+    state, system = _history_regression_system(backend, 1.2, dim)
+    path = [[0.4] + [0.0] * (dim - 1)]
+    system = replace(system, minimizer=_scripted_history_optimizer(path, [0.4]))
+    result = jd.minimize(
+        state, system, max_steps=1, force_tol=-1.0, torque_tol=-1.0,
+        history_update=history_update,
+    )
+    _, _, contacts = jd.forces.get_cundall_strack_contacts(result.state, result.system)
+    # First touch is halfway through the approach (1.2 -> 0.8). Of the 0.4
+    # radians, only 0.2 occur in contact: |xi| = R * 0.2 = 0.1, with kt = 1.
+    np.testing.assert_allclose(
+        np.linalg.norm(contacts.tangential_forces, axis=-1), 0.1, atol=1e-12
+    )
+    np.testing.assert_allclose(
+        np.linalg.norm(result.state.torque, axis=-1), 0.05, atol=1e-12
+    )
+
+
+@pytest.mark.parametrize("backend", ["naive", "NeighborList"])
+@pytest.mark.parametrize("shrink_box", [False, True])
+@pytest.mark.parametrize("dt", [1.0e-3, 1.0])
+def test_quasistatic_contact_birth_uses_periodic_image_motion(backend, shrink_box, dt):
+    from jaxdem.utils.quaternion import Quaternion
+
+    state, system = _history_regression_system(backend, 8.8)
+    system = replace(system, dt=jnp.asarray(dt))
+    rotation = jnp.zeros((2, 3)).at[0, 2].set(0.4)
+    moved = replace(state, q=Quaternion.from_rotvec(rotation))
+    if shrink_box:
+        changed = replace(
+            system, domain=replace(system.domain, box_size=jnp.full(2, 9.6))
+        )
+    else:
+        moved = replace(moved, pos_c=moved.pos_c.at[0, 0].set(-0.4))
+        changed = system
+    advanced, changed = jd.colliders.advance_history(state, system, moved, changed)
+    _, _, contacts = jd.forces.get_cundall_strack_contacts(advanced, changed)
+    # The image separation goes from 1.2 to 0.8 in both cases. Motion of the
+    # particle and of its periodic image must give the same halfway birth.
+    np.testing.assert_allclose(
+        np.linalg.norm(contacts.tangential_forces, axis=-1), 0.1, atol=1e-12
+    )
+
+
+@pytest.mark.parametrize("history_update", ["frozen", "path", "endpoint"])
 def test_history_minimizer_uses_one_force_traversal_per_evaluation(
-    monkeypatch,
+    monkeypatch, history_update
 ) -> None:
     from jaxdem.minimizers import routines
 
@@ -728,6 +983,7 @@ def test_history_minimizer_uses_one_force_traversal_per_evaluation(
             max_steps=2,
             force_tol=-1.0,
             torque_tol=-1.0,
+            history_update=history_update,
         )
         jax.block_until_ready(result)
         jax.effects_barrier()

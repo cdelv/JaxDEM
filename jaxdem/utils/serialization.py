@@ -3,8 +3,29 @@
 """Import-path encoding and restoration of checkpoint callables."""
 
 import importlib
+import inspect
 from typing import Any
 from collections.abc import Callable
+
+
+def supported_kwargs(
+    fn: Callable[..., Any], kw: dict[str, Any]
+) -> tuple[dict[str, Any], list[str]]:
+    """Split saved keyword arguments into those ``fn`` accepts and the rest.
+
+    Saved constructor arguments can outlive a parameter that a later version
+    removed. Returns the accepted arguments and the sorted names of the
+    dropped ones. Functions with ``**kwargs`` or no inspectable signature
+    accept everything.
+    """
+    try:
+        parameters = inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return dict(kw), []
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values()):
+        return dict(kw), []
+    kept = {k: v for k, v in kw.items() if k in parameters}
+    return kept, sorted(set(kw).difference(kept))
 
 
 def encode_callable(fn: Callable[..., Any]) -> str:

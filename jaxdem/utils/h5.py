@@ -516,10 +516,17 @@ def _has_minimizer_interface(obj: Any) -> bool:
 
 
 def _construct_minimizer(constructor_path: str, kw: dict[str, Any]) -> Any:
-    from .serialization import decode_callable
+    from .serialization import decode_callable, supported_kwargs
     from ..minimizers.optimizers import CustomGradientTransformation
 
     constructor = decode_callable(constructor_path)
+    kw, dropped = supported_kwargs(constructor, kw)
+    if dropped:
+        _warn(
+            "System",
+            f"ignoring saved minimizer arguments no longer accepted by "
+            f"{constructor_path}: {', '.join(dropped)}",
+        )
     opt_obj = constructor(**kw)
     return CustomGradientTransformation(
         opt_obj.init,
