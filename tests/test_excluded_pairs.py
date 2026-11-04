@@ -3,6 +3,7 @@
 """Bond exclusions select the exact forces and energy of an asymmetric triangle."""
 
 import jax.numpy as jnp
+
 import numpy as np
 import pytest
 
@@ -26,13 +27,15 @@ def test_excluded_pairs(backend, include_bonds):
         state=state,
         mat_table=table,
         collider_type=backend,
-        collider_kw={
-            "max_neighbors": 3,
-            "cutoff": 1.6,
-            "secondary_collider_type": "CellList",
-        }
-        if backend == "NeighborList"
-        else {},
+        collider_kw=(
+            {
+                "max_neighbors": 3,
+                "cutoff": 1.6,
+                "secondary_collider_type": "CellList",
+            }
+            if backend == "NeighborList"
+            else {}
+        ),
         interact_same_bond_id=include_bonds,
     )
     pairs = [(0, 1), (0, 2), (1, 2)] if include_bonds else [(0, 2)]

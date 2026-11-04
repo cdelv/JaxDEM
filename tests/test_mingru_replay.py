@@ -1,7 +1,10 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """MinGRU replay must preserve rollout outputs and learning gradients."""
 
 import jax
 import jax.numpy as jnp
+
 import numpy as np
 import pytest
 from flax import nnx
@@ -11,9 +14,7 @@ from jaxdem.rl.models import MinGRUActorCritic
 
 def _outputs(model, observations, carry, done, *, sequence):
     if sequence:
-        pi, value = model(
-            observations, sequence=True, initial_carry=carry, done=done
-        )
+        pi, value = model(observations, sequence=True, initial_carry=carry, done=done)
         return jnp.concatenate((pi.logits, value), axis=-1)
     model.h.set_value(carry)
     outputs = []
@@ -30,23 +31,29 @@ def test_replay_matches_rollout_gradients_at_zero_and_nonzero_candidates(
     num_layers, candidate_weight
 ):
     model = MinGRUActorCritic(
-        2, 2, nnx.Rngs(7), hidden_features=2, gru_features=2,
-        num_layers=num_layers, activation=lambda x: x, discrete=True,
+        2,
+        2,
+        nnx.Rngs(7),
+        hidden_features=2,
+        gru_features=2,
+        num_layers=num_layers,
+        activation=lambda x: x,
+        discrete=True,
     )
     model.encoder.layers[0].kernel[...] = jnp.eye(2)
     model.encoder.layers[0].bias[...] = jnp.zeros(2)
     # At zero, nonzero inputs still give nonzero candidate-kernel gradients.
     kernel = model.mingru_kernel[...]
-    model.mingru_kernel[...] = kernel.at[:, :, :2].set(
-        candidate_weight * jnp.eye(2)
-    )
+    model.mingru_kernel[...] = kernel.at[:, :, :2].set(candidate_weight * jnp.eye(2))
     model.fused_head.kernel[...] = jnp.asarray([[0.3, -0.7, 0.9], [0.6, 0.2, -0.4]])
-    observations = jnp.asarray([
-        [[1.0, -0.5], [0.4, 0.7]],
-        [[0.2, 0.9], [-0.8, 0.3]],
-        [[-0.6, 0.2], [0.5, -0.4]],
-        [[0.7, 0.1], [-0.3, 0.8]],
-    ])
+    observations = jnp.asarray(
+        [
+            [[1.0, -0.5], [0.4, 0.7]],
+            [[0.2, 0.9], [-0.8, 0.3]],
+            [[-0.6, 0.2], [0.5, -0.4]],
+            [[0.7, 0.1], [-0.3, 0.8]],
+        ]
+    )
     carry = jnp.full((2, num_layers, 2), 0.3)
     done = jnp.asarray([[False, True], [True, False], [False, False], [True, True]])
     graph, state = nnx.split(model)
@@ -64,7 +71,9 @@ def test_replay_matches_rollout_gradients_at_zero_and_nonzero_candidates(
         rollout = jax.value_and_grad(loss, argnums=(0, 1), has_aux=True)(
             state, observations, sequence=False
         )
-    for actual, expected in zip(jax.tree.leaves(replay), jax.tree.leaves(rollout), strict=True):
+    for actual, expected in zip(
+        jax.tree.leaves(replay), jax.tree.leaves(rollout), strict=True
+    ):
         assert np.isfinite(actual).all()
         np.testing.assert_allclose(actual, expected, rtol=2e-5, atol=2e-6)
 
@@ -72,8 +81,14 @@ def test_replay_matches_rollout_gradients_at_zero_and_nonzero_candidates(
 @pytest.mark.parametrize("initial_value", [0.0, 1e-9, 1e-8])
 def test_replay_preserves_small_positive_initial_carry(initial_value):
     model = MinGRUActorCritic(
-        1, 1, nnx.Rngs(11), hidden_features=1, gru_features=1,
-        num_layers=1, activation=lambda x: x, discrete=True,
+        1,
+        1,
+        nnx.Rngs(11),
+        hidden_features=1,
+        gru_features=1,
+        num_layers=1,
+        activation=lambda x: x,
+        discrete=True,
     )
     model.encoder.layers[0].kernel[...] = jnp.ones((1, 1))
     model.encoder.layers[0].bias[...] = jnp.zeros(1)
@@ -97,3 +112,44 @@ def test_replay_preserves_small_positive_initial_carry(initial_value):
     assert np.isfinite(replay[1]).all()
     if initial_value > 0:
         np.testing.assert_allclose(replay[1], rollout[1], rtol=5e-6, atol=1e-6)
+
+
+def test_configured_mingru_matches_an_exact_recurrence_and_reset():
+    model = MinGRUActorCritic(
+        1,
+        2,
+        nnx.Rngs(0),
+        hidden_features=1,
+        gru_features=1,
+        num_layers=1,
+        activation=lambda x: x,
+        discrete=True,
+    )
+    model.encoder.layers[0].kernel[...] = jnp.ones((1, 1), dtype=jnp.float32)
+    model.encoder.layers[0].bias[...] = jnp.zeros(1, dtype=jnp.float32)
+    model.mingru_kernel[...] = jnp.array([[[0.5, 0.0, 0.0]]], dtype=jnp.float32)
+    model.fused_head.kernel[...] = jnp.array([[1.0, -1.0, 2.0]], dtype=jnp.float32)
+    model.fused_head.bias[...] = jnp.zeros(3, dtype=jnp.float32)
+    observations = jnp.array([[[1.0]], [[2.0]], [[3.0]]])
+    done = jnp.array([[False], [True], [False]])
+    # Candidate=.5*x+.5, update gate=.5. Carries are .5, 1, then 1
+    # after resetting the second step. Highway outputs are .75, 1.5, 2.
+    output = np.array([0.75, 1.5, 2.0])
+    probability = 1 / (1 + np.exp(-2 * output))
+    expected = np.column_stack(
+        [np.log(probability), np.log1p(-probability), 2 * output]
+    )[:, None]
+    initial = jnp.zeros((1, 1, 1))
+    np.testing.assert_allclose(
+        _outputs(model, observations, initial, done, sequence=True), expected, atol=2e-6
+    )
+    model.reset(observations.shape[1:])
+    for index, (obs, boundary) in enumerate(zip(observations, done, strict=True)):
+        policy, value = model(obs)
+        np.testing.assert_allclose(
+            jnp.concatenate([policy.logits, value], axis=-1), expected[index], atol=2e-6
+        )
+        np.testing.assert_allclose(model.h[...], [0.5, 1.0, 1.0][index], atol=2e-6)
+        model.reset(obs.shape, mask=boundary)
+        if index == 1:
+            np.testing.assert_array_equal(model.h[...], 0.0)

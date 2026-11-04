@@ -1,7 +1,10 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Known collision times, restitution and rigid-body wall impulses."""
 
 import jax
 import jax.numpy as jnp
+
 import numpy as np
 import pytest
 

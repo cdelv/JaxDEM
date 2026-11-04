@@ -1,9 +1,12 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """An independent rigid-body energy constrains the quaternion optimizer chart."""
-
-from dataclasses import replace
 
 import jax
 import jax.numpy as jnp
+
+from dataclasses import replace
+
 import numpy as np
 from scipy.spatial.transform import Rotation
 

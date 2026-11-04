@@ -4,13 +4,13 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import math
 from dataclasses import dataclass, field, replace
 from functools import partial
 from typing import TYPE_CHECKING, Any, cast
-
-import jax
-import jax.numpy as jnp
 
 try:
     from typing import Self
@@ -18,6 +18,7 @@ except ImportError:
     from typing_extensions import Self
 
 from . import Collider
+from ._cell_options import estimate_neighbor_capacity
 
 if TYPE_CHECKING:
     from ..domains import Domain
@@ -76,9 +77,8 @@ class NeighborList(Collider):
     The computational cost of simulations using neighbor lists has two parts:
 
     1. **Rebuild Cost**: Occurs when the maximum displacement exceeds the threshold.
-       You can configure any registerable collider (e.g., ``NaiveSimulator``,
-       ``DynamicCellList``, or ``DynamicMultiCellList``) to run the spatial queries
-       of this rebuild phase. The chosen underlying collider sets the complexity of
+       The supported rebuild backends are ``naive``, ``CellList``, and
+       ``MultiCellList``. The chosen underlying collider sets the complexity of
        the rebuild step (e.g., :math:`O(N^2)` for ``NaiveSimulator``, or
        :math:`O(N \log N)` for ``DynamicCellList``/``DynamicMultiCellList``).
     2. **Step Evaluation Cost**: Occurs at every timestep. We iterate over occupied
@@ -122,11 +122,13 @@ class NeighborList(Collider):
     - **safety_factor**: Multiplier on the estimated density that accounts for local fluctuations.
       Default is `1.2`.
     - **secondary_collider_type**: The identifier of the underlying collider that runs the spatial queries
-      during rebuilds (e.g. ``"CellList"``, ``"naive"``, or ``"MultiCellList"``). You can use any registered
-      ``Collider`` subclass for the rebuild phase to optimize the rebuild cost for your system.
+      during rebuilds: ``"CellList"``, ``"naive"``, or ``"MultiCellList"``.
     - **secondary_collider_kw**: Keyword args for the underlying collider constructor.
 
-    This collider suits dense assemblies, static packings, slow shear flows, gravity settling, or any low-velocity systems. It suits high-speed granular flows and high-temperature systems less, because rapid particle motion triggers frequent neighbor list rebuilds that cancel the caching advantage. Also, systems of rigid clumps with large overlaps need larger neighbor buffers to hold excluded constituent pairs. This increases the memory footprint and the step traversal cost.
+    This collider suits dense assemblies, static packings, slow shear flows,
+    and gravity settling. Fast motion triggers more rebuilds. Excluded
+    constituent pairs do not consume the shared pair pool, though overlapping
+    clumps can increase broad-phase traversal work.
 
     Temperature & Rebuild Frequency Discussion
     -------------------------------------------
@@ -155,15 +157,13 @@ class NeighborList(Collider):
     When :math:`f_{rebuild}` approaches :math:`1` (rebuilding every step),
     the neighbor list becomes slower than direct spatial partitioning colliders because of the redundant list buffering.
 
-    .. warning::
-        **Batching with** ``jax.vmap`` **defeats the Verlet-list caching.**
-        The conditional rebuild uses ``jax.lax.cond``. Under ``jax.vmap``, JAX
-        lowers ``cond`` to ``select``, so **both** branches execute for every
-        batch element at every step. A full neighbor-list rebuild then happens
-        every timestep for every batched environment, and the collider loses
-        its performance benefit. For batched simulations, use the underlying
-        spatial-partitioning collider (e.g. ``"CellList"``) directly. This
-        warning does not apply to the naive collider, which has no cache.
+    .. note::
+        Explicit ``jax.vmap`` batches share a cache-validity check. If every
+        cache is valid, the whole batch skips neighbor-list construction.
+        Each simulation still controls its own rebuild counter, cached positions,
+        history, and overflow flag. If any cache needs work, the batch evaluates
+        the rebuild path and selects each simulation's result. Mixed batches can
+        therefore do extra search work for simulations whose caches remain valid.
     """
 
     secondary_collider: Collider
@@ -231,6 +231,9 @@ class NeighborList(Collider):
             secondary_kw["search_range"] = int(
                 jnp.max(jnp.abs(secondary.neighbor_mask))
             )
+        for name in ("tile_capacity", "clump_aware", "_auto_capacity"):
+            if hasattr(secondary, name):
+                secondary_kw[name] = getattr(secondary, name)
         new = type(self).Create(
             state=state,
             cutoff=self.cutoff,
@@ -297,6 +300,9 @@ class NeighborList(Collider):
     skin_snapshot: jax.Array = field(default_factory=lambda: jnp.asarray(-1.0))
     """Neighbor-list skin used for the last build."""
 
+    facet_id_snapshot: jax.Array = field(default_factory=lambda: jnp.asarray(-2))
+    """Largest allocated facet ID at the last build, including shared facets."""
+
     invalidated: jax.Array = field(default_factory=lambda: jnp.asarray(True))
     """Explicit cache invalidation flag for topology or geometry edits."""
 
@@ -353,6 +359,9 @@ class NeighborList(Collider):
             Keyword arguments for the constructor of the internal collider.
             If None and the internal collider is a cell list, ``cell_size``
             defaults to ``cutoff + skin``.
+            For CellList or MultiCellList, set ``static=True`` to estimate
+            a fixed tile budget, or supply an explicit ``tile_capacity``.
+            Both options use fixed traversal for construction and cached forces.
         Returns
         -------
         NeighborList
@@ -409,34 +418,9 @@ class NeighborList(Collider):
             # Estimate capacity only when the caller omits it. An explicit
             # capacity is an exact static buffer width, including widths
             # larger than the current particle count.
-            max_rad = jnp.max(state._rad)
-            pos_min = jnp.min(state.pos, axis=0)
-            pos_max = jnp.max(state.pos, axis=0)
-            box_size = jnp.maximum(pos_max - pos_min + 2.0 * max_rad, 1.0)
-            number_density_est = (state.N / jnp.prod(box_size)).item()
-            effective_density = jnp.maximum(number_density, number_density_est).item()
-            mean_rad = jnp.mean(state._rad)
-            r_eff_mean = 0.9 * mean_rad
-            typical_max_neighbors = int(
-                jnp.where(
-                    r_eff_mean > 0,
-                    jnp.ceil(((list_cutoff + r_eff_mean) / r_eff_mean) ** state.dim),
-                    state.N,
-                ).item()
+            max_neighbors = estimate_neighbor_capacity(
+                state, list_cutoff, number_density, safety_factor
             )
-            # Estimate neighbors based on volume and density
-            nl_volume = (
-                jnp.pi
-                * list_cutoff**state.dim
-                * (1.0 if state.dim == 2 else (4.0 / 3.0))
-            )
-            max_neighbors_density = int(
-                jnp.ceil(safety_factor * nl_volume * effective_density).item()
-            )
-
-            # Ensure we can handle local dense clusters of typical particles
-            max_neighbors = max(max_neighbors_density, typical_max_neighbors)
-            max_neighbors = min(max(max_neighbors, 0), state.N)
 
         if secondary_collider_kw is None:
             secondary_collider_kw = {}
@@ -496,6 +480,7 @@ class NeighborList(Collider):
             metric_snapshot=jnp.zeros((state.dim + 3,), dtype=state.pos.dtype),
             physical_cutoff_snapshot=jnp.asarray(-1.0, dtype=state.pos.dtype),
             skin_snapshot=jnp.asarray(-1.0, dtype=state.pos.dtype),
+            facet_id_snapshot=jnp.asarray(-2, dtype=state.facet_id.dtype),
             invalidated=jnp.asarray(True),
         )
 
@@ -572,7 +557,8 @@ class NeighborList(Collider):
 
         The cache rebuilds when particle motion plus any periodic geometry
         change since the last build exhausts the skin. Forces are then summed
-        over the cached pairs in one flat pass.
+        over cached pairs in a flat pass for small pools and bounded occupied-row
+        batches for large pools.
 
         Parameters
         ----------

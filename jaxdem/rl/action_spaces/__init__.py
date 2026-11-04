@@ -4,10 +4,11 @@
 
 from __future__ import annotations
 
+import jax
+
 from typing import Any
 
 import distrax  # type: ignore[import-untyped]
-import jax
 from distrax._src.bijectors.bijector import Array  # type: ignore[import-untyped]
 
 from ...factory import Factory
@@ -23,13 +24,13 @@ class ActionSpace(Factory):
     sampling and log-probabilities correctly. See the Distrax/TFP bijector
     interface for details on shape semantics and 'event_ndims_in/out'.
 
-    Example:
+    Example
     --------
     To define a custom action space, inherit from :class:`distrax.Bijector` and :class:`ActionSpace` and implement its abstract methods:
 
     >>> @ActionSpace.register("myCustomActionSpace")
-    >>> class MyCustomActionSpace(distrax.Bijector, ActionSpace):
-            ...
+    ... class MyCustomActionSpace(distrax.Bijector, ActionSpace):
+    ...     ...
 
     """
 
@@ -61,10 +62,10 @@ class Transformed(distrax.Transformed):  # type: ignore[misc]
     This is the differential-entropy identity for an invertible differentiable
     transform. For the diagonal-Gaussian policies used here, the bijector's
     :meth:`~ActionSpace.log_det_expectation` supplies the correction.
-    FreeSpace returns it analytically; BoxSpace and MaxNormSpace approximate
-    it with finite Gauss--Hermite quadrature. Those nonlinear integrands are
-    not generally integrated exactly, and accuracy depends on the policy
-    parameters and quadrature order.
+    FreeSpace and MaxNormSpace return it analytically. BoxSpace uses
+    componentwise Gauss--Hermite quadrature, whose accuracy depends on the
+    policy parameters and quadrature order. BlockwiseSpace sums its children's
+    corrections.
     """
 
     def sample_and_log_prob_with_latent(
@@ -101,5 +102,13 @@ class Transformed(distrax.Transformed):  # type: ignore[misc]
 from .box_space import BoxSpace
 from .free_space import FreeSpace
 from .max_norm_space import MaxNormSpace
+from .blockwise_space import BlockwiseSpace
 
-__all__ = ["ActionSpace", "BoxSpace", "FreeSpace", "MaxNormSpace", "Transformed"]
+__all__ = [
+    "ActionSpace",
+    "BlockwiseSpace",
+    "BoxSpace",
+    "FreeSpace",
+    "MaxNormSpace",
+    "Transformed",
+]

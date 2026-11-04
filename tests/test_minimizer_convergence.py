@@ -1,9 +1,12 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Mechanical convergence must survive low/constant energy and rigid rotations."""
-
-from dataclasses import replace
 
 import jax
 import jax.numpy as jnp
+
+from dataclasses import replace
+
 import numpy as np
 import optax
 import pytest
@@ -340,7 +343,7 @@ def test_unbalanced_small_energy_cannot_establish_lower_bound(dim, driver):
 @pytest.mark.parametrize(
     "optimizer", [jd.minimizers.fire, jd.minimizers.damped_newtonian]
 )
-@pytest.mark.parametrize("max_steps", [0, 5])
+@pytest.mark.parametrize("max_steps", [0, 3])
 def test_physical_relaxation_evaluates_energy_once(monkeypatch, optimizer, max_steps):
     from jaxdem.minimizers import routines
 
@@ -375,8 +378,28 @@ def test_physical_relaxation_evaluates_energy_once(monkeypatch, optimizer, max_s
         assert int(result[2]) == max_steps
         assert len(evaluations) == 1
         assert len(force_evaluations) == max_steps + 1
-        expected = original_energy(result[0], result[1])[2] / st.N
-        np.testing.assert_allclose(result[3], expected, rtol=1e-12)
+        # With overlap delta=.1+2*x_left, h=.01, and unit masses:
+        # FIRE uses v_next=v-h*delta, x_next=x+h*v_next (the momentum stays
+        # parallel to the force, so mixing leaves it unchanged).
+        # Damped Newtonian uses v_next=(399*v-4*delta)/401, x_next=x+v_next/100.
+        overlaps = (
+            [0.1, 0.09998, 0.099940004, 0.0998800199992]
+            if optimizer is jd.minimizers.fire
+            else [0.1, 0.09998004987531173, 0.09994025310787868, 0.09988071662295496]
+        )[: max_steps + 1]
+        np.testing.assert_allclose(
+            np.asarray(force_evaluations)[..., 0],
+            np.array(overlaps)[:, None] * [-1, 1],
+            rtol=3e-6,
+            atol=2e-7,
+        )
+        shift = (overlaps[-1] - 0.1) / 2
+        np.testing.assert_allclose(
+            result[0].pos_c, [[shift, 0], [0.9 - shift, 0]], rtol=3e-6, atol=2e-8
+        )
+        np.testing.assert_allclose(
+            result[3], overlaps[-1] ** 2 / 4, rtol=3e-6, atol=1e-9
+        )
     finally:
         routines.minimize.clear_cache()
 
@@ -442,3 +465,27 @@ def test_quasistatic_compression_forwards_mechanical_tolerances():
     checked = minimize(st, sy, max_steps=0, force_tol=1e-11, torque_tol=1e-11)
     assert checked.info.converged
     np.testing.assert_allclose(pe, checked[3])
+
+
+def test_fire_uphill_backtracking_follows_the_exact_sequence():
+    optimizer = jd.fire(dt=1.0, N_min=0, f_inc=2.0, f_alpha=0.5)
+    state = optimizer.init(jnp.asarray(0.0))
+    # Downhill: p = F dt/2 + F dt'/2 with the grown step dt', moved by p dt'.
+    # The reversed force makes power negative: backtrack half the halved step
+    # from the pre-kick velocity and stop. A following zero-power step counts
+    # as uphill too and halves the step again; there is no counter reset.
+    # The next downhill step restarts from rest with the halved step.
+    expected = [
+        (6, 3, 2, 0.05, 1),
+        (-1, 0, 1, 0.1, 0),
+        (0, 0, 0.5, 0.1, 0),
+        (1.5, 1.5, 1, 0.05, 1),
+    ]
+    for gradient, prediction in zip([-2.0, 1.0, 0.0, -2.0], expected, strict=True):
+        update, state = optimizer.update(jnp.asarray(gradient), state)
+        np.testing.assert_allclose(
+            [update, state.momentum, state.dt, state.alpha, state.N_good],
+            prediction,
+            rtol=2e-6,
+            atol=1e-7,
+        )

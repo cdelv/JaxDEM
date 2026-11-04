@@ -2,7 +2,8 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Interface for defining data writers.
 
-This module provides the high-level VTKWriter and CheckpointWriter front ends.
+This module provides the high-level VTKWriter, H5Writer, and CheckpointWriter
+front ends.
 It also provides the VTKBaseWriter plugin interface and concrete writers
 (e.g., VTKSpheresWriter, VTKDomainWriter) that export JAX-based simulation
 snapshots to files.
@@ -27,16 +28,16 @@ class VTKBaseWriter(Factory, ABC):
     """Abstract base class for writers that output simulation data.
 
     Concrete subclasses implement the `write` method to convert a snapshot
-    (:class:`jaxdem.State`, :class:`jaxdem.System` pair) into a specific file format.
+    (:class:`jaxdem.State <jaxdem.state.State>`, :class:`jaxdem.System <jaxdem.system.System>` pair) into a specific file format.
 
-    Example:
+    Example
     --------
     To define a custom VTK writer, inherit from `VTKBaseWriter` and implement its abstract methods:
 
     >>> @VTKBaseWriter.register("my_custom_vtk_writer")
-    >>> @dataclass(slots=True)
-    >>> class MyCustomVTKWriter(VTKBaseWriter):
-            ...
+    ... @dataclass(slots=True)
+    ... class MyCustomVTKWriter(VTKBaseWriter):
+    ...     ...
 
     """
 
@@ -94,9 +95,9 @@ class VTKBaseWriter(Factory, ABC):
         Parameters
         ----------
         state : State
-            The simulation :class:`jaxdem.State` snapshot to write.
+            The simulation :class:`jaxdem.State <jaxdem.state.State>` snapshot to write.
         system : System
-            The simulation :class:`jaxdem.System` configuration.
+            The simulation :class:`jaxdem.System <jaxdem.system.System>` configuration.
         filename : Path
             Target path of the VTK file. The caller guarantees that the
             parent directory exists.
@@ -116,6 +117,7 @@ if TYPE_CHECKING:
         CheckpointWriter as CheckpointWriter,
     )
 
+from .h5_writer import H5Writer
 from .vtk_deformable_particle_writer import (
     VTKDeformableEdgeAdjacenciesWriter,
     VTKDeformableEdgesWriter,
@@ -127,6 +129,7 @@ from .vtk_spheres_writer import VTKFacetSpheresWriter, VTKSpheresWriter
 from .vtk_writer import VTKWriter
 
 __all__ = [
+    "H5Writer",
     "VTKBaseWriter",
     "VTKDeformableEdgeAdjacenciesWriter",
     "VTKDeformableEdgesWriter",

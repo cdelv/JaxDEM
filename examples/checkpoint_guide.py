@@ -1,54 +1,75 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Checkpoint Save and Load
 ----------------------------
 
 This guide introduces JaxDEM checkpointing utilities:
 
-- :py:class:`~jaxdem.writers.CheckpointWriter`
-- :py:class:`~jaxdem.writers.CheckpointLoader`
+- :py:class:`~jaxdem.writers.checkpoints.CheckpointWriter`
+- :py:class:`~jaxdem.writers.checkpoints.CheckpointLoader`
+- :py:class:`~jaxdem.writers.h5_writer.H5Writer`
 
 Checkpoints are useful for long simulations, reproducibility, and restarting
-from intermediate steps.
+from intermediate steps. Install ``JaxDEM[io]`` for Orbax and HDF5 support.
+The walkthrough writes only three tiny dynamic snapshots and one small bonded
+model; all output lives in an isolated temporary directory.
 """
+
+import jax.numpy as jnp
 
 import tempfile
 from pathlib import Path
-import jax.numpy as jnp
+
+import numpy as np
+
 import jaxdem as jdem
 
 # %%
 # Saving simulation checkpoints
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# We create a small simulation, run it in chunks, and save snapshots.
+# We create a small simulation, run it in chunks with
+# :py:meth:`~jaxdem.system.System.step`, and save snapshots with
+# :py:meth:`~jaxdem.writers.checkpoints.CheckpointWriter.save`.
 
-state = jdem.State.create(pos=jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]))
+state = jdem.State.create(
+    pos=jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]),
+    rad=jnp.full(2, 0.2),
+    vel=jnp.array([[0.1, 0.0, 0.0], [-0.1, 0.0, 0.0]]),
+)
 system = jdem.System.create(state.shape, dt=1e-3)
 state, system = jdem.System.initialize(state, system)
 
 tmp_root = tempfile.TemporaryDirectory(prefix="jaxdem-checkpoint-guide-")
 tmp_dir = Path(tmp_root.name) / "simulation"
+checkpoint_steps = []
 with jdem.CheckpointWriter(directory=tmp_dir, max_to_keep=2) as writer:
     # By default (clean=False) the writer preserves any checkpoints already
     # present in the directory, so re-opening a writer on the same directory
     # is safe. Pass clean=True to erase the directory and start fresh.
     writer.save(state, system)  # step 0
+    checkpoint_steps.append(int(system.step_count))
 
     state, system = system.step(state, system, n=5)
     writer.save(state, system)  # step 5
+    checkpoint_steps.append(int(system.step_count))
 
     state, system = system.step(state, system, n=5)
     writer.save(state, system)  # step 10
+    checkpoint_steps.append(int(system.step_count))
 
 
 # %%
 # Loading latest and specific checkpoints
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# ``load()`` returns ``(state, system)``. Query the current latest step with
-# :py:meth:`~jaxdem.writers.CheckpointLoader.latest_step`.
+# :py:meth:`load() <jaxdem.writers.checkpoints.CheckpointLoader.load>` returns ``(state, system)``. Query the
+# current latest step with
+# :py:meth:`~jaxdem.writers.checkpoints.CheckpointLoader.latest_step`.
 
 with jdem.CheckpointLoader(directory=tmp_dir) as loader:
     # ``loader.checkpointer`` is the underlying Orbax CheckpointManager.
     # ``all_steps()`` has no public CheckpointLoader equivalent yet.
     print("Available steps:", loader.checkpointer.all_steps())
+    retained_steps = tuple(loader.checkpointer.all_steps())
     print("Latest step:", loader.latest_step())
 
     state_latest, system_latest = loader.load()
@@ -58,9 +79,19 @@ with jdem.CheckpointLoader(directory=tmp_dir) as loader:
     print("Loaded step_count=5:", int(system_step_5.step_count))
     print("State shape at step 5:", state_step_5.pos.shape)
 
+# Restart from step 5 without reinitializing. The loaded integration state
+# must reproduce the uninterrupted run at step 10, not just its array shapes.
+resumed, resumed_system = jdem.System.step(state_step_5, system_step_5, n=5)
+np.testing.assert_array_equal(resumed.pos, state.pos)
+np.testing.assert_array_equal(resumed.vel, state.vel)
+assert int(resumed_system.step_count) == int(system.step_count) == 10
+np.testing.assert_array_equal(resumed_system.time, system.time)
+print("Restarted and uninterrupted positions/velocities match exactly.")
+
 # %%
 # Resource management note:
-# Use :py:class:`~jaxdem.writers.CheckpointWriter` and :py:class:`~jaxdem.writers.CheckpointLoader`
+# Use :py:class:`~jaxdem.writers.checkpoints.CheckpointWriter` and
+# :py:class:`~jaxdem.writers.checkpoints.CheckpointLoader`
 # with a context manager (``with ... as ...``). The context manager waits for
 # pending async writes and closes resources on exit. You can also manage both
 # classes manually without ``with``.
@@ -74,9 +105,10 @@ with jdem.CheckpointLoader(directory=tmp_dir) as loader:
 #     writer.block_until_ready()   # ensure writes are finished
 #     writer.close()               # release resources
 #
-# Checkpoint saving is asynchronous. Call ``block_until_ready()`` before
+# Checkpoint saving is asynchronous. Call
+# :py:meth:`block_until_ready() <jaxdem.writers.checkpoints.BaseCheckpointManager.block_until_ready>` before
 # program exit. When you manage the writer manually, also call it before
-# ``close()``, so all files reach the disk.
+# :py:meth:`close() <jaxdem.writers.checkpoints.BaseCheckpointManager.close>`, so all files reach the disk.
 # Continue a loaded initialized checkpoint directly; do not call
 # :py:meth:`~jaxdem.system.System.initialize` again. Checkpoints include
 # collider/contact history, integrator state, callbacks, and PRNG state needed
@@ -116,11 +148,14 @@ bonded_model = jdem.BondedForceModel.create(
     em=1.0,
 )
 
-state_bonded = jdem.State.create(pos=vertices_2d)
+state_bonded = jdem.State.create(pos=vertices_2d, rad=jnp.full(4, 0.1))
 system_bonded = jdem.System.create(
     state_bonded.shape,
     bonded_force_model=bonded_model,
 )
+
+# Initialize before saving so this snapshot can also continue directly.
+state_bonded, system_bonded = jdem.System.initialize(state_bonded, system_bonded)
 
 # Use a separate directory to avoid mixing the bonded snapshot with the
 # earlier ones.
@@ -130,7 +165,8 @@ with jdem.CheckpointWriter(directory=tmp_dir_bonded) as writer:
     writer.block_until_ready()
 
 with jdem.CheckpointLoader(directory=tmp_dir_bonded) as loader:
-    _, system_restored = loader.load()
+    state_restored, system_restored = loader.load()
+    np.testing.assert_array_equal(state_restored.pos, state_bonded.pos)
     print(
         "Restored bonded model:",
         (
@@ -153,8 +189,9 @@ with jdem.CheckpointLoader(directory=tmp_dir_bonded) as loader:
 #    resolves every recorded path and verifies object identity before saving;
 #    closures, local functions, and functions in ``__main__`` are rejected.
 #    If the loader later cannot resolve a required physics function,
-#    :py:meth:`~jaxdem.writers.CheckpointLoader.load` raises a
-#    ``RuntimeError`` by default (``strict=True``). ``strict=False`` permits
+#    :py:meth:`~jaxdem.writers.checkpoints.CheckpointLoader.load` raises a
+#    `RuntimeError <https://docs.python.org/3/library/exceptions.html#RuntimeError>`_
+#    by default (``strict=True``). ``strict=False`` permits
 #    explicitly degraded loading of legacy custom force/energy entries, while
 #    required callbacks in current checkpoints still fail rather than silently
 #    changing the protocol.
@@ -191,5 +228,27 @@ with jdem.CheckpointLoader(directory=tmp_dir_bonded) as loader:
 #
 # You can load checkpoints saved this way from **any** script that has
 # ``my_forces`` on its Python path.
+
+# %%
+# HDF5 snapshots
+# ~~~~~~~~~~~~~~
+# :py:class:`~jaxdem.writers.h5_writer.H5Writer` uses the shared asynchronous writer queue and the existing
+# HDF5
+# encoding. Its :py:meth:`~jaxdem.writers.h5_writer.H5Writer.save` method stores each
+# :py:class:`~jaxdem.state.State`/:py:class:`~jaxdem.system.System` pair in a self-contained file.
+# Batches and trajectories keep their original array shapes in that file.
+# Numbering follows saved calls and continues after existing snapshots.
+# Read a saved snapshot with :py:func:`~jaxdem.utils.h5.load`.
+
+h5_directory = Path(tmp_root.name) / "hdf5"
+with jdem.H5Writer(directory=h5_directory) as writer:
+    writer.save(state, system)
+
+state_h5, system_h5 = jdem.utils.h5.load(str(h5_directory / "snapshot_00000000.h5"))
+state_h5, system_h5 = jdem.System.step(state_h5, system_h5)
+reference_state, reference_system = jdem.System.step(state, system)
+np.testing.assert_array_equal(state_h5.pos, reference_state.pos)
+assert int(system_h5.step_count) == int(reference_system.step_count)
+print("HDF5 continuation step:", int(system_h5.step_count))
 
 tmp_root.cleanup()

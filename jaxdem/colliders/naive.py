@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
-from functools import partial
-from typing import TYPE_CHECKING, Any
-
 import jax
 import jax.numpy as jnp
+
+from dataclasses import dataclass, field, replace
+from functools import partial
+from typing import TYPE_CHECKING, Any, Self
 
 from ..utils.linalg import cross, norm2
 from . import Collider, valid_interaction_mask
@@ -70,7 +70,7 @@ class NaiveSimulator(Collider):
     stored history of the directed pair ``(i, j)``, the interaction on ``i``
     from ``j``. Every pair keeps the same slot for the life of the collider,
     so no remapping is ever needed. Stateless laws have a zero-width trailing
-    axis, which costs nothing. :meth:`System.create` allocates the buffer.
+    axis, which costs nothing. :meth:`System.create <jaxdem.system.System.create>` allocates the buffer.
 
     Complexity
     ----------
@@ -93,7 +93,7 @@ class NaiveSimulator(Collider):
         force_model: Any | None = None,
         *,
         reset_history: bool = False,
-    ) -> Collider:
+    ) -> Self:
         """Reallocate the dense history when the particle count changes."""
         history = self.history
         tail = history.shape[2:]
@@ -113,8 +113,9 @@ class NaiveSimulator(Collider):
         """Gather the dense history rows and columns of the surviving particles."""
         if self.history.size == 0:
             return system
-        history = self.history[new_to_old][:, new_to_old]
-        return replace(system, collider=replace(system.collider, history=history))
+        history = self.history[new_to_old[:, None], new_to_old[None, :]]
+        collider = _naive_collider(system.collider)
+        return replace(system, collider=replace(collider, history=history))
 
     @property
     def metadata(self) -> dict[str, Any]:
@@ -126,7 +127,7 @@ class NaiveSimulator(Collider):
         state: State, system: System, neighbor_list: jax.Array
     ) -> jax.Array:
         """Gather stored history for an explicit ``(N, k)`` pair query."""
-        collider = system.collider
+        collider = _naive_collider(system.collider)
         history = _dense_history(state, system, collider.history)
         rows = jnp.arange(state.N)[:, None]
         gathered = history[rows, jnp.maximum(neighbor_list, 0)]
@@ -163,7 +164,8 @@ class NaiveSimulator(Collider):
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
         pos = state.pos
-        history = _dense_history(state, system, system.collider.history)
+        collider = _naive_collider(system.collider)
+        history = _dense_history(state, system, collider.history)
 
         def row_energy(i: jax.Array, row_history: jax.Array) -> jax.Array:
             e_ij = jax.vmap(
@@ -307,7 +309,7 @@ class NaiveSimulator(Collider):
         iota = jax.lax.iota(dtype=int, size=state.N)
         pos_p = state._pos_p_rot
         pos = state.pos
-        collider = system.collider
+        collider = _naive_collider(system.collider)
         allocated = _history_allocated(state, system, collider.history)
         if (
             advance_history
@@ -358,6 +360,16 @@ class NaiveSimulator(Collider):
         if not (advance_history and allocated):
             return state, system
         return state, replace(system, collider=replace(collider, history=history))
+
+
+def _naive_collider(collider: Collider) -> NaiveSimulator:
+    """Require the dense-history collider used by the naive evaluation methods."""
+    if not isinstance(collider, NaiveSimulator):
+        raise TypeError(
+            "NaiveSimulator evaluation requires a NaiveSimulator collider, "
+            f"got {type(collider).__name__}."
+        )
+    return collider
 
 
 def _history_allocated(state: State, system: System, history: jax.Array) -> bool:

@@ -1,13 +1,16 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Focused contracts for stepping, state validation, and thermal reductions."""
 
 from __future__ import annotations
+
+import jax
+import jax.numpy as jnp
 
 import dataclasses
 import subprocess
 import sys
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 
@@ -87,14 +90,16 @@ def test_static_step_supports_reverse_mode_and_dynamic_step_is_explicit() -> Non
         jdem.System.step(state, system, n=jnp.asarray(2))
 
 
-def test_mutable_quaternion_refreshes_explicitly_and_replace_is_automatic() -> None:
+def test_frozen_quaternion_replacement_refreshes_geometry() -> None:
     state = jdem.State.create(pos=jnp.zeros((1, 2)), pos_p=jnp.array([[1.0, 0.0]]))
     q = Quaternion.create(jnp.array([[2**-0.5]]), jnp.array([[0.0, 0.0, 2**-0.5]]))
-    state.q.w = q.w
-    state.q.xyz = q.xyz
-    with pytest.raises(ValueError, match="cache is stale"):
-        state.validate()
-    state.refresh_rotation_cache()
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        state.q.w = q.w
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        state.q.xyz = q.xyz
+    np.testing.assert_allclose(state.pos, jnp.array([[1.0, 0.0]]), atol=1e-6)
+
+    state.q = q
     np.testing.assert_allclose(state.pos, jnp.array([[0.0, 1.0]]), atol=1e-6)
     state.validate()
 
@@ -199,7 +204,7 @@ def test_rescaling_removes_mass_weighted_body_drift() -> None:
     system = dataclasses.replace(
         _free_system(state), linear_integrator=integrator, step_count=jnp.asarray(1)
     )
-    state, _ = integrator.finalize_step(state, system)
+    state, _ = integrator.step_after_force(state, system)
 
     member_mass = jnp.array([1.0, 1.0, 6.0])
     drift = jnp.sum(state.vel * member_mass[:, None], axis=0) / member_mass.sum()
@@ -222,7 +227,7 @@ def test_rescaling_drift_is_correct_below_unit_total_mass() -> None:
     system = dataclasses.replace(
         _free_system(state), linear_integrator=integrator, step_count=jnp.asarray(1)
     )
-    state, _ = integrator.finalize_step(state, system)
+    state, _ = integrator.step_after_force(state, system)
     member_mass = jnp.array([0.1, 0.1, 0.6])
     drift = jnp.sum(state.vel * member_mass[:, None], axis=0) / member_mass.sum()
     np.testing.assert_allclose(drift, 0.0, atol=1e-6)

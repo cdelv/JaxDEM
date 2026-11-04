@@ -2,9 +2,10 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Force reach, contact kinematics, and initial-force regressions."""
 
+import jax.numpy as jnp
+
 from dataclasses import replace
 
-import jax.numpy as jnp
 import numpy as np
 import pytest
 
@@ -40,6 +41,21 @@ def test_force_search_covers_law_cutoff(law, distance, collider):
     np.testing.assert_allclose(actual.force, expected.force, rtol=1e-6, atol=1e-6)
     np.testing.assert_allclose(energy, expected_energy, rtol=1e-6, atol=1e-6)
     assert not bool(actual_system.collider.overflow)
+
+
+def test_facet_laws_require_elastic_materials_through_composition():
+    laws = (jd.forces.SphereFacetSpringForce(), jd.forces.FacetFacetSpringForce())
+    combined = jd.LawCombiner(laws=laws)
+    routed = jd.ForceRouter.from_dict(1, {(0, 0): combined})
+    state = jd.State.create(pos=jnp.zeros((1, 2)))
+    table = jd.MaterialTable.from_materials(
+        [jd.Material.create("lj", density=1.0, epsilon=1.0)]
+    )
+    for law in (*laws, combined, routed):
+        with pytest.raises(KeyError, match="young_eff"):
+            jd.System.create(
+                state=state, force_model=law, mat_table=table, collider_type=""
+            )
 
 
 def test_explicit_initialization_supplies_first_verlet_acceleration():
@@ -227,3 +243,62 @@ def test_shear_image_force_and_energy_are_physical(dim, collider):
     np.testing.assert_allclose(result.force, force, rtol=1e-5, atol=1e-5)
     np.testing.assert_allclose(energy, 0.5 * stiffness * 0.2**2, rtol=1e-5)
     assert not bool(updated.collider.overflow)
+
+
+def test_granulabot_contacts_keep_masks_and_displacement_history():
+    from jaxdem.colliders import advance_history
+    from jaxdem.rl.environments.granulabot import _Contacts
+    from jaxdem.utils import Quaternion, compute_potential_energy
+
+    state = jd.State.create(
+        pos=jnp.array([[0.0, 0.0], [0.1, 0.0], [0.16, 0.0]]),
+        rad=jnp.array([0.1, 0.25, 0.25]),
+        _rad=jnp.array([0.1, 0.04, 0.04]),
+    )
+    material = jd.Material.create(
+        "cundallstrackparams",
+        density=1.0,
+        k_n=1000.0,
+        k_t=100.0,
+        b_n=7.0,
+        b_t=11.0,
+        mu=1.0,
+        mu_r=0.0,
+    )
+    system = jd.System.create(
+        state=state,
+        force_model=_Contacts(parameterization="coefficients"),
+        mat_table=jd.MaterialTable.from_materials([material]),
+        collider_type="GranulabotNeighbors",
+        collider_kw={
+            "cutoff": 0.2,
+            "max_neighbors": 3,
+            "secondary_collider_type": "naive",
+        },
+    )
+    state, system = jd.System.initialize(state, system)
+    # Chassis/rotor overlap is .1+.04-.1=.04; rotor/rotor contact is disabled.
+    np.testing.assert_allclose(state.force, [[-40, 0], [40, 0], [0, 0]], atol=2e-6)
+    np.testing.assert_allclose(compute_potential_energy(state, system), 0.8, rtol=2e-6)
+    history = jnp.array([0.0, 0.01, -1.0, 0.0])
+    law = system.force_model
+    np.testing.assert_allclose(
+        law.energy(0, 1, state.pos, state, system, history), 0.805, rtol=2e-6
+    )
+    np.testing.assert_array_equal(
+        law.energy(1, 2, state.pos, state, system, history), 0
+    )
+    # Rotate only the contacting rotor by .01 rad without advancing time.
+    # Its .04 surface arm stores .0004 tangential displacement, independent of dt.
+    q = Quaternion.from_rotvec(
+        jnp.array([[0.0, 0.0, 0.0], [0.0, 0.0, 0.01], [0.0, 0.0, 0.0]])
+    )
+    moved, advanced = advance_history(state, system, replace(state, q=q), system)
+    np.testing.assert_allclose(
+        moved.force, [[-40, -0.04], [40, 0.04], [0, 0]], atol=2e-6
+    )
+    np.testing.assert_allclose(
+        compute_potential_energy(moved, advanced),
+        0.8 + 0.5 * 100 * 0.0004**2,
+        rtol=2e-6,
+    )

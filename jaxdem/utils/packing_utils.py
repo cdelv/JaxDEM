@@ -4,13 +4,13 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import dataclass
 from enum import IntEnum
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, Any
-
-import jax
-import jax.numpy as jnp
 
 from ..minimizers import TerminationReason
 
@@ -89,16 +89,42 @@ def _scale_to_packing_fraction_grouped(
 
 @jax.jit
 def scale_to_packing_fraction(
-    state: State, system: System, new_packing_fraction: float
+    state: State,
+    system: System,
+    new_packing_fraction: float,
+    *,
+    group_id: jax.Array | None = None,
 ) -> tuple[State, System]:
-    """Rescale the box to ``new_packing_fraction``, preserving its aspect ratio."""
-    group_id = jax.pure_callback(
-        _host_body_grouping,
-        jax.ShapeDtypeStruct((state.N,), jnp.int32),  # type: ignore[no-untyped-call]
-        state.clump_id,
-        state.bond_id,
-        vmap_method="sequential",
-    )
+    """Rescale the box to ``new_packing_fraction``, preserving its aspect ratio.
+
+    ``group_id`` optionally supplies integer body labels of shape ``(N,)``
+    in ``[0, N)``. Members with the same label translate together. Use clump
+    labels for rigid bodies and bond-graph connected components for deformable
+    bodies. Reindex labels after particle reordering and recompute them whenever
+    body membership or bond topology changes; their correspondence to the current
+    state is the caller's responsibility.
+
+    Without labels, a host callback derives them from the current state. Pass
+    precomputed labels for repeated rescaling or device-only execution. This
+    function acts on one snapshot; use ``jax.vmap`` for independent snapshots,
+    mapping their labels too when topology differs, or broadcasting one label
+    array when topology is shared. The callback convenience path uses sequential
+    callbacks under ``vmap``.
+    """
+    if group_id is None:
+        group_id = jax.pure_callback(
+            _host_body_grouping,
+            jax.ShapeDtypeStruct((state.N,), jnp.int32),  # type: ignore[no-untyped-call]
+            state.clump_id,
+            state.bond_id,
+            vmap_method="sequential",
+        )
+    else:
+        group_id = jnp.asarray(group_id)
+        if group_id.shape != (state.N,) or not jnp.issubdtype(
+            group_id.dtype, jnp.integer
+        ):
+            raise ValueError("group_id must be an integer array of shape (N,).")
     return _scale_to_packing_fraction_grouped(
         state, system, new_packing_fraction, group_id
     )
@@ -157,7 +183,7 @@ def quasistatic_compress_to_packing_fraction(
 ) -> CompressionResult:
     """Quasi-statically compress (or decompress) toward ``target_phi``.
 
-    Alternates :func:`scale_to_packing_fraction` with :func:`minimize` in
+    Alternates :func:`scale_to_packing_fraction <jaxdem.utils.packing_utils.scale_to_packing_fraction>` with :func:`minimize <jaxdem.minimizers.routines.minimize>` in
     steps no larger than ``step`` in packing fraction. The final step is
     truncated so the target is hit exactly (within ``phi_tolerance``).
     Works in both directions: if ``target_phi > current_phi`` the box
@@ -171,7 +197,7 @@ def quasistatic_compress_to_packing_fraction(
     Parameters
     ----------
     state, system
-        Current state/system. Any domain type that :func:`scale_to_packing_fraction`
+        Current state/system. Any domain type that :func:`scale_to_packing_fraction <jaxdem.utils.packing_utils.scale_to_packing_fraction>`
         supports works.
     target_phi
         Target packing fraction.

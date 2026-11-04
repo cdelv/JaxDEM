@@ -1,91 +1,87 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Bijector that constrains the norm of vector actions."""
+"""Bijector that maps Gaussian actions into a ball with analytic entropy."""
+
+import jax
+import jax.numpy as jnp
 
 from functools import partial
 import math
 
 import distrax  # type: ignore[import-untyped]
-import jax
-import jax.numpy as jnp
 import numpy as np
 from distrax._src.bijectors.bijector import Array  # type: ignore[import-untyped]
+from scipy import special
+from tensorflow_probability.substrates.jax.math import igammainv  # type: ignore[import-untyped]
 
-from ...utils.linalg import dot, norm2
+from ...utils.linalg import norm2
 from . import ActionSpace
 
-# Gauss-Hermite nodes for tensor product quadrature over d-dimensional Normal.
-_GH_N, _GH_W = np.polynomial.hermite_e.hermegauss(5)
-_GH_NODES: jax.Array = jnp.asarray(_GH_N)
-_GH_WEIGHTS_1D: jax.Array = jnp.asarray(_GH_W / np.sqrt(2.0 * np.pi))
+# Keep direct gamma evaluations away from zero; use the scaled series below it.
+_SERIES_PROBABILITY = 0.01
 
 
 @ActionSpace.register("MaxNorm")
 class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
-    r"""**Radial max-norm** constraint for vector actions.
-    Scales the radius with a `tanh` squashing and preserves the direction.
+    r"""Constrain the norm of one action vector using a Gaussian-to-ball map.
 
-    **Mapping (vector case),** :math:`\vec{x} \in \mathbb{R}^d`:
-
-    .. math::
-        r = \lVert \vec{x} \rVert_2,\qquad
-        \hat{u} = \begin{cases}
-            \frac{\vec{x}}{r}, & r>0,\\[4pt]
-            0, & r=0,
-        \end{cases}
-        \qquad
-        y = s \tanh(r) \hat{u},
-        \quad s = (1-\epsilon) \text{max\_norm}.
-
-    Equivalently, :math:`y = b(r)\,x` with :math:`b(r)= s\,\tanh(r)/r` for :math:`r>0`.
-
-
-    **Jacobian determinant**
-
-    For an isotropic radial map :math:`f(x)=b(r)x` with :math:`x \in \mathbb{R}^d`, the Jacobian
-    eigenvalues are :math:`b` (multiplicity d-1) on the tangent subspace and :math:`b + r\,b'(r)` on the radial direction. Therefore
+    For an event of length d, preserve its direction and transform its radius:
 
     .. math::
-        \bigl|\det J_f(x)\bigr| = b(r)^{\,d-1}\,\bigl(b(r)+r\,b'(r)\bigr)
-        = s^d \left(\frac{\tanh r}{r}\right)^{\!d-1} \text{sech}^2 r.
+        r=\|x\|,\quad R=(1-\epsilon)\,\mathrm{max\_norm},\qquad
+        y=R\,P(d/2,r^2/2)^{1/d}\frac{x}{r},
 
-    Therefore
+    where P is the regularized lower incomplete gamma function. This is the
+    probability integral transform of a standard Gaussian's chi-distributed
+    radius, followed by the inverse radius CDF of a uniform ball. The reference
+    Gaussian is fixed at zero mean and unit variance; learned Gaussian means
+    and variances still control the action distribution.
 
-    .. math::
-        \log\lvert\det J_f(x)\rvert
-        = d\log s + (d-1)\bigl(\log\tanh r - \log r\bigr) + \log(\text{sech}^2 r),
-
-    We use the stable identity :math:`\log(\text{sech}^2 z)=2 [\log 2 - z - \text{softplus}(-2z)]`
-    for good numerical behavior.
-
-    Near :math:`r\approx 0`, we use the second-order expansion
+    Writing c for the linear scale at the origin gives
 
     .. math::
-        \log\lvert\det J_f(x)\rvert \approx d\log s - \tfrac{d+2}{3} r^2
+        c=\frac{R}{\sqrt{2}\,\Gamma(d/2+1)^{1/d}},\qquad
+        y\sim cx,\qquad
+        \log|\det J(x)|=d\log c-\tfrac12\|x\|^2.
 
-    to avoid division by :math:`r`.
+    Thus the Gaussian log-Jacobian expectation and transformed entropy are
+    analytic, including for anisotropic, noncentral Gaussian policies:
+
+    .. math::
+        \mathbb E[\log|\det J(X)|]
+          =d\log c-\tfrac12\sum_i(\mu_i^2+\sigma_i^2),\\
+        H(Y)=\log V_d(R)
+          -D_{\mathrm{KL}}(\mathcal N(\mu,\mathrm{diag}(\sigma^2))
+                           \,\|\,\mathcal N(0,I)).
+
+    The forward and inverse use a convergent gamma series near zero to avoid
+    dividing by the radius or forming an underflowing d-th power. Elsewhere,
+    they use the regularized gamma function and its inverse. At the boundary,
+    the inverse clips to the nearest representable interior squared radius.
+    Saturated actions cannot recover their original latent exactly; PPO
+    retains that latent when sampling.
 
     Parameters
     ----------
     max_norm : float
-        Maximum radius after squashing (default 1.0). The bijector uses :math:`s=(1-\varepsilon)\,\text{max\_norm}` to stay off the exact boundary.
+        Positive finite upper bound on the output norm, default 1.0.
     eps : float
-        Numerical safety margin used for the output-radius margin and inverse clipping.
+        Output-radius margin in (0, 1), default 1e-6.
     event_ndims_in : int
-        Dimensionality of a *single event* seen by the bijector (default 1).
-    event_ndims_out : Optional[int]
-        Standard Distrax/TFP bijector flag.
+        Must be one for a single vector.
+    event_ndims_out : int or None
+        Must be None or one. Use ``distrax.Block`` for higher-rank events.
     is_constant_jacobian : bool
-        Standard Distrax/TFP bijector flag.
-    is_constant_log_det : bool
-        Standard Distrax/TFP bijector flag.
+        Standard Distrax flag, default False.
+    is_constant_log_det : bool or None
+        Standard Distrax flag, default None.
 
-    Note
-    ----
-    This bijector is **vector-valued** with ``event_ndims_in = 1``. It treats
-    a length-:math:`d` action vector as a single event. Do **not** wrap it in
-    `Block` unless you want to apply it independently to multiple last-axis blocks.
-
+    Notes
+    -----
+    This replaces the historical radial tanh map. Existing Gaussian model
+    heads and constructor arguments are supported, but the same latent now
+    produces different actions. One instance constrains the entire last-axis
+    vector; BlockwiseSpace applies separate bounds to explicit sub-vectors.
     """
 
     __slots__ = ()
@@ -99,6 +95,10 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         is_constant_jacobian: bool = False,
         is_constant_log_det: bool | None = None,
     ):
+        if event_ndims_in != 1 or event_ndims_out not in (None, 1):
+            raise ValueError(
+                "MaxNormSpace transforms one vector; use distrax.Block for higher-rank events."
+            )
         super().__init__(
             event_ndims_in=event_ndims_in,
             event_ndims_out=event_ndims_out,
@@ -112,95 +112,103 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         if not math.isfinite(self.eps) or not 0.0 < self.eps < 1.0:
             raise ValueError("eps must be finite and strictly between 0 and 1")
 
-    @staticmethod
-    @partial(jax.named_call, name="MaxNormSpace.sec2_log")
-    def sec2_log(r: jax.Array) -> jax.Array:
-        # r is scalar radius
-        return 2 * (jnp.log(2.0) - r - jax.nn.softplus(-2.0 * r))
-
-    @staticmethod
-    @partial(jax.named_call, name="MaxNormSpace._radius")
-    def _radius(
-        x: Array, keepdims: bool = False
-    ) -> tuple[jax.Array, jax.Array, jax.Array]:
-        """Return the exact radius and a finite denominator at the origin."""
-        r2 = norm2(x)
-        if keepdims:
-            r2 = r2[..., None]
-        denominator = jnp.sqrt(jnp.where(r2 > 0.0, r2, 1.0))
-        return jnp.where(r2 > 0.0, denominator, 0.0), denominator, r2
-
-    @partial(jax.named_call, name="MaxNormSpace._log_det_from_r")
-    def _log_det_from_r(
-        self, r: jax.Array, d: jax.Array, r2: jax.Array | None = None
-    ) -> jax.Array:
-        """Core log|det J| for the exact radial map."""
-        log_s = jnp.log((1.0 - self.eps) * self.max_norm)
-        safe_r = jnp.where(r > 0.0, r, 1.0)
-        exact = (
-            d * log_s
-            + (d - 1.0) * (jnp.log(jnp.tanh(safe_r)) - jnp.log(safe_r))
-            + MaxNormSpace.sec2_log(safe_r)
+    def _log_linear_scale(self, d: int) -> float:
+        """Log of the finite radial scale at the origin."""
+        return (
+            math.log(self.max_norm)
+            + math.log1p(-self.eps)
+            - 0.5 * math.log(2.0)
+            - math.lgamma(d / 2 + 1) / d
         )
-        if r2 is None:
-            r2 = r * r
-        series = d * log_s - (d + 2.0) * r2 / 3.0
-        return jnp.where(r < 1e-3, series, exact)
+
+    @staticmethod
+    def _gamma_series(
+        q: jax.Array, a: float, cutoff: float
+    ) -> tuple[jax.Array, jax.Array]:
+        """Return S(q) and S'(q), where P(a,q)=exp(-q)*q**a*S(q)/Gamma(a+1).
+
+        Use the positive series from DLMF 8.7.1. For q <= cutoff, consecutive
+        terms have ratio at most cutoff/(a+1); bound the geometric tail by
+        machine precision. Horner evaluation avoids powers and underflow.
+        """
+        ratio = cutoff / (a + 1)
+        terms = math.ceil(
+            math.log(float(np.finfo(q.dtype).eps) * (1 - ratio) / 8) / math.log(ratio)
+        )
+
+        def iteration(
+            index: int, carry: tuple[jax.Array, jax.Array]
+        ) -> tuple[jax.Array, jax.Array]:
+            total, derivative = carry
+            k = terms - index
+            derivative = (total + q * derivative) / (a + k)
+            total = 1 + q * total / (a + k)
+            return total, derivative
+
+        return jax.lax.fori_loop(
+            0, terms, iteration, (jnp.ones_like(q), jnp.zeros_like(q))
+        )
 
     @partial(jax.named_call, name="MaxNormSpace.forward_log_det_jacobian")
     def forward_log_det_jacobian(self, x: Array) -> jax.Array:
-        x = jnp.atleast_1d(x)
-        r, _, r2 = self._radius(x)
-        d = jnp.asarray(x.shape[-1], x.dtype)
-        return self._log_det_from_r(r, d, r2)
+        return x.shape[-1] * self._log_linear_scale(x.shape[-1]) - 0.5 * norm2(x)
 
     @partial(jax.named_call, name="MaxNormSpace.forward_and_log_det")
     def forward_and_log_det(self, x: Array) -> tuple[jax.Array, jax.Array]:
-        r, denominator, r2 = self._radius(x, keepdims=True)
-        radial_scale = jnp.where(r > 0.0, jnp.tanh(r) / denominator, 1.0)
-        y = (1.0 - self.eps) * self.max_norm * radial_scale * x
-        d = jnp.asarray(jnp.atleast_1d(x).shape[-1], x.dtype)
-        return y, self._log_det_from_r(r.squeeze(-1), d, r2.squeeze(-1))
+        d = x.shape[-1]
+        a, q = d / 2, 0.5 * norm2(x)
+        cutoff = float(special.gammaincinv(a, _SERIES_PROBABILITY))
+        small = q < cutoff
+        small_q = jnp.where(small, q, cutoff)
+        total, _ = self._gamma_series(small_q, a, cutoff)
+        lower = jnp.exp(self._log_linear_scale(d) + (-small_q + jnp.log(total)) / d)
+        safe_q = jnp.where(small, cutoff, q)
+        regular = (
+            (1 - self.eps)
+            * self.max_norm
+            * jnp.exp(jnp.log(jax.scipy.special.gammainc(a, safe_q)) / d)
+            / jnp.sqrt(2 * safe_q)
+        )
+        scale = jnp.where(small, lower, regular)
+        return scale[..., None] * x, d * self._log_linear_scale(d) - q
 
     @partial(jax.named_call, name="MaxNormSpace.inverse_and_log_det")
     def inverse_and_log_det(self, y: Array) -> tuple[jax.Array, jax.Array]:
-        r_y, denominator, _ = self._radius(y, keepdims=True)
+        d, radius = y.shape[-1], (1 - self.eps) * self.max_norm
+        a, u2 = d / 2, norm2(y / radius)
         one = jnp.asarray(1.0, dtype=y.dtype)
         upper = jnp.nextafter(one, jnp.asarray(0.0, dtype=y.dtype))
-        s = (1.0 - self.eps) * self.max_norm
-        u = jnp.minimum(r_y / s, upper)
-        atanh_u = jnp.arctanh(u)
-        inverse_scale = jnp.where(r_y > 0.0, atanh_u / denominator, 1.0 / s)
-        x = inverse_scale * y
-        r_x = atanh_u.squeeze(-1)
-        d = jnp.asarray(jnp.atleast_1d(y).shape[-1], y.dtype)
-        return x, -self._log_det_from_r(r_x, d)
+        clipped = jnp.minimum(u2, upper)
+        cutoff = float(special.gammaincinv(a, _SERIES_PROBABILITY))
+        cutoff_u2 = _SERIES_PROBABILITY ** (2 / d)
+        q0 = jnp.minimum(clipped, cutoff_u2) * math.exp(math.lgamma(a + 1) / a)
+
+        def iteration(_: int, t: jax.Array) -> jax.Array:
+            # Solve for q=q0*t without taking log(q0), even when q0 is zero.
+            q = q0 * t
+            total, derivative = self._gamma_series(q, a, cutoff)
+            residual = jnp.log(t) + (-q + jnp.log(total)) / a
+            slope = 1 / t + q0 * (-1 + derivative / total) / a
+            return t - residual / slope
+
+        # The inverse flattens as d grows: allow another step per factor four.
+        steps = 6 + max(0, math.ceil(math.log2(a / 8) / 2))
+        t = jax.lax.fori_loop(0, steps, iteration, jnp.ones_like(u2))
+        lower = math.exp(-self._log_linear_scale(d)) * jnp.sqrt(t)
+        small = clipped < cutoff_u2
+        safe_u2 = jnp.where(small, cutoff_u2, clipped)
+        probability = jnp.minimum(jnp.exp(a * jnp.log(safe_u2)), upper)
+        q = igammainv(jnp.asarray(a, dtype=y.dtype), probability)
+        regular = jnp.sqrt(2 * q / jnp.where(small, cutoff_u2, u2)) / radius
+        x = jnp.where(small, lower, regular)[..., None] * y
+        return x, -self.forward_log_det_jacobian(x)
 
     @partial(jax.named_call, name="MaxNormSpace.log_det_expectation")
     def log_det_expectation(self, mean: jax.Array, std: jax.Array) -> jax.Array:
-        r""":math:`\mathbb{E}_X[\log|\det J_f(X)|]` via tensor-product
-        Gauss-Hermite quadrature in *d* dimensions, supported for ``d <= 6``.
-        """
-        d = mean.shape[-1]
-        if d > 6:
-            raise ValueError(
-                "MaxNorm entropy quadrature supports action dimensions up to 6; "
-                "use BoxSpace for separable bounded actions or FreeSpace for "
-                "unbounded high-dimensional actions."
-            )
-
-        # Build d-dimensional tensor-product grid: nodes (n^d, d), weights (n^d,)
-        grids = jnp.meshgrid(*([_GH_NODES] * d), indexing="ij")
-        nodes_nd = jnp.stack([g.ravel() for g in grids], axis=-1)
-        w_grids = jnp.meshgrid(*([_GH_WEIGHTS_1D] * d), indexing="ij")
-        weights_nd = jnp.prod(jnp.stack([wg.ravel() for wg in w_grids], axis=0), axis=0)
-
-        # x = mean + std * z, shape (..., n^d, d)
-        x = mean[..., None, :] + std[..., None, :] * nodes_nd
-        safe_r, _, r2 = self._radius(x)  # (..., n^d)
-        d_val = jnp.asarray(d, mean.dtype)
-        ld = self._log_det_from_r(safe_r, d_val, r2)  # (..., n^d)
-        return dot(ld, weights_nd)
+        """Exact Gaussian expectation of the quadratic log-Jacobian."""
+        return mean.shape[-1] * self._log_linear_scale(mean.shape[-1]) - 0.5 * jnp.sum(
+            mean * mean + std * std, axis=-1
+        )
 
 
 __all__ = ["MaxNormSpace"]

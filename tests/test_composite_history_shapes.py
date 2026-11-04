@@ -1,9 +1,14 @@
-from __future__ import annotations
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Check contact-history payload shapes in composite force laws."""
 
-from dataclasses import dataclass, replace
+from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+
+from dataclasses import dataclass, replace
+
 import numpy as np
 import pytest
 

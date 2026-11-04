@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Particle removal preserves the physical memory of surviving contacts."""
+
+import jax
+import jax.numpy as jnp
 
 from dataclasses import dataclass, replace
 from itertools import pairwise
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 

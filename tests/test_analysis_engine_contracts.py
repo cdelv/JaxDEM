@@ -1,6 +1,11 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Check chunked analysis shapes, pair budgets, and bounded compilation caches."""
+
 from __future__ import annotations
 
 import jax.numpy as jnp
+
 import numpy as np
 import pytest
 

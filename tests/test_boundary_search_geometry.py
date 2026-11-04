@@ -1,6 +1,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Check hashed neighbor searches against boundary-domain geometry."""
+
 from __future__ import annotations
+
+import jax
+import jax.numpy as jnp
 
 from dataclasses import dataclass, replace
 import os
@@ -8,8 +13,6 @@ from pathlib import Path
 import subprocess
 import sys
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 

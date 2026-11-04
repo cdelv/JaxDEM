@@ -1,7 +1,9 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Rigid geometric-asperity clumps: step-by-step pipeline
 =========================================================
 
-This example shows the full pipeline to build a mechanically stable
+This example shows the full pipeline to build a relaxed, dilute
 packing of rigid geometric-asperity (GA) clumps at a chosen true-body
 packing fraction. It uses the primitives in
 ``jaxdem.utils.particle_creation`` and ``jaxdem.utils.packing_utils``.
@@ -11,11 +13,11 @@ The flow is:
 1. :func:`~jaxdem.utils.particle_creation.create_ga_state` — build a
    state of ``N`` identical clumps. Each clump has ``nv`` surface
    asperities on a sphere or ellipsoid surface, plus an optional solid
-   core. The function places the asperities with the generalized
-   Thomson problem. Monte-Carlo integration over the union volume gives
+   core. The deterministic Fibonacci construction used here avoids iterative
+   mesh optimization. Boundary integration of the sphere union gives
    the per-clump volume, COM, principal inertia, and principal-axis
    quaternion. The function stores these on the returned
-   :class:`~jaxdem.State`.
+   :class:`~jaxdem.state.State`.
 2. :func:`~jaxdem.utils.particle_creation.distribute_bodies` — build one
    bounding sphere per clump (radius = ``max(|node - centroid| + rad)``)
    and place the spheres uniformly in a box sized for an initial
@@ -28,11 +30,14 @@ The flow is:
 
 At the end, a short time-integration with the Verlet + spiral
 integrators confirms the resulting state and system are ready to simulate.
+The small system is intentionally below jamming: relaxation removes forces,
+but does not establish a mechanically rigid packing.
 """
 
 # %%
 # Imports
 import jax
+
 import numpy as np
 
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
@@ -40,6 +45,7 @@ jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 import jaxdem as jdem
 from jaxdem.utils.packing_utils import (
     compute_packing_fraction,
+    CompressionReason,
     quasistatic_compress_to_packing_fraction,
 )
 from jaxdem.utils.particle_creation import create_ga_state, distribute_bodies
@@ -47,33 +53,50 @@ from jaxdem.utils.particle_creation import create_ga_state, distribute_bodies
 # %%
 # Parameters
 # -----------------
-# 12 identical clumps in 3D, each with 12 surface asperities on a sphere
+# Three identical clumps in 3D, each with six surface asperities on a sphere
 # of radius 0.5 and a solid core, so the rigid-body property calculation
 # captures the enclosed volume.
 
-N = 12
-nv = 12
+N = 3
+nv = 6
 dim = 3
 particle_radius = 0.5
 asperity_radius = 0.1
+
+# %%
 # Two distinct packing fractions: the bounding-sphere fraction for the
 # initial random placement, and the *true-body* fraction we compress to. The
 # one-call :func:`~jaxdem.utils.particle_creation.build_ga_system` exposes the
 # former as its ``initial_phi_bb`` parameter (default 0.3).
-initial_phi_bb = 0.2  # bounding-sphere packing fraction at placement
-target_phi = 0.35  # *true-body* packing fraction after compression
+#
+# These two fractions refer to different geometries. If body :math:`I` has
+# member offsets :math:`\mathbf{p}_{Ii}` about its center and member radii
+# :math:`a_{Ii}`, its conservative bounding radius is
+#
+# .. math::
+#
+#    R_I = \max_i\bigl(\lVert\mathbf{p}_{Ii}\rVert+a_{Ii}\bigr),\qquad
+#    \phi_{\mathrm{bb}}=\frac{\sum_I(4\pi/3)R_I^3}{V_{\mathrm{box}}},
+#    \qquad \phi=\frac{\sum_I V_I}{V_{\mathrm{box}}}.
+#
+# Here :math:`V_I` is the union volume of the solid members, including the
+# chosen core. Usually it is smaller than the bounding sphere. Keeping the
+# bounding spheres apart gives a safe loose placement; matching their
+# fraction alone would not produce the requested material fraction.
+initial_phi_bb = 0.15  # bounding-sphere packing fraction at placement
+target_phi = 0.12  # union-volume fraction; distinct from bounding-sphere phi
 seed = 0
 
 # %%
 # 1) Build the template clumps
 # -----------------------------
-# ``create_ga_state`` does most of the work: Thomson-mesh asperity
-# positions, Monte-Carlo union-volume / COM / inertia, and an aligned
+# ``create_ga_state`` does most of the work: asperity
+# positions, union-volume / COM / inertia, and an aligned
 # principal-axis quaternion. For ``core_type='solid'`` it adds a central
 # sphere of radius ``core_radius = particle_radius - asperity_radius``
 # and keeps it in the final state. For ``'phantom'`` the core only feeds
 # the property computation, and the function removes it from the state.
-# For ``'hollow'`` it adds no core.
+# With the default ``core_type="hollow"``, it adds no center sphere.
 state = create_ga_state(
     N=N,
     nv=nv,
@@ -82,9 +105,9 @@ state = create_ga_state(
     asperity_radius=asperity_radius,
     particle_type="clump",
     core_type="solid",
-    n_samples=100_000,
+    n_samples=2_048,  # modest surface quadrature budget for this small example
     seed=seed,
-    mesh_kwargs={"steps": 1_000},
+    mesh_type="fibonacci",
 )
 print(
     f"clumps built: total nodes = {state.N}, clump_ids cover {int(state.clump_id.max()) + 1} bodies"
@@ -140,14 +163,31 @@ print(
 # The compression steps by at most ``step`` in phi per outer iteration.
 # It calls ``scale_to_packing_fraction`` then ``minimize`` each time, and
 # truncates the final step so it hits the target phi exactly.
-state, fire_system, final_phi, final_pe = quasistatic_compress_to_packing_fraction(
+# At each rescale, :math:`s=(\phi/\phi_{\mathrm{next}})^{1/d}` multiplies
+# the box lengths and body-center separations, while offsets and radii keep
+# each rigid body's shape unchanged. Relaxation then adjusts its translation
+# and rotation in response to the new contacts. An energy minimum can have
+# positive contact energy; convergence is determined by force and torque
+# residuals, not by requiring all overlaps to vanish.
+compression = quasistatic_compress_to_packing_fraction(
     state,
     fire_system,
     target_phi=target_phi,
-    step=5e-3,
-    max_n_min_steps_per_outer=100_000,
+    step=0.02,
+    force_tol=1e-8,
+    max_n_min_steps_per_outer=2_000,
+    max_n_outer_steps=12,
 )
-print(f"after compression:  phi = {float(final_phi):.4f}  PE = {float(final_pe):.3e}")
+if compression.reason != CompressionReason.TARGET_REACHED:
+    raise RuntimeError(
+        f"Compression stopped: {compression.reason.name}; "
+        f"minimizer: {compression.minimizer_reason.name}"
+    )
+state, fire_system, final_phi, final_pe = compression
+np.testing.assert_allclose(final_phi, target_phi, atol=1e-9)
+print(
+    f"after compression:  phi = {float(final_phi):.4f}  PE/node = {float(final_pe):.3e}"
+)
 print(f"box = {np.asarray(fire_system.domain.box_size)}")
 
 # %%
@@ -160,8 +200,10 @@ print(f"box = {np.asarray(fire_system.domain.box_size)}")
 # ``verlet`` linear + ``verletspiral`` rotation for a standard Newtonian
 # rollout.
 
-import dataclasses
 import jax.numpy as jnp
+
+import dataclasses
+
 from jaxdem.integrators import LinearIntegrator, RotationIntegrator
 
 sim_system = dataclasses.replace(
@@ -172,7 +214,7 @@ sim_system = dataclasses.replace(
 )
 
 state, sim_system = jdem.System.initialize(state, sim_system)
-for k in range(100):
-    state, sim_system = sim_system.step(state, sim_system)
+state, sim_system = sim_system.step(state, sim_system, n=10)
+assert np.all(np.isfinite(state.pos))
 _, _, pe = sim_system.collider.compute_potential_energy(state, sim_system)
-print(f"100 Verlet steps completed; final PE ~ {float(pe):.3e}")
+print(f"10 Verlet steps completed; final PE ~ {float(pe):.3e}")

@@ -1,8 +1,13 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Check jamming termination, rejected trials, and minimizer option handling."""
+
 from __future__ import annotations
+
+import jax.numpy as jnp
 
 from dataclasses import replace
 
-import jax.numpy as jnp
 import pytest
 
 import jaxdem as jdem

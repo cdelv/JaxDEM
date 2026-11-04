@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Contact-start, force-shifted Weeks-Chandler-Andersen repulsion."""
 
 from __future__ import annotations
 

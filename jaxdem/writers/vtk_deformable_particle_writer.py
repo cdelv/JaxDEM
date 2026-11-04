@@ -112,7 +112,7 @@ def _base_poly(state: State) -> tuple[Any, np.ndarray, int]:
 @VTKBaseWriter.register("deformable_elements")
 @dataclass(slots=True)
 class VTKDeformableElementsWriter(VTKBaseWriter):
-    """A :class:`VTKBaseWriter` that writes deformable particle elements.
+    """A :class:`VTKBaseWriter <jaxdem.writers.VTKBaseWriter>` that writes deformable particle elements.
 
     The writer draws 3-vertex elements as VTK triangles and 2-vertex elements
     as VTK lines. It attaches per-element properties (``elements_id``, ``ec``,
@@ -211,7 +211,7 @@ class VTKDeformableElementsWriter(VTKBaseWriter):
 @VTKBaseWriter.register("deformable_edge_adjacencies")
 @dataclass(slots=True)
 class VTKDeformableEdgeAdjacenciesWriter(VTKBaseWriter):
-    """A :class:`VTKBaseWriter` that writes the shared hinges between adjacent elements.
+    """A :class:`VTKBaseWriter <jaxdem.writers.VTKBaseWriter>` that writes the shared hinges between adjacent elements.
 
     In 3D the writer draws each shared edge as a VTK line. In 2D it draws
     each shared vertex as a VTK point. It attaches the rest and current
@@ -317,7 +317,7 @@ class VTKDeformableEdgeAdjacenciesWriter(VTKBaseWriter):
 @VTKBaseWriter.register("deformable_edges")
 @dataclass(slots=True)
 class VTKDeformableEdgesWriter(VTKBaseWriter):
-    """A :class:`VTKBaseWriter` that writes deformable particle edges as VTK lines.
+    """A :class:`VTKBaseWriter <jaxdem.writers.VTKBaseWriter>` that writes deformable particle edges as VTK lines.
 
     It attaches the rest and current edge lengths and the edge stiffness
     ``el`` as ``CellData`` arrays.

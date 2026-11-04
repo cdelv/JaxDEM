@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from functools import partial
-
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
+
+from dataclasses import dataclass
+from functools import partial
 
 from ...state import State
 from ...system import System
@@ -277,8 +277,8 @@ class SingleNavigator(Environment):
 
         Contents per agent
         ------------------
-        - Unit vector to objective (shape (dim,))  --> Direction
-        - Clamped delta to objective (shape (dim,)) --> Local precision
+        - Unit vector from objective to agent (shape (dim,))  --> Direction
+        - Clamped agent-minus-objective delta (shape (dim,)) --> Local precision
         - Velocity (shape (dim,))
 
         Returns

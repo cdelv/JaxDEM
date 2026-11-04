@@ -9,15 +9,15 @@ constituent sphere, and optional convergence diagnostics.
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import math
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from enum import IntEnum
 from functools import partial
-from typing import TYPE_CHECKING, Any, NamedTuple
-
-import jax
-import jax.numpy as jnp
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, overload
 
 from ..minimizers.routines import (
     COLLIDER_OVERFLOW,
@@ -417,6 +417,54 @@ def _minimizer_kwargs(minimizer_kwargs: Mapping[str, Any] | None) -> dict[str, A
     return resolved
 
 
+@overload
+def bisection_jam(
+    state: State,
+    system: System,
+    pe_tol: float = 1e-16,
+    n_jamming_steps: int = 10000,
+    packing_fraction_tolerance: float = 1e-10,
+    packing_fraction_increment: float = 1e-3,
+    verbose: bool = True,
+    *,
+    pe_band_factor: float = 2.0,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: Literal[False] = False,
+) -> JamResult: ...
+
+
+@overload
+def bisection_jam(
+    state: State,
+    system: System,
+    pe_tol: float = 1e-16,
+    n_jamming_steps: int = 10000,
+    packing_fraction_tolerance: float = 1e-10,
+    packing_fraction_increment: float = 1e-3,
+    verbose: bool = True,
+    *,
+    pe_band_factor: float = 2.0,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: Literal[True],
+) -> tuple[JamResult, JammingInfo]: ...
+
+
+@overload
+def bisection_jam(
+    state: State,
+    system: System,
+    pe_tol: float = 1e-16,
+    n_jamming_steps: int = 10000,
+    packing_fraction_tolerance: float = 1e-10,
+    packing_fraction_increment: float = 1e-3,
+    verbose: bool = True,
+    *,
+    pe_band_factor: float = 2.0,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: bool,
+) -> JamResult | tuple[JamResult, JammingInfo]: ...
+
+
 def bisection_jam(
     state: State,
     system: System,
@@ -473,7 +521,7 @@ def bisection_jam(
         Multiplier greater than one defining the maximum accepted upper-bound
         energy. Defaults to 2.
     minimizer_kwargs : mapping, optional
-        Arguments forwarded to :meth:`System.minimize` for every trial.
+        Arguments forwarded to :meth:`System.minimize <jaxdem.system.System.minimize>` for every trial.
         Recognized keys are ``max_steps``, ``force_tol``, ``torque_tol``, and
         ``history_update``. Omitted keys use ``max_steps=100_000_000``,
         ``force_tol=1e-14``, ``torque_tol=1e-14``, and
@@ -612,6 +660,57 @@ def _bisection_jam(
 bisection_jam.clear_cache = _bisection_jam.clear_cache  # type: ignore[attr-defined]
 
 
+@overload
+def pressure_bisection_jam(
+    state: State,
+    system: System,
+    *,
+    pressure_threshold: float = 1e-7,
+    pressure_band_factor: float = 1.01,
+    growth_rate: float = 1.001,
+    fine_growth_rate: float = 1.000001,
+    length_ratio_tolerance: float = 1e-14,
+    n_jamming_steps: int = 10_000,
+    verbose: bool = True,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: Literal[False] = False,
+) -> JamResult: ...
+
+
+@overload
+def pressure_bisection_jam(
+    state: State,
+    system: System,
+    *,
+    pressure_threshold: float = 1e-7,
+    pressure_band_factor: float = 1.01,
+    growth_rate: float = 1.001,
+    fine_growth_rate: float = 1.000001,
+    length_ratio_tolerance: float = 1e-14,
+    n_jamming_steps: int = 10_000,
+    verbose: bool = True,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: Literal[True],
+) -> tuple[JamResult, JammingInfo]: ...
+
+
+@overload
+def pressure_bisection_jam(
+    state: State,
+    system: System,
+    *,
+    pressure_threshold: float = 1e-7,
+    pressure_band_factor: float = 1.01,
+    growth_rate: float = 1.001,
+    fine_growth_rate: float = 1.000001,
+    length_ratio_tolerance: float = 1e-14,
+    n_jamming_steps: int = 10_000,
+    verbose: bool = True,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: bool,
+) -> JamResult | tuple[JamResult, JammingInfo]: ...
+
+
 def pressure_bisection_jam(
     state: State,
     system: System,
@@ -676,7 +775,7 @@ def pressure_bisection_jam(
         Print box length, packing fraction, pressure, energy, and minimizer
         steps for each trial with a valid pressure measurement.
     minimizer_kwargs : mapping, optional
-        Arguments forwarded to :meth:`System.minimize` for every trial.
+        Arguments forwarded to :meth:`System.minimize <jaxdem.system.System.minimize>` for every trial.
         Recognized keys are ``max_steps``, ``force_tol``, ``torque_tol``, and
         ``history_update``. Omitted keys use ``max_steps=100_000_000``,
         ``force_tol=1e-14``, ``torque_tol=1e-14``, and
@@ -833,6 +932,51 @@ def pressure_bisection_jam(
     return (result, info) if return_info else result
 
 
+@overload
+def pe_band_jam(
+    state: State,
+    system: System,
+    pe_tol: float = 1e-16,
+    pe_band_factor: float = 2.0,
+    packing_fraction_increment: float = 1e-3,
+    n_jamming_steps: int = 10_000,
+    verbose: bool = True,
+    *,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: Literal[False] = False,
+) -> JamResult: ...
+
+
+@overload
+def pe_band_jam(
+    state: State,
+    system: System,
+    pe_tol: float = 1e-16,
+    pe_band_factor: float = 2.0,
+    packing_fraction_increment: float = 1e-3,
+    n_jamming_steps: int = 10_000,
+    verbose: bool = True,
+    *,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: Literal[True],
+) -> tuple[JamResult, JammingInfo]: ...
+
+
+@overload
+def pe_band_jam(
+    state: State,
+    system: System,
+    pe_tol: float = 1e-16,
+    pe_band_factor: float = 2.0,
+    packing_fraction_increment: float = 1e-3,
+    n_jamming_steps: int = 10_000,
+    verbose: bool = True,
+    *,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: bool,
+) -> JamResult | tuple[JamResult, JammingInfo]: ...
+
+
 def pe_band_jam(
     state: State,
     system: System,
@@ -880,7 +1024,7 @@ def pe_band_jam(
         Print packing fraction, step size, energy, and minimizer steps for
         each trial.
     minimizer_kwargs : mapping, optional
-        Arguments forwarded to :meth:`System.minimize` for every trial.
+        Arguments forwarded to :meth:`System.minimize <jaxdem.system.System.minimize>` for every trial.
         Recognized keys are ``max_steps``, ``force_tol``, ``torque_tol``, and
         ``history_update``. Omitted keys use ``max_steps=100_000_000``,
         ``force_tol=1e-14``, ``torque_tol=1e-14``, and
@@ -1128,6 +1272,54 @@ def _pe_band_jam(
 pe_band_jam.clear_cache = _pe_band_jam.clear_cache  # type: ignore[attr-defined]
 
 
+@overload
+def rollback_pe_band_jam(
+    state: State,
+    system: System,
+    pe_tol: float = 1e-16,
+    pe_band_factor: float = 2.0,
+    packing_fraction_increment: float = 1e-3,
+    increment_growth_factor: float = 1.0,
+    n_jamming_steps: int = 10_000,
+    verbose: bool = True,
+    *,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: Literal[False] = False,
+) -> JamResult: ...
+
+
+@overload
+def rollback_pe_band_jam(
+    state: State,
+    system: System,
+    pe_tol: float = 1e-16,
+    pe_band_factor: float = 2.0,
+    packing_fraction_increment: float = 1e-3,
+    increment_growth_factor: float = 1.0,
+    n_jamming_steps: int = 10_000,
+    verbose: bool = True,
+    *,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: Literal[True],
+) -> tuple[JamResult, JammingInfo]: ...
+
+
+@overload
+def rollback_pe_band_jam(
+    state: State,
+    system: System,
+    pe_tol: float = 1e-16,
+    pe_band_factor: float = 2.0,
+    packing_fraction_increment: float = 1e-3,
+    increment_growth_factor: float = 1.0,
+    n_jamming_steps: int = 10_000,
+    verbose: bool = True,
+    *,
+    minimizer_kwargs: Mapping[str, object] | None = None,
+    return_info: bool,
+) -> JamResult | tuple[JamResult, JammingInfo]: ...
+
+
 def rollback_pe_band_jam(
     state: State,
     system: System,
@@ -1179,7 +1371,7 @@ def rollback_pe_band_jam(
         Print packing fraction, step size, energy, and minimizer steps for
         each trial.
     minimizer_kwargs : mapping, optional
-        Arguments forwarded to :meth:`System.minimize` for every trial.
+        Arguments forwarded to :meth:`System.minimize <jaxdem.system.System.minimize>` for every trial.
         Recognized keys are ``max_steps``, ``force_tol``, ``torque_tol``, and
         ``history_update``. Omitted keys use ``max_steps=100_000_000``,
         ``force_tol=1e-14``, ``torque_tol=1e-14``, and

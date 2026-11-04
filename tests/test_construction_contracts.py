@@ -3,6 +3,10 @@
 """Focused contracts for low-level rigid/contact construction."""
 
 import jax.numpy as jnp
+
+from dataclasses import replace
+import importlib
+
 import pytest
 import numpy as np
 
@@ -31,18 +35,21 @@ def test_add_clump_defaults_then_geometry_utility_updates_body_properties():
     np.testing.assert_allclose(updated.pos, state.pos, atol=2e-6)
 
 
-def test_contact_facets_reject_shared_vertices():
+def test_contact_facets_allow_shared_vertices():
     state = jdem.State.create(pos=jnp.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]]))
     state = jdem.State.add_connected_facet(state, [0, 1], rigid=False)
-    with pytest.raises(ValueError, match="cannot share vertices"):
-        jdem.State.add_connected_facet(state, [1, 2], rigid=False)
+    state = jdem.State.add_connected_facet(state, [1, 2], rigid=False)
+    assert state.N == 3
+    assert int(state.facet_ids_extra[1, 0]) >= 0
+    np.testing.assert_array_equal(state.facet_vertices_extra[1, 0], [1, 2])
 
 
 @pytest.mark.parametrize("dim", [2, 3])
 @pytest.mark.parametrize("rigid", [False, True])
 def test_distribution_rotates_a_whole_body_and_uses_its_bounding_volume(dim, rigid):
-    from jaxdem.utils.particle_creation import distribute_bodies
     from scipy.spatial.transform import Rotation
+
+    from jaxdem.utils.particle_creation import distribute_bodies
 
     points = np.pad(
         np.array([[-1.0, 0.0], [0.5, 0.6], [0.5, -0.6]]), ((0, 0), (0, dim - 2))
@@ -56,6 +63,7 @@ def test_distribution_rotates_a_whole_body_and_uses_its_bounding_volume(dim, rig
             mass=jnp.full(3, 2.0),
             volume=jnp.full(3, 1.2),
         )
+        state = replace(state, clump_id=jnp.ones(3, dtype=int))
     else:
         state = jdem.State.create(
             pos=jnp.asarray(points),
@@ -132,3 +140,63 @@ def test_deformable_builder_assigns_heterogeneous_coefficients_to_whole_bodies()
     np.testing.assert_allclose(
         model.compute_potential_energy(current, state, system), expected, rtol=2e-6
     )
+
+
+@pytest.mark.parametrize("dim", [2, 3])
+def test_single_sphere_builder_preserves_geometry_and_target_fraction(dim):
+    from jaxdem.utils.particle_creation import build_sphere_system
+
+    state, system = build_sphere_system(
+        [0.5], phi=0.1, dim=dim, seed=0, max_n_min_steps_per_outer=0
+    )
+    volume = np.pi / 4 if dim == 2 else np.pi / 6
+    assert state.pos.shape == (1, dim)
+    np.testing.assert_allclose(np.prod(system.domain.box_size), volume / 0.1, rtol=2e-6)
+    np.testing.assert_array_equal(state.force, np.zeros((1, dim)))
+    np.testing.assert_allclose(jdem.utils.compute_packing_fraction(state, system), 0.1)
+
+
+@pytest.mark.parametrize("builder", ["sphere", "ga"])
+def test_packing_builders_report_failed_mechanical_relaxation(monkeypatch, builder):
+    from jaxdem.utils import particle_creation as creation
+
+    state = jdem.State.create(
+        pos=jnp.array([[0.0, 0.0], [0.9, 0.0]]), rad=jnp.full(2, 0.5)
+    )
+    box = jnp.full(2, 3.0)
+    random_module = importlib.import_module("jaxdem.utils.random_sphere_configuration")
+    monkeypatch.setattr(
+        random_module, "random_sphere_configuration", lambda **kw: (state.pos, box)
+    )
+    monkeypatch.setattr(creation, "create_ga_state", lambda **kw: state)
+    monkeypatch.setattr(creation, "distribute_bodies", lambda *args, **kw: (state, box))
+    with pytest.raises(RuntimeError, match="MINIMIZATION_FAILED.*MAX_STEPS"):
+        if builder == "sphere":
+            creation.build_sphere_system(
+                [0.5, 0.5], phi=0.5, dim=2, seed=0, max_n_min_steps_per_outer=0
+            )
+        else:
+            creation.build_ga_system(
+                [0.5, 0.5],
+                [1, 1],
+                0.5,
+                phi=0.5,
+                dim=2,
+                seed=0,
+                max_n_min_steps_per_outer=0,
+            )
+
+
+def test_initial_sphere_relaxation_does_not_hide_failure(monkeypatch):
+    from jaxdem.utils.random_sphere_configuration import minimize_sphere_configuration
+
+    minimize = jdem.System.minimize
+
+    def limited(state, system, **kw):
+        return minimize(state, system, max_steps=0, force_tol=kw["force_tol"])
+
+    monkeypatch.setattr(jdem.System, "minimize", staticmethod(limited))
+    with pytest.raises(RuntimeError, match="Sphere relaxation failed.*MAX_STEPS"):
+        minimize_sphere_configuration(
+            [0.5, 0.5], [[0.0, 0.0], [0.9, 0.0]], phi=0.1, dim=2
+        )

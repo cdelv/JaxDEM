@@ -48,7 +48,7 @@ class DeformableParticleModel(BondedForceModel):
         E_{K,measure} &= \sum_{m} \frac{em_m}{2{\mathcal{M}_{m,0}}} \left(\mathcal{M}_m - \mathcal{M}_{m,0}\right)^2 \\
         E_{K,surface} &= \sum_{m} \gamma_m \mathcal{M}_m \\
         E_{K,content} &= \frac{e_c}{2{\mathcal{C}_{K,0}}} \left(\mathcal{C}_K - \mathcal{C}_{K,0}\right)^2 \\
-        E_{K,bending} &= \frac{1}{2} \sum_{a} eb_a wb_{a} \left(\theta_a -\theta_{a,0}\right)^2 \\
+        E_{K,bending} &= \frac{1}{2} \sum_{a} eb_a wb_{a} \operatorname{wrap}\!\left(\theta_a -\theta_{a,0}\right)^2 \\
         E_{K,edge} &= \frac{1}{2} \sum_{e} el_e \left(L_e - L_{e,0}\right)^2
 
     **Definitions per Dimension:**
@@ -73,9 +73,9 @@ class DeformableParticleModel(BondedForceModel):
 
     - K: Number of deformable bodies. Vertices and connectivity (elements,
       edges, etc.) define each body.
-    - M: Number of boundary elements (:math:`K \sum_K m_K`)
-    - E: Number of unique edges (:math:`K \sum_K e_K`)
-    - A: Number of element adjacencies (:math:`K \sum_K a_K`)
+    - M: Number of boundary elements (:math:`\sum_K m_K`)
+    - E: Number of unique edges (:math:`\sum_K e_K`)
+    - A: Number of element adjacencies (:math:`\sum_K a_K`)
 
     The model concatenates the mesh properties of all bodies along axis=0.
     Only the content term needs the body ID of each element: it sums the
@@ -293,7 +293,7 @@ class DeformableParticleModel(BondedForceModel):
                 initial_element_normals,
                 computed_initial_element_measures,
                 partial_body_contents,
-            ) = jax.vmap(compute_fn)(vertices[elements])
+            ) = compute_fn(vertices[elements])
 
             if em is not None and initial_element_measures is None:
                 initial_element_measures = computed_initial_element_measures
@@ -314,6 +314,11 @@ class DeformableParticleModel(BondedForceModel):
                     "number of content elasticity coefficients (ec). "
                     f"ec.shape={ec.shape}."
                 )
+                partial_body_contents = compute_fn(
+                    _centered_elements(
+                        vertices, elements_arr, elements_id_arr, ec.shape[-1]
+                    )
+                )[2]
                 initial_body_contents = jax.ops.segment_sum(
                     partial_body_contents, elements_id_arr, num_segments=ec.shape[-1]
                 )
@@ -519,8 +524,10 @@ class DeformableParticleModel(BondedForceModel):
         if vertices is not None and vertex_count != vertices.shape[0]:
             raise ValueError("vertex_count must match the supplied vertices.")
         for indices in topology:
-            if indices is not None and indices.size and not bool(
-                jnp.all((indices >= 0) & (indices < vertex_count))
+            if (
+                indices is not None
+                and indices.size
+                and not bool(jnp.all((indices >= 0) & (indices < vertex_count)))
             ):
                 raise ValueError("Topology indices must lie within vertex_count.")
 
@@ -794,7 +801,8 @@ class DeformableParticleModel(BondedForceModel):
         if dim == 3:
             compute_element_properties = compute_element_properties_3D
         elif dim == 2:
-            compute_element_properties = compute_element_properties_2D
+            # Mapping segments avoids an extra float64 GPU gradient buffer.
+            compute_element_properties = jax.vmap(compute_element_properties_2D)
         else:
             raise ValueError(
                 f"DeformableParticleModel only supports 2D or 3D, got dim={dim}."
@@ -807,9 +815,17 @@ class DeformableParticleModel(BondedForceModel):
 
         if dp_model.elements is not None:
             current_element_indices = dp_model.elements
-            element_normal, element_measure, partial_content = jax.vmap(
-                compute_element_properties
-            )(vertices[current_element_indices])
+            element_vertices = vertices[current_element_indices]
+            if dp_model.ec is not None and dp_model.elements_id is not None:
+                element_vertices = _centered_elements(
+                    vertices,
+                    current_element_indices,
+                    dp_model.elements_id,
+                    dp_model.ec.shape[-1],
+                )
+            element_normal, element_measure, partial_content = (
+                compute_element_properties(element_vertices)
+            )
 
         # Content
         if (
@@ -843,28 +859,10 @@ class DeformableParticleModel(BondedForceModel):
                 * jnp.square(element_measure - dp_model.initial_element_measures)
                 / dp_model.initial_element_measures
             )
-            if dp_model.gamma is not None:
-                measure_energies = jnp.sum(
-                    jnp.stack(
-                        (
-                            0.5 * norm_measure_energy,
-                            dp_model.gamma * element_measure,
-                        ),
-                        axis=-1,
-                    ),
-                    axis=0,
-                )
-                e_element = measure_energies[0]
-                e_gamma = measure_energies[1]
-            else:
-                e_element = jnp.sum(norm_measure_energy) / 2
+            e_element = jnp.sum(norm_measure_energy) / 2
 
         # Surface tension
-        if (
-            dp_model.elements is not None
-            and dp_model.gamma is not None
-            and (dp_model.em is None or dp_model.initial_element_measures is None)
-        ):
+        if dp_model.elements is not None and dp_model.gamma is not None:
             # sum_m gamma_m * M_m
             e_gamma = jnp.sum(dp_model.gamma * element_measure)
 
@@ -898,8 +896,8 @@ class DeformableParticleModel(BondedForceModel):
                 element_normal, element_adjacency, hinge_vertices, dim
             )
 
-            norm_bending_energy = eb * w_b * jnp.square(
-                _angle_difference(bending, initial_bendings)
+            norm_bending_energy = (
+                eb * w_b * jnp.square(_angle_difference(bending, initial_bendings))
             )
             e_bending = jnp.sum(norm_bending_energy) / 2
 
@@ -1079,7 +1077,7 @@ def current_bending_angles(
         compute_element_properties_3D if dim == 3 else compute_element_properties_2D
     )
     elements = cast(jax.Array, model.elements)
-    element_normal, _, _ = jax.vmap(compute_fn)(pos[elements])
+    element_normal, _, _ = compute_fn(pos[elements])
 
     if dim == 3:
         adjacency_edges = cast(jax.Array, model.element_adjacency_edges)
@@ -1109,13 +1107,26 @@ def _require_positive_reference(name: str, arr: ArrayLike | None) -> None:
         )
 
 
+def _centered_elements(
+    vertices: jax.Array, elements: jax.Array, elements_id: jax.Array, n_bodies: int
+) -> jax.Array:
+    """Use one nearby origin per body to avoid cancelling absolute-coordinate products."""
+    origins = (
+        elements[:1, 0]
+        if n_bodies == 1
+        else jax.ops.segment_min(elements[:, 0], elements_id, num_segments=n_bodies)
+    )
+    return vertices[elements] - vertices[origins[elements_id], None, :]
+
+
 @partial(jax.named_call, name="DeformableParticleModel.compute_element_properties_3D")
 def compute_element_properties_3D(
     simplex: jax.Array,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
-    r1 = simplex[0]
-    r2 = simplex[1] - simplex[0]
-    r3 = simplex[2] - simplex[0]
+    """Return normal, area, and signed volume contribution for ``(..., 3, 3)`` triangles."""
+    r1 = simplex[..., 0, :]
+    r2 = simplex[..., 1, :] - r1
+    r3 = simplex[..., 2, :] - r1
     face_normal = cross(r2, r3) / 2
     partial_vol = dot(face_normal, r1) / 3
     unit_normal, area_face = unit_and_norm(face_normal)
@@ -1130,12 +1141,13 @@ def compute_element_properties_3D(
 def compute_element_properties_2D(
     simplex: jax.Array,
 ) -> tuple[jax.Array, jax.Array, jax.Array]:
-    r1 = simplex[0]
-    r2 = simplex[1]
+    """Return normal, length, and signed area contribution for ``(..., 2, 2)`` segments."""
+    r1 = simplex[..., 0, :]
+    r2 = simplex[..., 1, :]
     edge = r2 - r1
     tangent, length = unit_and_norm(edge)
-    normal = jnp.array([tangent[1], -tangent[0]])
-    partial_area = 0.5 * (r1[0] * r2[1] - r1[1] * r2[0])
+    normal = jnp.stack([tangent[..., 1], -tangent[..., 0]], axis=-1)
+    partial_area = 0.5 * (r1[..., 0] * r2[..., 1] - r1[..., 1] * r2[..., 0])
     return normal, length, partial_area
 
 

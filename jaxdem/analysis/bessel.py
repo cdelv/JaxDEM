@@ -16,11 +16,11 @@ If you want 64-bit execution, set it in your application before importing JaxDEM
 
 from __future__ import annotations
 
-from typing import TypeAlias
-
 import jax.numpy as jnp
 from jax import Array
 from jax.typing import ArrayLike
+
+from typing import TypeAlias
 
 JaxArray: TypeAlias = Array
 

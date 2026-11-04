@@ -4,13 +4,14 @@
 
 from __future__ import annotations
 
+import jax
+
 import math
 from collections.abc import Callable, Sequence
 from functools import partial
 from typing import Any
 
 import distrax  # type: ignore[import-untyped]
-import jax
 from flax import nnx
 
 from ..action_spaces import ActionSpace

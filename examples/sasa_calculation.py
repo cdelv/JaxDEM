@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """SASA of a rigid clump via a spherical tracer
 ==================================================
 
@@ -17,6 +19,10 @@ works when the ray crosses several disconnected contact intervals.
 The center-to-center separation ``separation[i]`` is the distance from
 the central clump's COM to the SASA surface along ``d_i``. A missed ray
 or a contact without a resolved normal force gives ``NaN``.
+The radial surface reconstruction below requires a surface visible from the
+body's center: hidden cavities and overhangs cannot be recovered from one
+outermost contact per direction. The solid-core shape used here meets that
+restriction. SciPy is needed for the spherical triangulation.
 
 Numerics
 --------
@@ -40,6 +46,7 @@ import jax
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 from jaxdem.utils.particle_creation import create_ga_state, create_sphere_state
 from jaxdem.utils.surface_properties import compute_surface_properties
@@ -47,22 +54,23 @@ from jaxdem.utils.surface_properties import compute_surface_properties
 # %%
 # Central rigid clump + tracer sphere
 # -----------------------------------
-# The central body is a 20-asperity rigid clump with a solid core. The
-# tracer is a single smooth sphere built with :func:`create_sphere_state`,
-# which skips the Thomson mesh and union-volume MC that
-# :func:`create_ga_state` uses.
+# The central body is an eight-asperity rigid clump with a solid core. The
+# tracer is a single smooth sphere built with :func:`~jaxdem.utils.particle_creation.create_sphere_state`,
+# which needs no asperity mesh or union-boundary property integration.
+# A deterministic Fibonacci mesh and a small direction count keep this
+# demonstration quick. Increase ``n_points`` to check surface resolution.
 
 central = create_ga_state(
     N=1,
-    nv=20,
+    nv=8,
     dim=3,
     particle_radius=0.5,
     asperity_radius=0.1,
     particle_type="clump",
     core_type="solid",  # fill the central void so each approach ray meets the body
-    n_samples=10_000_000,  # the default. ~10M samples give decent accuracy for the clump COM
+    n_samples=2_048,  # 3D boundary-quadrature budget when an analytical case is unavailable
     seed=0,
-    mesh_kwargs={"steps": 1_000},
+    mesh_type="fibonacci",
 )
 
 tracer_radius = 0.05
@@ -78,7 +86,7 @@ tracer = create_sphere_state(radii=tracer_radius, dim=3)
 
 target_overlap = 1e-10
 separation_tolerance = 1e-12
-n_points = 1024
+n_points = 192
 
 result = compute_surface_properties(
     central,
@@ -91,6 +99,7 @@ result = compute_surface_properties(
 )
 
 separation = np.asarray(result["separation"]).reshape(n_points)
+assert np.all(np.isfinite(separation))
 print(
     f"separation: min={separation.min():.4f}  max={separation.max():.4f}  mean={separation.mean():.4f}"
 )
@@ -104,17 +113,117 @@ print(
 # triangle vertex to the SASA surface with ``separation[i] *
 # direction[i]`` and sum the Euclidean triangle areas. The result is
 # the surface area of the polyhedron with the sampled tracer-center
-# positions as vertices. It converges to the true SASA as
-# ``n_points`` grows.
+# positions as vertices. For a radially representable surface, refinement
+# reduces the discretization error; a single coarse estimate is not a
+# converged surface-area measurement.
+#
+# If the material body is a union of balls
+# :math:`K=\bigcup_j B(\mathbf{c}_j,a_j)`, the spherical tracer's accessible
+# center positions have boundary
+# :math:`\partial(K\oplus B(0,r_{\mathrm{tracer}}))`. Dilation distributes
+# over this union, so each member's contact radius becomes
+# :math:`a_j+r_{\mathrm{tracer}}`. The outward ray intersections find the
+# outer envelope of those inflated members.
+#
+# Denote a sampled unit direction by :math:`\mathbf{d}_i` and its measured
+# separation by :math:`\rho_i`. The reconstructed vertices are
+# :math:`\mathbf{x}_i=\rho_i\mathbf{d}_i`, and each triangle contributes
+#
+# .. math::
+#
+#    A_{ijk}=\frac12\left\lVert
+#    (\mathbf{x}_j-\mathbf{x}_i)\times
+#    (\mathbf{x}_k-\mathbf{x}_i)\right\rVert,\qquad
+#    A_{\mathrm{SASA}}\simeq\sum_{(i,j,k)}A_{ijk}.
+#
+# Triangulating the directions first preserves their angular neighborhood
+# ordering; taking the convex hull of the reconstructed surface itself
+# would fill concave parts of that surface. For a smooth radial surface,
+# the corresponding continuous area element is
+#
+# .. math::
+#
+#    dA=\rho^2\sqrt{1+\lVert\nabla_{S^2}\log\rho\rVert^2}\,d\Omega.
+#
+# This explains why equal solid-angle samples do not have equal surface
+# area on a rough body. For a smooth sphere, :math:`\rho=R+r_{\mathrm{tracer}}`
+# is constant and integration recovers :math:`4\pi\rho^2`, the reference
+# checked below. Resolving sharp changes in :math:`\rho` requires more
+# directions, even when the contact-root calculation is already accurate.
 
 from scipy.spatial import ConvexHull
 
 directions = np.asarray(result["approach_directions"])  # (N, 3) on S^2
-surface_points = separation[:, None] * directions  # (N, 3) on SASA
 triangles = ConvexHull(directions).simplices  # (F, 3) vertex idx
-tri = surface_points[triangles]  # (F, 3, 3)
-e1 = tri[:, 1] - tri[:, 0]
-e2 = tri[:, 2] - tri[:, 0]
-sasa = 0.5 * float(np.sum(np.linalg.norm(np.cross(e1, e2), axis=-1)))
+
+
+def radial_surface_area(radii):
+    surface_points = radii[:, None] * directions
+    tri = surface_points[triangles]
+    e1 = tri[:, 1] - tri[:, 0]
+    e2 = tri[:, 2] - tri[:, 0]
+    return 0.5 * float(np.sum(np.linalg.norm(np.cross(e1, e2), axis=-1)))
+
+
+sasa = radial_surface_area(separation)
 
 print(f"estimated SASA = {sasa:.4f}")
+
+# %%
+# A smooth-sphere reference gives a known answer with the same probe radius.
+# Its contact separation is ``R + r_tracer`` and its SASA is
+# ``4*pi*(R + r_tracer)**2``. The polyhedral estimate slightly underestimates
+# the spherical area at this deliberately coarse angular resolution.
+sphere_radius = 0.5
+sphere = create_sphere_state(radii=sphere_radius, dim=3)
+sphere_result = compute_surface_properties(
+    sphere,
+    tracer,
+    target_overlap=target_overlap,
+    separation_tolerance=separation_tolerance,
+    n_points=n_points,
+    n_orientations=1,
+    n_rolls=1,
+)
+sphere_separation = np.asarray(sphere_result["separation"]).reshape(n_points)
+np.testing.assert_allclose(sphere_separation, sphere_radius + tracer_radius, atol=2e-9)
+sphere_area = radial_surface_area(sphere_separation)
+exact_area = 4 * np.pi * (sphere_radius + tracer_radius) ** 2
+relative_error = abs(sphere_area / exact_area - 1)
+assert relative_error < 0.04
+print(f"smooth-sphere area: estimated={sphere_area:.4f}, exact={exact_area:.4f}")
+print(f"angular discretization relative error = {relative_error:.2%}")
+
+# %%
+# Inspect roughness and the angular discretization error
+# ------------------------------------------------------
+# Reuse subsets of the measured sphere directions and compute their convex
+# polyhedron's area. This reference sphere is convex, so the hull gives the
+# same triangular area construction above. No additional contact probes or
+# geometry optimization are required.
+angular_counts = np.array([24, 48, 96, n_points])
+reference_errors = []
+for count in angular_counts:
+    indices = np.arange(0, n_points, n_points // count)
+    reference_vertices = sphere_separation[indices, None] * directions[indices]
+    reference_errors.append(abs(ConvexHull(reference_vertices).area / exact_area - 1.0))
+
+fig, ax = plt.subplots(figsize=(6.5, 3.8), layout="constrained")
+ax.loglog(angular_counts, reference_errors, "o-", color="tab:orange")
+ax.set(
+    xticks=angular_counts,
+    xticklabels=[str(n) for n in angular_counts],
+    xlabel="Retained angular directions",
+    ylabel="Relative sphere-area error",
+    title="Angular resolution controls area bias",
+)
+ax.minorticks_off()
+ax.grid(alpha=0.2)
+plt.show()
+
+# %%
+# The smooth-sphere error measures angular triangulation bias even though
+# its contact distances are already accurate. It does not bound the rough
+# clump's SASA error: sharp surface features can demand finer directional
+# sampling. The directional samples have equal solid-angle weights rather
+# than equal surface-area weights.

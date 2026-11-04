@@ -1,6 +1,9 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Analytical union mass properties, without assumptions about quadrature order."""
 
 import jax.numpy as jnp
+
 import numpy as np
 import pytest
 

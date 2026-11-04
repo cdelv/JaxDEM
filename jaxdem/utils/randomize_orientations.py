@@ -7,8 +7,8 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 
-from typing import TYPE_CHECKING
 from functools import partial
+from typing import TYPE_CHECKING
 
 from .quaternion import Quaternion
 from .linalg import unit

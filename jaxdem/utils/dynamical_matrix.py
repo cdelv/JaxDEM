@@ -9,15 +9,17 @@ model's total energy. Their sum gives the total potential-energy Hessian.
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+from jax.typing import ArrayLike
+
 from functools import partial
 from typing import TYPE_CHECKING
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 
 from ._pair_candidates import _analysis_search_radii, _collect_pair_candidates
-from .linalg import norm2
+from .linalg import cross, norm2
 
 if TYPE_CHECKING:
     from ..state import State
@@ -70,8 +72,8 @@ def _rotation_perturbation(omega: jax.Array, p_lab: jax.Array) -> jax.Array:
     if p_lab.shape[-1] == 2:
         w = omega[0]
         return w * jnp.stack([-p_lab[1], p_lab[0]]) - 0.5 * w**2 * p_lab
-    first = jnp.cross(omega, p_lab)
-    return first + 0.5 * jnp.cross(omega, first)
+    first = cross(omega, p_lab)
+    return first + 0.5 * cross(omega, first)
 
 
 def _pair_hessian_block(
@@ -122,8 +124,13 @@ def _pair_blocks(
     dof = state.dim + state.ang_vel.shape[-1] if clumps else state.dim
     if not pairs.shape[0]:
         return jnp.empty((0, 2 * dof, 2 * dof), dtype=state.pos_c.dtype)
+
+    def pair_block(args: tuple[jax.Array, jax.Array, jax.Array]) -> jax.Array:
+        pair, mask, history = args
+        return _pair_hessian_block(state, system, pair, mask, history, clumps)
+
     return jax.lax.map(
-        lambda args: _pair_hessian_block(state, system, *args, clumps),
+        pair_block,
         (pairs, directions, histories),
         batch_size=min(pairs.shape[0], _HESSIAN_BATCH_SIZE),
     )
@@ -310,7 +317,7 @@ def clump_non_bonded_hessian(
 
 
 def zero_mode_mask(
-    eigenvalues: jax.Array,
+    eigenvalues: ArrayLike,
     rel_gap: float = 1e4,
 ) -> jax.Array:
     r"""Boolean mask identifying numerically-zero eigenvalues via gap detection.
@@ -331,7 +338,7 @@ def zero_mode_mask(
 
     Parameters
     ----------
-    eigenvalues : jax.Array
+    eigenvalues : ArrayLike
         1-D array of eigenvalues (e.g. from :func:`jax.numpy.linalg.eigvalsh`
         or :func:`jax.numpy.linalg.eigh`). Ordering is not required.
     rel_gap : float, optional

@@ -32,18 +32,22 @@ Your code editor of choice may have a black extension.
 
 When importing inside a submodule, we will follow this order: Jax-related imports, Python's standard library modules, other external libraries, internal library modules, and lastly, type-checking imports.
 
+Python requires `from __future__` imports to come first. Keep deferred imports
+and initialization-dependent imports at their required execution points;
+apply the grouping above within each independent import block. Typing helpers
+belong with the standard library, while `if TYPE_CHECKING:` blocks come last.
+
 ```python
 import jax
 import jax.numpy as jnp
 
-from typing import ClassVar, Tuple
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 
 from .factory import Factory
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .state import State

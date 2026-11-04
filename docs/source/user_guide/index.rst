@@ -9,15 +9,13 @@ User guide
     ../auto_examples/introduction
     ../auto_examples/state_guide
     ../auto_examples/system_guide
+    ../auto_examples/multi_gpu_guide
     ../auto_examples/domain_guide
     ../auto_examples/integrator_guide
     ../auto_examples/materials_guide
     ../auto_examples/force_model_guide
     ../auto_examples/force_manager_guide
     ../auto_examples/collider_guide
-    search_contracts
-    packing_analysis
-    ../auto_examples/packing_analysis_guide
     ../auto_examples/checkpoint_guide
     ../auto_examples/vtk_writer_guide
     ../auto_examples/clump_guide
@@ -25,5 +23,4 @@ User guide
     ../auto_examples/facets_guide
     ../auto_examples/custom_modules_guide
     ../auto_examples/intro_to_rl
-    multi_roller
-    swarm_environments
+    ../auto_examples/batched_policy_training_guide

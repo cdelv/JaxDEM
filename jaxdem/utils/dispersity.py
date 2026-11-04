@@ -4,11 +4,13 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import warnings
 from collections.abc import Sequence
-import jax
+
 import numpy as np
-import jax.numpy as jnp
 
 
 def allocate_counts(
@@ -161,6 +163,4 @@ def get_polydisperse_radii(
             stacklevel=2,
         )
 
-    return jnp.array(
-        np.concatenate([np.ones(c) * s for c, s in zip(counts, sizes, strict=False)])
-    )
+    return jnp.asarray(np.repeat(sizes, counts))

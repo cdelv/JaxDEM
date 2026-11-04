@@ -37,14 +37,17 @@ class DirectEuler(LinearIntegrator):
         The update equations are (the position update uses the *updated* velocity):
 
         .. math::
-            & v(t + \Delta t) &= v(t) + \Delta t a(t) \\
-            & r(t + \Delta t) &= r(t) + \Delta t v(t + \Delta t)
+
+            \begin{aligned}
+            v(t + \Delta t) &= v(t) + \Delta t a(t), \\
+            r(t + \Delta t) &= r(t) + \Delta t v(t + \Delta t).
+            \end{aligned}
 
         where:
-            - :math:`r` is the particle position (:attr:`jaxdem.State.pos`)
-            - :math:`v` is the particle velocity (:attr:`jaxdem.State.vel`)
-            - :math:`a` is the particle acceleration computed from forces (:attr:`jaxdem.State.force`)
-            - :math:`\Delta t` is the time step (:attr:`jaxdem.System.dt`)
+            - :math:`r` is the particle position (:attr:`jaxdem.State.pos <jaxdem.state.State.pos>`)
+            - :math:`v` is the particle velocity (:attr:`jaxdem.State.vel <jaxdem.state.State.vel>`)
+            - :math:`a` is the particle acceleration computed from forces (:attr:`jaxdem.State.force <jaxdem.state.State.force>`)
+            - :math:`\Delta t` is the time step (:attr:`jaxdem.System.dt <jaxdem.system.System.dt>`)
 
         Parameters
         ----------

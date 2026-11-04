@@ -4,13 +4,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from functools import partial
-from math import isfinite
-
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
+
+from dataclasses import dataclass
+from functools import partial
+from math import isfinite
 
 from ...material_matchmakers import MaterialMatchmaker
 from ...materials import Material, MaterialTable
@@ -395,8 +395,8 @@ class MultiRoller(Environment):
 
         Contents per agent
         ------------------
-        - Unit vector to objective in the :math:`xy` plane (shape (2,)).
-        - Clamped objective delta in the :math:`xy` plane (shape (2,)).
+        - Unit vector from objective to agent in the :math:`xy` plane (shape (2,)).
+        - Clamped agent-minus-objective delta in the :math:`xy` plane (shape (2,)).
         - Velocity in the :math:`xy` plane (shape (2,)).
         - Angular velocity (shape (3,)).
         - LiDAR proximity, normalized by ``lidar_range`` (shape (n_lidar_rays,)).

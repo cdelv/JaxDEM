@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Finite-range Lennard-Jones interactions with shifted pair energy."""
 
 from __future__ import annotations
 

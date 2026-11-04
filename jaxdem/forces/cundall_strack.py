@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Callable, Literal, NamedTuple, cast
-
-import jax
-import jax.numpy as jnp
 
 from ..utils.linalg import cross, dot, norm, norm2, unit, unit_and_norm
 from ..utils.linalg import harmonic_mean as _harmonic_mean
@@ -61,7 +61,7 @@ class CundallStrackContactData(NamedTuple):
 
         The resolved normal and tangential components are combined into total
         pair forces. Torques are shifted from each source sphere's center to
-        its clump center of mass, matching :class:`~jaxdem.utils.ContactData`.
+        its clump center of mass, matching :class:`~jaxdem.utils.contacts.ContactData`.
         Pair displacements use the configured domain's image convention.
 
         ``state`` and ``system`` must describe the unchanged configuration
@@ -105,7 +105,7 @@ def _rotate_about_axis(v: jax.Array, axis: jax.Array, angle: jax.Array) -> jax.A
     """Rotate a 3-vector about a unit axis with Rodrigues' formula."""
     c = jnp.cos(angle)[..., None]
     s = jnp.sin(angle)[..., None]
-    return v * c + jnp.cross(axis, v) * s + axis * dot(axis, v)[..., None] * (1 - c)
+    return v * c + cross(axis, v) * s + axis * dot(axis, v)[..., None] * (1 - c)
 
 
 def _transport_tangent(
@@ -288,51 +288,12 @@ def _contact_response_with_coefficients(
     torque = cross(r_ci, F)
 
     # Rolling friction: resistive torque opposing relative angular velocity
-    R_eff = (R_i * R_j) / (R_i + R_j)
+    R_eff = 0.5 * _harmonic_mean(R_i, R_j)
     omega_rel = state.ang_vel[i] - state.ang_vel[j]
     omega_hat = unit(omega_rel)
     torque = torque - (mu_r_ij * R_eff * Fn)[..., None] * omega_hat
 
     return normal_force, Ft, torque, new_history, mobilized
-
-
-@jax.jit(inline=True, static_argnames=("advance_history", "resolve_contact_birth"))
-@partial(jax.named_call, name="cundall_strack_force")
-def _force_with_coefficients(
-    i: int,
-    j: int,
-    pos: jax.Array,
-    state: State,
-    system: System,
-    history: jax.Array,
-    kn: jax.Array,
-    kt: jax.Array,
-    gamma_n: jax.Array,
-    gamma_t: jax.Array,
-    mu_ij: jax.Array,
-    mu_r_ij: jax.Array,
-    *,
-    advance_history: bool,
-    resolve_contact_birth: bool = False,
-) -> tuple[jax.Array, jax.Array, jax.Array]:
-    """Return the combined force, torque, and updated pair history."""
-    normal, tangential, torque, new_history, _ = _contact_response_with_coefficients(
-        i,
-        j,
-        pos,
-        state,
-        system,
-        history,
-        kn,
-        kt,
-        gamma_n,
-        gamma_t,
-        mu_ij,
-        mu_r_ij,
-        advance_history=advance_history,
-        resolve_contact_birth=resolve_contact_birth,
-    )
-    return normal + tangential, torque, new_history
 
 
 @jax.jit(inline=True)
@@ -355,9 +316,8 @@ def _pair_stiffnesses(
 
         ER_i = E_i * R_i
         ER_j = E_j * R_j
-        ER_product = ER_i * ER_j
-        kn = (2.0 * ER_product) / (ER_i + ER_j)
-        kt = ER_product / (ER_i * (1.0 + nu_j) + ER_j * (1.0 + nu_i))
+        kn = _harmonic_mean(ER_i, ER_j)
+        kt = _harmonic_mean(ER_i / (2.0 * (1.0 + nu_i)), ER_j / (2.0 * (1.0 + nu_j)))
     else:
         kn = _harmonic_mean(table.k_n[mi], table.k_n[mj])
         kt = _harmonic_mean(table.k_t[mi], table.k_t[mj])
@@ -381,7 +341,7 @@ def _pair_coefficients(
     if law.parameterization == "elastic":
         e_i, e_j = table.e[mi], table.e[mj]
         m_i, m_j = state.mass[i], state.mass[j]
-        m_eff = (m_i * m_j) / (m_i + m_j)
+        m_eff = 0.5 * _harmonic_mean(m_i, m_j)
         e_eff = jnp.minimum(e_i, e_j)
         e_safe = jnp.where(e_eff > 0.0, e_eff, 1.0)
         ln_e = jnp.log(e_safe)
@@ -390,8 +350,8 @@ def _pair_coefficients(
             -ln_e / jnp.sqrt(jnp.pi * jnp.pi + ln_e * ln_e),
             1.0,
         )
-        gamma_n = 2.0 * beta * jnp.sqrt(kn * m_eff)
-        gamma_t = 2.0 * beta * jnp.sqrt(kt * m_eff)
+        gamma_n = 2.0 * beta * jnp.sqrt(kn) * jnp.sqrt(m_eff)
+        gamma_t = 2.0 * beta * jnp.sqrt(kt) * jnp.sqrt(m_eff)
     else:
         gamma_n = _harmonic_mean(table.b_n[mi], table.b_n[mj])
         gamma_t = _harmonic_mean(table.b_t[mi], table.b_t[mj])
@@ -545,8 +505,9 @@ class CundallStrackForce(ForceModel):
         \boldsymbol{\tau}_{\text{roll}} =
             -\mu_r \, R_{\text{eff}} \, F_n \, \hat{\omega}_{\text{rel}}
 
-    where :math:`\mu_r = \min(\mu_{r,i}, \mu_{r,j})` is the effective
-    rolling friction coefficient, :math:`R_{\text{eff}} = R_i R_j / (R_i + R_j)`,
+    The configured ``rolling_friction_mixing`` callable determines
+    :math:`\mu_r`; its default is :math:`\min(\mu_{r,i}, \mu_{r,j})`.
+    The effective radius is :math:`R_{\text{eff}} = R_i R_j / (R_i + R_j)`,
     and :math:`\hat{\omega}_{\text{rel}}` is the unit relative angular velocity.
 
     References
@@ -636,22 +597,25 @@ class CundallStrackForce(ForceModel):
             gamma_n = jnp.zeros_like(gamma_n)
             gamma_t = jnp.zeros_like(gamma_t)
             mu_r_ij = jnp.zeros_like(mu_r_ij)
-        return _force_with_coefficients(
-            i,
-            j,
-            pos,
-            state,
-            system,
-            history,
-            kn,
-            kt,
-            gamma_n,
-            gamma_t,
-            mu_ij,
-            mu_r_ij,
-            advance_history=advance_history,
-            resolve_contact_birth=quasistatic,
+        normal, tangential, torque, new_history, _ = (
+            _contact_response_with_coefficients(
+                i,
+                j,
+                pos,
+                state,
+                system,
+                history,
+                kn,
+                kt,
+                gamma_n,
+                gamma_t,
+                mu_ij,
+                mu_r_ij,
+                advance_history=advance_history,
+                resolve_contact_birth=quasistatic,
+            )
         )
+        return normal + tangential, torque, new_history
 
     @staticmethod
     @jax.jit(inline=True)
@@ -703,7 +667,7 @@ def get_cundall_strack_contacts(
     Raises
     ------
     TypeError
-        The system does not use :class:`CundallStrackForce` directly.
+        The system does not use :class:`CundallStrackForce <jaxdem.forces.cundall_strack.CundallStrackForce>` directly.
     ValueError
         Pair search results are incomplete or a reported value is nonfinite.
     """

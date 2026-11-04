@@ -1,24 +1,24 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project – https://github.com/cdelv/JaxDEM
-# JAX binned accumulation engine (vmap + segment_sum).
-#
-# Minimal, high-performance path:
-# - Precompute (pair_i, pair_j, bin_id) once on host from a BinSpec.
-# - vmap a *pure* kernel over pairs.
-# - Reduce into bins with `jax.ops.segment_sum`.
+"""JAX accumulation of pure pair kernels into analysis bins.
+
+Precompute pair indices and bin identifiers on the host, vmap a pure kernel
+over pairs, and reduce into bins with ``jax.ops.segment_sum``.
+"""
 
 from __future__ import annotations
+
+import jax
+import jax.numpy as jnp
+from jax import tree_util
+from jax import ops
 
 from dataclasses import dataclass
 from typing import Any
 from collections.abc import Mapping
 from collections import OrderedDict
 
-import jax
-import jax.numpy as jnp
 import numpy as np
-from jax import tree_util
-from jax import ops
 
 from .bins import BinSpec
 from .pairs import Pairs, build_pairs
@@ -72,7 +72,7 @@ def _cached_jit(fn: Any, cache_key: Any) -> Any:
         return jax.jit(fn)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True, weakref_slot=True)
 class Binned:
     """Binned accumulation output.
 
@@ -94,18 +94,12 @@ def _compute_mean_and_mask(sums: PyTree, counts: jnp.ndarray, B: int) -> PyTree:
     """Compute per-bin mean from sums/counts and NaN-mask empty bins."""
 
     def mean_leaf(s: jnp.ndarray) -> jnp.ndarray:
-        denom = jnp.maximum(counts, 1).astype(jnp.promote_types(s.dtype, float))
         reshape = (B,) + (1,) * (s.ndim - 1)
-        return s / denom.reshape(reshape)
+        n = counts.reshape(reshape)
+        denom = jnp.maximum(n, 1).astype(jnp.promote_types(s.dtype, float))
+        return jnp.where(n == 0, jnp.nan, s / denom)
 
-    mean = tree_util.tree_map(mean_leaf, sums)
-
-    def mask_empty(m: jnp.ndarray) -> jnp.ndarray:
-        empty = counts == 0
-        reshape = (B,) + (1,) * (m.ndim - 1)
-        return jnp.where(empty.reshape(reshape), jnp.nan, m)
-
-    return tree_util.tree_map(mask_empty, mean)
+    return tree_util.tree_map(mean_leaf, sums)
 
 
 def evaluate_binned(

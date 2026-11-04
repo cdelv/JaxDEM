@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Benchmark force-manager dispatch over standard particle workloads."""
+
 from typing import Any, Callable
 
 import jaxdem as jdem

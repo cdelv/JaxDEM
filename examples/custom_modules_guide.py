@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""Custom Module Registration and System Usage
 -------------------------------------------------
 
@@ -12,13 +14,16 @@ To register a new module, the pattern is always the same:
    :py:class:`~jaxdem.colliders.Collider`,
    :py:class:`~jaxdem.integrators.LinearIntegrator`, etc.).
 2. Implement the required abstract/interface methods for that base class.
-3. Register the class with ``@<Base>.register("your_key")``.
+3. Register the class with
+   :py:meth:`Factory.register <jaxdem.factory.Factory.register>`, using
+   ``@<Base>.register("your_key")``.
 
 This guide shows how to:
 
 - define and register custom modules,
 - instantiate them via ``*_type`` and ``*_kw`` arguments,
-- and pass pre-built module objects directly to a ``System``.
+- and pass pre-built module objects directly to a
+  :py:class:`~jaxdem.system.System`.
 """
 
 # %%
@@ -29,13 +34,17 @@ This guide shows how to:
 # - a custom :py:class:`~jaxdem.forces.ForceModel`
 # - a custom :py:class:`~jaxdem.domains.Domain`
 # - a custom :py:class:`~jaxdem.colliders.Collider`
-# - custom linear and rotation integrators
+# - custom :py:class:`~jaxdem.integrators.LinearIntegrator` and
+#   :py:class:`~jaxdem.integrators.RotationIntegrator` implementations
+
+import jax
+import jax.numpy as jnp
 
 from dataclasses import dataclass
 from typing import cast
 
-import jax
-import jax.numpy as jnp
+import numpy as np
+
 import jaxdem as jdem
 
 # %%
@@ -47,11 +56,18 @@ import jaxdem as jdem
 #
 #    \mathbf{F}_{ij} = -k\,(\mathbf{r}_i - \mathbf{r}_j)
 #
-# It does not require any material-table properties.
+# It does not require any material-table properties. Its range is infinite,
+# so it uses the naive all-pairs collider. A finite-range custom law must also
+# implement :py:meth:`~jaxdem.forces.ForceModel.search_radii` for accelerated colliders: nonzero
+# pair forces must fit within the sum of the two returned per-particle bounds.
+# The cutoff must agree in force and energy; a search bound alone must never
+# truncate an otherwise active interaction.
 #
 # Registration reminder:
+#
 # - inherit from :py:class:`~jaxdem.forces.ForceModel`
-# - implement ``force`` and ``energy``
+# - implement :py:meth:`~jaxdem.forces.ForceModel.force` and
+#   :py:meth:`~jaxdem.forces.ForceModel.energy`
 
 
 @jdem.ForceModel.register("pairattractor")
@@ -116,16 +132,20 @@ state, system = system.step(state, system, n=5)
 print("Custom force model:", type(system.force_model).__name__)
 print("Positions after 5 steps:\n", state.pos)
 
-
 # %%
 # Custom Domain
 # ~~~~~~~~~~~~~
-# This domain recenters particles every step so the center of mass stays at
-# the origin. It reuses the default :py:meth:`~jaxdem.domains.Domain.Create` for ``box_size``/``anchor``.
+# This domain subtracts the geometric mean of constituent positions whenever
+# :py:meth:`~jaxdem.domains.Domain.apply` is called. Other integration phases may move particles afterwards.
+# This is a coordinate-frame operation, not mass-weighted COM centering or a
+# physical wall. It reuses the default :py:meth:`~jaxdem.domains.Domain.Create`
+# for ``box_size`` and ``anchor``.
 #
 # Registration reminder:
+#
 # - inherit from :py:class:`~jaxdem.domains.Domain`
-# - implement the relevant interface methods (here: ``apply``)
+# - implement the relevant interface methods (here:
+#   :py:meth:`~jaxdem.domains.Domain.apply`)
 
 
 @jdem.Domain.register("centered")
@@ -155,7 +175,11 @@ system = jdem.System.create(
 state, system = jdem.System.initialize(state, system)
 state, system = system.step(state, system, n=3)
 print("Custom domain:", type(system.domain).__name__)
-print("Mean position after centering:", jnp.mean(state.pos, axis=0))
+print("Mean position after the complete step:", jnp.mean(state.pos, axis=0))
+# Inspect the domain operation itself, before another integrator update.
+state, system = system.domain.apply(state, system)
+np.testing.assert_allclose(jnp.mean(state.pos, axis=0), 0.0, atol=1e-6)
+print("Mean immediately after Domain.apply:", jnp.mean(state.pos, axis=0))
 
 
 # %%
@@ -166,8 +190,12 @@ print("Mean position after centering:", jnp.mean(state.pos, axis=0))
 # shows the structure of a custom collider.
 #
 # Registration reminder:
+#
 # - inherit from :py:class:`~jaxdem.colliders.Collider`
-# - implement interface methods (at minimum ``compute_force``, and for full compatibility also ``compute_potential_energy`` and ``create_neighbor_list``)
+# - implement interface methods (at minimum
+#   :py:meth:`~jaxdem.colliders.Collider.compute_force`, and for full
+#   compatibility also :py:meth:`~jaxdem.colliders.Collider.compute_potential_energy`
+#   and :py:meth:`~jaxdem.colliders.Collider.create_neighbor_list`)
 
 
 @jdem.Collider.register("nocontact")
@@ -228,16 +256,24 @@ print("Forces with nocontact collider:\n", state.force)
 
 
 # %%
+# .. _custom-example-integrators:
+#
 # Custom Integrators
 # ~~~~~~~~~~~~~~~~~~
 # Here we register:
 #
-# - ``DampedEuler`` for linear motion,
-# - ``FrozenRotation`` for angular motion.
+# - :ref:`DampedEuler <custom-example-integrators>` for linear motion,
+# - :ref:`FrozenRotation <custom-example-integrators>`, a no-op that holds orientation fixed.
+#
+# :ref:`DampedEuler <custom-example-integrators>` follows the built-in fixed-particle convention: fixed means
+# immune to force/torque updates, while a prescribed velocity still moves the
+# body. :ref:`FrozenRotation <custom-example-integrators>` deliberately disables orientation updates altogether.
 #
 # Registration reminder:
+#
 # - inherit from :py:class:`~jaxdem.integrators.LinearIntegrator` or :py:class:`~jaxdem.integrators.RotationIntegrator`
-# - implement the needed step methods (here: ``step_after_force``)
+# - implement the needed step methods (here:
+#   :py:meth:`~jaxdem.integrators.Integrator.step_after_force`)
 
 
 @jdem.LinearIntegrator.register("dampedeuler")
@@ -252,12 +288,13 @@ class DampedEuler(jdem.LinearIntegrator):
         state: jdem.State, system: jdem.System
     ) -> tuple[jdem.State, jdem.System]:
         accel = state.force / state.mass[..., None]
-        active = (1 - state.fixed)[..., None]
+        active = (~state.fixed)[..., None]
         integrator = cast(DampedEuler, system.linear_integrator)
         damp = 1.0 - system.dt * integrator.damping
 
-        state.vel = damp * state.vel + system.dt * accel * active
-        state.vel *= active
+        # Fixed bodies retain prescribed velocities; only free bodies
+        # receive acceleration or damping. Both move with their live velocity.
+        state.vel = jnp.where(active, damp * state.vel + system.dt * accel, state.vel)
         state.pos_c += system.dt * state.vel
         return state, system
 
@@ -271,7 +308,8 @@ class FrozenRotation(jdem.RotationIntegrator):
     def step_after_force(
         state: jdem.State, system: jdem.System
     ) -> tuple[jdem.State, jdem.System]:
-        state.ang_vel *= 0
+        # Intentionally leave orientation and angular velocity untouched.
+        # This no-op ignores torque, just like disabling the rotation module.
         return state, system
 
 
@@ -295,6 +333,8 @@ print(
 state = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [2.0, 0.0]]),
     rad=jnp.array([0.4, 0.4]),
+    vel=jnp.array([[0.1, 0.0], [0.0, 0.0]]),
+    fixed=jnp.array([True, False]),
 )
 system = jdem.System.create(
     state.shape,
@@ -309,6 +349,9 @@ state, system = system.step(state, system, n=10)
 print("Custom linear integrator:", type(system.linear_integrator).__name__)
 print("Custom rotation integrator:", type(system.rotation_integrator).__name__)
 print("Velocity after damping:\n", state.vel)
+np.testing.assert_allclose(state.vel[0], [0.1, 0.0], atol=1e-7)
+np.testing.assert_allclose(state.pos[0, 0], 10 * float(system.dt) * 0.1, atol=1e-7)
+print("Fixed particle retained its prescribed motion.")
 
 
 # %%
@@ -327,11 +370,14 @@ print("Velocity after damping:\n", state.vel)
 #   spaces, and hyphens (``"PairAttractor"`` ==
 #   ``"pair_attractor"``).
 # - Re-registering the **same class** under the same key is idempotent, so
-#   re-running a notebook cell that defines a registered class does not raise.
+#   repeated registration of that class object does not raise. Defining a
+#   new class object under an occupied key can still replace the registration.
 # - Registrations are process-local. Define and register your custom classes before
 #   calling :py:meth:`~jaxdem.system.System.create` with the corresponding ``*_type``.
 # - All custom modules should be JAX pytrees. Use
-#   ``@jax.tree_util.register_dataclass`` on dataclasses.
+#   `jax.tree_util.register_dataclass
+#   <https://docs.jax.dev/en/latest/_autosummary/jax.tree_util.register_dataclass.html>`_
+#   on dataclasses.
 # - The "proof" that registration worked is that the key appears in the relevant
 #   registry dictionary.
 

@@ -4,6 +4,7 @@
 
 import jax
 import jax.numpy as jnp
+
 import numpy as np
 import pytest
 
@@ -102,18 +103,20 @@ def test_elastic_collision_matches_reduced_mass_solution(
         dt=dt,
         mat_table=table,
         collider_type=backend,
-        collider_kw={
-            "cutoff": diameter,
-            "skin": 0.05 * diameter,
-            "max_neighbors": 1,
-            "secondary_collider_type": "CellList",
-        }
-        if backend == "NeighborList"
-        else {},
+        collider_kw=(
+            {
+                "cutoff": diameter,
+                "skin": 0.05 * diameter,
+                "max_neighbors": 1,
+                "secondary_collider_type": "CellList",
+            }
+            if backend == "NeighborList"
+            else {}
+        ),
         domain_type=domain,
-        domain_kw={"box_size": jnp.full(dim, 6.0 * diameter)}
-        if domain != "free"
-        else {},
+        domain_kw=(
+            {"box_size": jnp.full(dim, 6.0 * diameter)} if domain != "free" else {}
+        ),
         rotation_integrator_type="",
         linear_integrator_type="verlet",
     )
@@ -288,4 +291,48 @@ def test_sphere_plane_contact_matches_quarter_period_oscillator():
     np.testing.assert_allclose(trajectory.vel[:, -1, 2], 0.1 * np.sin(times), atol=3e-6)
     np.testing.assert_allclose(
         trajectory.pos[:, :3], np.broadcast_to(vertices, (128, 3, 3)), atol=2e-6
+    )
+
+
+def test_unequal_hertz_collision_reaches_the_energy_predicted_compression():
+    mass, radii = np.array([2.0, 3.0]), np.array([0.4, 0.6])
+    young, poisson = np.array([100.0, 200.0]), np.array([0.2, 0.3])
+    reduced_mass = 1 / np.sum(1 / mass)
+    modulus = 1 / np.sum((1 - poisson**2) / young)
+    k = 4 / 3 * modulus * np.sqrt(1 / np.sum(1 / radii))
+    compression = 0.15
+    energy = 0.4 * k * compression**2.5
+    speed = np.sqrt(2 * energy / reduced_mass)
+    weights = np.array([-mass[1], mass[0]]) / mass.sum()
+    state = jd.State.create(
+        pos=jnp.asarray(np.column_stack([weights, np.zeros(2)])),
+        vel=jnp.asarray(np.column_stack([-speed * weights, np.zeros(2)])),
+        rad=jnp.asarray(radii),
+        mass=jnp.asarray(mass),
+        mat_id=jnp.arange(2),
+    )
+    table = jd.MaterialTable.from_materials(
+        [
+            jd.Material.create("elastic", young=e, poisson=nu, density=1.0)
+            for e, nu in zip(young, poisson, strict=True)
+        ]
+    )
+    system = jd.System.create(
+        state=state,
+        mat_table=table,
+        force_model_type="hertz",
+        rotation_integrator_type="",
+        dt=compression / speed / 128,
+    )
+    state, system = jd.System.initialize(state, system)
+    _, _, (trajectory, systems) = jd.System.trajectory_rollout(state, system, n=256)
+    delta = 1 - np.linalg.norm(
+        np.diff(np.asarray(trajectory.pos), axis=1)[:, 0], axis=-1
+    )
+    np.testing.assert_allclose(delta.max(), compression, rtol=1e-4)
+    np.testing.assert_allclose(
+        jax.vmap(compute_energy)(trajectory, systems), energy, rtol=1e-4
+    )
+    np.testing.assert_allclose(
+        np.sum(trajectory.vel * mass[None, :, None], axis=1), 0, atol=2e-6
     )

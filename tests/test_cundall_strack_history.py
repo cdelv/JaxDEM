@@ -1,9 +1,14 @@
-from __future__ import annotations
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Check Cundall-Strack friction memory, contact motion, and return mapping."""
 
-from dataclasses import replace
+from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+
+from dataclasses import replace
+
 import numpy as np
 import pytest
 

@@ -6,3 +6,21 @@ Scenario data
 module. Load it with Python's ``json`` module when building an example; the
 library does not load it automatically. This is a saved scenario, not a general
 packing generator or a benchmark reference.
+
+``rotating_drum.stl`` is a small example boundary mesh: a 16-sided cylinder
+of radius 3 and depth 1.4, with two end caps and three radial lifters. Its
+70 triangles describe a contact shell, including internal baffles, rather
+than a filled solid. Coordinates use the same reduced length units as the
+rotating-drum example.
+
+Download :download:`the drum STL </auto_examples/data/rotating_drum.stl>` alongside the Python
+example, keeping it in a ``data`` subdirectory, or select another mesh with
+the ``JAXDEM_DRUM_STL`` environment variable described by that example.
+
+``soft_mode_packing.json`` is a prepared sixteen-disk configuration at shear
+strain 0.046. The soft-mode example relaxes this input again, then computes
+the spectrum and rearrangement during its run. The file records preparation
+parameters; it contains no cached analysis results.
+
+Download :download:`the prepared packing </auto_examples/data/soft_mode_packing.json>` into the
+same ``data`` subdirectory when running that example outside the repository.

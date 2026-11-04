@@ -2,11 +2,12 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Identity bijector that applies no constraint."""
 
+import jax
+import jax.numpy as jnp
+
 from functools import partial
 
 import distrax  # type: ignore[import-untyped]
-import jax
-import jax.numpy as jnp
 from distrax._src.bijectors.bijector import Array  # type: ignore[import-untyped]
 
 from . import ActionSpace
@@ -29,9 +30,9 @@ class FreeSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     Parameters
     ----------
     event_ndims_in : int
-        Dimensionality of a *single event* seen by the bijector (default 0 for a scalar transform).
+        Must be zero for this scalar transform.
     event_ndims_out : Optional[int]
-        Standard Distrax/TFP bijector flag.
+        Must be None or zero. Use ``distrax.Block`` for vector events.
     is_constant_jacobian : bool
         Standard Distrax/TFP bijector flag.
     is_constant_log_det : bool
@@ -54,6 +55,10 @@ class FreeSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         is_constant_jacobian: bool = True,
         is_constant_log_det: bool | None = True,
     ):
+        if event_ndims_in != 0 or event_ndims_out not in (None, 0):
+            raise ValueError(
+                "FreeSpace is scalar; use distrax.Block for vector events."
+            )
         super().__init__(
             event_ndims_in=event_ndims_in,
             event_ndims_out=event_ndims_out,

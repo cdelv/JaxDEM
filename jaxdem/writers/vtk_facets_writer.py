@@ -23,22 +23,26 @@ if TYPE_CHECKING:  # pragma: no cover
 @VTKBaseWriter.register("facets")
 @dataclass(slots=True)
 class VTKFacetsWriter(VTKBaseWriter):
-    """A :class:`VTKBaseWriter` that writes facets as thickened VTK cells.
+    """A :class:`VTKBaseWriter <jaxdem.writers.VTKBaseWriter>` that writes facets as thickened VTK cells.
 
-    The writer groups vertices by ``facet_id`` and unwraps them in one domain
-    displacement call using each facet's first vertex. In 2D it expands each
+    The writer gathers each unique facet incidence and unwraps its vertices in
+    one domain displacement call using each facet's first vertex. In 2D it expands each
     2-vertex facet into a convex-hull polygon that covers the facet plus
     its thickness, or a quad when the hull is not available. In 3D it
     expands each 3-vertex facet into a convex-hull triangle mesh, or a
     flat prism when the hull is not available. It also attaches per-vertex
-    :class:`State` fields and quaternion components as ``PointData`` arrays.
+    :class:`State <jaxdem.state.State>` fields and quaternion components as ``PointData`` arrays.
     Each expanded point inherits the fields of its source vertex.
+    The expansion radius is ``state.rad`` at each face's first vertex,
+    matching the facet contact law.
     """
 
     @classmethod
     def is_active(cls, state: State, system: System) -> bool:
-        facet_id = np.asarray(state.facet_id)
-        return bool(np.any(facet_id != -1))
+        return bool(
+            np.any(np.asarray(state.facet_id) != -1)
+            or np.any(np.asarray(state.facet_ids_extra) != -1)
+        )
 
     @classmethod
     @partial(jax.named_call, name="VTKFacetsWriter.write")
@@ -53,17 +57,29 @@ class VTKFacetsWriter(VTKBaseWriter):
         import vtk.util.numpy_support as vtk_np  # type: ignore[import-untyped]
 
         pos = np.asarray(state.pos)
-        facet_id = np.asarray(state.facet_id)
-
-        facet_mask = facet_id != -1
-
-        if not np.any(facet_mask):
+        facet_ids = np.concatenate(
+            (np.asarray(state.facet_id)[:, None], np.asarray(state.facet_ids_extra)),
+            axis=-1,
+        )
+        facet_vertices = np.concatenate(
+            (
+                np.asarray(state.facet_vertices)[:, None, :],
+                np.asarray(state.facet_vertices_extra),
+            ),
+            axis=-2,
+        )
+        valid = facet_ids >= 0
+        if not np.any(valid):
             return  # No facets to write
 
-        f_pos = pos[facet_mask]
-        f_facet = facet_id[facet_mask]
-
-        thick_arr = np.asarray(state.rad)[facet_mask]
+        # Shared vertices carry several incidences; a face need not have any
+        # occurrence in the legacy field. Gather complete explicit connectivity
+        # once per ID and keep the physical source node for every virtual point.
+        unique_ids, first_face = np.unique(facet_ids[valid], return_index=True)
+        source_nodes = facet_vertices[valid][first_face].reshape(-1)
+        f_pos = pos[source_nodes]
+        f_facet = np.repeat(unique_ids, state.dim)
+        thick_arr = np.asarray(state.rad)[source_nodes]
 
         # Group vertices and unwrap them relative to each facet's first vertex.
         unique_facets, first, inverse = np.unique(
@@ -105,10 +121,10 @@ class VTKFacetsWriter(VTKBaseWriter):
             if len(idx) == 2 and pos.shape[-1] == 2:
                 # 2D line
                 p0, p1 = f_pos[idx[0]], f_pos[idx[1]]
-                t = (thick_arr[idx[0]] + thick_arr[idx[1]]) / 2.0
+                t = thick_arr[idx[0]]
 
                 if ConvexHull is not None and t > 0:
-                    R = t / 2.0
+                    R = t
                     pts = np.vstack([p0 + circle_pts * R, p1 + circle_pts * R])
                     hull = ConvexHull(pts, qhull_options="QJ")
                     ordered_pts = pts[hull.vertices]
@@ -132,9 +148,7 @@ class VTKFacetsWriter(VTKBaseWriter):
                     L = np.where(L > 0, L, 1.0)
                     nx, ny = -dy / L, dx / L
                     n = np.array([nx, ny])
-                    new_pos.extend(
-                        [p0 + n * t / 2, p1 + n * t / 2, p1 - n * t / 2, p0 - n * t / 2]
-                    )
+                    new_pos.extend([p0 + n * t, p1 + n * t, p1 - n * t, p0 - n * t])
                     new_thick.extend([t] * 4)
                     point_source_idx.extend(idx[[0, 1, 1, 0]])
                     quad = vtk.vtkQuad()
@@ -148,10 +162,10 @@ class VTKFacetsWriter(VTKBaseWriter):
             elif len(idx) == 3 and pos.shape[-1] == 3:
                 # 3D triangle
                 p0, p1, p2 = f_pos[idx[0]], f_pos[idx[1]], f_pos[idx[2]]
-                t = (thick_arr[idx[0]] + thick_arr[idx[1]] + thick_arr[idx[2]]) / 3.0
+                t = thick_arr[idx[0]]
 
                 if ConvexHull is not None and t > 0:
-                    R = t / 2.0
+                    R = t
                     pts = np.vstack(
                         [p0 + sphere_pts * R, p1 + sphere_pts * R, p2 + sphere_pts * R]
                     )
@@ -176,12 +190,12 @@ class VTKFacetsWriter(VTKBaseWriter):
                     n = n / np.where(length > 0, length, 1.0)
                     new_pos.extend(
                         [
-                            p0 + n * t / 2,
-                            p1 + n * t / 2,
-                            p2 + n * t / 2,
-                            p0 - n * t / 2,
-                            p1 - n * t / 2,
-                            p2 - n * t / 2,
+                            p0 + n * t,
+                            p1 + n * t,
+                            p2 + n * t,
+                            p0 - n * t,
+                            p1 - n * t,
+                            p2 - n * t,
                         ]
                     )
                     new_thick.extend([t] * 6)
@@ -239,8 +253,11 @@ class VTKFacetsWriter(VTKBaseWriter):
                     isinstance(arr, np.ndarray)
                     and arr.ndim >= 1
                     and arr.shape[0] == n_total
+                    and arr.size > 0
                 ):
-                    f_arr = arr[facet_mask]
+                    f_arr = arr[source_nodes]
+                    if f_arr.ndim > 2:
+                        f_arr = f_arr.reshape((len(source_nodes), -1))
                     if f_arr.dtype == np.bool_:
                         f_arr = f_arr.astype(np.int8)
 
@@ -264,7 +281,7 @@ class VTKFacetsWriter(VTKBaseWriter):
                 for comp in ("xyz", "w"):
                     arr = getattr(state.q, comp)
                     if isinstance(arr, np.ndarray) and arr.shape[0] == n_total:
-                        f_arr = arr[facet_mask]
+                        f_arr = arr[source_nodes]
                         mapped_arr = f_arr[point_source_idx]
                         vtk_arr = vtk_np.numpy_to_vtk(mapped_arr, deep=False)
                         vtk_arr.SetName(f"q.{comp}")

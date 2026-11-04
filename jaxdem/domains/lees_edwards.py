@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import dataclass, field, replace
 from functools import partial
 from typing import TYPE_CHECKING, Any, cast
-
-import jax
-import jax.numpy as jnp
 
 from . import Domain, SearchGeometry
 from .periodic import PeriodicDomain, _image_span
@@ -43,21 +43,21 @@ class LeesEdwardsDomain(PeriodicDomain):
 
     For oscillatory shear, set ``gamma = gamma_amp * jnp.sin(omega * system.time)``
     and ``gamma_dot = gamma_amp * omega * jnp.cos(omega * system.time)`` in the
-    same callback. Contact laws use :meth:`relative_velocity` to account for
+    same callback. Contact laws use :meth:`relative_velocity <jaxdem.domains.lees_edwards.LeesEdwardsDomain.relative_velocity>` to account for
     the moving image even when particle coordinates remain unwrapped.
 
-    For discrete affine shear, call :meth:`shear` to apply one strain increment
+    For discrete affine shear, call :meth:`shear <jaxdem.domains.lees_edwards.LeesEdwardsDomain.shear>` to apply one strain increment
     to particle centers, periodic images, and any pair history. Quasistatic
     protocols can then minimize the returned state at fixed strain. Box
-    rescaling goes through :meth:`Domain.resize`; ``box_rate`` is the box
+    rescaling goes through :meth:`Domain.resize <jaxdem.domains.Domain.resize>`; ``box_rate`` is the box
     length rate for continuous protocols and is zero otherwise.
 
-    ``box_rate`` is inherited from :class:`PeriodicDomain`. Periodic images
+    ``box_rate`` is inherited from :class:`PeriodicDomain <jaxdem.domains.periodic.PeriodicDomain>`. Periodic images
     move at ``image * box_rate`` when the box changes, and the shear offset
     ``gamma * L_beta`` of an image across the gradient boundary moves with
-    ``L_beta`` as well. :meth:`relative_velocity` subtracts both so a pair
+    ``L_beta`` as well. :meth:`relative_velocity <jaxdem.domains.lees_edwards.LeesEdwardsDomain.relative_velocity>` subtracts both so a pair
     interacting across a boundary sees only its true relative motion.
-    See :attr:`PeriodicDomain.box_rate`.
+    See :attr:`PeriodicDomain.box_rate <jaxdem.domains.periodic.PeriodicDomain.box_rate>`.
 
     For fixed integer image counts :math:`\mathbf n`, the image position and
     velocity are
@@ -84,7 +84,7 @@ class LeesEdwardsDomain(PeriodicDomain):
     def _shift(pos: jax.Array, system: System) -> jax.Array:
         r"""Wrap coordinates after removing their shear-image offset.
 
-        The inherited :meth:`PeriodicDomain.shift` calls this shear-specific
+        The inherited :meth:`PeriodicDomain.shift <jaxdem.domains.periodic.PeriodicDomain.shift>` calls this shear-specific
         rule on body centers, preserving each clump's internal geometry.
 
         .. math::
@@ -314,19 +314,22 @@ class LeesEdwardsDomain(PeriodicDomain):
                 & r_{ij} = r_i - r_j \\\\
                 & r_{ij,\alpha} = r_{ij,\alpha}
                     - \operatorname{round}(r_{ij,\beta}/L_\beta)\gamma L_\beta \\\\
-                & r_{ij} = r_{ij} - L \left\lfloor 0.5 + r_{ij}/L \right\rfloor
+                & r_{ij} = r_{ij} - L\operatorname{round}(r_{ij}/L)
 
             where:
-                - :math:`L` is the domain box size (:attr:`Domain.box_size`)
+                - :math:`L` is the domain box size (:attr:`Domain.box_size <jaxdem.domains.Domain.box_size>`)
+                - Rounding uses ties to even at half-box displacements.
 
         """
-        le_domain = cast("LeesEdwardsDomain", system.domain)
-        rij = ri - rj
-        gamma = le_domain.gamma
-        beta_length = le_domain.box_size[le_domain.beta]
-        shear_image = jnp.round(rij[..., le_domain.beta] / beta_length)
-        rij = rij.at[..., le_domain.alpha].add(-shear_image * beta_length * gamma)
-        return rij - le_domain.box_size * jnp.round(rij / le_domain.box_size)
+        domain = cast("LeesEdwardsDomain", system.domain)
+        raw = ri - rj
+        beta_length = domain.box_size[domain.beta]
+        shear_image = jnp.round(raw[..., domain.beta] / beta_length)
+        shifted = raw.at[..., domain.alpha].add(
+            -shear_image * beta_length * domain.gamma
+        )
+        image = jnp.round(shifted / domain.box_size)
+        return shifted - domain.box_size * image
 
     @staticmethod
     @jax.jit(inline=True)
@@ -338,20 +341,18 @@ class LeesEdwardsDomain(PeriodicDomain):
         vj: jax.Array,
         system: System,
     ) -> jax.Array:
-        """Subtract the velocity of the same image used by ``displacement``.
+        """Subtract the velocity of the same sequentially selected image.
 
-        The image of ``j`` sits at ``rj + n * L + n_beta * gamma * L_beta e_alpha``
-        with integer image counts ``n``. Its velocity is ``n * box_rate`` plus
-        ``n_beta * (gamma_dot * L_beta + gamma * box_rate_beta)`` along
-        ``alpha``. Image counts use the supplied unwrapped particle centers,
-        including when they span multiple boxes.
+        Include both box motion and the shear-offset rate.
         """
         domain = cast("LeesEdwardsDomain", system.domain)
-        rij = ri - rj
+        raw = ri - rj
         beta_length = domain.box_size[domain.beta]
-        shear_image = jnp.round(rij[..., domain.beta] / beta_length)
-        rij = rij.at[..., domain.alpha].add(-shear_image * beta_length * domain.gamma)
-        image = jnp.round(rij / domain.box_size)
+        shear_image = jnp.round(raw[..., domain.beta] / beta_length)
+        shifted = raw.at[..., domain.alpha].add(
+            -shear_image * beta_length * domain.gamma
+        )
+        image = jnp.round(shifted / domain.box_size)
         image_velocity = image * domain.box_rate
         image_velocity = image_velocity.at[..., domain.alpha].add(
             shear_image

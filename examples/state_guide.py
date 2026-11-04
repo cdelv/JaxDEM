@@ -1,7 +1,9 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """The Simulation State
 ----------------------------------------
 
-This example covers the :py:class:`jaxdem.state.State` object,
+This tutorial covers the :py:class:`jaxdem.state.State` object,
 a core component of JaxDEM that holds all particle data in a simulation.
 
 JaxDEM stores particle data in a Structure-of-Arrays (`SoA <https://en.wikipedia.org/wiki/AoS_and_SoA>`_)
@@ -20,8 +22,9 @@ This guide shows how to create, modify, and extend the simulation state.
 # default values.
 
 import jax
-import jaxdem as jdem
 import jax.numpy as jnp
+
+import jaxdem as jdem
 
 state = jdem.State.create(pos=jnp.array([[0.0, 0.0]]))
 print(f"Dimension of state: {state.dim}")
@@ -36,32 +39,40 @@ print(f"Dimension of state: {state.dim}")
 print(f"Initial position: {state.pos}")
 
 # %%
-# Understanding Positions: ``pos``, ``pos_c``, and ``pos_p``
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Note: ``state.pos`` is **not** a stored field. It is a
+# Understanding Positions: :py:attr:`~jaxdem.state.State.pos`, :py:attr:`~jaxdem.state.State.pos_c`, and :py:attr:`~jaxdem.state.State.pos_p`
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Note: :py:attr:`state.pos <jaxdem.state.State.pos>` is **not** a stored field. It is a
 # computed property: ``pos = pos_c + R(q) @ pos_p``, where
-# ``R(q)`` is the rotation given by the particle's quaternion orientation.
+# ``R(q)`` is the rotation given by the particle's
+# :py:class:`~jaxdem.utils.quaternion.Quaternion` orientation.
 #
 # The stored fields are:
 #
-# *   ``pos_c`` — the center-of-mass position of each particle (or clump).
-# *   ``pos_p`` — the offset from the center of mass in the **principal
-#     (body) frame**. For simple spheres ``pos_p`` is zero, so ``pos == pos_c``.
+# *   :py:attr:`pos_c <jaxdem.state.State.pos_c>` — the center-of-mass position of each particle (or clump).
+# *   :py:attr:`pos_p <jaxdem.state.State.pos_p>` — the offset from the center of mass in the **principal
+#     (body) frame**. For simple spheres :py:attr:`pos_p <jaxdem.state.State.pos_p>` is zero, so ``pos == pos_c``.
 #
 # For **clumps** (rigid bodies made of multiple spheres), every sphere in the
-# same clump shares the *same* center of mass position ``pos_c``, orientation ``q``,
-# velocity ``vel``, angular velocity ``ang_vel``, ``force``, ``torque``, ``mass``,
-# ``inertia``, ``fixed``, and ``clump_id``.
+# same clump shares the *same* center of mass position :py:attr:`pos_c <jaxdem.state.State.pos_c>`,
+# orientation :py:attr:`q <jaxdem.state.State.q>`,
+# velocity :py:attr:`vel <jaxdem.state.State.vel>`, angular velocity
+# :py:attr:`ang_vel <jaxdem.state.State.ang_vel>`, :py:attr:`force <jaxdem.state.State.force>`,
+# :py:attr:`torque <jaxdem.state.State.torque>`, :py:attr:`mass <jaxdem.state.State.mass>`,
+# :py:attr:`inertia <jaxdem.state.State.inertia>`, :py:attr:`fixed <jaxdem.state.State.fixed>`, and
+# :py:attr:`clump_id <jaxdem.state.State.clump_id>`.
 # The per-sphere fields that can vary within a rigid clump are:
 #
-# *   ``pos_p`` — the body-frame offset relative to the COM
-# *   ``rad`` — individual sphere radius
-# *   ``volume`` — stored per sphere: ``State.create`` defaults it to each
+# *   :py:attr:`pos_p <jaxdem.state.State.pos_p>` — the body-frame offset relative to the COM
+# *   :py:attr:`rad <jaxdem.state.State.rad>` — individual sphere radius
+# *   :py:attr:`volume <jaxdem.state.State.volume>` — stored per sphere:
+#     :py:meth:`State.create <jaxdem.state.State.create>` defaults it to each
 #     sphere's own hypersphere volume, while
 #     :py:meth:`~jaxdem.state.State.add_clump` broadcasts a provided clump
 #     volume to every member sphere. Packing-fraction utilities read one
 #     value per clump (via a segment max).
-# *   **Identifiers**: ``clump_id``, ``bond_id``, ``mat_id``, ``species_id``
+# *   **Per-sphere identifiers**: :py:attr:`bond_id <jaxdem.state.State.bond_id>`,
+#     :py:attr:`mat_id <jaxdem.state.State.mat_id>`, :py:attr:`species_id <jaxdem.state.State.species_id>`.
+#     The :py:attr:`clump_id <jaxdem.state.State.clump_id>` itself is shared by all members of the rigid body.
 #
 # This design allows vectorized operations over all spheres without branching
 # on clump membership.
@@ -69,7 +80,8 @@ print(f"Initial position: {state.pos}")
 # %%
 # Mutation and Compiled State
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# ``State`` and ``System`` are mutable while you assemble a simulation in
+# :py:class:`~jaxdem.state.State` and :py:class:`~jaxdem.system.System` are mutable while you assemble a
+# simulation in
 # Python. Inside JAX transformations, treat them as pytrees of values: use the
 # objects returned by each operation and rebind them. Python assignment to an
 # object captured by an already compiled function does not change that
@@ -81,29 +93,32 @@ print(f"Initial position: {state.pos}")
 # metadata and select a separate specialization.
 
 # %%
-# Particle Sizes: ``rad`` and ``_rad``
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Particle Sizes: :py:attr:`~jaxdem.state.State.rad` and ``_rad``
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # JaxDEM distinguishes between the physical size of a particle and its search/interaction radius:
 #
-# *   ``rad`` — the "true" physical radius of the particle. Narrow-phase
+# *   :py:attr:`rad <jaxdem.state.State.rad>` — the "true" physical radius of the particle. Narrow-phase
 #     contact force and energy calculations use this radius, as do
-#     plotting and visualization. For facets, ``rad`` represents the physical
+#     plotting and visualization. For facets, :py:attr:`rad <jaxdem.state.State.rad>` represents the physical
 #     thickness of the segment or triangle.
 # *   ``_rad`` — a private conservative lower bound on search extent. For
-#     standard spheres, ``_rad`` equals ``rad``. Facet builders initialize it
+#     standard spheres, ``_rad`` equals :py:attr:`rad <jaxdem.state.State.rad>`. Facet builders initialize it
 #     from the facet geometry and thickness; facet-aware searches recompute
 #     current geometric bounds, which is necessary for flexible facets.
 #
 # JaxDEM computes the broad-phase search radius ``_rad`` internally. User-facing
-# constructors (like ``State.create`` or ``State.add_facet``) do not expose it
+# constructors (like :py:meth:`State.create <jaxdem.state.State.create>` or
+# :py:meth:`State.add_facet <jaxdem.state.State.add_facet>`) do not expose it
 # as a parameter.
 
 # %%
-# Derived values need an explicit refresh after some nested edits. Assigning a
-# complete ``q`` or ``pos_p`` refreshes rotated clump offsets automatically;
-# after changing ``state.q.w`` or ``state.q.xyz`` directly, call
-# :py:meth:`~jaxdem.state.State.refresh_rotation_cache`. Positions, domain
-# geometry, or force search radii can also invalidate a collider cache; use the
+# Assigning a complete :py:attr:`q <jaxdem.state.State.q>` or :py:attr:`pos_p <jaxdem.state.State.pos_p>`
+# refreshes rotated clump offsets
+# automatically. Quaternion components are immutable: create a new quaternion
+# or use `dataclasses.replace <https://docs.python.org/3/library/dataclasses.html#dataclasses.replace>`_ as
+# ``dataclasses.replace(state.q, w=new_w, xyz=new_xyz)``, then assign it
+# to :py:attr:`state.q <jaxdem.state.State.q>`. Changes to positions, domain geometry, or force search radii
+# can also invalidate a collider cache; use the
 # collider invalidation and refresh helpers described in the
 # :doc:`force-model guide <../auto_examples/force_model_guide>`.
 #
@@ -117,7 +132,7 @@ print(f"Initial position: {state.pos}")
 # We have two primary ways to set or modify particle attributes:
 #
 # 1.  **Direct assignment:** You can assign new JAX arrays
-#     to attributes like `state.vel`. This is flexible, but you must
+#     to attributes like :py:attr:`state.vel <jaxdem.state.State.vel>`. This is flexible, but you must
 #     keep the shapes consistent.
 
 state.vel = jnp.ones_like(state.pos)
@@ -137,7 +152,8 @@ state.vel = state.vel.at[i].set(jnp.asarray([1, 2, 3], dtype=float))
 print(state.vel)
 
 # %%
-# This is inefficient. Prefer vectorized operations.
+# For many updates, index several rows at once or use vectorized operations
+# rather than a Python loop over individual particles.
 
 # %%
 # 2.  **Constructor arguments:** This is the
@@ -149,9 +165,9 @@ state = jdem.State.create(pos=jnp.zeros((1, 2)), vel=jnp.ones((1, 2)))
 print(state.vel)
 
 # %%
-# Fixed (Immobile) Particles
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# The boolean field ``state.fixed`` marks particles with a prescribed
+# Fixed and Prescribed-Motion Particles
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# The boolean field :py:attr:`state.fixed <jaxdem.state.State.fixed>` marks particles with a prescribed
 # motion. Forces do not drive them. The integrator multiplies
 # velocity *updates* by ``(1 - fixed)``, which masks the acceleration.
 # A fixed particle keeps whatever velocity it currently has, no matter
@@ -172,18 +188,20 @@ print("Fixed mask:", state.fixed)
 # ~~~~~~~~~~~~~~~~~~~
 # Each particle carries several integer identifiers:
 #
-# - ``clump_id`` — groups particles into rigid bodies (see
+# - :py:attr:`clump_id <jaxdem.state.State.clump_id>` — groups particles into rigid bodies (see
 #   :doc:`../auto_examples/clump_guide`). Particles with the same
-#   ``clump_id`` never interact via contact forces and move as one
-#   body. By default every particle has a unique ``clump_id``.
-# - ``bond_id`` — connectivity masking array (see
+#   :py:attr:`clump_id <jaxdem.state.State.clump_id>` never interact via contact forces and move as one
+#   body. By default every particle has a unique :py:attr:`clump_id <jaxdem.state.State.clump_id>`.
+# - :py:attr:`bond_id <jaxdem.state.State.bond_id>` — connectivity masking array (see
 #   :doc:`../auto_examples/deformable_particle_guide`). For each particle,
 #   it stores the array indices of the neighbor particles it connects to.
 #   JaxDEM disables (masks out) interactions between connected particles.
 #   It has shape ``(N, max_num_neighbors)``, and JaxDEM pads it with ``-1``.
-# - ``mat_id`` — indexes into the :py:class:`~jaxdem.materials.MaterialTable`
+# - :py:attr:`mat_id <jaxdem.state.State.mat_id>` — indexes into the
+#   :py:class:`~jaxdem.materials.material_table.MaterialTable`
 #   to look up material properties (density, Young's modulus, …).
-# - ``species_id`` — selects which force law applies to a pair when using
+# - :py:attr:`species_id <jaxdem.state.State.species_id>` — selects which force law applies to a pair when
+#   using
 #   a :py:class:`~jaxdem.forces.router.ForceRouter` (see
 #   :doc:`../auto_examples/force_model_guide`).
 
@@ -194,26 +212,32 @@ print("mat_id   :", state.mat_id)
 print("species_id:", state.species_id)
 
 # %%
-# Setting Up Connections with ``bond_id``
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# For each particle, the ``bond_id`` array stores the array indices of other particles
+# Setting Up Connections with :py:attr:`~jaxdem.state.State.bond_id`
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# For each particle, the :py:attr:`bond_id <jaxdem.state.State.bond_id>` array stores the array indices of
+# other particles
 # it connects to.
 #
 # By default, the collider uses these connections to **ignore contact/non-bonded interactions**
-# (so connected particles do not collide with each other). The ``interact_same_bond_id``
-# parameter in the system creation options controls this behavior (see :py:meth:`jaxdem.system.System.create`).
-# Set ``interact_same_bond_id=True`` to let particles connected via ``bond_id`` still feel contact forces.
+# (so connected particles do not collide with each other). The
+# :py:attr:`~jaxdem.system.System.interact_same_bond_id`
+# parameter in the system creation options controls this behavior (see :py:meth:`jaxdem.system.System.create`
+# ).
+# Set ``interact_same_bond_id=True`` to let particles connected via
+# :py:attr:`bond_id <jaxdem.state.State.bond_id>` still feel contact forces.
 #
 # This connectivity masking is useful with **bonded models** (where interactions are permanent),
 # such as deformable particle models and cohesive/bonded networks. For details on bonded interactions,
 # see the :doc:`../auto_examples/deformable_particle_guide` and the :doc:`../auto_examples/collider_guide`.
 #
 # When you call :py:meth:`jaxdem.state.State.create`, you can define connections by passing
-# a list of lists (which can have uneven lengths) for the ``bond_id`` argument.
+# a list of lists (which can have uneven lengths) for the :py:attr:`bond_id <jaxdem.state.State.bond_id>`
+# argument.
 # JaxDEM symmetrizes these connections (if particle A connects to B, then
 # B connects to A) and pads the array with ``-1`` up to the maximum number of connections.
 # If a particle has no connections, its row contains only ``-1``.
-# If you pass no connections at all, ``bond_id`` defaults to a shape of ``(N, 1)`` filled with ``-1``.
+# If you pass no connections at all, :py:attr:`bond_id <jaxdem.state.State.bond_id>` defaults to a shape of
+# ``(N, 1)`` filled with ``-1``.
 
 # Create a state with 4 particles:
 # - Particle 0 connects to 1 and 2
@@ -273,10 +297,11 @@ print(
 )
 
 # %%
-# Note that we provided explicit ``clump_id`` values here.
-# :py:meth:`jaxdem.state.State.add` adds ``jnp.max(state.clump_id) + 1`` to
-# the provided IDs to avoid overlaps. The resulting sequence may not be
-# contiguous, and that is valid.
+# Note that we provided explicit :py:attr:`clump_id <jaxdem.state.State.clump_id>` values here.
+# :py:meth:`jaxdem.state.State.add` constructs the new group first, relabels
+# its input clump IDs, and then shifts them above the existing IDs when
+# merging. The grouping is preserved; the supplied numbers are not permanent
+# external identifiers. Keep your own mapping when those labels matter.
 
 # %%
 # Merging Two States
@@ -308,9 +333,10 @@ print(f"Merged state (N={state.N}, clump_ids={state.clump_id}):\npos={state.pos}
 #
 # This is useful for performance. JaxDEM targets **throughput**: if your
 # GPU is not saturated, you are leaving performance on the table. A common
-# DEM task is running parameter sweeps. JaxDEM lets you run many
-# independent simulations in parallel. Until you saturate the GPU, all of
-# them can finish in about the time of one.
+# DEM task is running parameter sweeps. JaxDEM lets you run independent
+# simulations in parallel, often improving throughput when a single system
+# underuses the accelerator. Speedup depends on workload, memory, and hardware;
+# measure the batch sizes relevant to your calculation.
 #
 # Also, with trajectory support you do not have to interrupt the
 # GPU for I/O (e.g., saving state to disk). You can accumulate a full
@@ -336,7 +362,8 @@ print(f"Shape of stacked positions (B, N, dim): {batched_state.pos.shape}")
 print(f"Batch size: {batched_state.batch_size}")
 
 # %%
-# Another way to create batch states is JAX's vmap:
+# Another way to create batch states is
+# `jax.vmap <https://docs.jax.dev/en/latest/_autosummary/jax.vmap.html>`_:
 
 batched_state = jax.vmap(
     lambda i: jdem.State.create(
@@ -354,23 +381,33 @@ print(f"Position at batch 2: {batched_state.pos[2]}")
 
 
 # %%
-# A more realistic way to get a batched state:
+# To initialize independent simulations, return matching
+# :py:class:`~jaxdem.state.State`/:py:class:`~jaxdem.system.System` pairs.
+# Prepare their starting forces with :py:meth:`~jaxdem.system.System.initialize`.
+# Use separated particles rather than putting every particle at one position:
 
 
 def initialize(i: jax.Array) -> tuple[jdem.State, jdem.System]:
-    state = jdem.State.create(i * jnp.ones((4, 2)))
+    positions = jnp.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
+    state = jdem.State.create(
+        pos=positions,
+        rad=jnp.full(4, 0.1),
+        vel=jnp.broadcast_to(jnp.array([0.05 * (i + 1), 0.0]), (4, 2)),
+    )
     system = jdem.System.create(state.shape)
     return jdem.System.initialize(state, system)
 
 
-N_batches = 10
+N_batches = 3
 state, system = jax.vmap(initialize)(jnp.arange(N_batches))
 
 # %%
-# Then, to run this simulation:
+# Then, run this simulation with :py:meth:`~jaxdem.system.System.step`:
 
 state, system = system.step(state, system, n=10)
 print(f"Shape of positions (B, N, dim): {state.pos.shape}")
+print("First-particle x by batch:", state.pos[:, 0, 0])
+assert bool(jnp.all(jnp.diff(state.pos[:, 0, 0]) > 0))
 
 
 # %%
@@ -386,15 +423,18 @@ print(f"Shape of positions (B, N, dim): {state.pos.shape}")
 # simulations (a batch) and capture their full time evolution (a
 # trajectory) without frequent I/O.
 #
-# :py:meth:`jaxdem.writers.VTKWriter.save` understands these
+# :py:meth:`jaxdem.writers.vtk_writer.VTKWriter.save` understands these
 # multi-dimensional states.
 #
-# By convention, when dealing with `State` attributes of shape `(..., N, dim)`:
+# By convention, when dealing with :py:class:`~jaxdem.state.State` attributes of shape ``(..., N, dim)``:
 #
 # *   For a **single snapshot** (no batch, no trajectory), the shape is ``(N, dim)``.
-# *   For a **batched state** (a single snapshot across multiple independent simulations), the shape is ``(B, N, dim)``.
-# *   For a **single trajectory** (multiple snapshots over time of a single simulation), the shape is ``(T, N, dim)``.
-# *   For a **trajectory of batches** (multiple snapshots over time of multiple parallel simulations), the shape is ``(T, B, N, dim)``.
+# *   For a **batched state** (a single snapshot across multiple independent simulations), the shape is
+#     ``(B, N, dim)``.
+# *   For a **single trajectory** (multiple snapshots over time of a single simulation), the shape is
+#     ``(T, N, dim)``.
+# *   For a **trajectory of batches** (multiple snapshots over time of multiple parallel simulations), the shape
+#     is ``(T, B, N, dim)``.
 #
 # In JaxDEM, the batch dimension ``B`` (if present) is always at ``shape[-3]``.
 # This is the axis before the particle dimension ``N`` at ``shape[-2]``.
@@ -406,12 +446,12 @@ print(f"Shape of positions (B, N, dim): {state.pos.shape}")
 # stacked along the first axis (axis 0), producing a state of shape
 # ``(T, B, N, dim)`` for batched trajectories.
 #
-# :py:meth:`jaxdem.writers.VTKWriter.save` understands these layouts. By
+# :py:meth:`jaxdem.writers.vtk_writer.VTKWriter.save` understands these layouts. By
 # default (``trajectory=False``) it treats all leading axes as independent
 # batches. Pass ``trajectory=True`` to tell the writer which axis is time
 # (``trajectory_axis``, default 0). It preserves the order of the other
 # leading axes and flattens them into a single batch index in row-major order.
-# Trajectories need a System with matching leading axes so each frame retains
+# Trajectories need a :py:class:`~jaxdem.system.System` with matching leading axes so each frame retains
 # its own time and step count.
 
 batched_state = jdem.State.stack([batched_state, batched_state, batched_state])
@@ -421,7 +461,7 @@ print(f"Batch size: {batched_state.batch_size}")
 # %%
 # As in the previous section, you can get a trajectory of batches like this:
 
-N_batches = 9
+N_batches = 3
 state, system = jax.vmap(initialize)(jnp.arange(N_batches))
 
 state, system, (state_traj, system_traj) = system.trajectory_rollout(
@@ -430,15 +470,14 @@ state, system, (state_traj, system_traj) = system.trajectory_rollout(
 
 print(f"Shape of positions (T, B, N, dim): {state_traj.pos.shape}")
 
-
 # %%
 # Utilities
 # ~~~~~~~~~~
 # JaxDEM includes utility functions in :py:mod:`jaxdem.utils` for
 # setting up simulations. For example, you can create a state
-# with randomized attributes:
+# with randomized attributes using :py:func:`~jaxdem.utils.random_state`:
 
 from jaxdem import utils as utils
 
-state = utils.random_state(dim=3, N=10)
-print(state)
+state = utils.random_state(dim=3, N=4)
+print("Random state shape:", state.pos.shape)

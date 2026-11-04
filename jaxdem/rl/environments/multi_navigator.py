@@ -4,13 +4,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from functools import partial
-from math import isfinite
-
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
+
+from dataclasses import dataclass
+from functools import partial
+from math import isfinite
 
 from ...material_matchmakers import MaterialMatchmaker
 from ...materials import Material, MaterialTable
@@ -121,15 +121,20 @@ class MultiNavigator(Environment):
     -----
     The observation vector per agent is:
 
-    ============================  =================
-    Feature                       Size
-    ============================  =================
-    Unit direction to objective   ``dim``
-    Clamped displacement          ``dim``
-    Velocity                      ``dim``
-    Normalized agent/wall LiDAR    ``n_lidar_rays`` in 2-D;
-                                  ``n_lidar_rays * n_lidar_elevation`` in 3-D
-    ============================  =================
+    .. list-table::
+       :header-rows: 1
+
+       * - Feature
+         - Size
+       * - Unit direction to objective
+         - ``dim``
+       * - Clamped displacement
+         - ``dim``
+       * - Velocity
+         - ``dim``
+       * - Normalized agent/wall LiDAR
+         - ``n_lidar_rays`` in 2-D;
+           ``n_lidar_rays * n_lidar_elevation`` in 3-D
 
     With ``dt = 0.002`` and ``skip_frames = 49``, each action spans 50
     physics steps (0.1 seconds). One checkpoint captures each agent's
@@ -413,8 +418,8 @@ class MultiNavigator(Environment):
 
         Contents per agent
         ------------------
-        - Unit vector to objective (shape (dim,))  --> Direction
-        - Clamped delta to objective (shape (dim,)) --> Local precision
+        - Unit vector from objective to agent (shape (dim,))  --> Direction
+        - Clamped agent-minus-objective delta (shape (dim,)) --> Local precision
         - Velocity (shape (dim,))
         - Agent/wall LiDAR proximity (shape (n_lidar_rays,) in 2-D,
           (n_lidar_rays * n_lidar_elevation,) in 3-D)
@@ -435,12 +440,20 @@ class MultiNavigator(Environment):
         lr = env.env_params["lidar_range"]
         if env.state.dim == 3:
             _, _, lidar, _, _ = lidar_3d(
-                env.state, env.system, lr,
-                env.n_lidar_rays, env.n_lidar_elevation, sense_edges=True,
+                env.state,
+                env.system,
+                lr,
+                env.n_lidar_rays,
+                env.n_lidar_elevation,
+                sense_edges=True,
             )
         else:
             _, _, lidar, _, _ = lidar_2d(
-                env.state, env.system, lr, env.n_lidar_rays, sense_edges=True,
+                env.state,
+                env.system,
+                lr,
+                env.n_lidar_rays,
+                sense_edges=True,
             )
         return jnp.concatenate(
             [

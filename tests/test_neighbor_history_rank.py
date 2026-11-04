@@ -1,11 +1,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-from __future__ import annotations
+"""Check neighbor contact histories with scalar and multidimensional payloads."""
 
-from dataclasses import dataclass, replace
+from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+
+from dataclasses import dataclass, replace
+
 import numpy as np
 import pytest
 

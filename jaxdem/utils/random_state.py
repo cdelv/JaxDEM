@@ -8,8 +8,8 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
-from typing import TYPE_CHECKING
 from functools import partial
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..state import State

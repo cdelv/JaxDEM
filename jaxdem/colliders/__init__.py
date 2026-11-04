@@ -4,13 +4,13 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from abc import ABC
 import dataclasses
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, cast
-
-import jax
-import jax.numpy as jnp
 
 from ..domains import Domain, SearchGeometry
 from ..factory import Factory
@@ -28,20 +28,20 @@ class Collider(Factory, ABC):
 
     Concrete subclasses of `Collider` implement the interaction algorithms.
 
-    Notes:
+    Notes
     ------
     Self-interaction (calling the force/energy computation for `i=j`) is allowed.
     The `force_model` must handle or ignore this case correctly.
 
-    Example:
+    Example
     --------
     To define a custom collider, inherit from `Collider`, register it, and implement its abstract methods:
 
     >>> @Collider.register("CustomCollider")
-    >>> @jax.tree_util.register_dataclass
-    >>> @dataclass(slots=True)
-    >>> class CustomCollider(Collider):
-            ...
+    ... @jax.tree_util.register_dataclass
+    ... @dataclass(slots=True)
+    ... class CustomCollider(Collider):
+    ...     ...
 
     Then, instantiate it:
 
@@ -56,6 +56,14 @@ class Collider(Factory, ABC):
 
     supported_search_geometries: ClassVar[frozenset[SearchGeometry] | None] = None
     """Supported hashed geometries, or ``None`` for displacement-only search."""
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Keep automatic pool sizing when a checkpoint rebuilds the collider."""
+        metadata = super(Collider, self).metadata
+        if getattr(self, "_auto_capacity", False):
+            metadata["_auto_capacity"] = True
+        return metadata
 
     def validate_domain(self, domain: Domain) -> None:
         """Validate construction-time compatibility with ``domain``."""
@@ -371,12 +379,11 @@ def valid_interaction_mask(
     The mask always disables interactions between particles in the same clump.
     It also disables interactions between bonded particles unless
     ``interact_same_bond_id`` is ``True`` (see
-    :attr:`jaxdem.System.interact_same_bond_id`).
+    :attr:`jaxdem.System.interact_same_bond_id <jaxdem.system.System.interact_same_bond_id>`).
     """
     is_bonded = jnp.any(bond_id_i == index_j[..., None], axis=-1)
-    mask1 = (clump_i != clump_j).astype(int)
-    mask2 = (~is_bonded | interact_same_bond_id).astype(int)
-    return mask1 * mask2
+    eligible = (clump_i != clump_j) & (~is_bonded | interact_same_bond_id)
+    return eligible.astype(int)
 
 
 def invalidate_collider(collider: Collider) -> Collider:
@@ -398,7 +405,7 @@ def refresh_collider(
     Supply ``force_model`` when growing nonempty history so new slots use its
     initializer. Changing particle count with nonempty history, shrinking its
     capacity, or changing particle identities requires ``reset_history=True``.
-    See :meth:`Collider.refresh`.
+    See :meth:`Collider.refresh <jaxdem.colliders.Collider.refresh>`.
 
     Example
     -------
@@ -420,11 +427,11 @@ def advance_history(
     ``quasistatic=True``, so ``dt`` cancels exactly and no velocity-
     dependent force acts.
 
-    Used by affine box deformation (:meth:`Domain.shear`,
-    :meth:`Domain.resize`) and by relaxation. Dynamics does not call it: the
+    Used by affine box deformation (:meth:`Domain.shear <jaxdem.domains.lees_edwards.LeesEdwardsDomain.shear>`,
+    :meth:`Domain.resize <jaxdem.domains.Domain.resize>`) and by relaxation. Dynamics does not call it: the
     integrator's own velocities advance history inside ``compute_force``.
 
-    This relies on the ``quasistatic`` contract of :meth:`ForceModel.force`:
+    This relies on the ``quasistatic`` contract of :meth:`ForceModel.force <jaxdem.forces.ForceModel.force>`:
     the law produces no velocity-dependent force, and its history update
     depends on velocity only through ``velocity * dt``. A law that breaks
     either rule gives a ``dt``-dependent result here.
@@ -467,10 +474,10 @@ def advance_history(
     return state, system
 
 
-from .cell_list import DynamicCellList
-from .multi_cell_list import DynamicMultiCellList
-from .naive import NaiveSimulator
-from .neighbor_list import NeighborList
+from .cell_list import DynamicCellList  # noqa: E402
+from .multi_cell_list import DynamicMultiCellList  # noqa: E402
+from .naive import NaiveSimulator  # noqa: E402
+from .neighbor_list import NeighborList  # noqa: E402
 
 __all__ = [
     "Collider",

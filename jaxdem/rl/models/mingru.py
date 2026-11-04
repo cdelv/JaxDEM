@@ -4,13 +4,14 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from collections.abc import Callable
 from functools import partial
 from typing import Any
 
 import distrax  # type: ignore[import-untyped]
-import jax
-import jax.numpy as jnp
 from flax import nnx
 
 from ..action_spaces import ActionSpace
@@ -95,6 +96,7 @@ class MinGRUActorCritic(Model):
             self.activation,
         )
 
+        self.proj_in: nnx.Linear | None
         if self.hidden_features != self.gru_features:
             self.proj_in = nnx.Linear(
                 self.hidden_features,
@@ -189,7 +191,7 @@ class MinGRUActorCritic(Model):
     ) -> tuple[distrax.Distribution, jax.Array, jax.Array]:
         """Evaluate spatial CAPS with the same clean incoming recurrent state.
 
-        See :meth:`Model.policy_with_perturbation` for the contract and
+        See :meth:`Model.policy_with_perturbation <jaxdem.rl.models.Model.policy_with_perturbation>` for the contract and
         the CAPS paper citation. Perturbations never advance the clean carry.
         """
         pi, value, perturbed_output = self._forward(

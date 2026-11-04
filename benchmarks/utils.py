@@ -1,7 +1,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-import subprocess
+"""Collect revision and hardware metadata and update benchmark results."""
+
 import jax
+
+import subprocess
 import json
 import datetime
 from pathlib import Path

@@ -4,11 +4,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
-
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
+
+from typing import TYPE_CHECKING, Any, cast
 
 try:
     # Python 3.11+
@@ -31,7 +31,7 @@ from tensorboardX import SummaryWriter  # type: ignore[import-untyped]
 from tqdm.auto import trange  # type: ignore[import-untyped]
 
 from ..env_wrappers import clip_action_env, vectorise_env
-from . import Trainer, TrajectoryData
+from . import ModelState, Trainer, TrajectoryData
 
 if TYPE_CHECKING:
     from ..environments import Environment
@@ -265,7 +265,7 @@ class PPOTrainer(Trainer):
 
     With ``vtrace=False`` (default), targets use ordinary GAE. With
     ``vtrace=True``, a V-trace-style lambda trace uses the clipped
-    current importance ratios in :meth:`Trainer.compute_advantages`. This
+    current importance ratios in :meth:`Trainer.compute_advantages <jaxdem.rl.trainers.Trainer.compute_advantages>`. This
     still uses the PPO actor objective, not the IMPALA actor objective. Final-horizon and
     truncation bootstraps retain their collection-time estimates; episode
     boundary handling is independent of this choice.
@@ -440,7 +440,7 @@ class PPOTrainer(Trainer):
             ``key`` is not provided.
         key : jax.Array, optional
             PRNG key. When provided, it takes precedence over ``seed``
-            (same rule as :meth:`jaxdem.System.create`).
+            (same rule as :meth:`jaxdem.System.create <jaxdem.system.System.create>`).
         caps_temporal_coeff, caps_spatial_coeff : float
             Nonnegative CAPS loss weights, disabled by default. These are
             static configuration: changing either recompiles training.
@@ -489,7 +489,7 @@ class PPOTrainer(Trainer):
         if not bool(jnp.all(jnp.isfinite(caps_noise_std) & (caps_noise_std >= 0))):
             raise ValueError("caps_noise_std must be finite and nonnegative")
         if caps_noise_std.ndim != 0 and caps_noise_std.shape != (
-            model.observation_space_size,
+            env.observation_space_size,
         ):
             raise ValueError(
                 "caps_noise_std must be scalar or have one entry per observation feature"
@@ -638,7 +638,7 @@ class PPOTrainer(Trainer):
         Parameters
         ----------
         tr : Trainer
-            Trainer instance (will be cast to :class:`PPOTrainer`).
+            Trainer instance (will be cast to :class:`PPOTrainer <jaxdem.rl.trainers.ppo_trainer.PPOTrainer>`).
         verbose : bool
             If ``True``, display a ``tqdm`` progress bar.
         log : bool
@@ -912,12 +912,13 @@ class PPOTrainer(Trainer):
         value_loss = 0.5 * masked_mean(jnp.square(jnp.maximum(v_diff, v_clip_diff)))
 
         # 3) Policy loss (clipped).
-        ratio_bounded = jnp.where(
+        bounded_log_ratio = jnp.where(
             advantage >= 0,
-            jnp.minimum(ratio, 1.0 + ppo_clip_eps),
-            jnp.maximum(ratio, 1.0 - ppo_clip_eps),
+            jnp.minimum(log_ratio, jnp.log1p(ppo_clip_eps)),
+            jnp.maximum(log_ratio, jnp.log(jnp.maximum(1.0 - ppo_clip_eps, 0.0))),
         )
-        actor_loss = -masked_mean(advantage * ratio_bounded)
+        bounded_log_ratio = jnp.where(selected, bounded_log_ratio, 0.0)
+        actor_loss = -masked_mean(advantage * jnp.exp(bounded_log_ratio))
 
         # 4) Entropy (analytic or quadrature-based, depending on the distribution).
         entropy = masked_mean(pi.entropy())
@@ -1076,8 +1077,8 @@ class PPOTrainer(Trainer):
 
         @partial(jax.named_call, name="PPOTrainer.train_batch")
         def train_batch(
-            graphstate: nnx.GraphState, batch_index: jax.Array
-        ) -> tuple[nnx.GraphState, dict[str, jax.Array]]:
+            graphstate: ModelState, batch_index: jax.Array
+        ) -> tuple[ModelState, dict[str, jax.Array]]:
             indices, loss_mask = _minibatch_selection(
                 T, S, tr.minibatch_size, batch_index
             )
@@ -1118,7 +1119,7 @@ class PPOTrainer(Trainer):
             model.train()
             selected = mb_td.agent_mask & loss_mask
 
-            def apply_update(state: nnx.GraphState) -> nnx.GraphState:
+            def apply_update(state: ModelState) -> ModelState:
                 current_model, current_optimizer = nnx.merge(tr.graphdef, state)
                 current_optimizer.update(current_model, grads)
                 return nnx.state((current_model, current_optimizer))

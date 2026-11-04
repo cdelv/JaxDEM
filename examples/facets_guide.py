@@ -1,5 +1,7 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""Facets (Triangular & Line Boundaries)
-----------------------------------------
+-----------------------------------------
 
 A **facet** in JaxDEM is a 2D line segment or 3D triangle used to model boundaries, walls, or polygonal obstacles. Clump-based walls are bumpy because they are made of spheres. Facets give flat faces.
 
@@ -11,6 +13,7 @@ This guide covers:
 - Creating single facets dynamically using :py:meth:`~jaxdem.state.State.add_facet`.
 - Creating whole triangular meshes using :py:meth:`~jaxdem.state.State.add_mesh`.
 - Dynamic facet connectivity using :py:meth:`~jaxdem.state.State.add_connected_facet`.
+- Shared-node contact surfaces on bonded deformable particles.
 - The "thickness" parameter (Minkowski expansion) for rounded edge-edge collisions.
 - Force Routing (how to trigger facet force models).
 - Visualizing facets in VTK.
@@ -19,28 +22,37 @@ This guide covers:
 # %%
 # Internal Representation
 # ~~~~~~~~~~~~~~~~~~~~~~~~
-# JaxDEM does not track facets in a separate
-# array. It stores a facet as a clump of spheres:
+# JaxDEM represents contact facets through particle keys at their vertices:
 #
 # - **3D Facets** use 3 spheres (one at each vertex).
 # - **2D Facets** use 2 spheres.
 #
 # Depending on the application, facets can be:
-# - **Rigid**: Vertices share the same ``clump_id`` and belong to a rigid clump with a computed center of mass (COM) and moment of inertia.
-# - **Flexible/Deformable**: Vertices behave like individual dynamic spheres with unique ``clump_id`` values, allowing the facet to deform under forces.
+#
+# - **Rigid**: Vertices share the same :py:attr:`~jaxdem.state.State.clump_id` and belong to a rigid clump with a computed center of mass (COM) and moment of inertia.
+# - **Independent vertices**: Vertices have unique :py:attr:`~jaxdem.state.State.clump_id` values and
+#   may move independently. This provides deforming contact geometry, not a
+#   cohesive elastic shell: add a bonded model to enforce material elasticity.
 #
 # To detect collisions with facets during broad-phase:
 #
-# - The standard ``CellList`` recomputes each facet's current extent from its
+# - The standard :py:class:`CellList <jaxdem.colliders.cell_list.DynamicCellList>` recomputes each facet's current extent from its
 #   search-key vertex to all facet vertices, adds thickness, and takes the
 #   maximum with the stored ``_rad`` lower bound.
-# - The ``MultiCellList`` is tighter: it computes the current joint
-#   axis-aligned bounding box (AABB) of the facet vertices. This reduces cell
-#   registration overhead.
+# - :py:class:`MultiCellList <jaxdem.colliders.multi_cell_list.DynamicMultiCellList>` also uses these current bounds, including every face
+#   incident on a shared node.
 #
-# Each vertex particle also stores the unique IDs of its facet vertices in ``state.facet_vertices``. This gives :math:`O(1)` lookup of the facet shape during narrow-phase contact resolution.
+# Each vertex stores its first face in :py:attr:`~jaxdem.state.State.facet_id` / :py:attr:`~jaxdem.state.State.facet_vertices`.
+# Shared nodes store additional faces in :py:attr:`~jaxdem.state.State.facet_ids_extra` /
+# :py:attr:`~jaxdem.state.State.facet_vertices_extra`. Forces from all incident faces accumulate on the
+# same physical node; no extra mass or integration degree of freedom is added.
 
 import jax.numpy as jnp
+
+import tempfile
+from pathlib import Path
+
+import numpy as np
 
 import jaxdem as jdem
 
@@ -84,7 +96,10 @@ print(f"Shared Clump ID: {state.clump_id}")
 # :py:meth:`~jaxdem.state.State.add_mesh` builds entire boundary walls or
 # polyhedra from a collection of mesh vertices and face connectivity indices (faces).
 #
-# - **Rigid vs. Flexible**: Set ``rigid=True`` to group all vertex particles into a single rigid clump (e.g. for a moving obstacle) or ``rigid=False`` for a deformable boundary mesh.
+# - **Rigid vs. independent vertices**: ``rigid=True`` groups the mesh into
+#   one body; ``rigid=False`` creates independent face vertices. Shared input
+#   coordinates are duplicated between faces; no shared-node constraint or
+#   bonded elasticity is added automatically.
 # - **Solid vs. Shell**: If ``rigid=True``, set ``filled=True`` to calculate the center of mass and moment of inertia of a solid filled polyhedron, or ``filled=False`` for a hollow shell/boundary. For open meshes (uneven surfaces, sheets, or boundaries that are not closed), set ``filled=False`` (shell mode). Only then do the center of mass and inertia calculations give physically correct values.
 
 mesh_vertices = jnp.array(
@@ -111,7 +126,7 @@ state_rigid_mesh = jdem.State.add_mesh(
     species_id=1,
 )
 
-# Create a flexible/deformable mesh
+# Create a mesh with independently moving face vertices
 state_flex_mesh = jdem.State.add_mesh(
     empty_state,
     mesh_vertices,
@@ -132,19 +147,24 @@ print(f"Flexible mesh particles: {state_flex_mesh.N}")
 # vertices, use :py:meth:`~jaxdem.state.State.add_connected_facet`.
 #
 # You specify the vertices of the new facet using a list of ``vertex_specs``.
-# - A **scalar integer** index refers to an existing non-facet particle in the State.
+#
+# - A **scalar integer** index refers to an existing particle in the :py:class:`~jaxdem.state.State`,
+#   including one already used by another facet.
 # - An **ArrayLike** position array of shape ``(dim,)`` defines a new vertex.
 #
 # **Rules & Constraints**:
-# 1. **Same Species ID**: All connected existing and new vertices must share the same ``species_id``.
+#
+# 1. **Same Species ID**: All connected existing and new vertices must share the same :py:attr:`~jaxdem.state.State.species_id`.
 # 2. **No Hybrid Facets**: You cannot mix rigid and flexible vertices in the same facet (i.e., you cannot connect a rigid clumped vertex to a flexible vertex).
-# 3. **Dynamic Clump Update**: If you connect new vertices to an existing rigid clump, ``add_connected_facet`` updates the center of mass, moment of inertia, and relative vertex offsets of that clump.
+# 3. **Dynamic Clump Update**: If you connect new vertices to an existing rigid clump, :py:meth:`~jaxdem.state.State.add_connected_facet` updates the center of mass, moment of inertia, and relative vertex offsets of that clump.
 # 4. **Single Clump for Rigid Connections**: If the new facet shares multiple existing rigid vertices, they must already belong to the same rigid clump. You cannot connect vertices from two different rigid clumps into one facet.
-# 5. **One Contact Facet per Particle**: A particle whose ``facet_id`` is already assigned cannot be reused; use bonded deformable-particle meshes when topology must share vertices.
+# 5. **Shared nodes**: Existing nodes may belong to several facets. Duplicate
+#    faces or repeated vertices within one face are rejected.
 
 # Start with one ordinary particle, then reuse it as one vertex of a triangle.
+# Its radius is retained, so choose it to match the intended facet thickness.
 connection_seed = jdem.State.create(
-    pos=jnp.array([[0.0, 0.0, 0.0]]), species_id=jnp.array([1])
+    pos=jnp.array([[0.0, 0.0, 0.0]]), rad=jnp.array([0.1]), species_id=jnp.array([1])
 )
 state_connected = jdem.State.add_connected_facet(
     connection_seed,
@@ -158,10 +178,56 @@ state_connected = jdem.State.add_connected_facet(
 print(f"After connection, N = {state_connected.N} (2 new vertices added)")
 
 # %%
+# Shared Contact Nodes on a Deformable Particle
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Attach contact geometry to an existing bonded mesh with
+# :py:meth:`~jaxdem.state.State.add_contact_facets`. This leaves nodal masses,
+# positions, radii, and bonds unchanged. The bonded model supplies elasticity;
+# the contact facets follow the deforming nodes and transfer contact forces
+# through closest-point barycentric weights.
+
+nodes = jnp.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]])
+elements = jnp.array([[0, 1], [1, 2], [2, 3], [3, 0]])
+dp_state = jdem.State.create(
+    pos=nodes,
+    rad=jnp.full(4, 0.05),  # Uniform contact thickness
+    mass=jnp.full(4, 0.25),
+    bond_id=[[1, 3], [0, 2], [1, 3], [0, 2]],
+    species_id=jnp.ones(4, dtype=int),
+)
+dp_state = jdem.State.add_contact_facets(dp_state, elements)
+dp_model = jdem.BondedForceModel.create(
+    "deformable_particle_model",
+    vertices=nodes,
+    elements=elements,
+    edges=elements,
+    el=100.0,
+    em=100.0,
+    ec=100.0,
+)
+print(f"Shared surface: {dp_state.N} physical nodes, {len(elements)} facets")
+# %%
+# Pass ``bonded_force_model=dp_model`` when creating the :py:class:`~jaxdem.system.System`, and route
+# sphere/DP contacts to ``sphere_facet_spring`` and DP/DP contacts to
+# ``facet_facet_spring`` as shown below. In 3D, use triangle elements (M, 3).
+#
+# Adjacent faces sharing a node do not generate facet-facet repulsion.
+# Contact penalties are additive per face: a sphere near a shared edge or
+# vertex can contact several incident faces, increasing the effective stiffness.
+# These laws do not merge contacts into a single surface-union contact.
+#
+# Neighbor lists rebuild automatically when these constructors add facets.
+# Directly replacing connectivity while retaining IDs requires explicit
+# replacing :py:attr:`~jaxdem.system.System.collider` with the result of
+# :py:meth:`~jaxdem.colliders.Collider.invalidate` before
+# the next contact evaluation.
+
+# %%
 # Force Routing & Thickness (Minkowski Sum)
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Even though the broad-phase collider triggers on the inflated
-# vertex spheres, the chosen Force Model (e.g. ``FacetFacetSpringForce``)
+# vertex spheres, the chosen :py:class:`~jaxdem.forces.ForceModel`
+# (e.g. :py:class:`~jaxdem.forces.spring.FacetFacetSpringForce`)
 # sets the **actual** collision shape.
 #
 # Facets have a physical property called ``thickness``, passed during facet/mesh creation.
@@ -170,6 +236,7 @@ print(f"After connection, N = {state_connected.N} (2 new vertices added)")
 # radius, which stores the ``thickness`` value (i.e., :math:`R = \text{thickness}`).
 #
 # Because of this expansion:
+#
 # - **Faces** are flat planes shifted outwards by :math:`R`.
 # - **Edges** are rounded cylinders (pipes) of radius :math:`R`.
 # - **Vertices** are rounded spheres of radius :math:`R`.
@@ -178,18 +245,26 @@ print(f"After connection, N = {state_connected.N} (2 new vertices added)")
 # sharp-corner singularities.
 #
 # JaxDEM supports the following narrow-phase force models for facets:
-# - ``sphere_facet_spring``: For sphere-to-facet contacts.
-# - ``facet_facet_spring``: For facet-to-facet contacts.
+#
+# - :py:class:`sphere_facet_spring <jaxdem.forces.spring.SphereFacetSpringForce>`:
+#   For sphere-to-facet contacts.
+# - :py:class:`facet_facet_spring <jaxdem.forces.spring.FacetFacetSpringForce>`:
+#   For facet-to-facet contacts.
 #
 # At zero separation these models choose a contact normal that may not be
-# an energy gradient. Use FIRE or another force-only optimizer for physical
+# an energy gradient. Use :py:func:`FIRE <jaxdem.minimizers.optimizers.fire>` or another force-only optimizer for physical
 # relaxation. Value-based optimizers differentiate energy directly. An
 # intersecting contact can have a flat energy, so an energy minimum need not
-# be force balanced. Energy AD requires Naive or NeighborList; direct CellList
-# and MultiCellList traversals do not support reverse-mode differentiation.
+# be force balanced. Energy AD requires
+# :py:class:`Naive <jaxdem.colliders.naive.NaiveSimulator>` or
+# :py:class:`~jaxdem.colliders.neighbor_list.NeighborList`; direct
+# :py:class:`CellList <jaxdem.colliders.cell_list.DynamicCellList>` and
+# :py:class:`MultiCellList <jaxdem.colliders.multi_cell_list.DynamicMultiCellList>`
+# traversals do not support reverse-mode differentiation.
 #
-# The ``ForceRouter`` routes the contacts. In a typical simulation with normal spheres (species 0)
+# The :py:class:`~jaxdem.forces.router.ForceRouter` routes the contacts. In a typical simulation with normal spheres (species 0)
 # and boundaries/facets (species 1), you route collisions as:
+#
 # - ``(0, 0)`` -> ``spring`` or ``hertz`` (sphere-sphere contacts)
 # - ``(1, 0)`` -> ``sphere_facet_spring`` (sphere-facet contacts)
 # - ``(1, 1)`` -> ``facet_facet_spring`` (facet-facet contacts)
@@ -200,52 +275,192 @@ mat = jdem.Material.create(
 )
 mat_table = jdem.MaterialTable.from_materials([mat])
 
-# Route collisions between species 1 (Facet mesh vertices) and species 1.
+# %%
+# Route sphere/facet and facet/facet contacts separately.
 # Note that the force models take no thickness parameter: the contact
-# thickness comes from the facet vertices' ``state.rad``, set via the
-# ``thickness`` argument of ``add_facet`` / ``add_mesh``.
+# thickness comes from the facet vertices' :py:attr:`~jaxdem.state.State.rad`, set via the
+# ``thickness`` argument of :py:meth:`~jaxdem.state.State.add_facet` /
+# :py:meth:`~jaxdem.state.State.add_mesh`.
 router = jdem.ForceRouter.from_dict(
-    S=2, mapping={(1, 1): jdem.ForceModel.create("facet_facet_spring")}
+    S=2,
+    mapping={
+        (0, 1): jdem.ForceModel.create("sphere_facet_spring"),
+        (1, 1): jdem.ForceModel.create("facet_facet_spring"),
+    },
 )
 
+# %%
 # Spatial colliders such as ``"cell_list"`` and ``"multi_cell_list"`` work with
 # facets and derive their search bounds from the current facet geometry.
-# Passing ``state=`` to ``System.create`` forwards it to colliders that need it,
+# This four-particle walkthrough uses naive search to keep compilation short.
+# Passing ``state=`` to :py:meth:`~jaxdem.system.System.create` forwards it to colliders that need it,
 # so there is no need for ``collider_kw={"state": ...}``.
+# Hold the connected triangle fixed and add one sphere just above its face.
+# Its center is 0.15 above the plane, while the radius plus facet expansion
+# is 0.2: overlap=0.05, giving a normal spring force 1000*0.05=50.
+state_connected.fixed = jnp.ones(state_connected.N, dtype=bool)
+fixed_facet_state = state_connected
+state_connected = jdem.State.merge(
+    state_connected,
+    jdem.State.create(pos=[[0.2, 0.2, 0.15]], rad=[0.1], species_id=[0]),
+)
 system = jdem.System.create(
     state=state_connected,
-    collider_type="multi_cell_list",
+    collider_type="naive",
     force_model=router,
     mat_table=mat_table,
     dt=1e-4,
 )
 
-# Run a simulation step to verify
+# Check an actual sphere/facet interaction before advancing.
 state_connected, system = jdem.System.initialize(state_connected, system)
-state_stepped, system = system.step(state_connected, system)
-print("Simulation step successful.")
+np.testing.assert_allclose(
+    state_connected.force[-1], [0.0, 0.0, 50.0], rtol=2e-5, atol=1e-5
+)
+print("Sphere normal contact force:", state_connected.force[-1])
+fixed_positions = np.asarray(state_connected.pos[:3]).copy()
+state_stepped, system = system.step(state_connected, system, n=2)
+np.testing.assert_allclose(state_stepped.pos[:3], fixed_positions, atol=1e-7)
+assert float(state_stepped.pos[-1, 2]) > 0.15
+print("Sphere moved away from the fixed facet.")
+
+# %%
+# Watch the sphere approach, make contact, and rebound
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Start a unit-mass sphere well above the same fixed triangle, moving toward
+# its interior at speed 1.5. This law is an undamped elastic spring: the
+# material's friction and restitution coefficients are not used by
+# ``sphere_facet_spring``. With contact stiffness 1000, the sphere stores its
+# incoming kinetic energy in the spring, reverses direction, then separates.
+#
+# The contact begins when the center is one sphere radius plus one facet
+# thickness from the triangle's plane, here 0.2. Capture complete states and
+# systems every 0.025 time units, including the initial configuration. The
+# 41 saved frames cover one physical time unit and resolve both travel and
+# the approximately 0.1-time-unit contact interval.
+impact_state = jdem.State.merge(
+    fixed_facet_state,
+    jdem.State.create(
+        pos=jnp.array([[0.2, 0.2, 0.8]]),
+        vel=jnp.array([[0.0, 0.0, -1.5]]),
+        rad=jnp.array([0.1]),
+        mass=jnp.array([1.0]),
+        species_id=jnp.array([0]),
+    ),
+)
+impact_system = jdem.System.create(
+    state=impact_state,
+    collider_type="naive",
+    force_model=router,
+    mat_table=mat_table,
+    dt=0.0005,
+    rotation_integrator_type=None,
+)
+impact_state, impact_system = jdem.System.initialize(impact_state, impact_system)
+state_stepped, system, (scene_states, scene_systems) = jdem.System.trajectory_rollout(
+    impact_state, impact_system, strides=jnp.asarray([0] + [50] * 40)
+)
+scene_title = "An elastic sphere bouncing from a fixed facet"
+impact_positions = np.asarray(scene_states.pos)
+impact_velocities = np.asarray(scene_states.vel[:, -1, 2])
+contact_overlap = np.maximum(0.2 - impact_positions[:, -1, 2], 0.0)
+assert impact_positions.shape == (41, 4, 3)
+assert np.isfinite(impact_positions).all()
+np.testing.assert_allclose(
+    impact_positions[:, :3],
+    np.broadcast_to(fixed_positions, impact_positions[:, :3].shape),
+    atol=1e-7,
+)
+np.testing.assert_allclose(
+    impact_positions[:, -1, :2],
+    np.broadcast_to([0.2, 0.2], impact_positions[:, -1, :2].shape),
+    atol=1e-7,
+)
+assert contact_overlap.max() > 0.04
+assert impact_positions[:, -1, 2].min() > 0.1
+assert impact_velocities[0] < -1.4
+assert impact_velocities[-1] > 1.4
+np.testing.assert_allclose(impact_velocities[-1], -impact_velocities[0], rtol=2e-3)
+assert contact_overlap[-1] == 0.0
+system.check_overflow()
+print(f"Maximum sphere/facet overlap: {contact_overlap.max():.4f}")
+print(
+    f"Incoming/outgoing normal velocity: {impact_velocities[0]:.3f} / {impact_velocities[-1]:.3f}"
+)
+
+# %%
+# Selecting Contact Calculations
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Both facet laws enable all contact calculations by default. Their switches
+# are static JAX configuration: changing a switch compiles a new kernel with
+# the disabled calculations omitted. The same choices apply to force and
+# potential energy.
+#
+# For ``sphere_facet_spring``, ``face``, ``edge``, and ``vertex`` select the
+# feature containing the closest point. For example, a face-only wall ignores
+# contacts whose closest point lies on an edge or vertex; it does not substitute
+# a farther enabled feature. In 2D, ``edge`` controls the open line segment and
+# ``vertex`` controls its endpoints; ``face`` has no effect.
+sphere_face_only = jdem.ForceModel.create(
+    "sphere_facet_spring", edge=False, vertex=False
+)
+
+# %%
+# For ``facet_facet_spring``, the switches select three geometry query groups:
+#
+# - ``vertex_triangle``: each vertex against the opposite triangle, including
+#   its edges and vertices.
+# - ``edge_edge``: each pair of edges, including their endpoints.
+# - ``edge_triangle``: edge piercings through the opposite triangle.
+#
+# The closest remaining candidate defines the contact. These query groups
+# overlap physical contact types: parallel face-face contacts, for example,
+# can be detected by edge-edge queries. In 2D only ``edge_edge`` is used.
+# The following law omits vertex-triangle and piercing queries, retaining
+# edge-edge distances. Use such a reduction only when those omitted queries
+# are unnecessary for the geometry: it can miss interior crossings or contacts
+# with a face away from its boundary.
+facet_edges_only = jdem.ForceModel.create(
+    "facet_facet_spring", vertex_triangle=False, edge_triangle=False
+)
+
+# Configure each species pair separately through the usual router.
+selective_router = jdem.ForceRouter.from_dict(
+    S=2,
+    mapping={
+        (0, 0): jdem.ForceModel.create("spring"),
+        (0, 1): sphere_face_only,
+        (1, 1): facet_edges_only,
+    },
+)
+# %%
+# Pass ``force_model=selective_router`` to :py:meth:`~jaxdem.system.System.create` to use these
+# choices. Disabling every applicable switch makes that law return zero
+# force, torque, and potential energy.
 
 # %%
 # VTK Visualization
 # ~~~~~~~~~~~~~~~~~~
-# When writing the simulation state, ``VTKWriter`` splits the output:
+# When writing the simulation state, :py:class:`~jaxdem.writers.vtk_writer.VTKWriter` splits the output:
+#
 # - It writes normal spheres (non-facet particles, where ``facet_id == -1``) with the standard ``spheres`` writer.
 # - It writes facet vertex spheres (where ``facet_id != -1``) to a separate PVD collection named ``facet_spheres``.
 # - It exports the facet surfaces/triangles with the ``facets`` writer.
 #
-# The VTK rendering has one nuance. The collision engine uses the full vertex radius (``state.rad``)
+# The VTK rendering has one nuance. The collision engine uses the full vertex radius (:py:attr:`~jaxdem.state.State.rad`)
 # as the Minkowski expansion radius for contacts. The VTK writer draws the facets with a Minkowski radius of
 # ``state.rad / 2`` (half-thickness) to show the physical sheet thickness. In ParaView you may therefore
 # see a small gap of size ``state.rad / 2`` between colliding spheres
 # and the rendered facet surface.
-import tempfile
-from pathlib import Path
-
-tmp_root = tempfile.TemporaryDirectory(prefix="jaxdem-facets-guide-")
-tmp_dir = Path(tmp_root.name)
+tmp_dir = Path(tempfile.mkdtemp(prefix="jaxdem-facets-guide-"))
 with jdem.VTKWriter(
     directory=tmp_dir, writers=["facets", "spheres", "facet_spheres"]
 ) as writer:
-    writer.save(state_connected, system)
+    for saved_state, saved_system in zip(
+        jdem.State.unstack(scene_states),
+        jdem.System.unstack(scene_systems),
+        strict=True,
+    ):
+        writer.save(saved_state, saved_system)
 print(f"Saved VTK output (check the generated {tmp_dir} directory).")
-tmp_root.cleanup()
+# Output is retained for ParaView inspection; remove the directory when done.

@@ -1,8 +1,11 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Compile selected, unmodified kernels from the optional local PufferLib checkout.
 
 No PufferLib training build is required. The harness supplies float32 buffers
 and a one-head action configuration, then calls the actual CUDA implementations.
 """
+
 import ctypes
 import os
 import shutil
@@ -14,22 +17,22 @@ import numpy as np
 
 def _definition(source, marker):
     start = source.index(marker)
-    opening = source.index('{', start)
+    opening = source.index("{", start)
     depth = 1
     end = opening + 1
     while depth:
-        depth += (source[end] == '{') - (source[end] == '}')
+        depth += (source[end] == "{") - (source[end] == "}")
         end += 1
-    if source[start:].startswith(('struct ', 'enum ')):
+    if source[start:].startswith(("struct ", "enum ")):
         end += 1
     return source[start:end]
 
 
 def build_reference(directory):
-    root = Path(__file__).resolve().parents[1] / 'PufferLib/src'
-    algo = (root / 'algo.cu').read_text()
-    trainer = (root / 'pufferl.cu').read_text()
-    preamble = '''
+    root = Path(__file__).resolve().parents[1] / "PufferLib/src"
+    algo = (root / "algo.cu").read_text()
+    trainer = (root / "pufferl.cu").read_text()
+    preamble = """
 #include <cuda_runtime.h>
 #include <cuda_bf16.h>
 #include <cmath>
@@ -42,22 +45,28 @@ __device__ __forceinline__ float from_float(float x) { return x; }
 constexpr int PPO_THREADS = 256;
 constexpr int PPO_MAX_HEAD_A = 3;
 constexpr int ADV_VEC_WIDTH = 4;
-'''
+"""
     markers = [
-        '__device__ __forceinline__ float finite_or_clamp(',
-        '__device__ __forceinline__ float safe_continuous_mean(',
-        '__device__ __forceinline__ float safe_continuous_logstd(',
-        'enum LossIdx {', 'struct PPOGraphArgs {', 'struct PPOKernelArgs {',
-        '__device__ __forceinline__ float load_logit_masked(',
-        '__device__ __forceinline__ float ppo_discrete_logsumexp(',
-        '__device__ __forceinline__ void ppo_continuous_head(',
-        '__global__ void cache_imp_and_v(', '__global__ void ppo_loss_compute(',
-        '__device__ __forceinline__ void adv_ld(',
-        '__device__ __forceinline__ void adv_st(', '__global__ void puff_advantage(',
+        "__device__ __forceinline__ float finite_or_clamp(",
+        "__device__ __forceinline__ float safe_continuous_mean(",
+        "__device__ __forceinline__ float safe_continuous_logstd(",
+        "enum LossIdx {",
+        "struct PPOGraphArgs {",
+        "struct PPOKernelArgs {",
+        "__device__ __forceinline__ float load_logit_masked(",
+        "__device__ __forceinline__ float ppo_discrete_logsumexp(",
+        "__device__ __forceinline__ void ppo_continuous_head(",
+        "__global__ void cache_imp_and_v(",
+        "__global__ void ppo_loss_compute(",
+        "__device__ __forceinline__ void adv_ld(",
+        "__device__ __forceinline__ void adv_st(",
+        "__global__ void puff_advantage(",
     ]
-    source = preamble + _definition(trainer, '__device__ __forceinline__ void block_reduce_sum(')
-    source += '\n' + '\n'.join(_definition(algo, marker) for marker in markers)
-    source += r'''
+    source = preamble + _definition(
+        trainer, "__device__ __forceinline__ void block_reduce_sum("
+    )
+    source += "\n" + "\n".join(_definition(algo, marker) for marker in markers)
+    source += r"""
 struct Allocation {
     float* p = nullptr;
     ~Allocation() { if (p) cudaFree(p); }
@@ -119,20 +128,38 @@ extern "C" int loss(const float* input, float* output, int n, int continuous,
     cudaFree(act_sizes);
     return (int)result;
 }
-'''
+"""
     directory = Path(directory)
-    cpp = directory / 'puffer_parity.cu'
-    lib = directory / 'puffer_parity.so'
+    cpp = directory / "puffer_parity.cu"
+    lib = directory / "puffer_parity.so"
     cpp.write_text(source)
-    host_compiler = os.environ.get('CUDAHOSTCXX') or shutil.which('g++-15')
-    host_flags = ['-ccbin', host_compiler] if host_compiler else []
-    build = subprocess.run(['nvcc', *host_flags,'-std=c++17','-O2','-shared','-Xcompiler','-fPIC',
-                    '-arch=native',str(cpp),'-o',str(lib)],check=False,capture_output=True,text=True,
-                    env={k:v for k,v in os.environ.items() if not k.startswith('BASH_FUNC_')})
+    host_compiler = os.environ.get("CUDAHOSTCXX") or shutil.which("g++-15")
+    host_flags = ["-ccbin", host_compiler] if host_compiler else []
+    build = subprocess.run(
+        [
+            "nvcc",
+            *host_flags,
+            "-std=c++17",
+            "-O2",
+            "-shared",
+            "-Xcompiler",
+            "-fPIC",
+            "-arch=native",
+            str(cpp),
+            "-o",
+            str(lib),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env={k: v for k, v in os.environ.items() if not k.startswith("BASH_FUNC_")},
+    )
     if build.returncode:
         raise RuntimeError(build.stderr)
     dll = ctypes.CDLL(str(lib))
-    ptr = np.ctypeslib.ndpointer(dtype=np.float32,flags='C_CONTIGUOUS')
-    dll.advantage.argtypes = [ptr,ptr,ctypes.c_int,ctypes.c_int,ctypes.c_int]+[ctypes.c_float]*4
-    dll.loss.argtypes = [ptr,ptr,ctypes.c_int,ctypes.c_int]+[ctypes.c_float]*3
+    ptr = np.ctypeslib.ndpointer(dtype=np.float32, flags="C_CONTIGUOUS")
+    dll.advantage.argtypes = [ptr, ptr, ctypes.c_int, ctypes.c_int, ctypes.c_int] + [
+        ctypes.c_float
+    ] * 4
+    dll.loss.argtypes = [ptr, ptr, ctypes.c_int, ctypes.c_int] + [ctypes.c_float] * 3
     return dll

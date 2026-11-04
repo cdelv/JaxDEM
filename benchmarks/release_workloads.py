@@ -1,7 +1,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Bounded end-to-end release workloads with explicit timing phases."""
 
 from __future__ import annotations
+
+import jax
+import jaxlib
+import jax.numpy as jnp
 
 import argparse
 import json
@@ -13,9 +18,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import jax
-import jaxlib
-import jax.numpy as jnp
 import numpy as np
 
 import jaxdem as jd

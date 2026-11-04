@@ -4,11 +4,10 @@
 
 from __future__ import annotations
 
-import dataclasses
-
 import jax
 from jax.typing import ArrayLike
 
+import dataclasses
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Self, cast
 
@@ -33,7 +32,7 @@ class PlasticDeformableParticleModel(DeformableParticleModel):
     r"""Deformable particle model with per-edge plasticity.
 
     Elastic forces, topology, reference configuration, and coefficient
-    broadcasting match :class:`DeformableParticleModel`. See its docstring
+    broadcasting match :class:`DeformableParticleModel <jaxdem.bonded_forces.deformable_particle.DeformableParticleModel>`. See its docstring
     for the full energy definition and shape conventions. The only
     difference is the plastic update rule. Each update integrates the linear
     relaxation exactly with the current geometry held fixed. Positive rest
@@ -52,7 +51,7 @@ class PlasticDeformableParticleModel(DeformableParticleModel):
     :math:`L_e` is the current edge length, :math:`\tau_{s,e}` is the relaxation time (``tau_s``),
     and :math:`dt` is the simulation time step.
 
-    Shapes (see :class:`DeformableParticleModel` for definitions of K, M, E, A):
+    Shapes (see :class:`DeformableParticleModel <jaxdem.bonded_forces.deformable_particle.DeformableParticleModel>` for definitions of K, M, E, A):
 
     - ``tau_s``: ``(E,)`` — one relaxation time per edge.
     """

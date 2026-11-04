@@ -1,10 +1,12 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""The Force Manager
 ----------------------------------------
 
 The :py:class:`~jaxdem.forces.force_manager.ForceManager` collects *all*
 non-collider contributions (gravity, external forces, bonded forces, custom
 force functions) and aggregates them per rigid body, writing
-``state.force`` and ``state.torque``.
+:py:attr:`~jaxdem.state.State.force` and :py:attr:`~jaxdem.state.State.torque`.
 
 For an overview of the available pairwise force models, how to combine them,
 and how to set up species-wise interactions, see the
@@ -13,7 +15,7 @@ and how to set up species-wise interactions, see the
 
 # %%
 # The :py:class:`~jaxdem.forces.force_manager.ForceManager` lives on
-# ``system.force_manager``. It handles:
+# :py:attr:`~jaxdem.system.System.force_manager`. It handles:
 #
 # * **Gravity** — a constant acceleration applied to every particle.
 # * **External forces and torques** — accumulated buffers that are applied
@@ -24,6 +26,9 @@ and how to set up species-wise interactions, see the
 
 import jax
 import jax.numpy as jnp
+
+import numpy as np
+
 import jaxdem as jdem
 
 # %%
@@ -48,9 +53,10 @@ print("Updated gravity:", system.force_manager.gravity)
 # %%
 # External Forces
 # ~~~~~~~~~~~~~~~~~
-# You can push forces into the manager's buffers before a step. ``apply``
-# clears the buffers automatically after each call (``system.step`` calls
-# ``apply``).
+# You can push forces into the manager's buffers before a step.
+# :py:meth:`~jaxdem.forces.force_manager.ForceManager.apply` clears the buffers
+# automatically after each call (:py:meth:`~jaxdem.system.System.step` calls
+# :py:meth:`~jaxdem.forces.force_manager.ForceManager.apply`).
 #
 # :py:meth:`~jaxdem.forces.force_manager.ForceManager.add_force` adds a
 # force array to **all** particles. Use ``is_com=True`` to apply the force
@@ -59,7 +65,7 @@ print("Updated gravity:", system.force_manager.gravity)
 # clumps).
 
 state = jdem.State.create(
-    pos=jnp.array([[0.0, 0.0], [1.0, 0.0]]),
+    pos=jnp.array([[0.0, 0.0], [3.0, 0.0]]),
 )
 system = jdem.System.create(state.shape)
 
@@ -87,6 +93,11 @@ print("After add_force_at:\n", system.force_manager.external_force)
 
 system = jdem.ForceManager.add_torque(state, system, torque=jnp.array([[0.1], [0.2]]))
 print("Buffered external torque:\n", system.force_manager.external_torque)
+state, system = jdem.System.initialize(state, system)
+state, system = system.step(state, system)
+assert bool(jnp.all(system.force_manager.external_force == 0))
+assert bool(jnp.all(system.force_manager.external_torque == 0))
+print("External buffers are empty after one physical step.")
 
 
 # %%
@@ -123,21 +134,26 @@ system = jdem.System.create(
             (harmonic_trap, harmonic_trap_energy),
         ],
     },
-    dt=1e-1,
+    dt=0.02,
 )
 print("Registered force functions:", len(system.force_manager.force_functions))
 
 # %%
 # The system calls the force functions automatically every step:
 state, system = jdem.System.initialize(state, system)
-state, system = system.step(state, system, n=16)
-print("Position after stepping (pulled to origin):", state.pos)
+state, system = system.step(state, system, n=20)
+# With mass=k=1 and initial x=2, v=0, x(t)=2*cos(t). This short
+# check verifies the force-function wiring without a long dynamics run.
+expected_x = 2.0 * np.cos(float(system.time))
+np.testing.assert_allclose(state.pos[0, 0], expected_x, atol=3e-5)
+print("Trap position and analytical expectation:", state.pos[0, 0], expected_x)
 
 
 # %%
 # Force Function Formats
 # ~~~~~~~~~~~~~~~~~~~~~~~~
-# ``force_functions`` accepts several shorthand formats:
+# :py:attr:`~jaxdem.forces.force_manager.ForceManager.force_functions` accepts
+# several shorthand formats:
 #
 # .. list-table::
 #    :header-rows: 1
@@ -160,20 +176,22 @@ print("Position after stepping (pulled to origin):", state.pos)
 # Each integration step, the force pipeline runs as follows:
 #
 # 1. The **collider** computes pairwise contact forces and writes
-#    ``state.force`` / ``state.torque``.
+#    :py:attr:`~jaxdem.state.State.force` / :py:attr:`~jaxdem.state.State.torque`.
 # 2. The **force manager** then:
 #
-#    a. Evaluates all registered ``force_functions``.
+#    a. Evaluates all registered
+#       :py:attr:`~jaxdem.forces.force_manager.ForceManager.force_functions`.
 #    b. Adds external force / torque buffers.
 #    c. Adds gravity (applied at the center of mass).
 #    d. Computes torques induced by particle-position forces via
 #       :math:`\boldsymbol{\tau} = \mathbf{r}_p \times \mathbf{F}`.
 #    e. Aggregates rigid bodies:
-#       sums per-sphere contributions per clump with ``segment_sum``,
+#       sums per-sphere contributions per clump with `jax.ops.segment_sum <https://docs.jax.dev/en/latest/_autosummary/jax.ops.segment_sum.html>`_,
 #       then broadcasts the result back to all constituent spheres.
 #    f. Clears the external buffers.
 #
-# This means that ``state.force`` after ``system.step`` already contains the
+# This means that :py:attr:`~jaxdem.state.State.force` after
+# :py:meth:`~jaxdem.system.System.step` already contains the
 # fully aggregated clump forces and torques.
 
 
@@ -197,6 +215,7 @@ system = jdem.System.create(
 )
 
 pe = system.force_manager.compute_potential_energy(state, system)
+np.testing.assert_allclose(pe, 19.62, rtol=1e-6)
 print(f"Gravitational PE: {pe}")  # U = -m (g . r) = m * 9.81 * 1.0 = +19.62
 
 # %%
@@ -217,6 +236,7 @@ print(f"Gravitational PE: {pe}")  # U = -m (g . r) = m * 9.81 * 1.0 = +19.62
 # as a custom force function:
 
 from collections.abc import Callable
+
 from jaxdem.utils.linalg import unit
 
 
@@ -251,3 +271,9 @@ system = jdem.System.create(
         ],
     },
 )
+
+# The sphere overlaps this wall by 0.5, so stiffness 100 gives an upward
+# force of 50. evaluate_forces inspects this load without advancing time.
+state, system = jdem.System.evaluate_forces(state, system)
+np.testing.assert_allclose(state.force, [[0.0, 50.0]], rtol=1e-6)
+print("Wall force on the overlapping sphere:", state.force)

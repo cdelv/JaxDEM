@@ -4,13 +4,13 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from collections.abc import Sequence
 from dataclasses import dataclass, fields
 from functools import partial
 from typing import TYPE_CHECKING, Any
-
-import jax
-import jax.numpy as jnp
 
 from ..material_matchmakers import MaterialMatchmaker
 
@@ -19,7 +19,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 @jax.tree_util.register_dataclass
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True, weakref_slot=True)
 class MaterialTable:
     """A container for material properties, organized as Structures of Arrays (SoA)
     and pre-computed effective pair properties.
@@ -27,13 +27,13 @@ class MaterialTable:
     The table gives direct access to the scalar properties of each material
     and to the pre-computed effective properties for material pairs.
 
-    Notes:
+    Notes
     ------
     - Access scalar properties directly with dot notation (e.g., `material_table.young`).
     - Access effective pair properties directly with dot notation
       (e.g., `material_table.young_eff`).
 
-    Example:
+    Example
     --------
     Creating a `MaterialTable` from multiple material types:
 
@@ -47,9 +47,9 @@ class MaterialTable:
     >>> # Create a MaterialTable using a linear matcher
     >>> matcher_instance = jdem.MaterialMatchmaker.create("linear")
     >>> mat_table = jdem.MaterialTable.from_materials(
-    >>>     [mat1, mat2],
-    >>>     matcher=matcher_instance
-    >>> )
+    ...     [mat1, mat2],
+    ...     matcher=matcher_instance
+    ... )
 
     """
 
@@ -69,8 +69,8 @@ class MaterialTable:
 
     matcher: MaterialMatchmaker
     """
-    The :class:`jaxdem.MaterialMatchmaker` instance that computed the
-    effective pair properties stored in the :attr:`pair` dictionary.
+    The :class:`jaxdem.MaterialMatchmaker <jaxdem.material_matchmakers.MaterialMatchmaker>` instance that computed the
+    effective pair properties stored in the :attr:`pair <jaxdem.materials.material_table.MaterialTable.pair>` dictionary.
     """
 
     @staticmethod
@@ -81,22 +81,22 @@ class MaterialTable:
         matcher: MaterialMatchmaker | None = None,
         fill: float = 0.0,
     ) -> MaterialTable:
-        """Construct a :class:`MaterialTable` from a sequence of :class:`Material` instances.
+        """Construct a :class:`MaterialTable <jaxdem.materials.material_table.MaterialTable>` from a sequence of :class:`Material <jaxdem.materials.Material>` instances.
 
         Parameters
         ----------
         mats : Sequence[Material]
-            A sequence of concrete :class:`Material` instances. Each instance
+            A sequence of concrete :class:`Material <jaxdem.materials.Material>` instances. Each instance
             represents a distinct material type in the simulation. The order in
             this sequence defines their material IDs (0 to `len(mats)-1`).
         matcher : MaterialMatchmaker
-            The :class:`jaxdem.MaterialMatchmaker` instance used to compute
+            The :class:`jaxdem.MaterialMatchmaker <jaxdem.material_matchmakers.MaterialMatchmaker>` instance used to compute
             effective pair properties (e.g., harmonic mean, arithmetic mean).
             If `None`, defaults to the harmonic matchmaker.
         fill : float, optional
             Fill value for material properties that a `Material` subclass does
-            not define. For example, if an :class:`Elastic` material appears
-            with an :class:`ElasticFriction` material, `mu` takes this value.
+            not define. For example, if an :class:`Elastic <jaxdem.materials.elastic_mats.Elastic>` material appears
+            with an :class:`ElasticFriction <jaxdem.materials.elastic_mats.ElasticFriction>` material, `mu` takes this value.
             Defaults to 0.0.
 
         Returns
@@ -108,7 +108,7 @@ class MaterialTable:
         Raises
         ------
         TypeError
-            If `mats` is not a sequence of `Material` instances.
+            If an entry is not a dataclass instance with scalar fields.
 
         """
         all_keys = {f.name for m in mats for f in fields(m)}
@@ -144,7 +144,7 @@ class MaterialTable:
         Raises
         ------
         AttributeError
-            If `item` is not a scalar property in :attr:`props` or an effective pair property in :attr:`pair`.
+            If `item` is not a scalar property in :attr:`props <jaxdem.materials.material_table.MaterialTable.props>` or an effective pair property in :attr:`pair <jaxdem.materials.material_table.MaterialTable.pair>`.
 
         """
         # Guard against infinite recursion: `__getattr__` is only called when normal

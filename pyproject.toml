@@ -34,6 +34,7 @@ rl = [
 
 docs = [
     "JaxDEM[io,rl]",
+    "matplotlib",
     "sphinx==9.1.0",
     "myst-parser==5.1.0",
     "pydata-sphinx-theme==0.20.0",
@@ -46,9 +47,6 @@ all = ["JaxDEM[io,rl,docs,test]"]
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["jaxdem", "jaxdem.*"]
-
-[tool.setuptools.package-data]
-jaxdem = ["py.typed"]
 
 [tool.mypy]
 strict = true

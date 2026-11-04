@@ -25,12 +25,13 @@ single angle.
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import dataclasses
 import math
 from typing import TYPE_CHECKING, Any
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 
 from ..state import State
@@ -51,31 +52,32 @@ _TRACER_ID = 1
 
 def _quat_from_x_to_3d(d: jax.Array) -> jax.Array:
     """Unit quaternion ``[w, x, y, z]`` rotating ``[1, 0, 0]`` to unit vector ``d``."""
-    q = jnp.array([1.0 + d[0], 0.0, -d[2], d[1]])
-    return jnp.where(norm(q) < 1e-8, jnp.array([0.0, 0.0, 1.0, 0.0]), unit(q))
+    q = jnp.stack(
+        [1.0 + d[..., 0], jnp.zeros_like(d[..., 0]), -d[..., 2], d[..., 1]],
+        axis=-1,
+    )
+    return jnp.where(
+        (norm(q) < 1e-8)[..., None],
+        jnp.array([0.0, 0.0, 1.0, 0.0]),
+        unit(q),
+    )
 
 
 def _quat_from_x_to_2d(d: jax.Array) -> jax.Array:
     """Quaternion rotating ``[1, 0]`` to unit vector ``d`` in 2D (rotation about z)."""
-    angle = jnp.arctan2(d[1], d[0])
-    return jnp.array([jnp.cos(angle / 2), 0.0, 0.0, jnp.sin(angle / 2)])
-
-
-def _angle_to_quat_2d(angle: float | jax.Array) -> jax.Array:
-    """2D rotation by ``angle`` about z as quaternion ``[cos(a/2), 0, 0, sin(a/2)]``."""
-    angle = jnp.asarray(angle, dtype=float)
-    half = angle / 2
+    half = jnp.arctan2(d[..., 1], d[..., 0]) / 2
     return jnp.stack(
-        [jnp.cos(half), jnp.zeros_like(half), jnp.zeros_like(half), jnp.sin(half)]
+        [jnp.cos(half), jnp.zeros_like(half), jnp.zeros_like(half), jnp.sin(half)],
+        axis=-1,
     )
 
 
 def _make_q_base_2d(angle_base: float | jax.Array) -> Quaternion:
     """Tracer body-frame orientation parametrized by a single rotation angle."""
     angle = jnp.asarray(angle_base, dtype=float)
-    probe_dir = jnp.array([jnp.cos(angle), jnp.sin(angle)])
+    probe_dir = jnp.stack([jnp.cos(angle), jnp.sin(angle)], axis=-1)
     q_fwd_raw = _quat_from_x_to_2d(-probe_dir)
-    q_fwd = Quaternion(w=q_fwd_raw[0:1][None, :], xyz=q_fwd_raw[1:4][None, :])
+    q_fwd = Quaternion(w=q_fwd_raw[..., 0:1], xyz=q_fwd_raw[..., 1:4])
     return Quaternion.inv(q_fwd)
 
 
@@ -91,37 +93,17 @@ def _make_q_base_3d(facing_dir: jax.Array, roll: float | jax.Array) -> Quaternio
     ranges over ``S^2 x [0, 2 pi)`` (with the usual two-fold cover).
     """
     q_fwd_raw = _quat_from_x_to_3d(-facing_dir)
-    q_fwd = Quaternion(w=q_fwd_raw[0:1][None, :], xyz=q_fwd_raw[1:4][None, :])
+    q_fwd = Quaternion(w=q_fwd_raw[..., 0:1], xyz=q_fwd_raw[..., 1:4])
     q_facing = Quaternion.inv(q_fwd)
 
     roll = jnp.asarray(roll, dtype=float)
     half = roll / 2
     zero = jnp.zeros_like(half)
     q_roll = Quaternion(
-        w=jnp.cos(half).reshape(1, 1),
-        xyz=jnp.stack([jnp.sin(half), zero, zero]).reshape(1, 3),
+        w=jnp.cos(half)[..., None],
+        xyz=jnp.stack([jnp.sin(half), zero, zero], axis=-1),
     )
     return q_facing @ q_roll
-
-
-def _q_base_3d_vec(facing_dir: jax.Array, roll: jax.Array) -> jax.Array:
-    """Flat ``(4,)`` ``[w, x, y, z]`` form of :func:`_make_q_base_3d` for vmap."""
-    q = _make_q_base_3d(facing_dir, roll)
-    return jnp.concatenate([q.w.reshape(1), q.xyz.reshape(3)])
-
-
-def _q_base_2d_vec(angle: jax.Array) -> jax.Array:
-    """Flat ``(4,)`` ``[w, x, y, z]`` form of :func:`_make_q_base_2d` for vmap."""
-    q = _make_q_base_2d(angle)
-    return jnp.concatenate([q.w.reshape(1), q.xyz.reshape(3)])
-
-
-def _compose_pair(q_dir_vec: jax.Array, q_base_vec: jax.Array) -> jax.Array:
-    """Unit-quaternion product ``q_dir @ q_base`` for flat ``(4,)`` inputs."""
-    q_dir = Quaternion(w=q_dir_vec[0:1][None, :], xyz=q_dir_vec[1:4][None, :])
-    q_base = Quaternion(w=q_base_vec[0:1][None, :], xyz=q_base_vec[1:4][None, :])
-    q = Quaternion.unit(q_dir @ q_base)
-    return jnp.concatenate([q.w.reshape(1), q.xyz.reshape(3)])
 
 
 # --------------------------------------------------------------------------
@@ -230,8 +212,7 @@ def _core_mask(state: State, clump_id: int) -> np.ndarray:
     Detection is scale-free: the function flags the closest-to-COM sphere as
     the core only when its offset is less than half the next-closest sphere's
     offset. Returns an all-``False`` mask when the clump has no such
-    distinctly interior sphere (e.g. a ``"hollow"`` clump) or is a single
-    bare sphere.
+    distinctly interior sphere or is a single bare sphere.
     """
     mask = np.asarray(state.clump_id) == clump_id
     idx = np.where(mask)[0]
@@ -463,7 +444,7 @@ def compute_surface_properties(
     Parameters
     ----------
     central_state, tracer_state : State
-        Single-clump :class:`State` instances. The function ignores their
+        Single-clump :class:`State <jaxdem.state.State>` instances. The function ignores their
         initial orientations (it resets both per probe: central to identity,
         tracer to the swept orientation), so the sampling directions live in
         the body frame of each clump as encoded by its ``pos_p``.
@@ -558,7 +539,7 @@ def compute_surface_properties(
             - ``central_core_contact`` -- ``bool`` per probe, same shape as
               ``mu``. ``True`` if any force-bearing contact involves the
               central clump's interior core sphere. Always ``False`` when
-              the central clump has no core (e.g. a ``"hollow"`` clump).
+              the central clump has no core sphere.
             - ``tracer_core_contact`` -- same, for the tracer clump's core.
             - ``tracer_quaternions`` -- shape ``(n_points, *orientation_shape, 4)``.
               The composed quaternion actually applied to the tracer at
@@ -725,12 +706,14 @@ def compute_surface_properties(
     # NOTE: the base state's pos_c / q are intentionally left as-is. Every probe
     # rebuilds them via ``dataclasses.replace(state, pos_c=..., q=...)`` inside
     # ``_measure_probe`` (a whole-attribute replace, which refreshes the cached
-    # R(q) @ pos_p), so initializing them here would be dead work -- and doing
-    # it via in-place ``state.q.w = ...`` would leave ``state.pos`` stale.
+    # R(q) @ pos_p), so initializing them here would be dead work.
 
     # Per-grid PRNG keys for sampling="random" (None -> deterministic lattice).
     # Independent keys per grid so approach directions, facings and rolls are
     # sampled independently; reproducible for a fixed ``seed``.
+    k_approach: jax.Array | None
+    k_orient: jax.Array | None
+    k_roll: jax.Array | None
     if sampling == "random":
         k_approach, k_orient, k_roll = jax.random.split(jax.random.PRNGKey(seed), 3)
     else:
@@ -739,24 +722,20 @@ def compute_surface_properties(
     # Approach directions (surface sample points).
     approach_dirs = _sample_directions(n_points, dim, k_approach)
     if dim == 3:
-        q_dirs = jax.vmap(_quat_from_x_to_3d)(approach_dirs)
+        q_dir_vec = _quat_from_x_to_3d(approach_dirs)
     else:
-        q_dirs = jax.vmap(_quat_from_x_to_2d)(approach_dirs)
+        q_dir_vec = _quat_from_x_to_2d(approach_dirs)
+    q_dirs = Quaternion(q_dir_vec[:, None, 0:1], q_dir_vec[:, None, 1:4])
     tracer_positions = approach_dirs * max_separation
 
     if dim == 3:
         facings = _sample_directions(n_orientations, 3, k_orient)
         rolls = _sample_angles(n_rolls, k_roll)
-        facings_grid = jnp.broadcast_to(
-            facings[:, None, :], (n_orientations, n_rolls, 3)
-        ).reshape(-1, 3)
-        rolls_grid = jnp.broadcast_to(
-            rolls[None, :], (n_orientations, n_rolls)
-        ).reshape(-1)
-        q_bases = jax.vmap(_q_base_3d_vec)(facings_grid, rolls_grid)
+        q_bases = _make_q_base_3d(facings[:, None, :], rolls[None, :])
     else:
         angles = _sample_angles(n_orientations, k_orient)
-        q_bases = jax.vmap(_q_base_2d_vec)(angles)
+        q_bases = _make_q_base_2d(angles)
+    q_bases = Quaternion(q_bases.w.reshape(1, -1, 1), q_bases.xyz.reshape(1, -1, 3))
 
     measure_batch = jax.jit(
         jax.vmap(
@@ -769,15 +748,11 @@ def compute_surface_properties(
     # Build the full (n_points x n_orientations [x n_rolls]) probe grid and
     # flatten it into a single axis so the whole sweep becomes one (or a
     # small number of) large vmap'd kernel launch(es).
-    n_orient_total = int(q_bases.shape[0])
+    n_orient_total = int(q_bases.w.shape[1])
 
-    compose_outer = jax.jit(
-        jax.vmap(
-            jax.vmap(_compose_pair, in_axes=(None, 0)),
-            in_axes=(0, None),
-        )
-    )
-    q_grid = compose_outer(q_dirs, q_bases)  # (n_points, n_orient_total, 4)
+    # q_probe = unit(q_direction @ q_base), broadcast over both probe axes.
+    q_probe = Quaternion.unit(q_dirs @ q_bases)
+    q_grid = jnp.concatenate((q_probe.w, q_probe.xyz), axis=-1)
     flat_q = q_grid.reshape(-1, 4)
     flat_pos = jnp.broadcast_to(
         tracer_positions[:, None, :], (n_points, n_orient_total, dim)

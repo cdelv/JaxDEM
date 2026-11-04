@@ -1,10 +1,13 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Contracts for sequential PPO updates with current, detached targets."""
+
+import jax
+import jax.numpy as jnp
 
 from dataclasses import dataclass, replace
 
 import distrax
-import jax
-import jax.numpy as jnp
 import optax
 import pytest
 from flax import nnx
@@ -25,9 +28,7 @@ class ConstantPolicyCritic(Model):
 
     def __call__(self, x, sequence=False, **kwargs):
         shape = (*x.shape[:-1], 1)
-        policy = distrax.MultivariateNormalDiag(
-            jnp.zeros(shape), jnp.ones(shape)
-        )
+        policy = distrax.MultivariateNormalDiag(jnp.zeros(shape), jnp.ones(shape))
         return policy, jnp.broadcast_to(self.bias[...], shape)
 
 
@@ -86,7 +87,9 @@ def test_current_targets_raw_advantages_and_detachment(
     assert jnp.allclose(aux["ratio"], 0.5)
     assert jnp.allclose(aux["advantages"][:, 0], jnp.array(expected_advantage))
     assert jnp.allclose(aux["target_values"][:, 0], jnp.array(expected_returns))
-    assert jnp.allclose(aux["actor_loss"], -0.5 * jnp.mean(jnp.array(expected_advantage)))
+    assert jnp.allclose(
+        aux["actor_loss"], -0.5 * jnp.mean(jnp.array(expected_advantage))
+    )
     # Actor targets and critic targets must both be detached. Only the
     # explicit prediction-minus-target term contributes to this parameter.
     assert jnp.allclose(gradient.bias[...], expected_gradient)
@@ -127,17 +130,24 @@ class MarkedTerminalEnv(TimeLimitCounterEnv):
     @staticmethod
     def reset(env, key):
         del key
-        return replace(env, env_params={
-            "count": jnp.asarray(0),
-            "marker": env.env_params.get("marker", jnp.asarray(1.0)),
-        })
+        return replace(
+            env,
+            env_params={
+                "count": jnp.asarray(0),
+                "marker": env.env_params.get("marker", jnp.asarray(1.0)),
+            },
+        )
 
     @staticmethod
     def step(env, action):
         del action
-        return replace(env, env_params={
-            **env.env_params, "count": env.env_params["count"] + 1,
-        })
+        return replace(
+            env,
+            env_params={
+                **env.env_params,
+                "count": env.env_params["count"] + 1,
+            },
+        )
 
     @staticmethod
     def observation(env):
@@ -176,15 +186,27 @@ def test_epoch_visits_contiguous_batches_wraps_and_preserves_rollout(
     horizon, batch_size, reward_means
 ):
     trainer = PPOTrainer.Create(
-        MarkedTerminalEnv.Create(), ConstantPolicyCritic(), num_envs=4,
-        num_steps_epoch=horizon, num_minibatches=4, minibatch_size=batch_size,
-        optimizer=_sgd, learning_rate=0.1, anneal_learning_rate=False,
-        max_grad_norm=float("inf"), ppo_clip_eps=100.0,
-        ppo_value_coeff=1.0, ppo_entropy_coeff=0.0,
+        MarkedTerminalEnv.Create(),
+        ConstantPolicyCritic(),
+        num_envs=4,
+        num_steps_epoch=horizon,
+        num_minibatches=4,
+        minibatch_size=batch_size,
+        optimizer=_sgd,
+        learning_rate=0.1,
+        anneal_learning_rate=False,
+        max_grad_norm=float("inf"),
+        ppo_clip_eps=100.0,
+        ppo_value_coeff=1.0,
+        ppo_entropy_coeff=0.0,
     )
-    trainer.env = replace(trainer.env, env_params={
-        **trainer.env.env_params, "marker": jnp.arange(1.0, 5.0),
-    })
+    trainer.env = replace(
+        trainer.env,
+        env_params={
+            **trainer.env.env_params,
+            "marker": jnp.arange(1.0, 5.0),
+        },
+    )
     trainer, td, metrics = trainer.epoch(trainer, jnp.asarray(0))
 
     # Terminal rewards make the analytical SGD updates independent of horizon.
@@ -240,8 +262,12 @@ def test_sequential_batching_rejects_silent_rounding(kwargs, message):
 )
 def test_minibatch_size_counts_transitions(explicit_size, expected_size):
     trainer = PPOTrainer.Create(
-        MarkedTerminalEnv.Create(), ConstantPolicyCritic(), num_envs=32,
-        num_steps_epoch=100, num_minibatches=8, minibatch_size=explicit_size,
+        MarkedTerminalEnv.Create(),
+        ConstantPolicyCritic(),
+        num_envs=32,
+        num_steps_epoch=100,
+        num_minibatches=8,
+        minibatch_size=explicit_size,
         optimizer=_sgd,
     )
     assert trainer.minibatch_size == expected_size
@@ -250,8 +276,12 @@ def test_minibatch_size_counts_transitions(explicit_size, expected_size):
 
 def test_default_batch_can_split_sequences_when_total_divides_exactly():
     trainer = PPOTrainer.Create(
-        MarkedTerminalEnv.Create(), ConstantPolicyCritic(), num_envs=5,
-        num_steps_epoch=64, num_minibatches=4, optimizer=_sgd,
+        MarkedTerminalEnv.Create(),
+        ConstantPolicyCritic(),
+        num_envs=5,
+        num_steps_epoch=64,
+        num_minibatches=4,
+        optimizer=_sgd,
     )
     assert trainer.minibatch_size == 80
 
@@ -288,14 +318,23 @@ def test_selected_recurrent_loss_keeps_prefix_gradients(model_name):
         from jaxdem.rl.models.lstm import LSTMActorCritic
 
         model = LSTMActorCritic(
-            1, 1, nnx.Rngs(17), hidden_features=4, lstm_features=4,
+            1,
+            1,
+            nnx.Rngs(17),
+            hidden_features=4,
+            lstm_features=4,
             carry_leading_shape=(1,),
         )
     else:
         from jaxdem.rl.models.mingru import MinGRUActorCritic
 
         model = MinGRUActorCritic(
-            1, 1, nnx.Rngs(17), hidden_features=4, gru_features=4, num_layers=2,
+            1,
+            1,
+            nnx.Rngs(17),
+            hidden_features=4,
+            gru_features=4,
+            num_layers=2,
             carry_leading_shape=(1,),
         )
     td = _trajectory()
@@ -352,10 +391,18 @@ def test_inactive_only_block_does_not_advance_optimizer_momentum():
         return optax.sgd(learning_rate, momentum=0.9)
 
     trainer = PPOTrainer.Create(
-        PaddedTerminalEnv.Create(), ConstantPolicyCritic(), num_envs=1,
-        num_steps_epoch=1, num_minibatches=2, minibatch_size=1,
-        optimizer=momentum_sgd, learning_rate=0.1, anneal_learning_rate=False,
-        ppo_clip_eps=100.0, ppo_value_coeff=1.0, ppo_entropy_coeff=0.0,
+        PaddedTerminalEnv.Create(),
+        ConstantPolicyCritic(),
+        num_envs=1,
+        num_steps_epoch=1,
+        num_minibatches=2,
+        minibatch_size=1,
+        optimizer=momentum_sgd,
+        learning_rate=0.1,
+        anneal_learning_rate=False,
+        ppo_clip_eps=100.0,
+        ppo_value_coeff=1.0,
+        ppo_entropy_coeff=0.0,
     )
     trainer, _, metrics = trainer.epoch(trainer, jnp.asarray(0))
     assert jnp.allclose(trainer.model.bias[...], 0.1)

@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Resolved per-contact diagnostics for the Cundall-Strack force law."""
+
+import jax.numpy as jnp
 
 from dataclasses import replace
 
-import jax.numpy as jnp
 import numpy as np
 import pytest
 
@@ -153,9 +155,7 @@ def test_resolved_contacts_convert_to_generic_contact_data() -> None:
     assert np.max(np.abs(np.asarray(contacts.torques - resolved.torques))) > 0.0
     np.testing.assert_array_equal(system.collider.history, history)
 
-    _, _, counts = jd.utils.count_sphere_contacts(
-        state, system, contacts=contacts
-    )
+    _, _, counts = jd.utils.count_sphere_contacts(state, system, contacts=contacts)
     _, _, rattlers, non_rattlers = jd.utils.get_sphere_rattler_ids(
         state, system, zc=1, contacts=contacts
     )

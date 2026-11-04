@@ -4,11 +4,12 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import replace
 from typing import Any, Literal, Sequence
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 
 from ..factory import _normalize_key
@@ -25,6 +26,7 @@ from .meshes import (
 )
 from .quaternion import Quaternion
 from .linalg import norm, unit
+from .packing_utils import CompressionReason, CompressionResult
 from .random_sphere_configuration import random_sphere_configuration
 
 MESH_TYPES = (
@@ -227,13 +229,13 @@ def create_sphere_state(
     pos: Sequence[Sequence[float]] | np.ndarray | jax.Array | None = None,
     mass: float | Sequence[float] | np.ndarray | jax.Array = 1.0,
 ) -> State:
-    """Build a :class:`State` of ``N`` simple spheres.
+    """Build a :class:`State <jaxdem.state.State>` of ``N`` simple spheres.
 
     No Thomson mesh, no Monte-Carlo union-property integration — this is
     the lightweight sphere primitive. Each sphere is a single-particle
     body with its own ``clump_id``. Inertia defaults to the solid-disk
     (2D) / solid-sphere (3D) formula from the given mass and radius
-    (handled inside :meth:`State.create`).
+    (handled inside :meth:`State.create <jaxdem.state.State.create>`).
 
     Parameters
     ----------
@@ -283,12 +285,16 @@ def create_ga_state(
     asperity_dispersity_type: str = "constant",
     asperity_dispersity_kwargs: dict[str, Any] | None = None,
 ) -> State:
-    """Build a :class:`State` of ``N`` geometric-asperity bodies.
+    """Build a :class:`State <jaxdem.state.State>` of ``N`` geometric-asperity bodies.
 
     The function places surface asperities on a unit shape (set by
     ``mesh_type``) and adds an optional central core sphere. The union of
     the asperities (and, if present, the core) defines the body volume from
     which the function derives the rigid-body / deformable-body properties.
+    Each member is a filled disk or ball; ``particle_mass`` is distributed
+    uniformly over the union, with overlaps counted once. Uncovered gaps or
+    cavities remain empty; their shape follows directly from the supplied
+    members.
 
     Parameters
     ----------
@@ -298,11 +304,24 @@ def create_ga_state(
         nodes share a common ``bond_id`` and each carry an equal share of
         the body mass and union volume. "sphere"-like bodies are the
         ``nv = 1`` degenerate case of "clump".
-    core_type : {"hollow", "solid", "phantom"}
-        "hollow" uses only the surface asperities. "solid" adds a central
-        core sphere that stays in the final state. "phantom" adds the
-        core only for the property calculation and strips it from the
-        returned state.
+    core_type : {"hollow", "solid", "phantom"}, optional
+        ``"hollow"`` (default) uses the union of the solid surface asperities
+        without adding a central sphere; any uncovered interior remains empty.
+        ``"solid"`` includes a central core in both the mass properties and
+        the returned contact geometry. ``"phantom"`` includes that core in
+        volume, COM, and inertia, then removes it from the returned contact
+        geometry. A phantom core therefore carries solid-core mass properties;
+        it does not represent an empty interior. Recomputing properties from
+        the returned phantom state would integrate the asperities alone.
+    particle_mass : float
+        Prescribed total mass of each body's material union, including the
+        core when ``core_type`` is ``"solid"`` or ``"phantom"``.
+    n_samples : int
+        Numerical integration budget for 3D union properties. Disk unions
+        and analytical 3D cases do not depend on it. Other 3D cases choose
+        boundary or volume quadrature according to overlap density, including
+        simultaneous triple and higher-order overlaps. Check convergence of
+        volume, COM, and world-frame inertia at increasing budgets.
     mesh_type : {"thomson", "icosphere", "fibonacci", "torus", "helix", "arclength", "faceted"}
         How the function generates asperity positions on the unit shape.
 
@@ -552,10 +571,13 @@ def _resolve_body_grouping(state: State, group_by: str) -> tuple[jax.Array, int]
     components has sub-``N`` unique values. If both do (mixed clumps + DPs)
     the caller must disambiguate.
     """
-    clump_ids_np = np.asarray(state.clump_id)
+    clump_labels, clump_ids_np = np.unique(
+        np.asarray(state.clump_id), return_inverse=True
+    )
+    clump_group_id = jnp.asarray(clump_ids_np, dtype=int)
     bond_ids_np = np.asarray(state.bond_id)
     n = int(state.N)
-    n_unique_clump = int(np.unique(clump_ids_np).size)
+    n_unique_clump = int(clump_labels.size)
 
     # Connected components of the bond graph (vectorized scipy).
     n_unique_bond, bond_group_id_np = _bond_graph_components(bond_ids_np)
@@ -571,12 +593,12 @@ def _resolve_body_grouping(state: State, group_by: str) -> tuple[jax.Array, int]
                 "Pass group_by='clump' or group_by='bond' to disambiguate."
             )
         if has_clumps:
-            return state.clump_id, n_unique_clump
+            return clump_group_id, n_unique_clump
         if has_dps:
             return bond_group_id, n_unique_bond
-        return state.clump_id, n_unique_clump  # all spheres: either ID works
+        return clump_group_id, n_unique_clump  # all spheres: either ID works
     if group_by == "clump":
-        return state.clump_id, n_unique_clump
+        return clump_group_id, n_unique_clump
     if group_by == "bond":
         return bond_group_id, n_unique_bond
     raise ValueError(
@@ -1028,13 +1050,10 @@ def _unique_edges_from_triangles(faces_global: np.ndarray) -> np.ndarray:
     """Collect unique undirected edge pairs from a (F, 3) triangle array."""
     if faces_global.size == 0:
         return np.empty((0, 2), dtype=int)
-    edge_set: set[tuple[int, int]] = set()
-    for face in faces_global:
-        a, b, c = int(face[0]), int(face[1]), int(face[2])
-        for p, q in ((a, b), (b, c), (c, a)):
-            lo, hi = (p, q) if p < q else (q, p)
-            edge_set.add((lo, hi))
-    return np.array(sorted(edge_set), dtype=int)
+    edges = np.sort(faces_global[:, [[0, 1], [1, 2], [2, 0]]].reshape(-1, 2), axis=1)
+    edges = edges[np.lexsort((edges[:, 1], edges[:, 0]))]
+    distinct = np.r_[True, np.any(edges[1:] != edges[:-1], axis=1)]
+    return edges[distinct].astype(int, copy=False)
 
 
 def _interior_struts(
@@ -1047,18 +1066,21 @@ def _interior_struts(
     """Return ``(S, 2)`` global edge pairs connecting interior nodes to surface nodes."""
     if interior_global.size == 0 or surface_global.size == 0:
         return np.empty((0, 2), dtype=int)
+    if strategy == "fan":
+        interior, surface = np.broadcast_arrays(
+            interior_global[:, None], surface_global[None, :]
+        )
+        edges = np.stack((interior, surface), axis=-1).reshape(-1, 2)
+        return np.sort(edges, axis=1).astype(int, copy=False)
     surface_pts = pos_np[surface_global]
     strut_pairs: list[tuple[int, int]] = []
     for i_global in interior_global:
-        if strategy == "fan":
-            targets = surface_global
-        else:  # nearest_k
-            dists = np.linalg.norm(surface_pts - pos_np[i_global], axis=-1)
-            k_eff = min(int(k_nearest or 0), surface_global.size)
-            if k_eff <= 0:
-                continue
-            nearest_local = np.argsort(dists)[:k_eff]
-            targets = surface_global[nearest_local]
+        dists = np.linalg.norm(surface_pts - pos_np[i_global], axis=-1)
+        k_eff = min(int(k_nearest or 0), surface_global.size)
+        if k_eff <= 0:
+            continue
+        nearest_local = np.argsort(dists)[:k_eff]
+        targets = surface_global[nearest_local]
         for s_global in targets:
             p, q = int(i_global), int(s_global)
             lo, hi = (p, q) if p < q else (q, p)
@@ -1120,9 +1142,9 @@ def create_dp_container(
     is_surface
         Optional ``(N,)`` bool mask of surface nodes. When ``None`` (the
         default) the function computes the mask automatically with
-        :func:`ga_surface_mask` (per-body convex hull), which is correct
-        for hollow, solid, and phantom core-type DPs from
-        :func:`create_ga_state` and for any other approximately-convex
+        :func:`ga_surface_mask <jaxdem.utils.particle_creation.ga_surface_mask>` (per-body convex hull), which is correct
+        for DPs with no core, a solid core, or a phantom core from
+        :func:`create_ga_state <jaxdem.utils.particle_creation.create_ga_state>` and for any other approximately-convex
         body. Pass an explicit mask to control the boundary/interior
         classification. A mask does not specify nonconvex 3D connectivity.
     interior_edges
@@ -1426,7 +1448,7 @@ def _resolve_material_table(
 ) -> Any:
     """Return ``mat_table`` or build one from the material/matcher spec.
 
-    Shared by :func:`build_ga_system` and :func:`build_sphere_system`.
+    Shared by :func:`build_ga_system <jaxdem.utils.particle_creation.build_ga_system>` and :func:`build_sphere_system <jaxdem.utils.particle_creation.build_sphere_system>`.
     """
     import jaxdem as jd
 
@@ -1455,6 +1477,15 @@ def _builder_collider_options(
     if "state" in kw:
         kw["state"] = state
     return kw
+
+
+def _check_compression(result: CompressionResult) -> None:
+    """Reject a packing that did not reach its target after relaxation."""
+    if result.reason != CompressionReason.TARGET_REACHED:
+        raise RuntimeError(
+            f"Packing failed at phi={float(result.packing_fraction):.8g}: "
+            f"{result.reason.name} (minimizer: {result.minimizer_reason.name})."
+        )
 
 
 def build_ga_system(
@@ -1489,7 +1520,7 @@ def build_ga_system(
     # Final system
     dt: float = 1e-3,
     linear_integrator_type: str = "verlet",
-    rotation_integrator_type: str = "verletspiral",
+    rotation_integrator_type: str | None = "verletspiral",
     linear_integrator_kw: dict[str, Any] | None = None,
     rotation_integrator_kw: dict[str, Any] | None = None,
     force_model_type: str = "spring",
@@ -1530,7 +1561,7 @@ def build_ga_system(
     collider, and material.
 
     For ``particle_type="dp"`` the builder also creates a
-    :class:`DeformableParticleModel` (or a plastic variant) and wires it
+    :class:`DeformableParticleModel <jaxdem.bonded_forces.deformable_particle.DeformableParticleModel>` (or a plastic variant) and wires it
     into the returned System as the ``bonded_force_model``. In that case it
     returns ``(state, system, container)``. For clumps/spheres it returns
     ``(state, system)``.
@@ -1548,15 +1579,18 @@ def build_ga_system(
         ``"clump"`` (default) or ``"dp"``. ``nv=1`` clumps are effectively
         spheres.
     core_type
-        ``"hollow"`` (default), ``"solid"``, or ``"phantom"``.
+        ``"hollow"`` (default), ``"solid"``, or ``"phantom"``. Forwarded to
+        :func:`create_ga_state <jaxdem.utils.particle_creation.create_ga_state>`: ``"hollow"`` adds no central sphere, while
+        ``"phantom"`` retains solid-core mass properties and removes only
+        the core's contact geometry.
     aspect_ratio
         ``None`` (isotropic), scalar, ``(dim,)``, ``(M,)``, or ``(M, dim)``.
     asperity_dispersity_type, asperity_dispersity_kwargs
         Asperity-radius polydispersity. Forwarded as-is to every per-body
-        :func:`create_ga_state` call. Theoretical mean of the chosen
+        :func:`create_ga_state <jaxdem.utils.particle_creation.create_ga_state>` call. Theoretical mean of the chosen
         distribution always equals each body's ``asperity_radius``, so
         the bounding/core geometry is unchanged. See
-        :func:`create_ga_state` for the supported distributions and
+        :func:`create_ga_state <jaxdem.utils.particle_creation.create_ga_state>` for the supported distributions and
         kwargs.
     domain_type
         ``"periodic"`` or ``"reflect"`` (closed box).
@@ -1569,9 +1603,9 @@ def build_ga_system(
         Packing-fraction increment for quasistatic compression.
     compression_force_tol, compression_torque_tol
         Force and torque tolerances passed to
-        :func:`quasistatic_compress_to_packing_fraction`.
+        :func:`quasistatic_compress_to_packing_fraction <jaxdem.utils.packing_utils.quasistatic_compress_to_packing_fraction>`.
     max_n_min_steps_per_outer, compression_progress
-        Passed to :func:`quasistatic_compress_to_packing_fraction`.
+        Passed to :func:`quasistatic_compress_to_packing_fraction <jaxdem.utils.packing_utils.quasistatic_compress_to_packing_fraction>`.
     fire_dt
         Time step of the internal FIRE system used for compression.
         Defaults to 1e-2.
@@ -1604,6 +1638,11 @@ def build_ga_system(
     tuple
         ``(state, system)`` for clumps / spheres, or
         ``(state, system, container)`` for DPs.
+
+    Raises
+    ------
+    RuntimeError
+        If compression or mechanical relaxation fails to reach the target.
     """
     import jaxdem as jd
 
@@ -1754,18 +1793,18 @@ def build_ga_system(
     # Import here to avoid a cross-module import at module-load time.
     from .packing_utils import quasistatic_compress_to_packing_fraction
 
-    state, fire_system, _final_phi, _final_pe = (
-        quasistatic_compress_to_packing_fraction(
-            state,
-            fire_system,
-            target_phi=float(phi),
-            step=float(compression_step),
-            force_tol=float(compression_force_tol),
-            torque_tol=compression_torque_tol,
-            max_n_min_steps_per_outer=int(max_n_min_steps_per_outer),
-            progress=bool(compression_progress),
-        )
+    compression = quasistatic_compress_to_packing_fraction(
+        state,
+        fire_system,
+        target_phi=float(phi),
+        step=float(compression_step),
+        force_tol=float(compression_force_tol),
+        torque_tol=compression_torque_tol,
+        max_n_min_steps_per_outer=int(max_n_min_steps_per_outer),
+        progress=bool(compression_progress),
     )
+    _check_compression(compression)
+    state, fire_system = compression.state, compression.system
 
     # Build the final system with the user's integrator / collider.
     final_box_size = fire_system.domain.box_size
@@ -1836,9 +1875,9 @@ def build_sphere_system(
 ) -> tuple[State, Any]:
     """Catch-all builder for a polydisperse sphere packing at a target phi.
 
-    Sphere counterpart to :func:`build_ga_system`. The builder draws random
+    Sphere counterpart to :func:`build_ga_system <jaxdem.utils.particle_creation.build_ga_system>`. The builder draws random
     positions loose (``initial_phi`` — default 0.3 — or the target, whichever
-    is smaller) via :func:`random_sphere_configuration`, then quasistatically
+    is smaller) via :func:`random_sphere_configuration <jaxdem.utils.random_sphere_configuration.random_sphere_configuration>`, then quasistatically
     compresses to ``phi`` under the same FIRE/spring setup as
     ``build_ga_system`` (the FIRE time step is ``fire_dt``). It returns
     ``(state, system)`` built with the user-requested integrator, collider,
@@ -1846,8 +1885,13 @@ def build_sphere_system(
     ``rotation_integrator_kw`` to the final integrator constructors (e.g.
     thermostat parameters for ``linear_integrator_type="verlet_rescaling"``).
 
-    Parameters mirror :func:`build_ga_system` (minus all the GA/DP-specific
+    Parameters mirror :func:`build_ga_system <jaxdem.utils.particle_creation.build_ga_system>` (minus all the GA/DP-specific
     knobs that do not apply to bare spheres).
+
+    Raises
+    ------
+    RuntimeError
+        If compression or mechanical relaxation fails to reach the target.
     """
     import jaxdem as jd
 
@@ -1878,7 +1922,7 @@ def build_sphere_system(
     state = create_sphere_state(
         radii=radii_arr,
         dim=int(dim),
-        pos=jnp.asarray(pos_init),
+        pos=jnp.asarray(pos_init).reshape(n_spheres, int(dim)),
         mass=jnp.asarray(mass_arr),
     )
 
@@ -1908,18 +1952,18 @@ def build_sphere_system(
 
     from .packing_utils import quasistatic_compress_to_packing_fraction
 
-    state, fire_system, _final_phi, _final_pe = (
-        quasistatic_compress_to_packing_fraction(
-            state,
-            fire_system,
-            target_phi=float(phi),
-            step=float(compression_step),
-            force_tol=float(compression_force_tol),
-            torque_tol=compression_torque_tol,
-            max_n_min_steps_per_outer=int(max_n_min_steps_per_outer),
-            progress=bool(compression_progress),
-        )
+    compression = quasistatic_compress_to_packing_fraction(
+        state,
+        fire_system,
+        target_phi=float(phi),
+        step=float(compression_step),
+        force_tol=float(compression_force_tol),
+        torque_tol=compression_torque_tol,
+        max_n_min_steps_per_outer=int(max_n_min_steps_per_outer),
+        progress=bool(compression_progress),
     )
+    _check_compression(compression)
+    state, fire_system = compression.state, compression.system
 
     final_box_size = fire_system.domain.box_size
     final_system = jd.System.create(

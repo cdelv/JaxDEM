@@ -4,10 +4,10 @@
 
 from __future__ import annotations
 
+import jax
+
 import dataclasses
 from typing import TYPE_CHECKING, Any
-
-import jax
 
 if not hasattr(jax.tree, "static"):
 
@@ -43,10 +43,8 @@ from .integrators import Integrator, LinearIntegrator, RotationIntegrator
 from .material_matchmakers import MaterialMatchmaker
 from .materials import Material, MaterialTable
 from .minimizers import damped_newtonian, fire, minimize
-from .state import State
+from .state import BodyTopology, State, body_topology
 from .system import System
-from .simulation_status import SimulationStatus, StepResult
-from .topology import BodyTopology, body_topology
 
 if TYPE_CHECKING:
     from .writers import (
@@ -54,6 +52,7 @@ if TYPE_CHECKING:
         CheckpointModelLoader as CheckpointModelLoader,
         CheckpointModelWriter as CheckpointModelWriter,
         CheckpointWriter as CheckpointWriter,
+        H5Writer as H5Writer,
         VTKBaseWriter,
         VTKWriter,
     )
@@ -68,6 +67,7 @@ __all__ = [
     "ForceManager",
     "ForceModel",
     "ForceRouter",
+    "H5Writer",
     "Integrator",
     "LawCombiner",
     "LinearIntegrator",
@@ -80,8 +80,6 @@ __all__ = [
     "RotationIntegrator",
     "State",
     "System",
-    "SimulationStatus",
-    "StepResult",
     "VTKBaseWriter",
     "VTKWriter",
     "utils",
@@ -95,6 +93,7 @@ def __getattr__(name: str) -> Any:
         "CheckpointModelLoader",
         "CheckpointModelWriter",
         "CheckpointWriter",
+        "H5Writer",
         "VTKBaseWriter",
         "VTKWriter",
     }:

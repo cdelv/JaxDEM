@@ -25,13 +25,14 @@ DeformableParticle changes:
 
 from __future__ import annotations
 
-import warnings
-from dataclasses import fields, replace
-from typing import Any, TYPE_CHECKING
-
-import h5py  # type: ignore[import-untyped]
 import jax
 import jax.numpy as jnp
+
+import warnings
+from dataclasses import fields, replace
+from typing import TYPE_CHECKING, Any
+
+import h5py  # type: ignore[import-untyped]
 import numpy as np
 
 from .quaternion import Quaternion
@@ -338,7 +339,7 @@ def load_legacy_dp(
     dim: int = 3,
 ) -> DeformableParticleModel:
     """Load an old ``DeformableParticleContainer`` h5 file and return a new
-    :class:`~jaxdem.bonded_forces.DeformableParticleModel`.
+    :class:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel`.
 
     Parameters
     ----------

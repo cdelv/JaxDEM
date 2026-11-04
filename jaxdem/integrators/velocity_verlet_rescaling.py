@@ -4,11 +4,10 @@
 
 from __future__ import annotations
 
-import math
-
 import jax
 import jax.numpy as jnp
 
+import math
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, cast
@@ -37,10 +36,11 @@ class VelocityVerletRescaling(VelocityVerlet):
     translational (and optionally rotational) velocities so the instantaneous
     kinetic temperature matches ``temperature``. Between rescalings the
     dynamics are purely Newtonian (standard Velocity Verlet, inherited from
-    :class:`VelocityVerlet`).
+    :class:`VelocityVerlet <jaxdem.integrators.velocity_verlet.VelocityVerlet>`).
 
-    The integrator applies the rescaling in ``finalize_step``, after both the
-    translational and rotational final kicks. With nonzero kinetic energy,
+    The integrator applies the rescaling in ``step_after_force``, after both
+    terminal kicks. System runs the rotational hook before the linear hook.
+    With nonzero kinetic energy,
     terminal velocities on rescaling steps reach the target temperature.
     Multiplicative rescaling leaves a zero-kinetic-energy state at zero.
 
@@ -117,9 +117,10 @@ class VelocityVerletRescaling(VelocityVerlet):
 
     @staticmethod
     @jax.jit(inline=True)
-    @partial(jax.named_call, name="VelocityVerletRescaling.finalize_step")
-    def finalize_step(state: State, system: System) -> tuple[State, System]:
-        """Rescale after both translation and rotation have completed their kicks."""
+    @partial(jax.named_call, name="VelocityVerletRescaling.step_after_force")
+    def step_after_force(state: State, system: System) -> tuple[State, System]:
+        """Complete the translational kick, then rescale terminal velocities."""
+        state, system = VelocityVerlet.step_after_force(state, system)
         integrator = cast(VelocityVerletRescaling, system.linear_integrator)
         can_rot = integrator.can_rotate
 
@@ -128,8 +129,11 @@ class VelocityVerletRescaling(VelocityVerlet):
 
         free = free_mask(state)  # (..., N, 1) bool
         free_f = free.astype(state.vel.dtype)
-        member_count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
-        member_mass = state.mass / member_count
+        if state.only_spheres:
+            member_mass = state.mass
+        else:
+            member_count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
+            member_mass = state.mass / member_count
         free_mass = member_mass * free_f[..., 0]
         total_free_mass = jnp.sum(free_mass)
         total_free_mass = jnp.where(total_free_mass == 0, 1.0, total_free_mass)
@@ -151,7 +155,10 @@ class VelocityVerletRescaling(VelocityVerlet):
             state, can_rotate=True, subtract_drift=False
         )
         dim = state.vel.shape[-1]
-        n_dof = (n_dof_v - dim * integrator.subtract_drift) + n_dof_w * can_rot
+        n_dof = (
+            jnp.maximum(n_dof_v - dim * integrator.subtract_drift, 0)
+            + n_dof_w * can_rot
+        )
 
         T_current = 2.0 * ke_total / (integrator.k_B * jnp.maximum(n_dof, 1.0))
         scale = _temperature_scale(T_current, integrator.temperature)

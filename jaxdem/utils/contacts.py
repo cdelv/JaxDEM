@@ -9,14 +9,15 @@ directly. Individual contacts are collected only for analyses that need them.
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import math
 import warnings
 from dataclasses import replace
 from functools import partial
 from typing import TYPE_CHECKING, NamedTuple
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 
 from ..colliders import valid_interaction_mask
@@ -168,6 +169,7 @@ def _reduce_contacts(
         Collider,
         DynamicCellList,
         DynamicMultiCellList,
+        NaiveSimulator,
         NeighborList,
     )
     from ..colliders._neighbor_cache import _valid_pairs, pair_sources
@@ -208,7 +210,7 @@ def _reduce_contacts(
             partial(_cell_summary, system=system, quantity=quantity),
             initial,
         )
-    else:
+    elif isinstance(collider, NaiveSimulator):
         from ..colliders.naive import _dense_history
 
         neighbors = jnp.arange(state.N)
@@ -229,6 +231,10 @@ def _reduce_contacts(
 
         rows = jax.lax.map(row, (neighbors, history), batch_size=min(state.N, 32))
         overflow = jnp.asarray(False)
+    else:
+        raise NotImplementedError(
+            f"Pair traversal is unavailable for {type(collider).__name__}."
+        )
     rows = jnp.where(overflow, -1 if quantity == "count" else jnp.nan, rows)
     return _record_overflow(system, overflow), rows
 
@@ -352,7 +358,7 @@ def compute_contact_pressure(
     """Return contact pressure, ``trace(stress) / dim``, positive in compression.
 
     Search settings and history come from the system. See
-    :func:`compute_contact_stress_tensor` for normalization and overflow rules.
+    :func:`compute_contact_stress_tensor <jaxdem.utils.contacts.compute_contact_stress_tensor>` for normalization and overflow rules.
     """
     state, system, stress = compute_contact_stress_tensor(
         state, system, volume=volume, contacts=contacts
@@ -601,7 +607,7 @@ def get_clump_rattler_ids(
     ``contact_rank_tol`` is the absolute singular-value threshold for that check.
 
     This host-side analysis does not remove particles or alter contact history.
-    Use :func:`remove_rattlers` to construct a reduced state afterward.
+    Use :func:`remove_rattlers <jaxdem.utils.contacts.remove_rattlers>` to construct a reduced state afterward.
     """
     state, system, data = _contacts_or_collect(state, system, contacts)
     group_ids, groups = np.unique(np.asarray(state.clump_id), return_inverse=True)
@@ -641,7 +647,7 @@ def get_sphere_rattler_ids(
     check requires the normalized force rows to span ``dim`` dimensions;
     ``contact_rank_tol`` specifies its absolute singular-value threshold.
     This is a translational sphere criterion. Clump force/torque analysis is
-    provided by :func:`get_clump_rattler_ids`.
+    provided by :func:`get_clump_rattler_ids <jaxdem.utils.contacts.get_clump_rattler_ids>`.
     """
     state, system, data = _contacts_or_collect(state, system, contacts)
     force = np.asarray(data.forces)
@@ -668,13 +674,15 @@ def remove_rattlers(
     """Remove all spheres belonging to rattler clumps and rebuild a matching system.
 
     The function drops the rattler spheres from the state and re-indexes
-    its ``clump_id`` and ``bond_id`` arrays. The returned system is a
+    its ``clump_id``, ``bond_id``, and contact facet connectivity arrays.
+    Contact faces touching a removed node are dropped; surviving shared
+    incidences are preserved. The returned system is a
     :func:`dataclasses.replace` copy of the input, so it preserves every
     field (``domain``, ``mat_table``, integrators, user hooks, ``dt``,
-    ``time``, and any future additions to :class:`System`) by default.
+    ``time``, and any future additions to :class:`System <jaxdem.system.System>`) by default.
     Only the state-size-dependent fields change:
 
-    * The function rebuilds ``collider`` via its :meth:`Create` method for
+    * The function rebuilds ``collider`` via its ``Create`` method for
       stateful colliders (``NeighborList``, cell lists) and passes it
       through unchanged for stateless ones (``naive``). It recovers
       Create's config kwargs from the current collider via introspection
@@ -709,9 +717,9 @@ def remove_rattlers(
     Notes
     -----
     **DP / bonded force models.** When ``system.bonded_force_model`` is a
-    :class:`DeformableParticleModel`, its topology arrays (``elements``,
+    :class:`DeformableParticleModel <jaxdem.bonded_forces.deformable_particle.DeformableParticleModel>`, its topology arrays (``elements``,
     ``edges``, ``element_adjacency``, …) reference vertices by
-    particle array. :func:`remove_rattlers` re-indexes ``bond_id`` in
+    particle array. :func:`remove_rattlers <jaxdem.utils.contacts.remove_rattlers>` re-indexes ``bond_id`` in
     the state but does **not** remap the bonded-model topology, because
     the correct behavior is ambiguous (an element that partially
     straddles removed vertices could be dropped, re-triangulated, or
@@ -721,7 +729,7 @@ def remove_rattlers(
 
     **Custom collider settings.** Any collider Create-kwarg whose name
     is not a field on the current collider (e.g. ``number_density`` and
-    ``safety_factor`` on :class:`NeighborList`) gets Create's default
+    ``safety_factor`` on :class:`NeighborList <jaxdem.colliders.neighbor_list.NeighborList>`) gets Create's default
     value. Preserving those settings requires explicitly supplying them
     when reconstructing the collider.
     """
@@ -747,6 +755,30 @@ def remove_rattlers(
     new_state.bond_id = jnp.where(
         keep_bond, idx_remap[jnp.where(keep_bond, old_bond_id, 0)], -1
     )
+
+    # Facet connectivity also stores array indices. Drop faces touching a
+    # removed node and promote a surviving shared incidence into the first
+    # slot when its previous first face was removed.
+    facet_ids = jnp.concatenate(
+        (new_state.facet_id[:, None], new_state.facet_ids_extra), axis=-1
+    )
+    facet_vertices = jnp.concatenate(
+        (new_state.facet_vertices[:, None, :], new_state.facet_vertices_extra),
+        axis=-2,
+    )
+    mapped_vertices = jnp.where(
+        facet_vertices >= 0, idx_remap[jnp.maximum(facet_vertices, 0)], -1
+    )
+    valid_facet = (facet_ids >= 0) & jnp.all(mapped_vertices >= 0, axis=-1)
+    facet_ids = jnp.where(valid_facet, facet_ids, -1)
+    mapped_vertices = jnp.where(valid_facet[..., None], mapped_vertices, -1)
+    order = jnp.argsort(~valid_facet, axis=-1, stable=True)
+    facet_ids = jnp.take_along_axis(facet_ids, order, axis=-1)
+    mapped_vertices = jnp.take_along_axis(mapped_vertices, order[..., None], axis=-2)
+    new_state.facet_id = facet_ids[:, 0]
+    new_state.facet_vertices = mapped_vertices[:, 0, :]
+    new_state.facet_ids_extra = facet_ids[:, 1:]
+    new_state.facet_vertices_extra = mapped_vertices[:, 1:, :]
 
     # 2. Rebuild the collider (if stateful).
     new_collider = refresh_collider(

@@ -2,10 +2,11 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Pooled-cache batching must agree with independent simulations."""
 
-from dataclasses import replace
-
 import jax
 import jax.numpy as jnp
+
+from dataclasses import replace
+
 import numpy as np
 import pytest
 
@@ -27,6 +28,70 @@ def assert_tree_close(actual, expected):
 
 def stack(pairs):
     return jd.State.stack([s for s, _ in pairs]), jd.System.stack([y for _, y in pairs])
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_valid_stateless_batches_skip_neighbor_search(nested, monkeypatch):
+    from jaxdem.colliders import _neighbor_cache
+
+    pair = jd.System.initialize(*case(backend="naive"))
+    states, systems = stack([pair, pair])
+    check = jax.vmap(_neighbor_cache.check_and_rebuild)
+    if nested:
+        states, systems = stack([(states, systems), (states, systems)])
+        check = jax.vmap(check)
+    original = _neighbor_cache.build_pairs
+    executed = []
+
+    def instrumented(state, *args, **kwargs):
+        jax.debug.callback(
+            lambda _: executed.append(None), state.pos[0, 0], ordered=True
+        )
+        return original(state, *args, **kwargs)
+
+    monkeypatch.setattr(_neighbor_cache, "build_pairs", instrumented)
+    actual = jax.jit(check)(states, systems)
+    jax.block_until_ready(actual)
+    jax.effects_barrier()
+    assert executed == []
+    assert_tree_close(actual, systems)
+
+
+@pytest.mark.parametrize("history", [False, True])
+def test_mixed_rebuilds_preserve_replica_cache_metadata(history):
+    from jaxdem.colliders import _neighbor_cache
+
+    state, system = jd.System.initialize(
+        *case(capacity=1, backend="naive", force=Remember() if history else None)
+    )
+    col = system.collider
+    seeded = col.history + jnp.arange(col.history.size).reshape(col.history.shape)
+    col = replace(col, history=seeded)
+    idle = replace(
+        system,
+        collider=replace(
+            col, n_build_times=jnp.asarray(11), overflow=jnp.asarray(True)
+        ),
+    )
+    invalid = replace(
+        system,
+        collider=replace(
+            col, n_build_times=jnp.asarray(21), invalidated=jnp.asarray(True)
+        ),
+    )
+    displaced = replace(system, collider=replace(col, n_build_times=jnp.asarray(31)))
+    slight = replace(state, pos_c=state.pos_c + jnp.array([0.02, 0.0]))
+    crowded = replace(state, pos_c=state.pos_c.at[3].set(jnp.array([0.3, 0.3])))
+    pairs = [(state, idle), (slight, invalid), (crowded, displaced)]
+    expected = jd.System.stack(
+        [_neighbor_cache.check_and_rebuild(s, y) for s, y in pairs]
+    )
+    actual = jax.jit(jax.vmap(_neighbor_cache.check_and_rebuild))(*stack(pairs))
+    assert_tree_close(actual, expected)
+    np.testing.assert_array_equal(actual.collider.n_build_times, [11, 22, 32])
+    np.testing.assert_array_equal(actual.collider.overflow, [True, False, True])
+    np.testing.assert_array_equal(actual.collider.old_pos[0], col.old_pos)
+    np.testing.assert_array_equal(actual.collider.history[0], seeded)
 
 
 @pytest.mark.parametrize("batch_size", [1, 3])
@@ -172,3 +237,42 @@ def test_source_decoding_handles_empty_rows_overflow_and_vmap(capacity):
 
     actual = jax.jit(jax.vmap(decode))(jnp.asarray(offsets))
     np.testing.assert_array_equal(actual, expected)
+
+
+@pytest.mark.parametrize("domain", ["periodic", "leesedwards"])
+def test_within_skin_geometry_batch_skips_neighbor_search(domain, monkeypatch):
+    from jaxdem.colliders import _neighbor_cache
+
+    state, system = case(
+        capacity=2,
+        backend="naive",
+        domain=domain,
+        pos=[[0.1, 0.1], [0.2, 3.8], [2.0, 2.0]],
+    )
+    system = _neighbor_cache.check_and_rebuild(state, system)
+    pairs = []
+    for delta in (0.001, 0.002, 0.003):
+        geometry = (
+            {"gamma": system.domain.gamma + delta}
+            if domain == "leesedwards"
+            else {"box_size": system.domain.box_size + delta}
+        )
+        pairs.append(
+            (state, replace(system, domain=replace(system.domain, **geometry)))
+        )
+    states, systems = stack(pairs)
+    builds = []
+    original = _neighbor_cache.build_pairs
+
+    def tracked(*args, **kwargs):
+        jax.debug.callback(lambda: builds.append(1))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(_neighbor_cache, "build_pairs", tracked)
+    actual = jax.jit(jax.vmap(_neighbor_cache.check_and_rebuild))(states, systems)
+    jax.block_until_ready(actual)
+    assert not builds
+    for before, after in zip(
+        jax.tree.leaves(systems.collider), jax.tree.leaves(actual.collider), strict=True
+    ):
+        np.testing.assert_array_equal(after, before)

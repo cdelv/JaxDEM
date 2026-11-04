@@ -1,10 +1,17 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Configure the JaxDEM documentation, API reference, and example gallery."""
+
 import datetime
 import importlib
 import inspect
 import os
 import pathlib
+import shutil
 import sys
 import types
+
+from sphinx.util import logging as sphinx_logging
 
 # ------------------------------------------------------------------
 # Paths and project metadata
@@ -12,19 +19,6 @@ import types
 
 root = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(root))
-
-# ------------------------------------------------------------------
-# Performance report generation
-# ------------------------------------------------------------------
-try:
-    from tools.performance_report import generate_report
-
-    generate_report(
-        results_file=str(root / "benchmarks" / "results.json"),
-        output_dir=str(pathlib.Path(__file__).parent / "benchmarks"),
-    )
-except Exception as e:
-    print(f"Could not generate performance report: {e}")
 
 project = "JaxDEM"
 author = "Carlos Andres del Valle"
@@ -63,6 +57,7 @@ html_theme_options = {
 }
 
 html_show_sourcelink = False
+html_show_copyright = False
 html_sidebars = {
     "index": ["custom-sidebar.html", "sidebar-nav-bs"],
     "*": ["sidebar-nav-bs", "sidebar-ethical-ads"],
@@ -99,13 +94,48 @@ source_suffix = {
 }
 
 os.environ.setdefault("JAX_PLATFORMS", "cpu")
+os.environ.setdefault("JAXDEM_DOCS_VISUALS", "1")
+render_example_scenes = os.environ["JAXDEM_DOCS_VISUALS"] == "1"
+jaxdem_visuals_enabled = (
+    render_example_scenes and os.environ.get("JAXDEM_DOCS_EXECUTE", "1") == "1"
+)
+if jaxdem_visuals_enabled:
+    tags.add("jaxdem_visuals")
+if (
+    render_example_scenes
+    and os.environ.get("JAXDEM_DOCS_EXECUTE", "1") == "1"
+    and shutil.which(os.environ.get("JAXDEM_PVPYTHON", "pvpython")) is None
+):
+    raise RuntimeError(
+        "Visual documentation requires ParaView's pvpython. Set JAXDEM_PVPYTHON "
+        "to its executable, or use JAXDEM_DOCS_VISUALS=0 for a text/plot-only build. "
+        "See the documentation contribution guide."
+    )
+from tools.example_visuals import start_visual_build
+
+if render_example_scenes and os.environ.get("JAXDEM_DOCS_EXECUTE", "1") == "1":
+    start_visual_build(
+        root / "examples", pathlib.Path(__file__).parent / "_static" / "visuals"
+    )
 
 sphinx_gallery_conf = {
     "examples_dirs": "../../examples",
     "gallery_dirs": "auto_examples",
-    # Generate every page and execute the lightweight guides whose printed
-    # results form part of the documentation.
-    "filename_pattern": r"/(introduction|[^/]+_guide)\.py$",
+    # Every published figure must come from the current example and library.
+    "filename_pattern": r"\.py$",
+    "run_stale_examples": True,
+    "reset_modules": (
+        "matplotlib",
+        "seaborn",
+        "tools.example_visuals.reset_jax_compilation_cache",
+    ),
+    "image_scrapers": (
+        ("matplotlib", "tools.example_visuals.paraview_scraper")
+        if render_example_scenes
+        else ("matplotlib",)
+    ),
+    # Keep the hand-written gallery index while publishing input assets.
+    "copyfile_regex": r".*\.(rst|stl|json)$",
     "ignore_pattern": r"__init__",
     "download_all_examples": False,
     "plot_gallery": os.environ.get("JAXDEM_DOCS_EXECUTE", "1") == "1",
@@ -116,6 +146,39 @@ root_doc = "index"
 html_static_path = ["_static"]
 templates_path = ["_templates"]
 html_css_files = ["custom.css"]
+
+
+def _warn_missing_example_api_reference(app, env, node, contnode):
+    """Check API links in tutorials and the packing-analysis example."""
+    docname = node.get("refdoc", "")
+    name = docname.rsplit("/", 1)[-1]
+    is_checked_page = name.endswith("_guide") or name in {
+        "introduction",
+        "intro_to_rl",
+        "packing_analysis",
+    }
+    if (
+        docname.startswith("auto_examples/")
+        and is_checked_page
+        and node.get("refdomain") == "py"
+    ):
+        sphinx_logging.getLogger(__name__).warning(
+            "Unresolved API reference in tutorial or example: %s",
+            node.get("reftarget"),
+            location=node,
+            type="ref",
+            subtype="guide_api",
+        )
+
+
+def setup(app):
+    from tools.docs_media import SimulationImage
+
+    app.add_config_value("jaxdem_visuals_enabled", False, "env")
+    app.add_directive("simulation-image", SimulationImage)
+    # Let other resolvers (including optional intersphinx) try first.
+    app.connect("missing-reference", _warn_missing_example_api_reference, priority=999)
+
 
 # ------------------------------------------------------------------
 # Linkcode configuration

@@ -4,6 +4,9 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import logging
 import warnings
 from dataclasses import dataclass, field
@@ -11,9 +14,6 @@ from functools import partial
 from pathlib import Path
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Literal
-
-import jax
-import jax.numpy as jnp
 
 try:  # Python 3.11+
     from typing import Self
@@ -36,6 +36,8 @@ from ..utils import decode_callable
 from ..utils.serialization import supported_kwargs
 from ..utils.serialization_schema import (
     CURRENT_SCHEMA_VERSION,
+    FACET_INCIDENCE_LAYOUT_VERSION,
+    LEGACY_FACET_FIELDS,
     make_serialization_manifest,
     serialization_schema_version,
 )
@@ -92,10 +94,10 @@ def _validate_schema3_system_metadata(metadata: dict[str, Any]) -> None:
         )
 
 
-def _checkpoint_tree(system: System) -> System:
+def _checkpoint_tree(system: Any) -> Any:
     """Omit empty array payloads, which Orbax cannot store.
 
-    Their shapes and dtypes are recovered from the reconstructed system target.
+    Their shapes and dtypes are recovered from the reconstructed target.
     Runtime histories remain arrays, including for stateless laws.
     """
     return jax.tree.map(
@@ -103,7 +105,7 @@ def _checkpoint_tree(system: System) -> System:
     )
 
 
-def _restore_empty_arrays(target: System, restored: System) -> System:
+def _restore_empty_arrays(target: Any, restored: Any) -> Any:
     return jax.tree.map(
         lambda template, value: (
             template
@@ -114,6 +116,73 @@ def _restore_empty_arrays(target: System, restored: System) -> System:
         restored,
         is_leaf=lambda x: x is None,
     )
+
+
+def _restore_layout_target(target: Any, saved: Any, *, legacy_facets: bool) -> Any:
+    """Match old trees only where a known additive facet field is absent."""
+    serialized = ocp.tree.serialize_tree(
+        _checkpoint_tree(target), keep_empty_nodes=True
+    )
+
+    def align(value: Any, metadata: Any, original: Any) -> Any:
+        if isinstance(value, dict):
+            if not isinstance(metadata, dict):
+                raise ValueError("Checkpoint tree structure differs from its target.")
+            missing = value.keys() - metadata.keys()
+            unknown = metadata.keys() - value.keys()
+            class_name = f"{type(original).__module__}:{type(original).__qualname__}"
+            allowed = LEGACY_FACET_FIELDS.get(class_name, frozenset())
+            if unknown or (missing and not (legacy_facets and missing == allowed)):
+                raise ValueError(
+                    f"Checkpoint {class_name} fields differ: "
+                    f"missing={sorted(missing)}, "
+                    f"unknown={sorted(unknown)}"
+                )
+            return {
+                key: align(
+                    child,
+                    metadata[key],
+                    (
+                        original[key]
+                        if isinstance(original, dict)
+                        else getattr(original, key)
+                    ),
+                )
+                for key, child in value.items()
+                if key in metadata
+            }
+        if isinstance(value, (tuple, list)):
+            if len(value) != len(metadata):
+                raise ValueError("Checkpoint sequence length differs from its target.")
+            return type(value)(
+                align(child, metadata[index], original[index])
+                for index, child in enumerate(value)
+            )
+        return value
+
+    return align(serialized, saved, target)
+
+
+def _restore_layout_value(target: Any, restored: Any) -> Any:
+    """Restore current types/static data and initialize permitted missing leaves."""
+    template = ocp.tree.serialize_tree(_checkpoint_tree(target), keep_empty_nodes=True)
+
+    def complete(expected: Any, value: Any) -> Any:
+        if isinstance(expected, dict):
+            return {
+                key: complete(child, value[key]) if key in value else child
+                for key, child in expected.items()
+            }
+        if isinstance(expected, (tuple, list)):
+            return type(expected)(
+                complete(a, b) for a, b in zip(expected, value, strict=True)
+            )
+        return value
+
+    restored_tree = ocp.tree.deserialize_tree(
+        complete(template, restored), _checkpoint_tree(target), keep_empty_nodes=True
+    )
+    return _restore_empty_arrays(target, restored_tree)
 
 
 def _deserialize_force_functions(
@@ -181,7 +250,7 @@ def _deserialize_force_functions(
     return entries
 
 
-@dataclass
+@dataclass(slots=True, weakref_slot=True)
 class BaseCheckpointManager:
     """Base class that provides context management and shared setup for Orbax checkpointers."""
 
@@ -219,13 +288,17 @@ class BaseCheckpointManager:
             options=options,
         )
 
-    def _init_loader_manager(self) -> None:
+    def _init_loader_manager(self, standard_items: tuple[str, ...] = ()) -> None:
         """Build a read-only checkpoint manager. Shared by the loaders."""
         self.directory = Path(self.directory).resolve()
         options = ocp.CheckpointManagerOptions()
+        registry = ocp.DefaultCheckpointHandlerRegistry()
+        for item in standard_items:
+            registry.add(item, ocp.args.StandardRestore)
         self.checkpointer = ocp.CheckpointManager(
             self.directory,
             options=options,
+            handler_registry=registry,
         )
 
     @partial(jax.named_call, name="block_until_ready")
@@ -258,7 +331,7 @@ class BaseCheckpointManager:
         return False
 
 
-@dataclass
+@dataclass(slots=True)
 class CheckpointWriter(BaseCheckpointManager):
     """Thin wrapper around Orbax checkpoint saving.
 
@@ -267,10 +340,10 @@ class CheckpointWriter(BaseCheckpointManager):
     The writer serializes custom force functions passed via
     ``force_manager_kw`` by their fully-qualified module path (e.g.
     ``mypackage.forces.trap``). A different script **cannot** restore
-    functions defined in the top-level script (``__main__``). The writer
-    emits a warning at save time if any force function lives in
-    ``__main__``. To keep checkpoints portable, define force functions in
-    an importable module.
+    functions defined in the top-level script (``__main__``). Nonportable
+    callables are rejected at save time: force, energy, target, and callback
+    functions must round-trip by import-path identity. Define these functions
+    in an importable module.
 
     """
 
@@ -281,7 +354,8 @@ class CheckpointWriter(BaseCheckpointManager):
 
     save_every: int = 1
     """
-    How often to write. The writer saves on every ``save_every``-th call to :meth:`save`.
+    Checkpoint interval measured in the step supplied to :meth:`save`,
+    rather than in save calls.
     """
 
     clean: bool = False
@@ -332,15 +406,22 @@ class CheckpointWriter(BaseCheckpointManager):
         self.checkpointer.save(
             int(system.step_count),
             args=ocp.args.Composite(
-                state=ocp.args.StandardSave(state),
+                state=ocp.args.StandardSave(_checkpoint_tree(state)),
                 system=ocp.args.StandardSave(_checkpoint_tree(system)),
-                state_metadata=ocp.args.JsonSave({"shape": state.shape}),
+                state_metadata=ocp.args.JsonSave(
+                    {
+                        "shape": state.shape,
+                        "only_spheres": state.only_spheres,
+                        "facet_incidence_layout": FACET_INCIDENCE_LAYOUT_VERSION,
+                        "facet_ids_extra_shape": state.facet_ids_extra.shape,
+                    }
+                ),
                 system_metadata=ocp.args.JsonSave(system_metadata),
             ),
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class CheckpointLoader(BaseCheckpointManager):
     """Restore current manifests and legacy JaxDEM schema versions 1 and 2.
 
@@ -351,7 +432,7 @@ class CheckpointLoader(BaseCheckpointManager):
     """
 
     def __post_init__(self) -> None:
-        self._init_loader_manager()
+        self._init_loader_manager(("state", "system"))
 
     @partial(jax.named_call, name="CheckpointLoader.load")
     def load(
@@ -406,18 +487,66 @@ class CheckpointLoader(BaseCheckpointManager):
             system_metadata.get("state_shape", state_shape)
         )
         bond_id_shape = system_metadata.pop("bond_id_shape", None)
+        state_kw: dict[str, Any] = {
+            "only_spheres": metadata.state_metadata.get("only_spheres", False)
+        }
         if bond_id_shape is not None:
-            dummy_bond_id = jnp.full(tuple(bond_id_shape), -1, dtype=int)
-            state_target = State.create(jnp.zeros(state_shape), bond_id=dummy_bond_id)
-        else:
-            state_target = State.create(jnp.zeros(state_shape))
+            state_kw["bond_id"] = jnp.full(tuple(bond_id_shape), -1, dtype=int)
+        extra_shape = metadata.state_metadata.get("facet_ids_extra_shape")
+        has_layout = "facet_incidence_layout" in metadata.state_metadata
+        if has_layout != (extra_shape is not None):
+            raise RuntimeError(
+                "Checkpoint facet incidence layout and shape must be saved together."
+            )
+        if extra_shape is not None:
+            if (
+                not isinstance(extra_shape, (list, tuple))
+                or len(extra_shape) != len(state_shape)
+                or tuple(extra_shape[:-1]) != state_shape[:-1]
+                or type(extra_shape[-1]) is not int
+                or extra_shape[-1] < 0
+            ):
+                raise RuntimeError("Invalid checkpoint facet incidence shape.")
+            state_kw["facet_ids_extra"] = jnp.full(tuple(extra_shape), -1, dtype=int)
+        state_target = State.create(jnp.zeros(state_shape), **state_kw)
+        legacy_facets = not has_layout
+        if not legacy_facets:
+            layout = metadata.state_metadata["facet_incidence_layout"]
+            if type(layout) is not int or layout != FACET_INCIDENCE_LAYOUT_VERSION:
+                raise RuntimeError("Unsupported checkpoint facet incidence layout.")
+        item_metadata = self.checkpointer.metadata(step).item_metadata
+        if legacy_facets and (
+            LEGACY_FACET_FIELDS["jaxdem.state:State"]
+            & item_metadata["state"].tree.keys()
+        ):
+            raise RuntimeError("Stored facet incidence fields require layout metadata.")
+        if extra_shape is not None:
+            saved_ids = item_metadata["state"].tree.get("facet_ids_extra")
+            saved_vertices = item_metadata["state"].tree.get("facet_vertices_extra")
+            expected_ids = tuple(extra_shape)
+            expected_vertices = (*expected_ids, state_shape[-1])
+            if expected_ids[-1] == 0:
+                if saved_ids is not None or saved_vertices is not None:
+                    raise RuntimeError(
+                        "Checkpoint facet incidence shape does not match its payload."
+                    )
+            elif (
+                getattr(saved_ids, "shape", None) != expected_ids
+                or getattr(saved_vertices, "shape", None) != expected_vertices
+            ):
+                raise RuntimeError(
+                    "Checkpoint facet incidence shape does not match its payload."
+                )
 
         # Restore state first to get correct radii and properties before building the system
         try:
+            state_restore_target = _restore_layout_target(
+                state_target, item_metadata["state"].tree, legacy_facets=legacy_facets
+            )
             res_state = self.checkpointer.restore(
                 step,
                 args=ocp.args.Composite(
-                    state=ocp.args.StandardRestore(state_target),
+                    state=ocp.args.StandardRestore(state_restore_target),
                 ),
             )
         except Exception as exc:
@@ -426,7 +555,7 @@ class CheckpointLoader(BaseCheckpointManager):
                 f"{self.directory}. The checkpoint may be corrupt or "
                 "incompatible with the current State schema."
             ) from exc
-        state_target = res_state.state
+        state_target = _restore_layout_value(state_target, res_state.state)
         system_metadata.setdefault("bonded_force_model_type", None)
         system_metadata.setdefault("bonded_force_model_kw", None)
         minimizer_meta = system_metadata.pop("minimizer", None)
@@ -550,22 +679,24 @@ class CheckpointLoader(BaseCheckpointManager):
                 return state_obj, system_obj
             raise
 
+        system_restore_target = _restore_layout_target(
+            system_target, item_metadata["system"].tree, legacy_facets=legacy_facets
+        )
         result = self.checkpointer.restore(
             step,
             args=ocp.args.Composite(
-                state=ocp.args.StandardRestore(state_target),
-                system=ocp.args.StandardRestore(_checkpoint_tree(system_target)),
+                system=ocp.args.StandardRestore(system_restore_target),
             ),
         )
 
-        return result.state, _restore_empty_arrays(system_target, result.system)
+        return state_target, _restore_layout_value(system_target, result.system)
 
     @partial(jax.named_call, name="CheckpointLoader.latest_step")
     def latest_step(self) -> int | None:
         return self.checkpointer.latest_step()
 
 
-@dataclass
+@dataclass(slots=True)
 class CheckpointModelWriter(BaseCheckpointManager):
     """Thin wrapper around Orbax checkpoint saving for jaxdem.rl.models.Model."""
 
@@ -576,7 +707,8 @@ class CheckpointModelWriter(BaseCheckpointManager):
 
     save_every: int = 1
     """
-    How often to write. The writer saves on every ``save_every``-th call to :meth:`save`.
+    Checkpoint interval measured in the step supplied to :meth:`save`,
+    rather than in save calls.
     """
 
     clean: bool = False
@@ -613,7 +745,7 @@ class CheckpointModelWriter(BaseCheckpointManager):
         )
 
 
-@dataclass
+@dataclass(slots=True)
 class CheckpointModelLoader(BaseCheckpointManager):
     """Thin wrapper around Orbax checkpoint restoring for jaxdem.rl.models.Model."""
 

@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Packing analysis preserves geometry, history, and aligned pair statistics."""
+
+import jax
+import jax.numpy as jnp
 
 from dataclasses import dataclass, field, fields, replace
 import math
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 
@@ -19,9 +21,11 @@ def make_system(state, backend="NeighborList", *, domain="periodic", law=None):
     return jd.System.create(
         state=state,
         collider_type=backend,
-        collider_kw={"max_neighbors": state.N, "skin": 0.1, "cutoff": 1.0}
-        if backend == "NeighborList"
-        else {},
+        collider_kw=(
+            {"max_neighbors": state.N, "skin": 0.1, "cutoff": 1.0}
+            if backend == "NeighborList"
+            else {}
+        ),
         domain_type=domain,
         domain_kw={
             "box_size": jnp.full(state.dim, 8.0),

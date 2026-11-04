@@ -2,11 +2,12 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """CAPS respects action transforms, recurrent history, and PPO boundaries."""
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import replace
 
 import distrax
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 from flax import nnx
@@ -19,7 +20,7 @@ from tests.test_ppo_alignment import _loss_args
 from tests.test_rl_action_contracts import ActionLookupEnv
 
 MODELS = ["ActorCritic", "SharedActorCritic", "LSTMActorCritic", "MinGRUActorCritic"]
-SPACES = ["Free", "Box", "MaxNorm", "discrete"]
+SPACES = ["Free", "Box", "MaxNorm", "Blockwise", "discrete"]
 
 
 def make_model(name, space, obs_dim=2, action_dim=2):
@@ -36,6 +37,14 @@ def make_model(name, space, obs_dim=2, action_dim=2):
         kwargs["discrete"] = True
     elif space == "Box":
         kwargs["action_space"] = ActionSpace.create("Box", x_min=-2.0, x_max=3.0)
+    elif space == "Blockwise":
+        kwargs["action_space"] = ActionSpace.create(
+            "Blockwise",
+            blocks=(
+                (1, ActionSpace.create("MaxNorm", max_norm=1.7)),
+                (action_dim - 1, ActionSpace.create("Box", x_min=-2.0, x_max=3.0)),
+            ),
+        )
     else:
         kwargs["action_space"] = ActionSpace.create(space)
     return Model.create(
@@ -346,6 +355,27 @@ def test_caps_configuration_validation(kwargs):
     model = make_model("SharedActorCritic", "Free")
     with pytest.raises(ValueError, match="caps_"):
         PPOTrainer.Create(ActionLookupEnv.Create(), model, **kwargs)
+
+
+def test_per_feature_caps_noise_trains_a_custom_model_without_input_size_attribute():
+    from tests.test_ppo_math import BanditModel, TimeLimitCounterEnv
+
+    model = BanditModel()
+    assert not hasattr(model, "observation_space_size")
+    trainer = PPOTrainer.Create(
+        TimeLimitCounterEnv.Create(),
+        model,
+        num_envs=1,
+        num_steps_epoch=2,
+        num_minibatches=1,
+        caps_spatial_coeff=0.1,
+        caps_noise_std=[0.1],
+    )
+
+    _, _, metrics = trainer.epoch(trainer, jnp.array(0))
+    jax.block_until_ready(metrics)
+    assert all(np.isfinite(value).all() for value in jax.tree.leaves(metrics))
+    assert metrics["caps_spatial_loss"] == 0.0
 
 
 def test_single_step_rollout_and_zero_noise_have_finite_zero_caps_gradients():

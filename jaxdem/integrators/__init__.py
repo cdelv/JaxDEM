@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
+import jax
+
 from abc import ABC
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING
-
-import jax
 
 from ..factory import Factory
 
@@ -26,7 +26,7 @@ def free_mask(state: State) -> jax.Array:
     particles and `False` for fixed ones. Multiplying a `(..., N, dim)` update
     by this mask zeroes the update on fixed particles. Their prescribed
     velocities stay untouched. Integrators use this mask to respect
-    :attr:`jaxdem.State.fixed`.
+    :attr:`jaxdem.State.fixed <jaxdem.state.State.fixed>`.
     """
     return (~state.fixed)[..., None]
 
@@ -36,15 +36,15 @@ def free_mask(state: State) -> jax.Array:
 class Integrator(Factory, ABC):
     """Abstract base class that defines the interface for time-stepping.
 
-    Example:
+    Example
     --------
-    To define a custom integrator, inherit from :class:`Integrator` and implement its abstract methods:
+    To define a custom integrator, inherit from :class:`Integrator <jaxdem.integrators.Integrator>` and implement its abstract methods:
 
     >>> @Integrator.register("myCustomIntegrator")
-    >>> @jax.tree_util.register_dataclass
-    >>> @dataclass(slots=True)
-    >>> class MyCustomIntegrator(Integrator):
-            ...
+    ... @jax.tree_util.register_dataclass
+    ... @dataclass(slots=True)
+    ... class MyCustomIntegrator(Integrator):
+    ...     ...
 
     """
 
@@ -75,6 +75,9 @@ class Integrator(Factory, ABC):
     def step_after_force(state: State, system: System) -> tuple[State, System]:
         """Advance the simulation state after the force evaluation.
 
+        System runs the rotational hook before the linear hook, so linear
+        thermostats can use both terminal velocities.
+
         Parameters
         ----------
         state : State
@@ -87,17 +90,6 @@ class Integrator(Factory, ABC):
         Tuple[State, System]
             The updated state and system.
 
-        """
-        return state, system
-
-    @staticmethod
-    @jax.jit(inline=True)
-    @partial(jax.named_call, name="Integrator.finalize_step")
-    def finalize_step(state: State, system: System) -> tuple[State, System]:
-        """Apply work that must run after both linear and rotational kicks.
-
-        Thermostats use this hook so their temperature includes the terminal
-        translational and rotational velocities. The default is a no-op.
         """
         return state, system
 

@@ -10,6 +10,8 @@ __pycache__/
 
 # Benchmarks
 docs/source/benchmarks/*
+/benchmarks/results/*/
+/rl_parity_report.md
 
 # C extensions
 *.so
@@ -21,6 +23,7 @@ build/
 docs/source/auto_examples/
 docs/source/reference/generated/
 docs/source/sg_execution_times.rst
+docs/source/_static/visuals/
 develop-eggs/
 dist/
 downloads/

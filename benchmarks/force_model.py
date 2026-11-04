@@ -1,9 +1,11 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-from dataclasses import replace
-from typing import Any, Callable
+"""Benchmark pair-force models over standard particle workloads."""
 
 import jax.numpy as jnp
+
+from dataclasses import replace
+from typing import Any, Callable
 
 import jaxdem as jdem
 from benchmarks.base import SkipBenchmark, get_state_factory

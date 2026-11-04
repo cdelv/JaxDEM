@@ -4,21 +4,21 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from abc import ABC
 from dataclasses import dataclass, replace
 from enum import Enum
 from functools import partial
 from typing import TYPE_CHECKING, Any, ClassVar
 
-import jax
-import jax.numpy as jnp
-
-from ..factory import Factory
-
 try:  # Python 3.11+
     from typing import Self
 except ImportError:  # pragma: no cover
     from typing_extensions import Self
+
+from ..factory import Factory
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -38,19 +38,20 @@ class Domain(Factory, ABC):
     """The base interface for the simulation domain and its boundary conditions.
 
     The `Domain` class defines:
-        - How to compute relative displacement vectors between particles.
+        - Pair displacement through ``displacement``.
+        - Contact relative velocity through ``relative_velocity``.
         - How to "shift" or constrain particle positions so they stay within
           the simulation boundaries.
 
-    Example:
+    Example
     --------
     To define a custom domain, inherit from `Domain` and implement its abstract methods:
 
     >>> @Domain.register("my_custom_domain")
-    >>> @jax.tree_util.register_dataclass
-    >>> @dataclass(slots=True)
-    >>> class MyCustomDomain(Domain):
-            ...
+    ... @jax.tree_util.register_dataclass
+    ... @dataclass(slots=True)
+    ... class MyCustomDomain(Domain):
+    ...     ...
 
     """
 
@@ -235,12 +236,11 @@ class Domain(Factory, ABC):
         vj: jax.Array,
         system: System,
     ) -> jax.Array:
-        """Return relative velocity for the image selected by ``displacement``.
+        """Return contact relative velocity for the image selected by displacement.
 
-        ``ri`` and ``rj`` are the particle centers used to select that image.
-        ``vi`` and ``vj`` may include rotational contact-point velocities.
-        Domains with moving periodic images override this operation to add
-        the image's translational velocity offset.
+        Particle centers select the image. The supplied velocities can include
+        rotation at the contact points. The base rule has no moving images.
+        Custom domains override this method for image motion or other velocity rules.
         """
         return vi - vj
 

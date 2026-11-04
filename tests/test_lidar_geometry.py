@@ -1,6 +1,9 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Exact nearest-center proximity, angular sectors, ties and periodic images."""
 
 import jax.numpy as jnp
+
 import numpy as np
 import pytest
 

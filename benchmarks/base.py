@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-from typing import Any, Callable
+"""Shared particle-state fixtures and workload selection for benchmarks."""
 
 import jax
 import jax.numpy as jnp
+
+from typing import Any, Callable
+
 import numpy as np
 
 import jaxdem as jdem

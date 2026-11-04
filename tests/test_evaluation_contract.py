@@ -1,13 +1,15 @@
 # SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """End-to-end contracts separating force observation from time evolution."""
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import dataclasses
 from dataclasses import dataclass
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 

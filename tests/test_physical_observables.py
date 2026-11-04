@@ -1,7 +1,10 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Known displacement and rotation trajectories through the shipped kernels."""
 
 import jax
 import jax.numpy as jnp
+
 import numpy as np
 import pytest
 from scipy.special import j0, j1

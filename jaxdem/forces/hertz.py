@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING
-
-import jax
-import jax.numpy as jnp
 
 from ..utils.linalg import norm, unit_and_norm
 from . import ForceModel
@@ -68,7 +68,7 @@ class HertzianForce(ForceModel):
     Notes
     -----
     The model reads the ``young`` and ``poisson`` properties per particle from
-    :attr:`System.mat_table`. It does not use a matchmaker effective value.
+    :attr:`System.mat_table <jaxdem.system.System.mat_table>`. It does not use a matchmaker effective value.
 
     """
 
@@ -181,7 +181,9 @@ class HertzianForce(ForceModel):
         r = norm(rij)
         delta = R_i + R_j - r
         delta *= (delta > 0) * (i != j)
-        return 0.4 * (4.0 / 3.0) * E_star * delta * delta * _contact_root(R_star * delta)
+        return (
+            0.4 * (4.0 / 3.0) * E_star * delta * delta * _contact_root(R_star * delta)
+        )
 
     @property
     def required_material_properties(self) -> tuple[str, ...]:

@@ -4,21 +4,15 @@
 
 from __future__ import annotations
 
+import jax
+
 import warnings
 from abc import ABC
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
 from inspect import signature
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    ClassVar,
-    TypeVar,
-    cast,
-)
-
-import jax
+from typing import TYPE_CHECKING, Any, ClassVar, TypeVar, cast
 
 # TypeVars for type-preserving decorators & methods
 RootT = TypeVar("RootT", bound="Factory")
@@ -43,29 +37,29 @@ def _normalize_key(key: str) -> str:
 class Factory(ABC):
     """Base class for components that register and create subclasses by a string key.
 
-    Notes:
+    Notes
     ------
     Each concrete subclass gets its own private registry. The factory
     normalizes keys before use: lookup is case-insensitive and ignores spaces,
     underscores, and hyphens (``"CellList"``, ``"cell_list"``, and
     ``"celllist"`` are the same key).
 
-    Example:
+    Example
     --------
     Use Factory as a base class for a specific component type (e.g., `Foo`):
 
     >>> class Foo(Factory, ABC):
-    >>>   ...
+    ...     ...
 
     Register a concrete subclass of `Foo`:
 
     >>> @Foo.register("bar")
-    >>> class bar:
-    >>>     ...
+    ... class Bar(Foo):
+    ...     ...
 
     To create an instance of the subclass:
 
-    >>> Foo.create("bar", **bar_kw)
+    >>> component = Foo.create("bar")
 
     """
 
@@ -265,7 +259,8 @@ class Factory(ABC):
         ------
         ValueError
             If the provided `key` (or the default class name) is already
-            registered in the factory's registry for a *different* class.
+            registered in the factory's registry for a *different* class, or
+            the subclass already declares a different registry name.
             Registering the same class under the same key again (for example
             when you re-run a notebook cell) works and is idempotent.
 
@@ -274,14 +269,14 @@ class Factory(ABC):
         Register a class named "MyComponent" under the key "mycomp":
 
         >>> @MyFactory.register("mycomp")
-        >>> class MyComponent:
-        >>>     ...
+        ... class MyComponent(MyFactory):
+        ...     ...
 
         Register a class named "DefaultComponent" using its own name as the key:
 
         >>> @MyFactory.register()
-        >>> class DefaultComponent:
-        >>>     ...
+        ... class DefaultComponent(MyFactory):
+        ...     ...
 
         """
 
@@ -298,8 +293,6 @@ class Factory(ABC):
                 raise ValueError(
                     f"{cls.__name__}: key '{k}' already registered for {existing_cls.__name__}"
                 )
-            cls._registry[k] = sub_cls
-
             # Stamp the registered name on the class.
             # Only check for an explicit override on the subclass itself. Base
             # classes may already be registered (e.g., under the empty string
@@ -312,6 +305,7 @@ class Factory(ABC):
                     f"{sub_cls.__name__} has __registry_name__={existing!r}, "
                     f"but is being registered as {k!r}."
                 )
+            cls._registry[k] = sub_cls
             sub_cls.__registry_name__ = k
 
             return sub_cls
@@ -385,6 +379,7 @@ class Factory(ABC):
 
         **kw : Any
             Keyword arguments passed to the constructor of the registered subclass.
+            Unknown names are warned about and dropped for fixed signatures.
 
         Returns
         -------
@@ -396,8 +391,8 @@ class Factory(ABC):
         KeyError
             If the factory's registry does not contain the provided `key`.
         TypeError
-            If the provided `**kw` arguments do not match the signature
-            of the registered subclass's constructor.
+            If required constructor arguments are missing or the selected
+            constructor rejects an argument.
 
         Example
         -------

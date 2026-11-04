@@ -4,10 +4,10 @@
 
 from __future__ import annotations
 
-from functools import partial
-
 import jax
 import jax.numpy as jnp
+
+from functools import partial
 
 
 @jax.jit(inline=True)
@@ -72,13 +72,11 @@ def cross(a: jax.Array, b: jax.Array) -> jax.Array:
     if a.shape[-1] == 2:
         return a[..., 0:1] * b[..., 1:2] - a[..., 1:2] * b[..., 0:1]
 
-    a_ext = jnp.concatenate([a, a], axis=-1)
-    b_ext = jnp.concatenate([b, b], axis=-1)
-    a_left = a_ext[..., 1:4]  # [y, z, x]
-    b_left = b_ext[..., 1:4]
-    a_right = a_ext[..., 2:5]  # [z, x, y]
-    b_right = b_ext[..., 2:5]
-    return a_left * b_right - a_right * b_left
+    ax, ay, az = a[..., 0:1], a[..., 1:2], a[..., 2:3]
+    bx, by, bz = b[..., 0:1], b[..., 1:2], b[..., 2:3]
+    return jnp.concatenate(
+        (ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx), axis=-1
+    )
 
 
 @jax.jit(inline=True)
@@ -125,6 +123,13 @@ def norm2(v: jax.Array) -> jax.Array:
     return dot(v, v)
 
 
+def _scaled_vector(v: jax.Array) -> tuple[jax.Array, jax.Array]:
+    """Rescale before squaring without differentiating the numerical scale."""
+    scale = jax.lax.stop_gradient(jnp.max(jnp.abs(v), axis=-1, initial=0.0))
+    scale = jnp.where(scale == 0.0, 1.0, scale)
+    return v / scale[..., None], scale
+
+
 @jax.jit(inline=True)
 @partial(jax.named_call, name="utils.norm")
 def norm(v: jax.Array) -> jax.Array:
@@ -143,10 +148,11 @@ def norm(v: jax.Array) -> jax.Array:
     jax.Array
         The norm. Shape `(...)`.
     """
+    v, scale = _scaled_vector(v)
     n2 = norm2(v)
     zero = n2 == 0.0
     safe_n2 = jnp.where(zero, 1.0, n2)
-    return jnp.where(zero, 0.0, jnp.sqrt(safe_n2))
+    return jnp.where(zero, 0.0, jnp.sqrt(safe_n2) * scale)
 
 
 @jax.jit(inline=True)
@@ -169,6 +175,7 @@ def unit(v: jax.Array) -> jax.Array:
     jax.Array
         Unit vector. Shape `(..., D)`.
     """
+    v, _ = _scaled_vector(v)
     n2 = norm2(v)
     safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)
     inv_norm = jax.lax.rsqrt(safe_n2)
@@ -190,11 +197,12 @@ def unit_and_norm(v: jax.Array) -> tuple[jax.Array, jax.Array]:
     Tuple[jax.Array, jax.Array]
         A tuple of (unit vectors, norms).
     """
+    v, scale = _scaled_vector(v)
     n2 = norm2(v)
     zero = n2 == 0.0
     safe_n2 = jnp.where(zero, 1.0, n2)
     inv_norm = jnp.where(zero, 0.0, jax.lax.rsqrt(safe_n2))
-    norm_v = jnp.where(zero, 0.0, jnp.sqrt(safe_n2))
+    norm_v = jnp.where(zero, 0.0, jnp.sqrt(safe_n2) * scale)
     return v * inv_norm[..., None], norm_v
 
 

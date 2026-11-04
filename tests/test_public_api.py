@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Unit tests for small public APIs: registry-key normalization,
-``System.with_integrators``, ``refresh_collider``, ``trajectory_rollout``
+``refresh_collider``, ``trajectory_rollout``
 frame options, and VTK writer-name resolution."""
+
+import jax.numpy as jnp
 
 from pathlib import Path
 
-import jax.numpy as jnp
 import numpy as np
 import pytest
 
@@ -34,6 +35,22 @@ def test_registry_keys_are_normalized():
 
     with pytest.raises(KeyError, match="Unknown Collider"):
         jdem.Collider.create("not_a_collider")
+
+    from jaxdem.factory import Factory
+
+    class LocalFactory(Factory):
+        pass
+
+    @LocalFactory.register("first")
+    class Component(LocalFactory):
+        pass
+
+    with pytest.raises(ValueError, match="__registry_name__"):
+        LocalFactory.register("second")(Component)
+    assert LocalFactory._registry == {"first": Component}
+    assert isinstance(LocalFactory.create("first"), Component)
+    with pytest.raises(KeyError, match="second"):
+        LocalFactory.create("second")
 
 
 @pytest.mark.parametrize(

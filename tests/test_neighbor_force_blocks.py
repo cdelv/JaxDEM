@@ -1,11 +1,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-from __future__ import annotations
+"""Check blocked neighbor forces, contact history, and differentiation."""
 
-from dataclasses import dataclass, replace
+from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
+
+from dataclasses import dataclass, replace
+
 import numpy as np
 import pytest
 
@@ -202,3 +205,95 @@ def test_force_rows_preserve_history_tangents(advance_history):
         gradient[slot, 0, 0], jnp.sum(expected), rtol=_RTOL, atol=_ATOL
     )
     np.testing.assert_array_equal(gradient[:, 1, :], 0)
+
+
+@pytest.mark.parametrize("dim", [2, 3])
+@pytest.mark.parametrize("full_prefix", [False, True])
+@pytest.mark.parametrize("static", [False, True])
+def test_stateless_prefix_forces_and_derivatives_match_flat(
+    dim, full_prefix, static, monkeypatch
+):
+    monkeypatch.setattr(_neighbor_cache, "_HISTORY_PREFIX_SIZE", 4)
+    indices = jnp.arange(8, dtype=float)
+    pos = jnp.stack((0.02 * indices, 0.01 * jnp.sin(indices)), axis=-1)
+    pos = jnp.pad(pos, ((0, 0), (0, dim - 2)))
+    offsets = jnp.pad(
+        jnp.stack((0.01 * jnp.cos(indices), 0.01 * jnp.sin(indices)), axis=-1),
+        ((0, 0), (0, dim - 2)),
+    )
+    state = jd.State.create(pos=pos, pos_p=offsets, rad=jnp.full(8, 0.2))
+    system = jd.System.create(
+        state=state,
+        force_model=jd.forces.SpringForce(),
+        collider_type="NeighborList",
+        collider_kw={
+            "cutoff": 0.4,
+            "skin": 0.2,
+            "max_neighbors": 4,
+            "secondary_collider_type": "CellList" if static else "naive",
+            "secondary_collider_kw": {"static": True} if static else {},
+        },
+    )
+
+    def evaluate(positions, current, *, flat=False):
+        moved = replace(state, pos_c=positions)
+        if flat:
+            return _neighbor_cache._flat_forces(moved, current, False, False)[:2]
+        return _neighbor_cache.forces(moved, current, False)[:2]
+
+    cases = []
+    for occupied, pair_count in ((0, 0), (4, 12), (6, 30)):
+        positions = pos.at[occupied:, 0].set(3.0 * (indices[occupied:] + 1))
+        moved, current = system.collider.compute_force(
+            replace(state, pos_c=positions), system, advance_history=False
+        )
+        assert current.collider.history.size == 0
+        assert int(current.collider.row_offsets[-1]) == pair_count
+        assert not current.collider.overflow
+        actual = jax.jit(evaluate)(moved.pos_c, current)
+        expected = jax.jit(lambda p, y: evaluate(p, y, flat=True))(moved.pos_c, current)
+        for value, reference in zip(actual, expected, strict=True):
+            np.testing.assert_allclose(value, reference, rtol=_RTOL, atol=_ATOL)
+        cases.append((moved.pos_c, current))
+
+    selected = cases[1:] if full_prefix else cases[:2]
+    positions, systems = jax.tree.map(lambda a, b: jnp.stack((a, b)), *selected)
+    positions = jnp.stack((positions, positions + 0.001))
+    systems = jax.tree.map(lambda x: jnp.stack((x, x)), systems)
+    weights = jnp.arange(state.force.size).reshape(state.force.shape) + 1
+    torque_weights = jnp.arange(state.torque.size).reshape(state.torque.shape) + 1
+
+    def observable(positions, current, *, flat=False):
+        force, torque = evaluate(positions, current, flat=flat)
+        return jnp.sum(weights * force) + jnp.sum(torque_weights * torque)
+
+    actual_values = jax.jit(jax.vmap(jax.vmap(observable)))(positions, systems)
+
+    def reference(p, y):
+        return observable(p, y, flat=True)
+
+    expected_values = jax.jit(jax.vmap(jax.vmap(reference)))(positions, systems)
+    np.testing.assert_allclose(actual_values, expected_values, rtol=_RTOL, atol=_ATOL)
+    actual_grad = jax.jit(jax.vmap(jax.vmap(jax.grad(observable))))(positions, systems)
+    expected_grad = jax.jit(jax.vmap(jax.vmap(jax.grad(reference))))(positions, systems)
+    np.testing.assert_allclose(actual_grad, expected_grad, rtol=_RTOL, atol=_ATOL)
+    assert jnp.all(jnp.isfinite(actual_grad))
+    assert jnp.any(actual_grad != 0)
+
+    direction = (
+        jnp.arange(positions.size, dtype=positions.dtype).reshape(positions.shape)
+        / positions.size
+    )
+
+    def total(p):
+        return jax.vmap(jax.vmap(observable))(p, systems).sum()
+
+    def flat_total(p):
+        return jax.vmap(jax.vmap(reference))(p, systems).sum()
+
+    actual_jvp = jax.jvp(total, (positions,), (direction,))[1]
+    expected_jvp = jax.jvp(flat_total, (positions,), (direction,))[1]
+    np.testing.assert_allclose(actual_jvp, expected_jvp, rtol=_RTOL, atol=_ATOL)
+    np.testing.assert_allclose(
+        actual_jvp, jnp.sum(actual_grad * direction), rtol=_RTOL, atol=_ATOL
+    )

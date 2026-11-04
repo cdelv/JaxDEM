@@ -6,12 +6,13 @@ from __future__ import annotations
 
 import jax
 
-import numpy as np
 import threading
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, cast
 import xml.etree.ElementTree as ET
+
+import numpy as np
 
 from ..factory import _normalize_key
 from .async_base import BaseAsyncWriter
@@ -26,9 +27,9 @@ class VTKWriter(BaseAsyncWriter):
     """
     High-level front end for writing simulation data to VTK files.
 
-    This class converts JAX-based :class:`jaxdem.State` and
-    :class:`jaxdem.System` pytrees into VTK files. It handles batches,
-    trajectories, and dispatch to registered :class:`jaxdem.VTKBaseWriter`
+    This class converts JAX-based :class:`jaxdem.State <jaxdem.state.State>` and
+    :class:`jaxdem.System <jaxdem.system.System>` pytrees into VTK files. It handles batches,
+    trajectories, and dispatch to registered :class:`jaxdem.VTKBaseWriter <jaxdem.writers.VTKBaseWriter>`
     subclasses.
 
     How leading axes are interpreted
@@ -71,7 +72,7 @@ class VTKWriter(BaseAsyncWriter):
     - ``(T, N, dim)`` → single batch with a trajectory
     - ``(T, B, N, dim)`` → per-batch trajectories
 
-    Concrete writers receive per-frame NumPy arrays. A single :class:`System`
+    Concrete writers receive per-frame NumPy arrays. A single :class:`System <jaxdem.system.System>`
     can be shared across batch snapshots; otherwise its leading axes must match
     the State. Trajectories require matching System axes to supply each frame's
     time and step count. Mixed per-leaf System layouts are not inferred.
@@ -79,7 +80,7 @@ class VTKWriter(BaseAsyncWriter):
 
     writers: list[str] = field(default_factory=list)
     """
-    Names of the registered :class:`VTKBaseWriter` subclasses to use for
+    Names of the registered :class:`VTKBaseWriter <jaxdem.writers.VTKBaseWriter>` subclasses to use for
     writing. If empty, use all registered subclasses. Name matching follows
     registry keys: case-insensitive, and spaces, underscores, and hyphens
     are ignored. The spelling given here sets the output file and ``.pvd``
@@ -139,18 +140,22 @@ class VTKWriter(BaseAsyncWriter):
         batch0: int = 0,
     ) -> None:
         """
-        Schedule writing of a :class:`jaxdem.State` / :class:`jaxdem.System` pair to VTK files.
+        Schedule writing of a :class:`jaxdem.State <jaxdem.state.State>` / :class:`jaxdem.System <jaxdem.system.System>` pair to VTK files.
 
-        This public entry point interprets leading batch or trajectory axes,
-        wraps each configuration with its domain, and queues the frames for
-        background output.
+        This public entry point interprets leading batch or trajectory axes
+        and queues frames for background output. Independent grains are wrapped
+        with their domain. A :class:`~jaxdem.bonded_forces.deformable_particle.DeformableParticleModel`
+        (including plastic variants) retains its actual unwrapped coordinates:
+        wrapping nodes independently would tear a boundary-crossing mesh and
+        change its exported element measures and edge lengths. Such coherent
+        meshes may extend beyond the primary cell.
 
         Parameters
         ----------
         state : State
-            The simulation :class:`jaxdem.State` object to save.
+            The simulation :class:`jaxdem.State <jaxdem.state.State>` object to save.
         system : System
-            The :class:`jaxdem.System` object corresponding to `state`.
+            The :class:`jaxdem.System <jaxdem.system.System>` object corresponding to `state`.
         trajectory : bool, optional
             If ``True``, interpret ``trajectory_axis`` as time.
         trajectory_axis : int, optional
@@ -168,14 +173,17 @@ class VTKWriter(BaseAsyncWriter):
             raise ValueError(
                 "VTK output requires matching State and System leading axes; batch snapshots may share one System."
             )
-        shift = system.domain.shift
-        for _ in leading:
-            shift = jax.vmap(
-                shift,
-                in_axes=(0, None if shared else 0),
-                out_axes=(0, None if shared else 0),
-            )
-        state, system = shift(state, system)
+        from ..bonded_forces import DeformableParticleModel
+
+        if not isinstance(system.bonded_force_model, DeformableParticleModel):
+            shift = system.domain.shift
+            for _ in leading:
+                shift = jax.vmap(
+                    shift,
+                    in_axes=(0, None if shared else 0),
+                    out_axes=(0, None if shared else 0),
+                )
+            state, system = shift(state, system)
 
         # Kick off non-blocking device->host transfers; the blocking
         # `jax.device_get` happens later inside a background worker thread.

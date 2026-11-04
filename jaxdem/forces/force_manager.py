@@ -4,13 +4,13 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, Any
-
-import jax
-import jax.numpy as jnp
 
 from ..utils.linalg import cross, dot
 
@@ -220,8 +220,11 @@ class ForceManager:
         force = jnp.asarray(force, dtype=float)
         # COM writes are replicated on every clump member: store the
         # per-member share so ``apply`` can segment-sum without dividing.
-        count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
-        system.force_manager.external_force_com += force * is_com / count[..., None]
+        com_force = force * is_com
+        if not state.only_spheres:
+            count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
+            com_force = com_force / count[..., None]
+        system.force_manager.external_force_com += com_force
         system.force_manager.external_force += force * (1 - is_com)
         return system
 
@@ -295,8 +298,10 @@ class ForceManager:
         torque = jnp.asarray(torque, dtype=float)
         # Replicated on every clump member: store the per-member share so
         # ``apply`` can segment-sum without dividing.
-        count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
-        system.force_manager.external_torque += torque / count[..., None]
+        if not state.only_spheres:
+            count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
+            torque = torque / count[..., None]
+        system.force_manager.external_torque += torque
         return system
 
     @staticmethod
@@ -366,24 +371,20 @@ class ForceManager:
 
         # COM-frame forces (applied at clump COM; should not induce torque via lever arm)
         F_com = system.force_manager.external_force_com
-        # 2. Apply Force Functions using tree_map
+        # 2. Sum the managed contributions before adding the external buffers.
         if system.force_manager.force_functions:
-            pos = state.pos_c + r_i
-
-            def eval_force(
-                func: ForceFunction, is_com: bool
-            ) -> tuple[jax.Array, jax.Array, jax.Array]:
-                f, t = func(pos, state, system)
-                return (1.0 - is_com) * f, is_com * f, t
-
-            results = jax.tree.map(
-                eval_force,
+            pos = state.pos_c if state.only_spheres else state.pos_c + r_i
+            fp: jax.Array | int = 0
+            fc: jax.Array | int = 0
+            tp: jax.Array | int = 0
+            for force_fn, is_com in zip(
                 system.force_manager.force_functions,
                 system.force_manager.is_com_force,
-            )
-
-            # Reduce (sum) across the tuple of results
-            fp, fc, tp = jax.tree.map(lambda *args: sum(args), *results)
+            ):
+                f, t = force_fn(pos, state, system)
+                fp += (1.0 - is_com) * f
+                fc += is_com * f
+                tp += t
             F_part += fp
             F_com += fc
             T_part += tp
@@ -393,22 +394,27 @@ class ForceManager:
         # were already normalized by the clump member count), so the segment_sum
         # below needs no further division.
         # Particle forces induce torque via lever arm (but collider/contact torques already include their own lever arms)
-        T_part += cross(r_i, F_part)
+        if not state.only_spheres:
+            T_part += cross(r_i, F_part)
         F_total = F_contact + F_part + F_com
         T_total = T_contact + T_part
 
         # 4. Final rigid-body aggregation and broadcast
-        wrench = jax.ops.segment_sum(
-            jnp.concatenate((F_total, T_total), axis=-1),
-            state.clump_id,
-            num_segments=state.N,
-        )[state.clump_id]
-        state.force = wrench[..., : state.dim]
+        if not state.only_spheres:
+            wrench = jax.ops.segment_sum(
+                jnp.concatenate((F_total, T_total), axis=-1),
+                state.clump_id,
+                num_segments=state.N,
+            )[state.clump_id]
+            state.force = wrench[..., : state.dim]
+            state.torque = wrench[..., state.dim :]
+        else:
+            state.force = F_total
+            state.torque = T_total
         # Gravity acts at the COM. Every member already stores the clump's total
         # mass, so add M*g after aggregation instead of counting members and
         # dividing before the segment_sum.
         state.force += system.force_manager.gravity * state.mass[..., None]
-        state.torque = wrench[..., state.dim :]
 
         # 5. Clear external buffers (zeros_like, not *= 0, so NaN/Inf do not persist)
         system.force_manager.external_force = jnp.zeros_like(
@@ -431,7 +437,9 @@ class ForceManager:
 
         Notes
         -----
-        - The energy of clump members is divided by the number of spheres in the clump.
+        - Gravity counts each clump's total mass once. Custom energy callbacks
+          return per-member contributions or a total scalar and are summed
+          as supplied, without clump normalization.
 
         Parameters
         ----------
@@ -451,28 +459,19 @@ class ForceManager:
         # force, so use the clump COM ``pos_c`` (identical on all members).
         # Every clump member stores the *total* clump mass, so divide by the
         # member count to avoid overcounting clump contributions.
-        pos = state.pos
-        count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
-        pe = -jnp.sum(
-            dot(system.force_manager.gravity, state.pos_c) * state.mass / count
-        )
+        pos = state.pos_c if state.only_spheres else state.pos
+        gravity_energy = dot(system.force_manager.gravity, state.pos_c) * state.mass
+        if not state.only_spheres:
+            count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
+            gravity_energy = gravity_energy / count
+        pe = -jnp.sum(gravity_energy)
 
         # 2. Custom Energy Functions
         if system.force_manager.energy_functions:
-
-            def eval_energy(func: EnergyFunction | None, is_com: bool) -> jax.Array:
-                if func is None:
-                    return jnp.array(0.0, dtype=float)
-                e = func(pos, state, system)
-                return jnp.sum(e)
-
-            # Evaluate all energy functions
-            custom_energies = jax.tree.map(
-                eval_energy,
-                system.force_manager.energy_functions,
-                system.force_manager.is_com_force,
-            )
-            pe_custom = jax.tree.map(lambda *args: sum(args), *custom_energies)
+            pe_custom: jax.Array | int = 0
+            for energy_fn in system.force_manager.energy_functions:
+                if energy_fn is not None:
+                    pe_custom += jnp.sum(energy_fn(pos, state, system))
             pe += pe_custom
 
         return pe

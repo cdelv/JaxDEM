@@ -1,7 +1,11 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Logged PPO values and hyperparameters survive the TensorBoard file format."""
 
 import jax
+
 import json
+
 import numpy as np
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 

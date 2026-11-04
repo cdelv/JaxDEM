@@ -1,43 +1,88 @@
-"""Vicsek Model
-============
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Vicsek alignment of rigid dumbbells
+======================================
 
-This example implements the Vicsek model in 2D.
-The state has 100 rigid two-sphere clumps (200 spheres in total) in
-periodic boundaries. Each sphere interacts through a pairwise
-purely-repulsive harmonic potential.
-Bodies move at a constant speed ```v0```. Two components set the
-direction: a random component proportional to ```eta```, and a
-component proportional to the average velocity of all neighboring
-particles within a distance ```neighbor_radius```. Here the noise
-randomly rotates the heading direction. This is the "intrinsic" noise
-Vicsek model, as opposed to the "extrinsic" (vectorial) noise variant.
-We use a ```trajectory_rollout``` to run the dynamics in a
-jit-compiled loop. The rollout also returns the trajectory data.
-We then compute the polarization order parameter (norm of the
-average velocity) for each saved frame.
+This small 2D active-matter example extends Vicsek alignment to 16 rigid
+two-sphere clumps in periodic boundaries. Harmonic contact repulsion is added
+to the neighbor-alignment vector before normalization. This force-biased,
+finite-size dumbbell model is an extension of the canonical point-agent model;
+it is not a demonstration of its bulk ordering transition.
 
-Both Vicsek integrators are defined and registered below as local
-plugins using the existing linear-integrator interface.
+The intrinsic variant rotates each body's heading by a random angle in
+``[-pi * eta, pi * eta]``. The extrinsic variant adds a random vector before
+normalizing. Both prescribe speed ``v0`` rather than integrating Newton's law.
+In these reduced units the contact-force and velocity contributions have unit
+weights. Physical mass and inertia therefore do not determine the motion.
+The rotational integrator is disabled: the dumbbell geometry keeps its
+orientation while its translational heading changes.
+
+We initialize nonaligned random headings and follow their alignment while all
+bodies already move at the prescribed speed. Polarization measures
+``|mean(v)| / v0``. A fixed seed makes the short run reproducible. Longer runs
+and larger ensembles are needed to study collective ordering.
 """
+
+import jax
 
 from dataclasses import dataclass
 from functools import partial
 from typing import cast
 
-import jax
-
 jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
 import jax.numpy as jnp
-import jaxdem as jdem
+
 import numpy as np
 
+import jaxdem as jdem
 from jaxdem.integrators import free_mask
 from jaxdem.utils.linalg import cross, dot, unit
-from jaxdem.utils.random_sphere_configuration import random_sphere_configuration
+
+# %%
+# Alignment and noise equations
+# -------------------------------
+# The neighbor query acts on constituent sphere centers. For each sphere i,
+# include its own velocity in the average and then average those vectors over
+# the members of body I:
+#
+# .. math::
+#
+#     \mathbf a_i=
+#       \frac{\mathbf v_i+\sum_{j\in\mathcal N_i}\mathbf v_j}
+#            {1+|\mathcal N_i|},\qquad
+#     \mathbf b_I=\frac{1}{n_I}\sum_{i\in I}(\mathbf a_i+\mathbf F_i).
+#
+# Thus alignment is weighted by constituent-neighbor geometry, rather than
+# counting each neighboring body once. Both the force and alignment vectors
+# are averaged over the body's ``n_I`` spheres. Their unit coefficients are
+# a modeling choice in the reduced units used here.
+#
+# Intrinsic angular noise rotates the normalized base heading:
+#
+# .. math::
+#
+#     \mathbf v_I^{n+1}
+#       =v_0\,\mathcal R(\xi_I)\frac{\mathbf b_I}{|\mathbf b_I|},
+#       \qquad \xi_I\sim\mathcal U[-\pi\eta,\pi\eta].
+#
+# If the base vector vanishes, the implementation retains the body's current
+# nonzero heading before rotating it. The extrinsic alternative adds a random
+# unit vector *before* normalization:
+#
+# .. math::
+#
+#     \mathbf v_I^{n+1}=v_0\,\operatorname{unit}
+#           (\mathbf b_I+\eta\widehat{\boldsymbol\xi}_I).
+#
+# Angular and vectorial noise therefore represent different stochastic models,
+# even at the same eta.
+# Noise is sampled per body and broadcast to its members, preserving coherent
+# translation. Positions advance by :math:`\Delta t\,\mathbf v_I^{n+1}`;
+# this is a prescribed active-velocity update, not a force-over-mass step.
 
 # %%
 # Local Vicsek integrators
-# ~~~~~~~~~~~~~~~~~~~~~~~
+# ~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 def _vicsek_alignment(
@@ -203,7 +248,13 @@ class VicsekIntrinsic(jdem.LinearIntegrator):
             state, system, vicsek.neighbor_radius, vicsek.max_neighbors
         )
 
-        base_dir = unit(force + avg_v)
+        base_vector = force + avg_v
+        # Retain the current heading if force and alignment cancel exactly.
+        base_dir = jnp.where(
+            jnp.linalg.norm(base_vector, axis=-1, keepdims=True) > 0.0,
+            unit(base_vector),
+            unit(state.vel),
+        )
 
         # Intrinsic noise: randomly rotate the base direction.
         # Angle perturbation in [-pi, pi] scaled by eta, generated per clump.
@@ -242,12 +293,13 @@ class VicsekIntrinsic(jdem.LinearIntegrator):
 
 # %%
 # This function sets the initial data
-
-
+#
 # For one-call builders see
-# :func:`~jaxdem.utils.particle_creation.build_sphere_system` and
-# :func:`~jaxdem.utils.particle_creation.build_ga_system`
-# (sphere_construction and general_particle_construction examples).
+# :py:func:`~jaxdem.utils.particle_creation.build_sphere_system` and
+# :py:func:`~jaxdem.utils.particle_creation.build_ga_system`
+# (:doc:`sphere_construction </auto_examples/sphere_construction>` and
+# :doc:`general_particle_construction </auto_examples/general_particle_construction>`
+# examples).
 def build_microstate(
     N: int,
     phi: float,
@@ -261,7 +313,7 @@ def build_microstate(
 ) -> tuple[jdem.State, jdem.System]:
     # neighbor-list capacity per particle. It must be large enough that the
     # collider does not overflow
-    max_neighbors = 64
+    max_neighbors = N - 1
 
     # Mono-disperse spheres of radius 1.0. The ratio lists are relative and
     # normalize away. Only ``small_radius`` sets the absolute scale.
@@ -275,9 +327,22 @@ def build_microstate(
     clump_radii = jdem.utils.dispersity.get_polydisperse_radii(
         N_clumps, [1.0], [1.0], small_radius=1.5
     )
-    pos_clumps, box_size = random_sphere_configuration(
-        clump_radii.tolist(), phi, dim, seed
+    if dim != 2:
+        raise ValueError("This dumbbell construction is two-dimensional.")
+    # A square grid avoids a separate relaxation problem during construction.
+    # phi describes the bounding disks, not the overlapping dumbbell union.
+    n_axis = int(np.sqrt(N_clumps))
+    if n_axis**2 != N_clumps:
+        raise ValueError("Use a square number of dumbbells for this grid.")
+    side = jnp.sqrt(jnp.sum(jnp.pi * clump_radii**2) / phi)
+    centers = (jnp.arange(n_axis) + 0.5) * side / n_axis
+    x, y = jnp.meshgrid(centers, centers, indexing="ij")
+    pos_clumps = jnp.stack((x.ravel(), y.ravel()), axis=-1)
+    box_size = jnp.full(2, side)
+    angles = jax.random.uniform(
+        jax.random.key(seed), (N_clumps,), minval=0.0, maxval=2.0 * jnp.pi
     )
+    headings = jnp.stack((jnp.cos(angles), jnp.sin(angles)), axis=-1)
     pos_c = jnp.repeat(pos_clumps, 2, axis=0)
     pos_p = jnp.tile(jnp.array([[-0.5, 0.0], [0.5, 0.0]]), (N_clumps, 1))
     clump_id = jnp.repeat(jnp.arange(N_clumps), 2)
@@ -287,6 +352,7 @@ def build_microstate(
     state = jdem.State.create(
         pos=pos_c,
         pos_p=pos_p,
+        vel=v0 * jnp.repeat(headings, 2, axis=0),
         rad=particle_radii,
         mass=jnp.ones(N),
         clump_id=clump_id,
@@ -323,30 +389,82 @@ def build_microstate(
 # %%
 # Build the initial data
 state, system = build_microstate(
-    N=200,  # 200 spheres -> 100 two-sphere clumps
-    phi=0.65,  # just dense enough to order
+    N=32,  # 32 spheres -> 16 two-sphere clumps
+    phi=0.65,  # fraction occupied by the bounding disks
     dim=2,  # 2D
-    dt=1e-2,  # semi-arbitrary timestep
-    neighbor_radius=2.0,  # particles will align within 2x their radii
+    dt=0.1,  # displacement v0*dt = 0.1, below sphere radius 1
+    neighbor_radius=3.5,  # center-distance query for constituent spheres
     eta=0.2,  # small noise component
-    v0=1.0,  # semi-arbitrary velocity
-    seed=int(np.random.randint(0, int(1e9))),  # random seed
+    v0=1.0,  # prescribed body speed in reduced units
+    seed=0,
     integrator_type="vicsek_intrinsic",
 )
 
-# Run the dynamics for 5K steps, saving every 50th
-n_steps = 5_000
-save_stride = 50
-n_frames = n_steps // save_stride
-
+# Every movie frame spans the same physical interval, including the first.
+# Mixing dense early samples with sparse later samples at a uniform video
+# frame rate would make constant-speed motion appear to accelerate.
+# Here the 48 actual snapshots span 4.7 reduced time units: bodies travel
+# visibly from the start while their initially random headings align.
+n_steps = 47
 state_f, system_f, (traj_state, traj_system) = jdem.System.trajectory_rollout(
     state,
     system,
-    n=n_frames,
-    stride=save_stride,
+    strides=jnp.asarray([0] + [1] * n_steps),
 )
+scene_states, scene_systems = traj_state, traj_system
 
-polarization = jnp.linalg.norm(jnp.mean(traj_state.vel, axis=-2), axis=-1)
-print("Polarization:")
-print(polarization)
 # %%
+# The dimensionless polarization for ``M`` bodies is
+#
+# .. math::
+#
+#     P=\frac{1}{Mv_0}\left|\sum_{I=1}^{M}\mathbf v_I\right|.
+#
+# Perfect alignment gives one; a finite disordered sample usually has a
+# nonzero value from sampling fluctuations. The constituent mean below equals
+# the body mean because every body has exactly two spheres. With unequal
+# member counts, select one representative velocity per body to avoid weighting
+# larger clumps more heavily. A single short trace does not establish a phase
+# transition; ensemble averages and size/run-length studies are needed for that.
+system_f.check_overflow()
+v0 = float(system_f.linear_integrator.v0)
+polarization = jnp.linalg.norm(jnp.mean(traj_state.vel, axis=-2), axis=-1) / v0
+speeds = np.linalg.norm(np.asarray(traj_state.vel), axis=-1)
+np.testing.assert_allclose(speeds, v0, rtol=1e-10, atol=1e-10)
+time = np.asarray(traj_system.time)
+frame_intervals = np.diff(time)
+np.testing.assert_allclose(frame_intervals, float(system.dt), rtol=1e-10, atol=1e-10)
+# Check actual position increments as well as stored velocity fields. This
+# catches a zero-motion startup or a sampling schedule that distorts speed.
+displacements = np.diff(np.asarray(traj_state.pos_c), axis=0)
+box = np.asarray(system.domain.box_size)
+displacements -= box * np.round(displacements / box)
+displacement_speeds = np.linalg.norm(displacements, axis=-1) / frame_intervals[:, None]
+np.testing.assert_allclose(displacement_speeds, v0, rtol=1e-10, atol=1e-10)
+assert float(polarization[0]) < 0.3
+assert float(polarization[-1]) > 0.8
+print(
+    f"Polarization, initial/final (0 = disordered, 1 = aligned): "
+    f"{float(polarization[0]):.3f} / {float(polarization[-1]):.3f}"
+)
+print(f"Body-speed range: {speeds.min():.3f} to {speeds.max():.3f}")
+print(f"Uniform movie-frame interval: {frame_intervals[0]:.3f}")
+# %%
+# Collective alignment
+# ---------------------
+# The first point measures the initial random headings. The ParaView arrows
+# show translational velocity: the fixed orientation of each dumbbell is
+# independent of its direction of travel in this nonrotating model.
+# The speed invariant is checked above rather than plotted as a flat curve.
+import matplotlib.pyplot as plt
+
+fig, axis = plt.subplots(figsize=(6, 3), layout="constrained")
+axis.plot(time, np.asarray(polarization))
+axis.set(
+    xlabel="Time (reduced units)",
+    ylabel="Polarization",
+    ylim=(0, 1),
+    title="Collective alignment from random headings",
+)
+axis.grid(alpha=0.2)
+plt.show()

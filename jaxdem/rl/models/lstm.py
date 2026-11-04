@@ -39,7 +39,7 @@ class LSTMActorCritic(Model):
     - **Single-step mode (evaluation/rollout)**: input ``x`` with shape
       ``(..., obs_dim)`` uses and updates a persistent LSTM carry stored
       on the module (``self.h``, ``self.c``); outputs have shape
-      ``(..., action_space_size)`` and ``(..., 1)``.  Use :meth:`reset`
+      ``(..., action_space_size)`` and ``(..., 1)``.  Use :meth:`reset <jaxdem.rl.models.lstm.LSTMActorCritic.reset>`
       to clear state between episodes.
 
     Parameters
@@ -253,7 +253,7 @@ class LSTMActorCritic(Model):
             snapshot), otherwise zeros. ``done[t]`` resets carry after step
             ``t``; the sequence call leaves the persistent carry unchanged.
             If ``False``, use and update the persistent carry stored on the
-            module.  Remember to call :meth:`reset` when starting a new
+            module.  Remember to call :meth:`reset <jaxdem.rl.models.lstm.LSTMActorCritic.reset>` when starting a new
             trajectory in single-step mode.
 
 
@@ -273,7 +273,7 @@ class LSTMActorCritic(Model):
     ) -> tuple[distrax.Distribution, jax.Array, jax.Array]:
         """Evaluate spatial CAPS with the same clean incoming recurrent state.
 
-        See :meth:`Model.policy_with_perturbation` for the contract and
+        See :meth:`Model.policy_with_perturbation <jaxdem.rl.models.Model.policy_with_perturbation>` for the contract and
         the CAPS paper citation. Perturbations never advance the clean carry.
         """
         pi, value, perturbed_output = self._forward(

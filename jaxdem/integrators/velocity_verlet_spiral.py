@@ -4,12 +4,12 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING
-
-import jax
-import jax.numpy as jnp
 
 from ..utils.quaternion import Quaternion
 from . import RotationIntegrator, free_mask
@@ -28,6 +28,8 @@ class VelocityVerletSpiral(RotationIntegrator):
 
     The implementation follows the velocity update described in
     `del Valle et al. (2023) <https://doi.org/10.1016/j.cpc.2023.109077>`_.
+    Sphere mode uses isotropic inertia to integrate angular velocity in the
+    lab frame. Quaternion updates retain the physical spin.
     """
 
     @staticmethod
@@ -86,20 +88,23 @@ class VelocityVerletSpiral(RotationIntegrator):
         inv_inertia = 1.0 / state.inertia
         mask = free_mask(state)
 
-        if state.dim == 3:
+        if state.dim == 3 and not state.only_spheres:
             ang_vel = state.q.rotate_back(state.q, state.ang_vel)
             torque = state.q.rotate_back(state.q, state.torque)
         else:
-            ang_vel = state.ang_vel  # (N, 1)
-            torque = state.torque  # (N, 1)
+            ang_vel = state.ang_vel
+            torque = state.torque
 
-        k1 = dt_2 * omega_dot(ang_vel, torque, state.inertia, inv_inertia)
-        k2 = dt_2 * omega_dot(ang_vel + k1, torque, state.inertia, inv_inertia)
-        k3 = dt_2 * omega_dot(
-            ang_vel + 0.25 * (k1 + k2), torque, state.inertia, inv_inertia
-        )
+        if state.only_spheres:
+            ang_vel += mask * dt_2 * torque * inv_inertia
+        else:
+            k1 = dt_2 * omega_dot(ang_vel, torque, state.inertia, inv_inertia)
+            k2 = dt_2 * omega_dot(ang_vel + k1, torque, state.inertia, inv_inertia)
+            k3 = dt_2 * omega_dot(
+                ang_vel + 0.25 * (k1 + k2), torque, state.inertia, inv_inertia
+            )
 
-        ang_vel += mask * (k1 + k2 + 4.0 * k3) / 6.0
+            ang_vel += mask * (k1 + k2 + 4.0 * k3) / 6.0
 
         # Rotation vector whose half-angle is dt/2*|w|.
         rotvec = 2.0 * dt_2 * ang_vel
@@ -107,10 +112,12 @@ class VelocityVerletSpiral(RotationIntegrator):
             rotvec = jnp.array([0.0, 0.0, 1.0]) * rotvec
         dq = Quaternion.from_small_rotvec(rotvec)
 
-        q_next = state.q @ dq
+        # Lab-frame increments multiply on the left. Body-frame increments
+        # multiply on the right.
+        q_next = dq @ state.q if state.only_spheres else state.q @ dq
         state.q = q_next.unit(q_next)
 
-        if state.dim == 3:
+        if state.dim == 3 and not state.only_spheres:
             state.ang_vel = state.q.rotate(state.q, ang_vel)  # to lab
         else:
             state.ang_vel = ang_vel
@@ -159,22 +166,25 @@ class VelocityVerletSpiral(RotationIntegrator):
         inv_inertia = 1.0 / state.inertia
         mask = free_mask(state)
 
-        if state.dim == 3:
+        if state.dim == 3 and not state.only_spheres:
             ang_vel = state.q.rotate_back(state.q, state.ang_vel)
             torque = state.q.rotate_back(state.q, state.torque)
         else:
-            ang_vel = state.ang_vel  # (N, 1)
-            torque = state.torque  # (N, 1)
+            ang_vel = state.ang_vel
+            torque = state.torque
 
-        k1 = dt_2 * omega_dot(ang_vel, torque, state.inertia, inv_inertia)
-        k2 = dt_2 * omega_dot(ang_vel + k1, torque, state.inertia, inv_inertia)
-        k3 = dt_2 * omega_dot(
-            ang_vel + 0.25 * (k1 + k2), torque, state.inertia, inv_inertia
-        )
+        if state.only_spheres:
+            ang_vel += mask * dt_2 * torque * inv_inertia
+        else:
+            k1 = dt_2 * omega_dot(ang_vel, torque, state.inertia, inv_inertia)
+            k2 = dt_2 * omega_dot(ang_vel + k1, torque, state.inertia, inv_inertia)
+            k3 = dt_2 * omega_dot(
+                ang_vel + 0.25 * (k1 + k2), torque, state.inertia, inv_inertia
+            )
 
-        ang_vel += mask * (k1 + k2 + 4.0 * k3) / 6.0
+            ang_vel += mask * (k1 + k2 + 4.0 * k3) / 6.0
 
-        if state.dim == 3:
+        if state.dim == 3 and not state.only_spheres:
             state.ang_vel = state.q.rotate(state.q, ang_vel)  # to lab
         else:
             state.ang_vel = ang_vel

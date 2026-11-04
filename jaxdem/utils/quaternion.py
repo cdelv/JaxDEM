@@ -4,18 +4,18 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from functools import partial
-
 import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
+
+from dataclasses import dataclass
+from functools import partial
 
 from .linalg import cross, dot
 
 
 @jax.tree_util.register_dataclass
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class Quaternion:
     r"""Quaternion representation for 2D and 3D particle orientations.
 
@@ -26,6 +26,9 @@ class Quaternion:
         q = w + x\mathbf{i} + y\mathbf{j} + z\mathbf{k}
 
     In 2D, the rotation axis is the z-axis: :math:`\vec{v}_{xyz} = (0, 0, z)`.
+
+    Components are immutable. Create or replace the complete quaternion when
+    changing an orientation so an owning ``State`` can refresh its geometry.
 
     Attributes
     ----------
@@ -73,7 +76,7 @@ class Quaternion:
     @jax.jit(inline=True)
     @partial(jax.named_call, name="Quaternion.unit")
     def unit(q: Quaternion) -> Quaternion:
-        r"""Normalize a quaternion to have unit norm.
+        r"""Normalize a nonzero quaternion; a zero input remains zero.
 
         .. math::
             q_{unit} = \frac{q}{\|q\|} = \frac{q}{\sqrt{w^2 + x^2 + y^2 + z^2}}
@@ -86,7 +89,7 @@ class Quaternion:
         Returns
         -------
         Quaternion
-            The normalized unit quaternion.
+            The normalized quaternion; a zero input remains zero.
         """
         n2 = q.w[..., 0] * q.w[..., 0] + dot(q.xyz, q.xyz)
         safe_n2 = jnp.where(n2 == 0.0, 1.0, n2)

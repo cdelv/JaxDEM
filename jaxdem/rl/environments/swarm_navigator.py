@@ -4,14 +4,14 @@
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+from jax.typing import ArrayLike
+
 from dataclasses import dataclass
 from functools import partial
 from math import isfinite
 from numbers import Integral
-
-import jax
-import jax.numpy as jnp
-from jax.typing import ArrayLike
 
 from ...material_matchmakers import MaterialMatchmaker
 from ...materials import Material, MaterialTable
@@ -19,7 +19,20 @@ from ...state import State
 from ...system import System
 from ...utils import cross_lidar_2d, cross_lidar_3d, lidar_2d, lidar_3d
 from . import Environment
-from ._swarm import filter_objectives, shared_potential
+from ._swarm import filter_objectives, shared_potential, vacant_objective_lidar
+
+
+def _sensor_dimensions(dim: object, n_lidar_elevation: object) -> tuple[int, int]:
+    """Validate user-provided sensor dimensions, including NumPy integers."""
+    if isinstance(dim, bool) or not isinstance(dim, Integral) or dim not in (2, 3):
+        raise ValueError("dim must be 2 or 3")
+    if (
+        isinstance(n_lidar_elevation, bool)
+        or not isinstance(n_lidar_elevation, Integral)
+        or n_lidar_elevation < 1
+    ):
+        raise ValueError("n_lidar_elevation must be a positive integer")
+    return int(dim), int(n_lidar_elevation)
 
 
 @jax.jit(static_argnames=("N",))
@@ -214,11 +227,11 @@ class SwarmNavigator(Environment):
     or masked bins and one for coincident centers after normalization.
     With two spatial dimensions and the default 12 bins, each observation
     has 26 entries. In 3-D, ``lidar_bins = n_lidar_rays * n_lidar_elevation``;
-    default settings give 99 entries. Methods describe one environment;
+    default settings give 291 entries. Methods describe one environment;
     use ``jax.vmap`` for independent environment batches.
 
     With ``dt = 0.002`` and ``skip_frames = 49``, one policy action spans
-    50 physics steps (0.1 seconds). :func:`jaxdem.utils.advance_action`
+    50 physics steps (0.1 seconds). :func:`jaxdem.utils.advance_action <jaxdem.utils.environment.advance_action>`
     checkpoints once before these steps. Read reward at their endpoint,
     before another checkpoint or reset replaces the baseline. Forces are
     applied directly with viscous drag; this environment has no action
@@ -247,6 +260,12 @@ class SwarmNavigator(Environment):
     num_objectives: int = jax.tree.static()
     """Number of objectives sampled per environment."""
 
+    vacancy_aware_lidar: bool = jax.tree.static(default=False)
+    """Opt in to removing occupied goals before objective LiDAR bin reduction."""
+
+    approach_kernel: str = jax.tree.static(default="legacy")
+    """Select the original attraction or an opt-in raised-cosine approach."""
+
     @classmethod
     @partial(jax.named_call, name="SwarmNavigator.Create")
     def Create(
@@ -267,6 +286,10 @@ class SwarmNavigator(Environment):
         hide_occupied_objectives: bool = True,
         dim: int = 2,
         n_lidar_elevation: int = 12,
+        *,
+        vacancy_aware_lidar: bool = False,
+        approach_kernel: str = "legacy",
+        occupancy_radius_scale: float = 1.2,
     ) -> SwarmNavigator:
         r"""Create a swarm navigator environment.
 
@@ -295,25 +318,45 @@ class SwarmNavigator(Environment):
             disables only the approach term.
         attraction_constant, attraction_quadratic : float
             Nonnegative coefficients :math:`c,b` of the attraction strength
-            :math:`(c+b x^2)e^{-\lambda x}`, with :math:`x=d/\mathrm{rad}_i`.
+            :math:`(c+b x^2)e^{-\lambda x}`, with :math:`x=d/\mathrm{rad}_i`,
+            used by the legacy approach kernel.
         attraction_decay : float
             Positive exponential decay :math:`\lambda` in radius units.
+            Used by the legacy approach kernel.
         sharing_range : float
             Positive quartic claim scale in observing-agent radii. The default
             matches the settling scale, 1.5.
         hide_occupied_objectives : bool
             Enabled by default. Hide readings strictly below half the LiDAR
-            range when a detected peer appears within one observing-agent
-            radius of the objective. Preserve goals within the observer's radius.
-            A hidden reading becomes zero; farther goals behind it are not
+            range when a detected peer appears within ``occupancy_radius_scale``
+            observing-agent radii of the objective. Preserve goals within the
+            observer's radius. A hidden reading becomes zero; farther goals are not
             revealed. Applies only to observations, never reward or checkpoints.
             Set to False to recover the unfiltered observation.
+        vacancy_aware_lidar : bool
+            Disabled by default. When enabled, remove goals occupied by visible
+            peers before nearest-per-bin reduction, revealing farther vacant
+            goals in the same bin. Preserve goals covered by the observer.
+            Requires all goal and peer detections within the observer's LiDAR
+            range before binning; rewards still use the original raw scans.
+            ``hide_occupied_objectives=False`` disables either occupancy mask.
         dim : int
             Spatial dimension, either 2 (default) or 3. Three-dimensional
             agents and objectives occupy a volume, with agents in its
             padding shell.
         n_lidar_elevation : int
             Positive number of elevation bins in 3-D; unused in 2-D.
+        approach_kernel : {"legacy", "cosine"}
+            The default retains the original approach potential. ``"cosine"``
+            replaces only that term with ``(1 + cos(pi*d/lidar_range)) / 2``
+            for visible goals, preserving settling, sharing, observations,
+            and potential-difference timing. This option uses the existing
+            attraction weight and sharing range; the constant, quadratic,
+            and decay attraction controls have no effect on its score.
+        occupancy_radius_scale : float
+            Positive peer-to-objective masking tolerance in observing-agent
+            radii, default 1.2. Set to 1.0 for the original cutoff. Applies to
+            the default post-bin mask only, not ``vacancy_aware_lidar``.
 
         Returns
         -------
@@ -324,16 +367,21 @@ class SwarmNavigator(Environment):
         ------
         ValueError
             If an attraction coefficient is nonfinite or negative, or
-            ``attraction_decay`` or ``sharing_range`` is nonfinite or nonpositive.
+            ``attraction_decay``, ``sharing_range``, or ``occupancy_radius_scale``
+            is nonfinite or nonpositive, or ``approach_kernel`` is not
+            ``"legacy"`` or ``"cosine"``.
 
         Notes
         -----
         Construction allocates placeholder agent and objective arrays. Reset
         samples the geometry and initializes the physical system and reward
         baseline. ``N``, ``num_objectives``, and ``n_lidar_rays`` determine
-        array shapes. The remaining controls are stored in ``env_params``
-        as JAX arrays.
+        array shapes. Kernel and sensing selections are static fields.
+        Physical, reward, and observation coefficients are stored in
+        ``env_params`` as JAX arrays.
         """
+        if approach_kernel not in ("legacy", "cosine"):
+            raise ValueError("approach_kernel must be 'legacy' or 'cosine'")
         if not isfinite(attraction_coeff) or attraction_coeff < 0:
             raise ValueError("attraction_coeff must be finite and nonnegative")
         for name, value in (
@@ -345,17 +393,11 @@ class SwarmNavigator(Environment):
         for name, value in (
             ("attraction_decay", attraction_decay),
             ("sharing_range", sharing_range),
+            ("occupancy_radius_scale", occupancy_radius_scale),
         ):
             if not isfinite(value) or value <= 0:
                 raise ValueError(f"{name} must be finite and positive")
-        if isinstance(dim, bool) or not isinstance(dim, Integral) or dim not in (2, 3):
-            raise ValueError("dim must be 2 or 3")
-        if (
-            isinstance(n_lidar_elevation, bool)
-            or not isinstance(n_lidar_elevation, Integral)
-            or n_lidar_elevation < 1
-        ):
-            raise ValueError("n_lidar_elevation must be a positive integer")
+        dim, n_lidar_elevation = _sensor_dimensions(dim, n_lidar_elevation)
         n_obj = int(num_objectives)
         state = State.create(pos=jnp.zeros((int(N), dim)))
         env_params = {
@@ -370,6 +412,7 @@ class SwarmNavigator(Environment):
             "attraction_quadratic": jnp.asarray(attraction_quadratic, dtype=float),
             "attraction_decay": jnp.asarray(attraction_decay, dtype=float),
             "sharing_range": jnp.asarray(sharing_range, dtype=float),
+            "occupancy_radius_scale": jnp.asarray(occupancy_radius_scale, dtype=float),
             "hide_occupied_objectives": jnp.asarray(
                 hide_occupied_objectives, dtype=bool
             ),
@@ -382,6 +425,8 @@ class SwarmNavigator(Environment):
             n_lidar_rays=int(n_lidar_rays),
             n_lidar_elevation=int(n_lidar_elevation),
             num_objectives=n_obj,
+            vacancy_aware_lidar=bool(vacancy_aware_lidar),
+            approach_kernel=approach_kernel,
         )
 
     @staticmethod
@@ -559,6 +604,7 @@ class SwarmNavigator(Environment):
             peer_ids,
             env,
             n_elevation=env.n_lidar_elevation if env.state.dim == 3 else None,
+            approach_kernel=env.approach_kernel,
         )
 
     @staticmethod
@@ -621,7 +667,7 @@ class SwarmNavigator(Environment):
 
         Notes
         -----
-        Use :func:`jaxdem.utils.advance_action` to checkpoint once before
+        Use :func:`jaxdem.utils.advance_action <jaxdem.utils.environment.advance_action>` to checkpoint once before
         repeating steps for a policy action. Calling this method directly
         neither creates a checkpoint nor handles episode reset.
         """
@@ -666,10 +712,11 @@ class SwarmNavigator(Environment):
         .. math::
 
            a_i < d_{ik} < L/2,\qquad
-           \min_{q\in Q_i}\widehat\delta_{ikq}\le a_i,
+           \min_{q\in Q_i}\widehat\delta_{ikq}\le \sigma a_i,
 
         where :math:`a_i` is the observing radius, :math:`L` the LiDAR range,
         and :math:`Q_i` the valid detected peers, excluding walls and self.
+        ``occupancy_radius_scale`` sets :math:`\sigma` (default 1.2).
         Bin-center directions give the approximate separation
 
         .. math::
@@ -689,16 +736,31 @@ class SwarmNavigator(Environment):
         environment's experiments. The congestion-game and reward-shaping
         references in :meth:`reward` motivate the reward, not this observation
         filter, and do not guarantee that discarding observations is harmless.
+
+        With ``vacancy_aware_lidar=True``, occupied objectives are removed
+        before nearest-per-bin reduction over all local detections instead.
+        Visible peers within range can mask goals at any distance below range;
+        occupancy uses each peer's own radius and preserves the observer's
+        covered goals. This can reveal farther vacant goals behind occupied
+        ones, while retaining the same observation layout. Setting
+        ``hide_occupied_objectives=False`` disables occupancy filtering.
         """
         lidar, lidar_obj, peer_ids = SwarmNavigator._sense(env)
         lr = env.env_params["lidar_range"]
-        lidar_obj = filter_objectives(
-            lidar_obj,
-            lidar,
-            peer_ids,
-            env,
-            n_elevation=env.n_lidar_elevation if env.state.dim == 3 else None,
-        )
+        if env.vacancy_aware_lidar:
+            lidar_obj = jnp.where(
+                env.env_params["hide_occupied_objectives"],
+                vacant_objective_lidar(env),
+                lidar_obj,
+            )
+        else:
+            lidar_obj = filter_objectives(
+                lidar_obj,
+                lidar,
+                peer_ids,
+                env,
+                n_elevation=env.n_lidar_elevation if env.state.dim == 3 else None,
+            )
         return jnp.concatenate(
             [
                 env.state.vel,
@@ -749,19 +811,29 @@ class SwarmNavigator(Environment):
         and 1/3 place the strength peak near 5.92 radii; strength at two radii
         is about 47 percent of the peak. The potential itself is monotone.
 
+        With ``approach_kernel="cosine"``, replace this approach potential
+        by :math:`H(d)=(1+\cos(\pi d/L))/2` for visible goals, where :math:`L`
+        is the sensor range. Its value and slope vanish at :math:`L`, and
+        the three attraction-shape controls have no effect on it. Settling,
+        soft claim sharing, attraction weight, and reward timing are unchanged.
+        This scalar potential adapts the exploration kernel of Sun et al.
+        (2023), rather than implementing their mean-shift velocity controller.
+
         The potential estimates peer claims on each visible
         objective from all pairs of objective and peer LiDAR bins:
 
         .. math::
 
-           C_{ik}=\sum_{q\in Q_i}
+           \begin{aligned}
+           C_{ik} &= \sum_{q\in Q_i}
                \exp\!\left[-\left(\frac{\widehat\delta_{ikq}}{\rho a_i}\right)^4\right],
-           \qquad w_{ik}=\frac{1}{1+C_{ik}},\qquad
-           B_{ik}=\exp\!\left[-\left(\frac{d_{ik}}{1.5a_i}\right)^4\right],
-
-           \Phi_i=\max_{k\in V_i}(w_{ik}B_{ik})
-                    +\eta\sum_{k\in V_i}w_{ik}P(d_{ik}/a_i),\qquad
-           r_{i,t}=\Phi_i(s_{t+1})-\Phi_i(s_{\mathrm{checkpoint}}).
+               \\
+           w_{ik} &= \frac{1}{1+C_{ik}}, \\
+           B_{ik} &= \exp\!\left[-\left(\frac{d_{ik}}{1.5a_i}\right)^4\right], \\
+           \Phi_i &= \max_{k\in V_i}(w_{ik}B_{ik})
+                    +\eta\sum_{k\in V_i}w_{ik}P(d_{ik}/a_i), \\
+           r_{i,t} &= \Phi_i(s_{t+1})-\Phi_i(s_{\mathrm{checkpoint}}).
+           \end{aligned}
 
         ``sharing_range`` sets :math:`\rho` (default 1.5) and
         ``attraction_coeff`` sets :math:`\eta` (default 0.1). The denominator
@@ -812,6 +884,10 @@ class SwarmNavigator(Environment):
 
         References
         ----------
+        Sun, G. et al. (2023). "Mean-shift exploration in shape assembly of
+        robot swarms." Nature Communications, 14, 3476.
+        https://doi.org/10.1038/s41467-023-39251-5
+
         Rosenthal, R. W. (1973). "A class of games possessing pure-strategy
         Nash equilibria." International Journal of Game Theory, 2, 65-67.
         https://doi.org/10.1007/BF01737559

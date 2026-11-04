@@ -1,8 +1,12 @@
-# conftest.py
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Configure test precision, compilation-cache cleanup, and extended validation."""
+
+import jax
+
 import os
 import gc
 
-import jax
 import pytest
 
 jax.config.update("jax_enable_x64", os.environ.get("JAX_ENABLE_X64", "1") == "1")

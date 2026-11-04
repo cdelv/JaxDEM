@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Every built-in component retains its full configuration in both storage formats."""
+"""Built-in configuration and continuation survive HDF5, async HDF5, and Orbax."""
+
+import jax
+import jax.numpy as jnp
 
 from dataclasses import replace
 import json
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 
@@ -16,6 +17,7 @@ from jaxdem.integrators import LinearIntegrator, RotationIntegrator
 from jaxdem.material_matchmakers import MaterialMatchmaker
 from jaxdem.utils import h5
 from tests.test_checkpoints import _assert_leaves_equal
+from jaxdem.rl.environments import granulabot
 
 ARCHITECTURES = [
     "ActorCritic",
@@ -23,7 +25,7 @@ ARCHITECTURES = [
     "LSTMActorCritic",
     "MinGRUActorCritic",
 ]
-ACTION_SPACES = ["Free", "Box", "MaxNorm", "discrete"]
+ACTION_SPACES = ["Free", "Box", "MaxNorm", "Blockwise", "discrete"]
 
 
 def test_model_serialization_matrix_covers_builtin_models_and_action_spaces():
@@ -45,6 +47,7 @@ COMPONENTS = {
         jd.ForceModel,
         [
             "spring",
+            "dampedspring",
             "hertz",
             "wca",
             "wcashifted",
@@ -54,12 +57,20 @@ COMPONENTS = {
             "forcerouter",
             "spherefacetspring",
             "facetfacetspring",
+            "granulabotcontacts",
         ],
     ),
     "domain": (Domain, ["free", "periodic", "leesedwards", "reflect", "reflectsphere"]),
     "collider": (
         jd.Collider,
-        ["", "naive", "celllist", "multicelllist", "neighborlist"],
+        [
+            "",
+            "naive",
+            "celllist",
+            "multicelllist",
+            "neighborlist",
+            "granulabotneighbors",
+        ],
     ),
     "linear_integrator": (
         LinearIntegrator,
@@ -73,6 +84,7 @@ COMPONENTS = {
             "plasticdeformableparticlemodel",
             "plasticperimeterdeformableparticlemodel",
             "plasticbendingdeformableparticlemodel",
+            "granulabotmagnets",
         ],
     ),
     "material_matchmaker": (MaterialMatchmaker, ["harmonic", "linear"]),
@@ -81,6 +93,16 @@ CASES = [(family, name) for family, (_, names) in COMPONENTS.items() for name in
 
 
 def configured_system(family, name):
+    if name == "granulabotmagnets":
+        state = jd.State.create(
+            pos=jnp.array([[0.0, 0.0], [1.0, 0.0]]), rad=jnp.full(2, 0.1)
+        )
+        model = granulabot.MagnetPairs.Create(
+            pairs=[[0, 1]], weights=[0.25], particle_count=2
+        )
+        return jd.System.initialize(
+            state, jd.System.create(state=state, bonded_force_model=model)
+        )
     if family == "bonded_force_model":
         from tests.test_plastic_reference_state import _plastic_system
 
@@ -118,7 +140,7 @@ def configured_system(family, name):
     if family == "force_model":
         if name in {"wca", "wcashifted", "lennardjones"}:
             material = jd.Material.create("lj", epsilon=0.7, density=1.0)
-        if name == "cundallstrack":
+        if name in {"cundallstrack", "granulabotcontacts", "dampedspring"}:
             material = jd.Material.create(
                 "elasticfrict", young=2.0, density=1.0, poisson=0.25, mu=0.6, e=0.8
             )
@@ -174,7 +196,12 @@ def configured_system(family, name):
             )
     elif family == "collider":
         options["collider_type"] = name
-        if name != "neighborlist":
+        if name == "granulabotneighbors":
+            law = jd.ForceModel.create("granulabotcontacts")
+            material = jd.Material.create(
+                "elasticfrict", density=1.0, young=2.0, poisson=0.25, mu=0.6, e=0.8
+            )
+        elif name != "neighborlist":
             options["collider_kw"] = {}
     elif family != "material_matchmaker":
         options[family + "_type"] = name
@@ -232,7 +259,7 @@ def test_serialization_table_covers_all_builtin_classes(family):
     assert {factory._registry[name] for name in names} == expected
 
 
-@pytest.mark.parametrize("storage", ["hdf5", "orbax"])
+@pytest.mark.parametrize("storage", ["hdf5", "hdf5_async", "orbax"])
 @pytest.mark.parametrize(
     "family,name", CASES, ids=[f"{family}-{name or 'noop'}" for family, name in CASES]
 )
@@ -243,15 +270,23 @@ def test_component_configuration_and_continuation(tmp_path, storage, family, nam
 
 def assert_round_trip_and_continue(tmp_path, storage, state, system):
     state, system = jd.System.step(state, system)
-    if storage == "hdf5":
-        path = str(tmp_path / "state.h5")
-        h5.save((state, system), path)
-        restored = h5.load(path)
+    if storage in {"hdf5", "hdf5_async"}:
+        if storage == "hdf5_async":
+            with jd.H5Writer(directory=tmp_path) as writer:
+                writer.save(state, system)
+            path = tmp_path / "snapshot_00000000.h5"
+        else:
+            path = tmp_path / "state.h5"
+            h5.save((state, system), str(path))
+        restored = h5.load(str(path))
     else:
         with jd.CheckpointWriter(tmp_path / "checkpoint") as writer:
             writer.save(state, system)
         with jd.CheckpointLoader(tmp_path / "checkpoint") as loader:
             restored = loader.load()
+    if isinstance(system.force_model, jd.forces.DampedSpringForce):
+        assert system.collider.history.shape[-1] == 0
+        assert restored[1].collider.history.shape[-1] == 0
     _assert_leaves_equal(state, restored[0], "stored state")
     _assert_leaves_equal(system, restored[1], "stored system")
     expected = jd.System.step(state, system, n=3)
@@ -265,7 +300,7 @@ def assert_round_trip_and_continue(tmp_path, storage, state, system):
     return restored
 
 
-@pytest.mark.parametrize("storage", ["hdf5", "orbax"])
+@pytest.mark.parametrize("storage", ["hdf5", "hdf5_async", "orbax"])
 @pytest.mark.parametrize("optimizer", ["fire", "damped_newtonian", "adam"])
 def test_minimizer_and_importable_callbacks_keep_configuration(
     tmp_path, storage, optimizer

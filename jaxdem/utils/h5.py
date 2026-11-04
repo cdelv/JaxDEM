@@ -17,21 +17,24 @@ readable through the schema-1 legacy path. Per-node tags (e.g. ``__kind__`` and
 
 from __future__ import annotations
 
+import jax
+import jax.numpy as jnp
+
 import dataclasses
 import importlib
 import json
 import os
 import warnings
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import h5py  # type: ignore[import-untyped]
-import jax
-import jax.numpy as jnp
 import numpy as np
 
 from .quaternion import Quaternion
 from .serialization import decode_callable, encode_callable
 from .serialization_schema import (
+    FACET_INCIDENCE_LAYOUT_VERSION,
+    LEGACY_FACET_FIELDS,
     make_serialization_manifest,
     serialization_schema_version,
 )
@@ -204,6 +207,8 @@ def _write_any(g: h5py.Group, name: str, obj: Any) -> bool:
         sg = g.create_group(name)
         sg.attrs["__kind__"] = "dataclass"
         sg.attrs["__class__"] = _qualname(type(obj))
+        if _qualname(type(obj)) in LEGACY_FACET_FIELDS:
+            sg.attrs["__facet_incidence_layout__"] = FACET_INCIDENCE_LAYOUT_VERSION
         for f in dataclasses.fields(obj):
             _write_any(sg, f.name, getattr(obj, f.name))
         return True
@@ -463,6 +468,24 @@ def _validate_schema3_tree(node: h5py.Group | h5py.Dataset) -> None:
         field_renames = _FIELD_RENAMES.get((cls.__module__, cls.__name__), {})
         saved = {field_renames.get(name, name) for name in node.keys()}
         required = {field.name for field in dataclasses.fields(cls)}
+        if cls.__name__ == "State" and cls.__module__.endswith(".state"):
+            # Earlier schema-3 states use the default rigid-body path.
+            required -= {"only_spheres"} - saved
+        if cls.__name__ in {"DynamicCellList", "DynamicMultiCellList"} and (
+            cls.__module__.startswith("jaxdem.colliders.")
+        ):
+            # Earlier pools retain their saved capacity as an explicit budget.
+            required -= {"_auto_capacity"} - saved
+        legacy_fields = LEGACY_FACET_FIELDS.get(_qualname(cls), frozenset())
+        layout = node.attrs.get("__facet_incidence_layout__")
+        if layout is not None and (
+            isinstance(layout, (bool, np.bool_))
+            or not isinstance(layout, (int, np.integer))
+            or layout != FACET_INCIDENCE_LAYOUT_VERSION
+        ):
+            raise RuntimeError("Unsupported HDF5 facet incidence layout.")
+        if layout is None and required - saved == legacy_fields:
+            required -= legacy_fields
         if saved != required:
             missing = sorted(required - saved)
             unknown = sorted(saved - required)
@@ -511,6 +534,7 @@ def _construct_minimizer(constructor_path: str, kw: dict[str, Any]) -> Any:
         constructor,
         kw,
         type_name=getattr(constructor, "__name__", ""),
+        requires_value=getattr(opt_obj, "requires_value", None),
     )
 
 
