@@ -137,6 +137,36 @@ class Collider(Factory, ABC):
         """
         return system
 
+    def prepare_force(
+        self, state: State, system: System
+    ) -> tuple[System, jax.Array]:
+        """Prepare pair caches without evaluating forces or advancing history.
+
+        Returns the prepared system and a boolean scalar that is true when the
+        preparation changed the pair layout, so history stored for the
+        previous layout must be transferred before it is used. Call this
+        before restoring history from a different configuration: cache
+        rebuilds must finish before history is mapped onto current pairs.
+        Colliders without a persistent pair cache need no preparation and
+        never change layout.
+        """
+        return system, jnp.asarray(False)
+
+    def transfer_history(
+        self, previous: Collider, history: jax.Array, state: State, system: System
+    ) -> jax.Array:
+        """Express ``history`` stored on ``previous``'s pairs in this collider's pairs.
+
+        The remap is unconditional; callers decide when the layout changed,
+        for example from :meth:`prepare_force`. ``previous`` may be an earlier
+        immutable collider snapshot, so a history array laid out for
+        ``previous`` can follow several rebuilds. Pairs that survive keep
+        their values; new pairs take the force law's initial history.
+        Colliders whose history layout never changes, such as dense or
+        stateless ones, return ``history`` unchanged.
+        """
+        return history
+
     @staticmethod
     @jax.jit(inline=True, static_argnames=("advance_history", "quasistatic"))
     def compute_force(

@@ -54,7 +54,7 @@ def test_minimizer_kwargs_are_forwarded(monkeypatch):
             "max_steps": 2,
             "force_tol": 1.0e-4,
             "torque_tol": 1.0e-5,
-            "advance_history": True,
+            "history_update": "path",
         }
         for driver in (
             bisection_jam,
@@ -78,7 +78,7 @@ def test_minimizer_kwargs_are_forwarded(monkeypatch):
             "max_steps": 100_000_000,
             "force_tol": 1e-14,
             "torque_tol": 1e-14,
-            "advance_history": True,
+            "history_update": "path",
         }
     finally:
         bisection_jam.clear_cache()

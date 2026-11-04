@@ -133,8 +133,10 @@ print("Langevin gamma:", system.linear_integrator.gamma)
 # Force-only optimizers (``requires_value=False``, including FIRE and damped
 # Newtonian) also support contact history and facet force conventions.
 # Minimization freezes stored pair history by default. Pass
-# ``advance_history=True`` to ``System.minimize`` to update displacement-dependent
-# history after accepted steps. Both modes disable velocity-dependent forces.
+# ``history_update="path"`` to ``System.minimize`` to update
+# displacement-dependent history along accepted steps, or
+# ``history_update="endpoint"`` to update it as one step from the initial
+# configuration. Every option disables velocity-dependent forces.
 # Value-based optimizers use analytical physical gradients when available,
 # otherwise they differentiate energy with stored history fixed. For frictional
 # laws, that energy gradient can differ from the mechanical contact force.

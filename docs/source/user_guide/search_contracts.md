@@ -254,9 +254,22 @@ must supply their matching energy function. Minimization uses independent
 logical body coordinates and reports its termination reason explicitly.
 
 Force models with pair history are relaxed by FIRE and damped Newtonian only.
-The initial evaluation holds history fixed. Each accepted update then advances
-history from the anchor to the trial configuration through `advance_history`
-and uses that traversal's forces as the residuals. `CundallStrackForce` reports
+`history_update` selects how history evolves: `"frozen"` (default) keeps the
+stored history; `"path"` advances it on each accepted update from the
+previous accepted configuration, treating the optimizer path as physical; and
+`"endpoint"` recomputes it on each accepted update as one `advance_history` step
+from the initial configuration and history, so the result depends only on the
+endpoints. The initial evaluation holds history fixed for every option. Advancing
+updates use that traversal's forces as the residuals. With the endpoint update,
+each body's net rotation over the minimization must stay below pi, because the
+relative rotation vector wraps beyond it. The endpoint update uses the same
+neighbor-list rebuild criterion as the path update; the initial history is
+mapped into the current pair layout when that layout changes and reused between
+rebuilds. Its forces depend on the current configuration only, with the initial
+history held fixed, as in an implicit contact increment. They are not an energy
+gradient, so FIRE can plateau above tolerance when an increment rearranges the
+packing. Use a finite `max_steps`, check `converged`, and keep increments small
+enough that no rearrangement occurs. `CundallStrackForce` reports
 normal plus tangential spring energy; dissipated work is not part of the energy.
 
 Successful minimization requires both the maximum free-body force norm to be at
@@ -278,8 +291,8 @@ Jamming classifies energy or pressure only after mechanical convergence. Its
 minimization is configured separately through `minimizer_kwargs`, which is
 forwarded to `System.minimize`. Recognized keys are `max_steps` (default
 `100_000_000`), `force_tol` and `torque_tol` (default `1e-14`), and
-`advance_history` (default `True`, so accepted minimizer steps advance pair
-history). `JamResult` supports
+`history_update` (default `"path"`, so accepted minimizer steps advance
+pair history along the optimizer path). `JamResult` supports
 six-value unpacking and exposes `.reason`, `.minimizer_reason`, and `.info`.
 `.steps` counts attempted trial minimizations, including the initial and failed
 trials.

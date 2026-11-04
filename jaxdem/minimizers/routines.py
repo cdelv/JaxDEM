@@ -7,7 +7,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass, replace
 from enum import IntEnum
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
 import jax
 import jax.numpy as jnp
@@ -18,6 +18,7 @@ from ..utils.quaternion import Quaternion
 from ..utils.linalg import cross, dot, norm, norm2
 
 if TYPE_CHECKING:  # pragma: no cover
+    from ..colliders import Collider
     from ..state import State
     from ..system import System
 
@@ -365,6 +366,24 @@ def _rotation_residual(rotation: jax.Array, gradient: jax.Array) -> jax.Array:
     return 0.5 * (w * gxyz - xyz * gw + cross(xyz, gxyz))
 
 
+def _rotation_inverse_inertia(
+    rotation: jax.Array, generalized: jax.Array, q: Quaternion, inertia: jax.Array
+) -> jax.Array:
+    """Map a generalized rotation force or momentum to a coordinate velocity.
+
+    In 3D, the generalized vector maps to its world angular counterpart, the
+    world inverse inertia tensor ``R diag(1 / I) R^T`` acts on it, and the
+    resulting angular velocity maps back to a quaternion rate tangent to
+    ``rotation``. ``q`` is the current unit body orientation and ``inertia``
+    holds the principal moments.
+    """
+    if rotation.shape[-1] == 1:
+        return generalized / inertia
+    world = _rotation_residual(rotation, generalized)
+    omega = Quaternion.rotate(q, Quaternion.rotate_back(q, world) / inertia)
+    return 0.25 * norm2(rotation)[..., None] * _rotation_pullback(rotation, omega)
+
+
 @jax.custom_vjp
 def _objective_energy(
     trial_params: dict[str, jax.Array],
@@ -443,7 +462,11 @@ def _objective_energy_bwd(
 _objective_energy.defvjp(_objective_energy_fwd, _objective_energy_bwd)
 
 
-@jax.jit(static_argnames=["max_steps", "advance_history"])
+HistoryUpdate = Literal["frozen", "path", "endpoint"]
+HISTORY_UPDATES: tuple[HistoryUpdate, ...] = ("frozen", "path", "endpoint")
+
+
+@jax.jit(static_argnames=["max_steps", "history_update"])
 def minimize(
     state: State,
     system: System,
@@ -451,7 +474,7 @@ def minimize(
     force_tol: float = 1e-12,
     torque_tol: float | None = None,
     *,
-    advance_history: bool = False,
+    history_update: HistoryUpdate = "frozen",
 ) -> MinimizationResult:
     """Minimize the configured objective over body positions and orientations.
 
@@ -473,12 +496,24 @@ def minimize(
         Absolute tolerance on the maximum Euclidean torque norm over free
         bodies. AD objectives use their world angular gradient instead.
         ``None`` uses the numerical value of ``force_tol``.
-    advance_history : bool, optional
-        Whether accepted optimizer updates advance pair history. Defaults to
-        ``False``, preserving stored history without accumulating slip from
-        optimizer motion. Updates occur once after each accepted step; trial
-        objective evaluations hold history fixed. Stateless force models
-        ignore this option.
+    history_update : {"frozen", "path", "endpoint"}, optional
+        How accepted optimizer updates treat pair history. Stateless force
+        models ignore this option. Defaults to ``"frozen"``.
+
+        * ``"frozen"``: the stored history is used unchanged throughout.
+        * ``"path"``: each accepted update advances history from the
+          previous accepted configuration, so the optimizer trajectory acts
+          as a physical path and slip accumulates along it.
+        * ``"endpoint"``: each accepted update advances the initial history
+          in one step from the initial configuration to the accepted one.
+          The optimizer trajectory does not affect history, and the result
+          holds the history of a single quasistatic step from the initial to
+          the final configuration. Each body's net rotation over the whole
+          minimization must stay below pi, and this option is meant for
+          increments that do not rearrange the packing; pair it with a
+          finite ``max_steps`` and check ``converged`` (see Notes).
+
+        For every option, trial objective evaluations hold history fixed.
 
     Returns
     -------
@@ -491,8 +526,9 @@ def minimize(
     Raises
     ------
     ValueError
-        If no optimizer is configured, or if the physical objective uses a
-        managed force without a matching energy function.
+        If no optimizer is configured, if ``history_update`` is not recognized,
+        or if the physical objective uses a managed force without a matching
+        energy function.
 
     Notes
     -----
@@ -528,15 +564,49 @@ def minimize(
     Quaternion sign and radial redundancy do not guarantee convergence for
     every optimizer; convergence uses world angular residuals independently
     of the raw quaternion scale.
+    Every update also receives the extra argument ``inverse_mass``, a
+    function that maps a force-like PyTree over these coordinates to the
+    matching velocity. Translations divide by the body mass. Rotations apply
+    the inverse world inertia tensor built from the principal moments and the
+    current orientation. Fixed bodies map to zero. Dynamics optimizers such as
+    :func:`~jaxdem.minimizers.fire` use it so each degree of freedom moves
+    with its physical mass; other optimizers ignore it.
     Forces are always evaluated rate-independently: dashpots and other
     velocity terms are off, so relaxation does not depend on ``dt``. Pair
     history is frozen by default; existing spring memory still contributes to
     force evaluation. Search rebuilds remap surviving pairs and initialize new
-    pairs. With ``advance_history=True``, history advances once per accepted
-    coordinate update, using configuration changes from the anchor to the
-    accepted state. Energy and gradients are then evaluated with that updated
-    history fixed. Line-search trials never commit history, and the initial
-    evaluation always holds history fixed.
+    pairs. With ``history_update="path"``, history advances once per
+    accepted coordinate update, using configuration changes from the previous
+    accepted state. With ``history_update="endpoint"``, each accepted update
+    instead recomputes history from the initial history and the configuration
+    change from the initial state, so only the endpoints matter. Energy and
+    gradients are then evaluated with that updated history fixed. Line-search
+    trials never commit history, and the initial evaluation always holds
+    history fixed, so a minimization that converges without an update returns
+    the stored history unchanged.
+
+    With ``history_update="endpoint"``, the configuration change is measured over
+    the whole minimization rather than one update. Rotations enter through the
+    relative rotation vector between the initial and current orientation,
+    which is unique only for angles below pi. A body whose net rotation since
+    the start of the minimization reaches pi has its rotation increment
+    wrapped to the opposite direction, which silently corrupts its tangential
+    history. Use ``"path"`` when bodies can rotate by that much.
+    The endpoint update uses the same neighbor-list rebuild criterion as the
+    path update. The initial history is mapped into the current pair
+    layout when that layout changes and reused between rebuilds, so a pair
+    that leaves the cache during an optimizer excursion and returns recovers
+    its initial history.
+
+    The forces of the endpoint update are functions of the current configuration
+    only, with the history of the initial configuration held fixed, as in an
+    implicit contact increment. They are not the gradient of an energy, and
+    FIRE's descent heuristics assume one. When an increment rearranges the
+    packing (body displacements of the order of a radius), the residual can
+    plateau above tolerance while the configuration keeps drifting. Use a
+    finite ``max_steps``, check ``converged``, and prefer increments small
+    enough that no rearrangement occurs. Switching to ``"path"``
+    changes the history model and possibly the result.
     """
     import optax  # type: ignore[import-untyped]
 
@@ -552,9 +622,14 @@ def minimize(
         and system.force_model.supports_analytical_energy_gradient
     )
     mechanical_residuals = force_only or analytical_gradient
-    history_relaxation = advance_history and system.force_model.history_shape(
-        state.dim
-    ) != (0,)
+    if history_update not in HISTORY_UPDATES:
+        raise ValueError(
+            f"history_update must be one of {HISTORY_UPDATES}, got {history_update!r}"
+        )
+    history_relaxation = history_update != "frozen" and (
+        system.force_model.history_shape(state.dim) != (0,)
+    )
+    endpoint_update = history_relaxation and history_update == "endpoint"
     if system.target_fn is None and any(
         energy_fn is default_energy_func
         for energy_fn in system.force_manager.energy_functions
@@ -568,6 +643,28 @@ def minimize(
     topology = body_topology(state.clump_id, state.fixed)
     fixed = ~topology.valid | topology.fixed
     mask = ~fixed[..., None]
+    body_mass = jnp.where(
+        mask, topology.gather_representatives(state.mass)[..., None], 1.0
+    )
+    body_inertia = jnp.where(mask, topology.gather_representatives(state.inertia), 1.0)
+
+    def make_inverse_mass(current: State, params: dict[str, jax.Array]) -> Any:
+        """Inverse mass operator at the configuration ``params``."""
+        q = Quaternion.create(
+            topology.gather_representatives(current.q.w),
+            topology.gather_representatives(current.q.xyz),
+        )
+
+        def inverse_mass(tree: dict[str, jax.Array]) -> dict[str, jax.Array]:
+            rotation = _rotation_inverse_inertia(
+                params["rotation"], tree["rotation"], q, body_inertia
+            )
+            return {
+                "pos_c": jnp.where(mask, tree["pos_c"] / body_mass, 0.0),
+                "rotation": jnp.where(mask, rotation, 0.0),
+            }
+
+        return inverse_mass
 
     reference_q = state.q
 
@@ -585,20 +682,58 @@ def minimize(
 
         return value_fn
 
+    def advance_forces(
+        anchor_state: State,
+        trial: State,
+        anchor_system: System,
+        origin: tuple[State, Collider] | None,
+        baseline: jax.Array | None,
+    ) -> tuple[State, System, jax.Array | None]:
+        """Advance from the previous iterate or the immutable initial snapshot.
+
+        ``baseline`` is the initial history expressed in the current pair
+        layout. It is remapped from the snapshot only when preparing the
+        trial changed that layout, so a pair that left the cache during an
+        optimizer excursion and returned recovers its initial history, and
+        unchanged layouts reuse the cached array.
+        """
+        if origin is None:
+            trial, evaluated = _advance_history_forces(
+                anchor_state, trial, anchor_system
+            )
+            return trial, evaluated, None
+        origin_state, origin_collider = origin
+        start, changed = anchor_system.collider.prepare_force(trial, anchor_system)
+        baseline = jax.lax.cond(
+            changed,
+            lambda _: start.collider.transfer_history(
+                origin_collider, cast(Any, origin_collider).history, trial, start
+            ),
+            lambda _: baseline,
+            None,
+        )
+        start = replace(
+            start, collider=replace(cast(Any, start.collider), history=baseline)
+        )
+        trial, evaluated = _advance_history_forces(origin_state, trial, start)
+        return trial, evaluated, baseline
+
     def eval_step(
         anchor_state: State,
         anchor_system: System,
         params: dict[str, jax.Array],
+        origin: tuple[State, Collider] | None,
+        baseline: jax.Array | None,
         *,
         advance: bool,
-    ) -> tuple[Any, dict[str, jax.Array], State, System]:
+    ) -> tuple[Any, dict[str, jax.Array], State, System, jax.Array | None]:
         if force_only:
             trial = _delta_params_to_state(
                 replace(anchor_state, q=reference_q), params, topology
             )
             if history_relaxation and advance:
-                trial, evaluated = _advance_history_forces(
-                    anchor_state, trial, anchor_system
+                trial, evaluated, baseline = advance_forces(
+                    anchor_state, trial, anchor_system, origin, baseline
                 )
             else:
                 trial, evaluated = _evaluate_readonly_forces(trial, anchor_system)
@@ -608,18 +743,18 @@ def minimize(
                     params["rotation"], -topology.gather_representatives(trial.torque)
                 ),
             }
-            return None, grads, trial, evaluated
+            return None, grads, trial, evaluated, baseline
         if history_relaxation and advance:
             trial = _delta_params_to_state(
                 replace(anchor_state, q=reference_q), params, topology
             )
-            _, anchor_system = _advance_history_forces(
-                anchor_state, trial, anchor_system
+            _, anchor_system, baseline = advance_forces(
+                anchor_state, trial, anchor_system, origin, baseline
             )
         (pe, (trial, evaluated)), grads = jax.value_and_grad(
             make_value_fn(anchor_state, anchor_system), has_aux=True
         )(params)
-        return pe, grads, trial, evaluated
+        return pe, grads, trial, evaluated, baseline
 
     def diagnostics(
         current: State,
@@ -662,7 +797,14 @@ def minimize(
 
     params = _state_to_delta_params(state, topology)
     opt_state = system.minimizer.init(params)
-    pe, grads, state, system = eval_step(state, system, params, advance=False)
+    pe, grads, state, system, _ = eval_step(
+        state, system, params, None, None, advance=False
+    )
+    # Capture after the read-only evaluation has built the initial pair cache.
+    # JAX arrays are immutable; later rebuilds cannot discard this snapshot.
+    # The baseline starts as the snapshot history itself: the layouts agree.
+    origin = (state, system.collider) if endpoint_update else None
+    baseline = cast(Any, system.collider).history if endpoint_update else None
     carry = (
         state,
         system,
@@ -671,19 +813,21 @@ def minimize(
         params,
         opt_state,
         grads,
+        baseline,
     )
 
     def condition(c: tuple[Any, ...]) -> jax.Array:
-        current, evaluated, steps, pe, params, _, grads = c
+        current, evaluated, steps, pe, params, _, grads, _ = c
         info = diagnostics(current, params, grads, pe, evaluated)
         return (steps < max_steps) & (info.status == MAX_STEPS)
 
     def step(c: tuple[Any, ...]) -> tuple[Any, ...]:
-        current, evaluated, steps, pe, params, opt_state, grads = c
+        current, evaluated, steps, pe, params, opt_state, grads, baseline = c
         free_grads = jax.tree.map(lambda x: jnp.where(mask, x, 0.0), grads)
+        inverse_mass = make_inverse_mass(current, params)
         if force_only:
             updates, opt_state = evaluated.minimizer.update(
-                free_grads, opt_state, params
+                free_grads, opt_state, params, inverse_mass=inverse_mass
             )
         else:
             value_fn = make_value_fn(current, evaluated)
@@ -694,11 +838,12 @@ def minimize(
                 value=pe,
                 grad=free_grads,
                 value_fn=lambda p, *args, **kw: value_fn(p)[0],
+                inverse_mass=inverse_mass,
             )
         updates = jax.tree.map(lambda x: jnp.where(mask, x, 0.0), updates)
         next_params = optax.apply_updates(params, updates)
-        pe, grads, current, evaluated = eval_step(
-            current, evaluated, next_params, advance=True
+        pe, grads, current, evaluated, baseline = eval_step(
+            current, evaluated, next_params, origin, baseline, advance=True
         )
         return (
             current,
@@ -708,9 +853,10 @@ def minimize(
             next_params,
             opt_state,
             grads,
+            baseline,
         )
 
-    state, system, steps, pe, params, _, grads = jax.lax.while_loop(
+    state, system, steps, pe, params, _, grads, _ = jax.lax.while_loop(
         condition, step, carry
     )
     if force_only:

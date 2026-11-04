@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from types import MappingProxyType
 from typing import Any, NamedTuple
 
@@ -145,23 +145,29 @@ class FIREState(NamedTuple):
 
     Attributes
     ----------
-    vel : jax.Array
-        The current velocity parameters (same PyTree structure as params).
+    momentum : Any
+        The half-step momentum (same PyTree structure as params). It equals
+        the velocity when every degree of freedom has unit mass.
     dt : jax.Array
         The current step size.
     alpha : jax.Array
         The current mixing parameter.
     N_good : jax.Array
-        Number of consecutive steps with positive power ($P > 0$).
-    N_bad : jax.Array
-        Number of consecutive steps with negative power ($P \le 0$).
+        Number of consecutive steps with positive power (:math:`P > 0`).
     """
 
-    vel: jax.Array
+    momentum: Any
     dt: jax.Array
     alpha: jax.Array
     N_good: jax.Array
-    N_bad: jax.Array
+
+
+def _tree_dot(a: Any, b: Any) -> jax.Array:
+    """Inner product summed over every leaf of two matching PyTrees."""
+    return sum(
+        (jnp.vdot(x, y) for x, y in zip(jax.tree.leaves(a), jax.tree.leaves(b))),
+        start=jnp.array(0.0),
+    )
 
 
 def fire(
@@ -171,24 +177,34 @@ def fire(
     f_dec: float = 0.5,
     f_alpha: float = 0.99,
     N_min: int = 5,
-    N_bad_max: int = 10,
     dt_max_scale: float = 10.0,
     dt_min_scale: float = 1e-3,
 ) -> Any:
     r"""Fast Inertial Relaxation Engine (FIRE) custom optax optimizer.
 
-    The FIRE algorithm accelerates or decelerates the dynamics based on the power
-    of the force and the velocity. It minimizes the energy of granular particles.
+    FIRE runs velocity-Verlet dynamics, steers the velocity toward the force,
+    and adapts the time step and the steering from the power of the force
+    and the velocity.
+
+    Every degree of freedom moves with its physical mass. The optimizer reads
+    the inverse mass operator :math:`M^{-1}` from the extra update argument
+    ``inverse_mass``, a function that maps a force-like PyTree to the matching
+    velocity. :func:`~jaxdem.minimizers.minimize` supplies body masses for
+    translations and the orientation-dependent inverse inertia tensor for
+    rotations. Without ``inverse_mass``, every degree of freedom has unit mass.
 
     Mathematical Formulation
     ------------------------
-    At each step:
+    The optimizer stores the half-step momentum :math:`p`. At each step, with
+    the force :math:`F = -\nabla U` and the velocity :math:`v = M^{-1} p`:
 
-    1. Update the velocities and positions:
+    1. Complete the previous velocity-Verlet step and compute the power:
 
        .. math::
-           v_{old} &= v(t) + F(t) \cdot \frac{dt}{2} \\
-           P &= F(t) \cdot v_{old}
+           p &\leftarrow p + F \cdot \frac{\Delta t}{2} \\
+           P &= F \cdot M^{-1} p
+
+       The power sums over every degree of freedom.
 
     2. Update the algorithm parameters depending on the power :math:`P`:
 
@@ -196,24 +212,38 @@ def fire(
 
          .. math::
              N_{good} &\to N_{good} + 1 \\
-             N_{bad} &\to 0 \\
-             dt &\to \begin{cases} \min(dt \cdot f_{inc}, dt_{max}) & \text{if } N_{good} > N_{min} \\ dt & \text{otherwise} \end{cases} \\
+             \Delta t &\to \begin{cases} \min(\Delta t \cdot f_{inc}, \Delta t_{max}) & \text{if } N_{good} > N_{min} \\ \Delta t & \text{otherwise} \end{cases} \\
              \alpha &\to \begin{cases} \alpha \cdot f_{\alpha} & \text{if } N_{good} > N_{min} \\ \alpha & \text{otherwise} \end{cases}
 
        - **Uphill Step (:math:`P \le 0`):**
 
          .. math::
              N_{good} &\to 0 \\
-             N_{bad} &\to N_{bad} + 1 \\
-             dt &\to \max(dt \cdot f_{dec}, dt_{min}) \\
+             \Delta t &\to \max(\Delta t \cdot f_{dec}, \Delta t_{min}) \\
              \alpha &\to \alpha_{init} \\
-             v_{old} &\to 0
+             x &\to x - M^{-1} p \cdot \frac{\Delta t}{2} \\
+             p &\to 0
 
-    3. Perform velocity mixing:
+         The step backtracks half a step with the reduced time step (FIRE
+         2.0) and does not move forward. The next step starts from rest at the
+         backtracked configuration with a freshly evaluated force.
+
+    3. After a downhill step, start the next velocity-Verlet step, mix the
+       momentum, and move:
 
        .. math::
-           v_{half} &= v_{old} \cdot (1 - \alpha) + \hat{F}(t) \cdot |v_{old}| \cdot \alpha \\
-           v(t + dt) &= v_{half} + F(t) \cdot \frac{dt}{2}
+           p &\leftarrow p + F \cdot \frac{\Delta t}{2} \\
+           p &\leftarrow (1 - \alpha)\, p
+               + \alpha \, \frac{\lVert v \rVert_M}{\lVert F \rVert_{M^{-1}}} \, F \\
+           x &\leftarrow x + M^{-1} p \cdot \Delta t
+
+       where :math:`\lVert v \rVert_M^2 = v \cdot p` and
+       :math:`\lVert F \rVert_{M^{-1}}^2 = F \cdot M^{-1} F` sum over every
+       degree of freedom. This is the standard global FIRE mixing,
+       :math:`v \leftarrow (1 - \alpha)\, v + \alpha \lVert v \rVert \hat{F}`,
+       in the mass-weighted coordinates :math:`M^{1/2} x`. Translations and
+       rotations share one norm with units of energy. For equal masses, it
+       reduces to the standard form.
 
     Parameters
     ----------
@@ -229,8 +259,6 @@ def fire(
         The decay factor for the mixing coefficient.
     N_min : int, default 5
         The number of consecutive downhill steps required to increase the time step.
-    N_bad_max : int, default 10
-        The maximum number of uphill steps before a reset.
     dt_max_scale : float, default 10.0
         The maximum time step scale limit: :math:`dt_{max} = dt \cdot dt_{max\_scale}`.
     dt_min_scale : float, default 1e-3
@@ -244,100 +272,80 @@ def fire(
     Reference
     ---------
     Bitzek et al., Structural Relaxation Made Simple, Phys. Rev. Lett. 97, 170201 (2006)
+
+    Guénolé et al., Assessment and optimization of the fast inertial relaxation
+    engine (FIRE) for energy minimization in atomistic simulations and its
+    implementation in LAMMPS, Comput. Mater. Sci. 175, 109584 (2020)
     """
 
     def init(params: Any) -> FIREState:
         return FIREState(
-            vel=jax.tree.map(jnp.zeros_like, params),
+            momentum=jax.tree.map(jnp.zeros_like, params),
             dt=jnp.array(dt),
             alpha=jnp.array(alpha_init),
             N_good=jnp.array(0),
-            N_bad=jnp.array(0),
         )
 
     def update(
         updates: Any,
         state: FIREState,
         params: Any | None = None,
+        *,
+        inverse_mass: Callable[[Any], Any] | None = None,
         **kwargs: Any,
     ) -> tuple[Any, FIREState]:
+        if inverse_mass is None:
+            inverse_mass = lambda tree: tree  # noqa: E731
         F = jax.tree.map(lambda u: -u, updates)
-        v_old = jax.tree.map(lambda v, f: v + f * state.dt / 2.0, state.vel, F)
-        power = sum(
-            jnp.sum(f * v) for f, v in zip(jax.tree.leaves(F), jax.tree.leaves(v_old))
+        p_old = jax.tree.map(lambda p, f: p + f * state.dt / 2.0, state.momentum, F)
+        # The inverse mass is linear, so two applications give every velocity.
+        v_old = inverse_mass(p_old)
+        accel = inverse_mass(F)
+        downhill = _tree_dot(F, v_old) > 0.0
+
+        N_good = jnp.where(downhill, state.N_good + 1, 0)
+        accelerate = N_good > N_min
+        new_dt = jnp.where(
+            downhill,
+            jnp.where(
+                accelerate, jnp.minimum(state.dt * f_inc, dt * dt_max_scale), state.dt
+            ),
+            jnp.maximum(state.dt * f_dec, dt * dt_min_scale),
+        )
+        new_alpha = jnp.where(
+            downhill,
+            jnp.where(accelerate, state.alpha * f_alpha, state.alpha),
+            alpha_init,
         )
 
-        dt_cand_inc = jnp.minimum(state.dt * f_inc, dt * dt_max_scale)
-        dt_cand_dec = jnp.maximum(state.dt * f_dec, dt * dt_min_scale)
-
-        def uphill(_: Any) -> tuple[Any, ...]:
-            N_bad_new = state.N_bad + 1
-            # After N_bad_max consecutive uphill steps, dt has been cut so many
-            # times the dynamics stall: reset dt to the base time step and
-            # restart the uphill counter.
-            exceeded = N_bad_new > N_bad_max
-            dt_new = jnp.where(
-                exceeded, jnp.asarray(dt, dtype=state.dt.dtype), dt_cand_dec
-            )
-            N_bad_new = jnp.where(exceeded, 0, N_bad_new)
-            return (
-                dt_new,
-                jnp.array(alpha_init),
-                jnp.array(0),
-                N_bad_new,
-                -dt_new,
-                0.0,
-            )
-
-        def downhill(_: Any) -> tuple[Any, ...]:
-            N_good_new = state.N_good + 1
-            dt_new = jnp.where(N_good_new > N_min, dt_cand_inc, state.dt)
-            alpha_new = jnp.where(
-                N_good_new > N_min, state.alpha * f_alpha, state.alpha
-            )
-            return (
-                dt_new,
-                alpha_new,
-                N_good_new,
-                jnp.array(0),
-                0.0,
-                1.0,
-            )
-
-        new_dt, new_alpha, new_N_good, new_N_bad, dt_reverse, velocity_scale = (
-            jax.lax.cond(power > 0.0, downhill, uphill, operand=None)
-        )
-
-        v_temp = jax.tree.map(lambda v: v * velocity_scale, v_old)
-        v_half = jax.tree.map(lambda vt, f: vt + f * new_dt / 2.0, v_temp, F)
-
-        def normalize(x: jax.Array) -> jax.Array:
-            return optax.safe_norm(x, min_norm=0.0, axis=-1, keepdims=True)
-
-        v_half_norm = jax.tree.map(normalize, v_half)
-        F_norm = jax.tree.map(normalize, F)
-        mixing_ratio = jax.tree.map(
-            lambda fn, vn: vn / jnp.where(fn > 0.0, fn, 1.0) * new_alpha,
-            F_norm,
-            v_half_norm,
+        p_half = jax.tree.map(
+            lambda p, f: jnp.where(downhill, p, 0.0) + f * new_dt / 2.0, p_old, F
         )
         v_half = jax.tree.map(
-            lambda v, f, m: (v * (1.0 - new_alpha) + f * m) * velocity_scale,
-            v_half,
-            F,
-            mixing_ratio,
+            lambda v, a: jnp.where(downhill, v, 0.0) + a * new_dt / 2.0, v_old, accel
+        )
+        speed2 = jnp.maximum(_tree_dot(v_half, p_half), 0.0)
+        force2 = jnp.maximum(_tree_dot(F, accel), 0.0)
+        mixing = new_alpha * jnp.where(
+            force2 > 0.0, jnp.sqrt(speed2 / jnp.where(force2 > 0.0, force2, 1.0)), 0.0
         )
 
+        def mix(x: jax.Array, f: jax.Array) -> jax.Array:
+            return jnp.where(downhill, x * (1.0 - new_alpha) + f * mixing, 0.0)
+
+        p_half = jax.tree.map(mix, p_half, F)
+        v_half = jax.tree.map(mix, v_half, accel)
         updates_to_apply = jax.tree.map(
-            lambda vo, vh: vo * dt_reverse / 2.0 + vh * new_dt / 2.0, v_old, v_half
+            lambda vo, vh: jnp.where(downhill, vh * new_dt, -vo * new_dt / 2.0),
+            v_old,
+            v_half,
         )
 
         new_state = FIREState(
-            vel=v_half,
+            momentum=p_half,
             dt=new_dt,
             alpha=new_alpha,
-            N_good=new_N_good,
-            N_bad=new_N_bad,
+            N_good=N_good,
         )
         return updates_to_apply, new_state
 
@@ -348,7 +356,6 @@ def fire(
         "f_dec": f_dec,
         "f_alpha": f_alpha,
         "N_min": N_min,
-        "N_bad_max": N_bad_max,
         "dt_max_scale": dt_max_scale,
         "dt_min_scale": dt_min_scale,
     }
@@ -477,12 +484,6 @@ def _scale_by_conjugate_gradient() -> Any:
     :func:`optax.scale_by_zoom_linesearch`.
     """
 
-    def _dot(a: Any, b: Any) -> jax.Array:
-        return sum(
-            (jnp.vdot(x, y) for x, y in zip(jax.tree.leaves(a), jax.tree.leaves(b))),
-            start=jnp.array(0.0),
-        )
-
     def init(params: Any) -> ConjugateGradientState:
         zeros = jax.tree.map(jnp.zeros_like, params)
         return ConjugateGradientState(
@@ -497,14 +498,14 @@ def _scale_by_conjugate_gradient() -> Any:
     ) -> tuple[Any, ConjugateGradientState]:
         g = updates
         y = jax.tree.map(lambda gk, gp: gk - gp, g, state.grad_prev)
-        denom = _dot(state.grad_prev, state.grad_prev)
-        beta = jnp.where(denom > 0.0, _dot(g, y) / denom, 0.0)
+        denom = _tree_dot(state.grad_prev, state.grad_prev)
+        beta = jnp.where(denom > 0.0, _tree_dot(g, y) / denom, 0.0)
         # PR+ restart (and steepest descent on the first step).
         beta = jnp.where(state.count == 0, 0.0, jnp.maximum(beta, 0.0))
 
         direction = jax.tree.map(lambda gk, dp: -gk + beta * dp, g, state.dir_prev)
         # Powell restart: if the direction is not downhill, reset to -g.
-        not_descent = _dot(g, direction) >= 0.0
+        not_descent = _tree_dot(g, direction) >= 0.0
         direction = jax.tree.map(
             lambda gk, d: jnp.where(not_descent, -gk, d), g, direction
         )

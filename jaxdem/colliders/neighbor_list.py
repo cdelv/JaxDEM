@@ -252,6 +252,32 @@ class NeighborList(Collider):
 
         return reindex_history(state, system, self, new_to_old)
 
+    def prepare_force(
+        self, state: State, system: System
+    ) -> tuple[System, jax.Array]:
+        """Rebuild current pairs if needed and report whether the layout changed."""
+        from ._neighbor_cache import check_and_rebuild
+
+        prepared = check_and_rebuild(state, system)
+        changed = cast(NeighborList, prepared.collider).n_build_times != self.n_build_times
+        return prepared, changed
+
+    def transfer_history(
+        self, previous: Collider, history: jax.Array, state: State, system: System
+    ) -> jax.Array:
+        """Remap pooled history from ``previous``'s layout into this pool's layout."""
+        from ._neighbor_cache import pair_sources, remap_history
+
+        previous = cast(NeighborList, previous)
+        return remap_history(
+            history,
+            pair_sources(previous),
+            previous.neighbor_list,
+            pair_sources(self),
+            self.neighbor_list,
+            system.force_model.init_history(self.neighbor_list.shape, state.dim),
+        )
+
     def validate_domain(self, domain: Domain) -> None:
         """Validate the domain against the collider that builds this cache."""
         self.secondary_collider.validate_domain(domain)

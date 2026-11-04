@@ -19,7 +19,13 @@ from typing import TYPE_CHECKING, Any, NamedTuple
 import jax
 import jax.numpy as jnp
 
-from ..minimizers.routines import COLLIDER_OVERFLOW, MAX_STEPS, NONFINITE, MinimizeInfo
+from ..minimizers.routines import (
+    COLLIDER_OVERFLOW,
+    MAX_STEPS,
+    NONFINITE,
+    HistoryUpdate,
+    MinimizeInfo,
+)
 from .contacts import compute_contact_pressure
 from .packing_utils import (
     _host_body_grouping,
@@ -388,7 +394,7 @@ def _bisect_jamming(
     )
 
 
-_MINIMIZER_KEYS = ("max_steps", "force_tol", "torque_tol", "advance_history")
+_MINIMIZER_KEYS = ("max_steps", "force_tol", "torque_tol", "history_update")
 
 
 def _minimizer_kwargs(minimizer_kwargs: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -405,7 +411,7 @@ def _minimizer_kwargs(minimizer_kwargs: Mapping[str, Any] | None) -> dict[str, A
         "max_steps": 100_000_000,
         "force_tol": 1e-14,
         "torque_tol": 1e-14,
-        "advance_history": True,
+        "history_update": "path",
     }
     resolved.update(provided)
     return resolved
@@ -469,12 +475,14 @@ def bisection_jam(
     minimizer_kwargs : mapping, optional
         Arguments forwarded to :meth:`System.minimize` for every trial.
         Recognized keys are ``max_steps``, ``force_tol``, ``torque_tol``, and
-        ``advance_history``. Omitted keys use ``max_steps=100_000_000``,
+        ``history_update``. Omitted keys use ``max_steps=100_000_000``,
         ``force_tol=1e-14``, ``torque_tol=1e-14``, and
-        ``advance_history=True``. ``torque_tol=None`` uses the numerical
-        value of ``force_tol``. Every value must be a concrete Python object.
-        Pair history advances on accepted steps unless ``advance_history``
-        is false.
+        ``history_update="path"``. ``torque_tol=None`` uses the
+        numerical value of ``force_tol``. Every value must be a concrete
+        Python object. See :func:`jaxdem.minimizers.minimize` for the
+        ``history_update`` options. ``"endpoint"`` is meant for increments that
+        do not rearrange the packing; pair it with a finite ``max_steps``
+        because a rearranging increment can plateau above tolerance.
     return_info : bool, optional
         Return ``(result, info)`` when true; otherwise return ``result``.
 
@@ -519,7 +527,7 @@ def bisection_jam(
         options["max_steps"],
         options["force_tol"],
         options["torque_tol"],
-        options["advance_history"],
+        options["history_update"],
         return_info,
     )
 
@@ -533,7 +541,7 @@ def bisection_jam(
         "max_steps",
         "force_tol",
         "torque_tol",
-        "advance_history",
+        "history_update",
     ],
 )
 def _bisection_jam(
@@ -548,7 +556,7 @@ def _bisection_jam(
     max_steps: int,
     force_tol: float,
     torque_tol: float | None,
-    advance_history: bool,
+    history_update: HistoryUpdate,
     return_info: bool,
 ) -> JamResult | tuple[JamResult, JammingInfo]:
     if system.target_fn is not None:
@@ -568,7 +576,7 @@ def _bisection_jam(
             max_steps=max_steps,
             force_tol=force_tol,
             torque_tol=torque_tol,
-            advance_history=advance_history,
+            history_update=history_update,
         )
         st, sy, n, pe = result
         return st, sy, n, pe, result.info
@@ -670,11 +678,14 @@ def pressure_bisection_jam(
     minimizer_kwargs : mapping, optional
         Arguments forwarded to :meth:`System.minimize` for every trial.
         Recognized keys are ``max_steps``, ``force_tol``, ``torque_tol``, and
-        ``advance_history``. Omitted keys use ``max_steps=100_000_000``,
+        ``history_update``. Omitted keys use ``max_steps=100_000_000``,
         ``force_tol=1e-14``, ``torque_tol=1e-14``, and
-        ``advance_history=True``. ``torque_tol=None`` uses the numerical
-        value of ``force_tol``. Pair history advances on accepted steps
-        unless ``advance_history`` is false.
+        ``history_update="path"``. ``torque_tol=None`` uses the
+        numerical value of ``force_tol``. See
+        :func:`jaxdem.minimizers.minimize` for the ``history_update`` options.
+        ``"endpoint"`` is meant for increments that do not rearrange the
+        packing; pair it with a finite ``max_steps`` because a rearranging
+        increment can plateau above tolerance.
     return_info : bool, optional
         Return ``(result, info)`` when true; otherwise return ``result``.
 
@@ -871,12 +882,14 @@ def pe_band_jam(
     minimizer_kwargs : mapping, optional
         Arguments forwarded to :meth:`System.minimize` for every trial.
         Recognized keys are ``max_steps``, ``force_tol``, ``torque_tol``, and
-        ``advance_history``. Omitted keys use ``max_steps=100_000_000``,
+        ``history_update``. Omitted keys use ``max_steps=100_000_000``,
         ``force_tol=1e-14``, ``torque_tol=1e-14``, and
-        ``advance_history=True``. ``torque_tol=None`` uses the numerical
-        value of ``force_tol``. Every value must be a concrete Python object.
-        Pair history advances on accepted steps unless ``advance_history``
-        is false.
+        ``history_update="path"``. ``torque_tol=None`` uses the
+        numerical value of ``force_tol``. Every value must be a concrete
+        Python object. See :func:`jaxdem.minimizers.minimize` for the
+        ``history_update`` options. ``"endpoint"`` is meant for increments that
+        do not rearrange the packing; pair it with a finite ``max_steps``
+        because a rearranging increment can plateau above tolerance.
     return_info : bool, optional
         Return ``(result, info)`` when true; otherwise return ``result``.
 
@@ -916,7 +929,7 @@ def pe_band_jam(
         options["max_steps"],
         options["force_tol"],
         options["torque_tol"],
-        options["advance_history"],
+        options["history_update"],
         return_info,
     )
 
@@ -930,7 +943,7 @@ def pe_band_jam(
         "max_steps",
         "force_tol",
         "torque_tol",
-        "advance_history",
+        "history_update",
     ],
 )
 def _pe_band_jam(
@@ -944,7 +957,7 @@ def _pe_band_jam(
     max_steps: int,
     force_tol: float,
     torque_tol: float | None,
-    advance_history: bool,
+    history_update: HistoryUpdate,
     return_info: bool,
 ) -> JamResult | tuple[JamResult, JammingInfo]:
     if system.target_fn is not None:
@@ -1011,7 +1024,7 @@ def _pe_band_jam(
             max_steps=max_steps,
             force_tol=force_tol,
             torque_tol=torque_tol,
-            advance_history=advance_history,
+            history_update=history_update,
         )
         state, system, n_steps, pe = relaxation
         info = relaxation.info
@@ -1168,9 +1181,12 @@ def rollback_pe_band_jam(
     minimizer_kwargs : mapping, optional
         Arguments forwarded to :meth:`System.minimize` for every trial.
         Recognized keys are ``max_steps``, ``force_tol``, ``torque_tol``, and
-        ``advance_history``. Omitted keys use ``max_steps=100_000_000``,
+        ``history_update``. Omitted keys use ``max_steps=100_000_000``,
         ``force_tol=1e-14``, ``torque_tol=1e-14``, and
-        ``advance_history=True``.
+        ``history_update="path"``. ``"endpoint"`` is meant for increments
+        that do not rearrange the packing; pair it with a finite
+        ``max_steps`` because a rearranging increment can plateau above
+        tolerance.
     return_info : bool, optional
         Return ``(result, info)`` when true; otherwise return ``result``.
 
@@ -1218,7 +1234,7 @@ def rollback_pe_band_jam(
         options["max_steps"],
         options["force_tol"],
         options["torque_tol"],
-        options["advance_history"],
+        options["history_update"],
         return_info,
     )
 
@@ -1232,7 +1248,7 @@ def rollback_pe_band_jam(
         "max_steps",
         "force_tol",
         "torque_tol",
-        "advance_history",
+        "history_update",
     ],
 )
 def _rollback_pe_band_jam(
@@ -1247,7 +1263,7 @@ def _rollback_pe_band_jam(
     max_steps: int,
     force_tol: float,
     torque_tol: float | None,
-    advance_history: bool,
+    history_update: HistoryUpdate,
     return_info: bool,
 ) -> JamResult | tuple[JamResult, JammingInfo]:
     if system.target_fn is not None:
@@ -1313,7 +1329,7 @@ def _rollback_pe_band_jam(
             max_steps=max_steps,
             force_tol=force_tol,
             torque_tol=torque_tol,
-            advance_history=advance_history,
+            history_update=history_update,
         )
         evaluated_state, evaluated_system, n_steps, pe = relaxation
         min_info = relaxation.info

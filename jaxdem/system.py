@@ -21,7 +21,7 @@ from .integrators import LinearIntegrator, RotationIntegrator
 from .materials import Material, MaterialTable
 
 if TYPE_CHECKING:
-    from .minimizers import MinimizationResult
+    from .minimizers import HistoryUpdate, MinimizationResult
     from .state import State
     from .simulation_status import StepResult
 
@@ -1063,14 +1063,15 @@ class System:
         max_steps: int = 10000,
         force_tol: float = 1e-12,
         torque_tol: float | None = None,
-        advance_history: bool = False,
+        history_update: HistoryUpdate = "frozen",
     ) -> MinimizationResult:
         """Relax until both free-body residual norms meet tolerance.
 
         Returns an iterable four-value result with ``reason`` and ``info``
         diagnostics. Energy is reported per constituent sphere for the physical
-        objective. Pair history is frozen unless ``advance_history=True``
-        requests displacement-driven updates after accepted optimizer steps.
+        objective. Pair history is frozen by default; ``history_update``
+        selects ``"path"`` updates along the optimizer path or
+        ``"endpoint"`` updates as one step from the initial configuration.
         Residuals are mechanical forces and torques for force-based relaxation,
         or objective gradients for energies and targets differentiated by AD.
         See :func:`jaxdem.minimizers.minimize` for convergence and optimizer
@@ -1084,7 +1085,7 @@ class System:
             max_steps=max_steps,
             force_tol=force_tol,
             torque_tol=torque_tol,
-            advance_history=advance_history,
+            history_update=history_update,
         )
 
     def _serialize_force_functions(self) -> list[dict[str, Any]] | None:

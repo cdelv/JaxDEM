@@ -75,10 +75,10 @@ def test_coulomb_force_and_return_mapping_respect_stiffness_units(scale, displac
 def test_fire_mixes_small_nonzero_forces_without_an_absolute_cutoff(scale):
     optimizer = jd.fire(dt=1.0)
     state = optimizer.init(jnp.zeros((1, 2)))
-    state = state._replace(vel=jnp.array([[0.0, scale]]))
+    state = state._replace(momentum=jnp.array([[0.0, scale]]))
     update, advanced = optimizer.update(jnp.array([[-scale, 0.0]]), state)
     expected = np.array([[0.9 + 0.1 * np.sqrt(2), 0.9]])
-    np.testing.assert_allclose(advanced.vel / scale, expected, rtol=2e-6)
-    np.testing.assert_allclose(update / scale, expected / 2, rtol=2e-6)
+    np.testing.assert_allclose(advanced.momentum / scale, expected, rtol=2e-6)
+    np.testing.assert_allclose(update / scale, expected, rtol=2e-6)
     zero, _ = optimizer.update(jnp.zeros((1, 2)), optimizer.init(jnp.zeros((1, 2))))
     np.testing.assert_array_equal(zero, 0)
