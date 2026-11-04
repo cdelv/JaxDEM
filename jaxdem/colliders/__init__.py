@@ -4,13 +4,13 @@
 
 from __future__ import annotations
 
-import jax
-import jax.numpy as jnp
-
 from abc import ABC
 import dataclasses
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, cast
+
+import jax
+import jax.numpy as jnp
 
 from ..domains import Domain, SearchGeometry
 from ..factory import Factory
@@ -28,20 +28,20 @@ class Collider(Factory, ABC):
 
     Concrete subclasses of `Collider` implement the interaction algorithms.
 
-    Notes
+    Notes:
     ------
     Self-interaction (calling the force/energy computation for `i=j`) is allowed.
     The `force_model` must handle or ignore this case correctly.
 
-    Example
+    Example:
     --------
     To define a custom collider, inherit from `Collider`, register it, and implement its abstract methods:
 
     >>> @Collider.register("CustomCollider")
-    ... @jax.tree_util.register_dataclass
-    ... @dataclass(slots=True)
-    ... class CustomCollider(Collider):
-    ...     ...
+    >>> @jax.tree_util.register_dataclass
+    >>> @dataclass(slots=True)
+    >>> class CustomCollider(Collider):
+            ...
 
     Then, instantiate it:
 
@@ -56,14 +56,6 @@ class Collider(Factory, ABC):
 
     supported_search_geometries: ClassVar[frozenset[SearchGeometry] | None] = None
     """Supported hashed geometries, or ``None`` for displacement-only search."""
-
-    @property
-    def metadata(self) -> dict[str, Any]:
-        """Keep automatic pool sizing when a checkpoint rebuilds the collider."""
-        metadata = super(Collider, self).metadata
-        if getattr(self, "_auto_capacity", False):
-            metadata["_auto_capacity"] = True
-        return metadata
 
     def validate_domain(self, domain: Domain) -> None:
         """Validate construction-time compatibility with ``domain``."""
@@ -145,45 +137,16 @@ class Collider(Factory, ABC):
         """
         return system
 
-    def prepare_force(
-        self, state: State, system: System
-    ) -> tuple[System, jax.Array]:
-        """Prepare pair caches without evaluating forces or advancing history.
-
-        Returns the prepared system and a boolean scalar that is true when the
-        preparation changed the pair layout, so history stored for the
-        previous layout must be transferred before it is used. Call this
-        before restoring history from a different configuration: cache
-        rebuilds must finish before history is mapped onto current pairs.
-        Colliders without a persistent pair cache need no preparation and
-        never change layout.
-        """
-        return system, jnp.asarray(False)
-
-    def transfer_history(
-        self, previous: Collider, history: jax.Array, state: State, system: System
-    ) -> jax.Array:
-        """Express ``history`` stored on ``previous``'s pairs in this collider's pairs.
-
-        The remap is unconditional; callers decide when the layout changed,
-        for example from :meth:`prepare_force`. ``previous`` may be an earlier
-        immutable collider snapshot, so a history array laid out for
-        ``previous`` can follow several rebuilds. Pairs that survive keep
-        their values; new pairs take the force law's initial history.
-        Colliders whose history layout never changes, such as dense or
-        stateless ones, return ``history`` unchanged.
-        """
-        return history
-
     @staticmethod
-    @jax.jit(inline=True, static_argnames=("advance_history", "quasistatic"))
+    @jax.jit(inline=True, static_argnames=("advance_history", "quasistatic", "virial"))
     def compute_force(
         state: State,
         system: System,
         *,
         advance_history: bool = True,
         quasistatic: bool = False,
-    ) -> tuple[State, System]:
+        virial: bool = False,
+    ) -> tuple[Any, ...]:
         """Compute the total force acting on each particle in the simulation.
 
         This base implementation is a concrete no-op: it zeroes the ``force``
@@ -207,16 +170,27 @@ class Collider(Factory, ABC):
             pair memory ignore it.
         quasistatic : bool, optional
             Forwarded to the force law. True omits velocity-dependent terms.
+        virial : bool, optional
+            Also return the scalar pair virial
+            ``sum(i < j, F_ij . (R_i - R_j))`` with ``F_ij`` the force on
+            ``i`` and ``R`` the body centres, using the minimum-image branch
+            of the sphere pair. Divided by ``dim * volume`` it is the contact
+            pressure, and it is minus the derivative of the pair energy with
+            respect to the log of a uniform box scale. The accumulation is
+            compiled in only when this static flag is set.
 
         Returns
         -------
         Tuple[State, System]
-            A tuple containing the updated `State` object (with computed forces) and the `System` object.
+            A tuple containing the updated `State` object (with computed forces) and the `System` object,
+            followed by the virial when requested.
 
         """
 
         state.force *= 0
         state.torque *= 0
+        if virial:
+            return state, system, jnp.zeros((), dtype=state.force.dtype)
         return state, system
 
     @staticmethod
@@ -379,11 +353,12 @@ def valid_interaction_mask(
     The mask always disables interactions between particles in the same clump.
     It also disables interactions between bonded particles unless
     ``interact_same_bond_id`` is ``True`` (see
-    :attr:`jaxdem.System.interact_same_bond_id <jaxdem.system.System.interact_same_bond_id>`).
+    :attr:`jaxdem.System.interact_same_bond_id`).
     """
     is_bonded = jnp.any(bond_id_i == index_j[..., None], axis=-1)
-    eligible = (clump_i != clump_j) & (~is_bonded | interact_same_bond_id)
-    return eligible.astype(int)
+    mask1 = (clump_i != clump_j).astype(int)
+    mask2 = (~is_bonded | interact_same_bond_id).astype(int)
+    return mask1 * mask2
 
 
 def invalidate_collider(collider: Collider) -> Collider:
@@ -405,7 +380,7 @@ def refresh_collider(
     Supply ``force_model`` when growing nonempty history so new slots use its
     initializer. Changing particle count with nonempty history, shrinking its
     capacity, or changing particle identities requires ``reset_history=True``.
-    See :meth:`Collider.refresh <jaxdem.colliders.Collider.refresh>`.
+    See :meth:`Collider.refresh`.
 
     Example
     -------
@@ -415,8 +390,13 @@ def refresh_collider(
 
 
 def advance_history(
-    state_old: State, system_old: System, state_new: State, system_new: System
-) -> tuple[State, System]:
+    state_old: State,
+    system_old: System,
+    state_new: State,
+    system_new: System,
+    *,
+    virial: bool = False,
+) -> tuple[Any, ...]:
     """Advance pair history for a change of configuration without time passing.
 
     The motion from ``(state_old, system_old)`` to ``(state_new, system_new)``
@@ -427,11 +407,11 @@ def advance_history(
     ``quasistatic=True``, so ``dt`` cancels exactly and no velocity-
     dependent force acts.
 
-    Used by affine box deformation (:meth:`Domain.shear <jaxdem.domains.lees_edwards.LeesEdwardsDomain.shear>`,
-    :meth:`Domain.resize <jaxdem.domains.Domain.resize>`) and by relaxation. Dynamics does not call it: the
+    Used by affine box deformation (:meth:`Domain.shear`,
+    :meth:`Domain.resize`) and by relaxation. Dynamics does not call it: the
     integrator's own velocities advance history inside ``compute_force``.
 
-    This relies on the ``quasistatic`` contract of :meth:`ForceModel.force <jaxdem.forces.ForceModel.force>`:
+    This relies on the ``quasistatic`` contract of :meth:`ForceModel.force`:
     the law produces no velocity-dependent force, and its history update
     depends on velocity only through ``velocity * dt``. A law that breaks
     either rule gives a ``dt``-dependent result here.
@@ -444,12 +424,17 @@ def advance_history(
     system : System
         ``system_new`` with the advanced collider history and updated overflow
         flag. The domain and ``dt`` are those of ``system_new``.
+    virial : jax.Array, optional
+        The pair virial of the new configuration, returned third when
+        ``virial=True`` (see :meth:`Collider.compute_force`).
 
-    This is a trace-time no-op for stateless force laws.
+    Stateless force laws skip the force evaluation unless the virial is
+    requested.
     """
     from ..utils.quaternion import Quaternion
 
-    if system_new.force_model.history_shape(state_new.dim) == (0,):
+    stateless = system_new.force_model.history_shape(state_new.dim) == (0,)
+    if stateless and not virial:
         return state_new, system_new
     dt = system_new.dt
     vel = (state_new.pos_c - state_old.pos_c) / dt
@@ -460,8 +445,13 @@ def advance_history(
     moving_system = dataclasses.replace(
         system_new, domain=system_new.domain.rates_between(system_old.domain, dt)
     )
-    moving_state, advanced = moving_system.collider.compute_force(
-        moving_state, moving_system, advance_history=True, quasistatic=True
+    # Only name the flag when set, so colliders without it keep working.
+    moving_state, advanced, *extra = moving_system.collider.compute_force(
+        moving_state,
+        moving_system,
+        advance_history=True,
+        quasistatic=True,
+        **({"virial": True} if virial else {}),
     )
     state = dataclasses.replace(
         state_new, force=moving_state.force, torque=moving_state.torque
@@ -471,13 +461,13 @@ def advance_history(
         collider=advanced.collider,
         search_overflow=system_new.search_overflow | advanced.collider.overflow,
     )
-    return state, system
+    return (state, system, *extra)
 
 
-from .cell_list import DynamicCellList  # noqa: E402
-from .multi_cell_list import DynamicMultiCellList  # noqa: E402
-from .naive import NaiveSimulator  # noqa: E402
-from .neighbor_list import NeighborList  # noqa: E402
+from .cell_list import DynamicCellList
+from .multi_cell_list import DynamicMultiCellList
+from .naive import NaiveSimulator
+from .neighbor_list import NeighborList
 
 __all__ = [
     "Collider",

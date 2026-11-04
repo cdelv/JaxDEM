@@ -8,13 +8,10 @@ These helpers centralize grid-parameter computation and cell-hash dtype for
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import jax
 import jax.numpy as jnp
-
-from collections.abc import Callable
-from functools import partial
-from typing import TYPE_CHECKING, cast
-
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -29,260 +26,80 @@ NEIGHBOR_QUERY_BATCH_SIZE = 65_536
 PAIR_TRAVERSAL_BATCH_SIZE = 16_384
 
 
-#: Number of candidate particles each while-loop iteration of the pair
-#: traversals visits. A vmapped ``lax.while_loop`` runs until the longest
-#: lane finishes. Visiting several candidates reduces loop iterations at
-#: the price of at most ``PAIR_UNROLL - 1`` extra masked pair evaluations
-#: per lane.
-PAIR_UNROLL = 4
+@jax.jit(inline=True)
+def _cell_starts(sorted_hashes: jax.Array, queries: jax.Array) -> jax.Array:
+    """Return the first sorted index for each queried cell hash.
+
+    Dense, modest hash ranges use a temporary direct table. Sparse ranges use
+    ``searchsorted`` instead. Missing hashes return the
+    insertion point in the sparse branch and ``N`` in the dense branch; grid
+    traversals verify the hash at that candidate before accepting the cell.
+    """
+    n_items = sorted_hashes.shape[0]
+    if n_items == 0:
+        return jnp.zeros(queries.shape, dtype=jnp.int32)
+
+    capacity = 8 * n_items
+    if capacity > 2**31 - 1:
+        return jnp.searchsorted(
+            sorted_hashes, queries, side="left", method="scan_unrolled"
+        )
+
+    hash_capacity = jnp.asarray(capacity, dtype=sorted_hashes.dtype)
+    use_dense = sorted_hashes[-1] < hash_capacity
+
+    def dense_lookup() -> jax.Array:
+        table = jnp.full((capacity,), n_items, dtype=jnp.int32)
+        stored_in_range = sorted_hashes < hash_capacity
+        stored_indices = jnp.where(
+            stored_in_range, sorted_hashes, hash_capacity
+        ).astype(jnp.int32)
+        table = table.at[stored_indices].min(
+            jax.lax.iota(jnp.int32, n_items), mode="drop"
+        )
+
+        query_in_range = queries < hash_capacity
+        query_indices = jnp.where(query_in_range, queries, hash_capacity).astype(
+            jnp.int32
+        )
+        return table.at[query_indices].get(mode="fill", fill_value=n_items)
+
+    def sparse_lookup() -> jax.Array:
+        return jnp.searchsorted(
+            sorted_hashes, queries, side="left", method="scan_unrolled"
+        )
+
+    return jax.lax.cond(use_dense, dense_lookup, sparse_lookup)
 
 
-@jax.jit
-@partial(jax.named_call, name="cell_list._get_spatial_partition")
-def _get_spatial_partition(
+@jax.jit(inline=True)
+def pair_virial(
+    i: jax.Array,
+    j: jax.Array,
     pos: jax.Array,
-    system: System,
-    cell_size: jax.Array,
-    neighbor_mask: jax.Array,
-    iota: jax.Array,
-) -> tuple[jax.Array, ...]:
-    """Compute the spatial hashing and partitioning of the cell list.
+    force: jax.Array,
+    state: "State",
+    system: "System",
+) -> jax.Array:
+    """Directed-pair virial ``F_ij . (R_i - R_j)`` with body-centre branch vectors.
 
-    Returns
-    -------
-    tuple[jax.Array, ...]
-        ``(perm, p_cell_hash, neighbor_cell_hashes, hash_overflow)``.
+    ``force`` acts on ``i``. The branch is the minimum-image sphere
+    displacement minus the rotated member offsets, which is the displacement
+    of the two body centres. Summing over directed pairs counts each pair
+    twice; callers halve the total. The result is minus the derivative of the
+    pair energy with respect to the log of a uniform box scale, so
+    ``0.5 * sum / (dim * volume)`` is the contact pressure.
     """
-    grid_dims, grid_strides, cell_size, hash_overflow = _grid_params(
-        system.domain.box_size, cell_size, system.domain.periodic
+    offset = state._pos_p_rot
+    branch = system.domain.displacement(pos[i], pos[j], system) - (
+        offset[i] - offset[j]
     )
-
-    hash_dtype = grid_strides.dtype
-    hash_sentinel = jnp.bitwise_not(jnp.asarray(0, hash_dtype))
-    pos = system.domain._shift(pos, system)
-    if system.domain.periodic:
-        p_cell_coords = jnp.floor(
-            (((pos - system.domain.anchor) / system.domain.box_size) % 1) * grid_dims
-        ).astype(hash_dtype)
-    else:
-        p_cell_coords = jnp.floor((pos - system.domain.anchor) / cell_size).astype(
-            hash_dtype
-        )
-
-    p_cell_hash = jnp.dot(p_cell_coords, grid_strides)
-
-    p_cell_hash, perm = jax.lax.sort([p_cell_hash, iota], num_keys=1)
-
-    # Note: we compute neighbor coords using original (unsorted) p_cell_coords
-    base_coords = p_cell_coords[:, None, :]
-    offsets = neighbor_mask[None, :, :]
-    nonnegative = offsets >= 0
-    offset_magnitude = jnp.where(nonnegative, offsets, -offsets).astype(hash_dtype)
-
-    def wrapped_offset_coords() -> tuple[jax.Array, jax.Array]:
-        """Unsigned modular coordinates plus signed periodic image counts."""
-        dims = grid_dims[None, None, :]
-        quotient = offset_magnitude // dims
-        remainder = offset_magnitude % dims
-        positive_carry = base_coords >= (dims - remainder)
-        positive_coords = jnp.where(
-            (remainder == 0) | ~positive_carry,
-            base_coords + remainder,
-            base_coords - (dims - remainder),
-        )
-        negative_borrow = remainder > base_coords
-        negative_coords = jnp.where(
-            negative_borrow,
-            dims - (remainder - base_coords),
-            base_coords - remainder,
-        )
-        coords = jnp.where(nonnegative, positive_coords, negative_coords)
-        image = jnp.where(
-            nonnegative,
-            quotient.astype(offsets.dtype) + positive_carry.astype(offsets.dtype),
-            -quotient.astype(offsets.dtype) - negative_borrow.astype(offsets.dtype),
-        )
-        return coords, image
-
-    if system.domain.periodic:
-        neighbor_cell_coords, periodic_image = wrapped_offset_coords()
-
-        neighbor_cell_coords = system.domain.neighbor_cells(
-            neighbor_cell_coords, periodic_image, grid_dims, cell_size
-        )
-        neighbor_cell_hashes = jnp.dot(
-            neighbor_cell_coords.astype(hash_dtype), grid_strides
-        )
-    else:
-        positive_oob = offset_magnitude >= grid_dims - base_coords
-        negative_oob = offset_magnitude > base_coords
-        out_of_bounds = jnp.any(
-            jnp.where(nonnegative, positive_oob, negative_oob), axis=-1
-        )
-        neighbor_cell_coords = jnp.where(
-            nonnegative, base_coords + offset_magnitude, base_coords - offset_magnitude
-        )
-        neighbor_cell_hashes = jnp.dot(neighbor_cell_coords, grid_strides)
-        neighbor_cell_hashes = jnp.where(
-            out_of_bounds, hash_sentinel, neighbor_cell_hashes
-        )
-
-    return (
-        perm,
-        p_cell_hash,
-        neighbor_cell_hashes,
-        hash_overflow,
-    )
+    return jnp.sum(force * branch, axis=-1)
 
 
-@jax.jit(inline=True)
-@partial(jax.named_call, name="cell_list._dedup_stencil_hashes")
-def _dedup_stencil_hashes(stencil_hashes: jax.Array) -> jax.Array:
-    """Deduplicate one particle's stencil hashes using the unsigned sentinel."""
-    indices = jnp.arange(stencil_hashes.size)
-    is_duplicate = jnp.zeros(stencil_hashes.shape, dtype=bool)
-    # Small static slices fuse with their reductions instead of materializing
-    # an (N, stencil, stencil) temporary for a large shear-periodic stencil.
-    for start in range(0, stencil_hashes.size, 16):
-        end = min(start + 16, stencil_hashes.size)
-        mask = (indices[start:end, None] < indices[None, :]) & (
-            stencil_hashes[start:end, None] == stencil_hashes[None, :]
-        )
-        is_duplicate |= jnp.any(mask, axis=0)
-    sentinel = jnp.bitwise_not(jnp.asarray(0, stencil_hashes.dtype))
-    return jnp.where(is_duplicate, sentinel, stencil_hashes)
-
-
-def _make_direct_row_body(
-    sorted_hashes: jax.Array,
-    n_db: int | jax.Array,
-    local_capacity: int,
-    candidate_valid: Callable[[jax.Array], jax.Array],
-) -> Callable[[jax.Array, jax.Array], tuple[jax.Array, jax.Array]]:
-    """Build one neighbor row directly while walking its stencil in order.
-
-    The returned function carries one ``local_capacity``-wide row across all
-    stencil cells. This avoids materializing per-cell rows of shape
-    ``(stencil_size, local_capacity)`` before packing.
-
-    Parameters
-    ----------
-    sorted_hashes : jax.Array
-        Cell hashes of the database points, sorted ascending.
-    n_db : int | jax.Array
-        Number of database points.
-    local_capacity : int
-        Static size of the output neighbor row.
-    candidate_valid : Callable[[jax.Array], jax.Array]
-        Boolean predicate evaluated on each candidate database index.
-    """
-
-    @jax.jit(inline=True)
-    def row_body(
-        stencil: jax.Array, cell_starts: jax.Array
-    ) -> tuple[jax.Array, jax.Array]:
-        j_arr = jax.lax.iota(dtype=int, size=PAIR_UNROLL)
-        init_carry = (
-            jnp.array(0, dtype=int),
-            cell_starts[0],
-            jnp.array(0, dtype=int),
-            jnp.full((local_capacity,), -1, dtype=int),
-            jnp.array(False),  # overflow flag
-        )
-
-        def cond_fun(
-            val: tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array],
-        ) -> bool:
-            stencil_idx, _, c, _, _ = val
-            in_stencil = stencil_idx < stencil.shape[0]
-            has_space = c < local_capacity + 1
-            return cast(bool, in_stencil * has_space)
-
-        def body_fun(
-            val: tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array],
-        ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
-            stencil_idx, k, c, nl, overflow = val
-            target_cell_hash = stencil[stencil_idx]
-            actual_k_arr = k + j_arr
-            safe_k_arr = jnp.minimum(actual_k_arr, jnp.maximum(1, n_db) - 1)
-            in_cell_arr = (actual_k_arr < n_db) * (
-                sorted_hashes[safe_k_arr] == target_cell_hash
-            )
-            valid_arr = jax.vmap(candidate_valid)(safe_k_arr) * in_cell_arr
-
-            valid_counts = valid_arr.astype(c.dtype)
-            num_valid = jnp.sum(valid_counts)
-
-            cumsum = jnp.cumsum(valid_counts) - valid_counts
-            write_idx_arr = c + cumsum
-            write_idx_arr = jnp.where(valid_arr, write_idx_arr, local_capacity)
-
-            nl = nl.at[write_idx_arr].set(safe_k_arr, mode="drop")
-            c = c + num_valid
-            overflow = overflow | (c > local_capacity)
-
-            next_k = k + PAIR_UNROLL
-            safe_next_k = jnp.minimum(next_k, jnp.maximum(1, n_db) - 1)
-            remains_in_cell = (next_k < n_db) & (
-                sorted_hashes[safe_next_k] == target_cell_hash
-            )
-            next_stencil_idx = jnp.where(remains_in_cell, stencil_idx, stencil_idx + 1)
-            safe_stencil_idx = jnp.minimum(next_stencil_idx, stencil.shape[0] - 1)
-            next_k = jnp.where(remains_in_cell, next_k, cell_starts[safe_stencil_idx])
-            return next_stencil_idx, next_k, c, nl, overflow
-
-        _, _, _, neighbor_row, row_overflow = jax.lax.while_loop(
-            cond_fun, body_fun, init_carry
-        )
-        return neighbor_row, row_overflow
-
-    return row_body
-
-
-@jax.jit(inline=True)
-@partial(jax.named_call, name="multi_cell_list._loose_cell_aabbs")
-def _loose_cell_aabbs(
-    member_min: jax.Array,
-    member_max: jax.Array,
-    sorted_hash: jax.Array,
-) -> tuple[jax.Array, jax.Array]:
-    """Per-loose-cell axis-aligned bounding box, broadcast to each member.
-
-    The hash-sorted particles of a loose cell form a contiguous run. The
-    function therefore computes the cell's expandable AABB (the union of
-    every member's box ``[member_min, member_max]``) as a segmented min/max
-    reduction over those runs. It returns the result as
-    ``(cell_center, cell_half_extent)`` indexed by sorted particle.
-    """
-    N = member_min.shape[0]
-    # Dense, contiguous segment id per sorted particle (0-based cell rank).
-    seg_start = jnp.concatenate(
-        [jnp.array([True]), sorted_hash[1:] != sorted_hash[:-1]]
-    )
-    seg_id = jnp.cumsum(seg_start) - 1
-
-    cell_min = jax.ops.segment_min(member_min, seg_id, num_segments=N)[seg_id]
-    cell_max = jax.ops.segment_max(member_max, seg_id, num_segments=N)[seg_id]
-
-    cell_center = 0.5 * (cell_min + cell_max)
-    cell_half = 0.5 * (cell_max - cell_min)
-    return cell_center, cell_half
-
-
-@jax.jit(inline=True)
-def _sorted_cell_run_ends(hashes: jax.Array) -> jax.Array:
-    """Return each sorted member's exclusive cell boundary."""
-    n = hashes.shape[0]
-    if n == 0:
-        return jnp.zeros_like(hashes, dtype=int)
-    last = jnp.concatenate((hashes[1:] != hashes[:-1], jnp.ones((1,), bool)))
-    ends = jnp.where(last, jnp.arange(1, n + 1), n)
-    return jax.lax.associative_scan(jnp.minimum, ends, reverse=True)
-
-
-@jax.jit(inline=True, static_argnames=("quasistatic",))
+@jax.jit(inline=True, static_argnames=("quasistatic", "virial"))
 def _force_pair_fn(
-    acc: tuple[jax.Array, jax.Array],
+    acc: tuple[jax.Array, ...],
     i: jax.Array,
     j: jax.Array,
     pos: jax.Array,
@@ -290,7 +107,8 @@ def _force_pair_fn(
     valid: jax.Array,
     system: "System",
     quasistatic: bool = False,
-) -> tuple[jax.Array, jax.Array]:
+    virial: bool = False,
+) -> tuple[jax.Array, ...]:
     history = system.force_model.init_history(jnp.shape(j), pos.shape[-1])
     f, t, _ = system.force_model.force(
         i,
@@ -304,7 +122,9 @@ def _force_pair_fn(
     )
     f = jnp.where((valid > 0)[..., None], f, 0.0)
     t = jnp.where((valid > 0)[..., None], t, 0.0)
-    return acc[0] + f, acc[1] + t
+    if not virial:
+        return acc[0] + f, acc[1] + t
+    return acc[0] + f, acc[1] + t, acc[2] + pair_virial(i, j, pos, f, state, system)
 
 
 @jax.jit(inline=True)
@@ -380,27 +200,9 @@ def _grid_params(
 
     (_, product_overflow), grid_strides = jax.lax.scan(
         step,
-        # Derive the scalar from grid_dims so it carries the same manual-axis
-        # variance under shard_map. A literal one is replicated whereas the
-        # products in the scan can differ between independently sharded worlds.
-        (jnp.ones_like(grid_dims[0]), ~dims_valid),
+        (jnp.asarray(1, hash_dtype), ~dims_valid),
         grid_dims,
     )
     hash_overflow = product_overflow
 
     return grid_dims, grid_strides, cell_size, hash_overflow
-
-
-def _capacity_offsets(counts: jax.Array, capacity: int) -> tuple[jax.Array, jax.Array]:
-    """Saturate at capacity + 1 so even severe overflows cannot wrap integers."""
-    limit = capacity + 1
-    totals = jax.lax.associative_scan(
-        lambda a, b: a + jnp.minimum(b, limit - a), jnp.minimum(counts, limit)
-    )
-    overflow = totals[-1] > capacity
-    return (
-        jnp.concatenate(
-            (jnp.zeros(1, dtype=counts.dtype), jnp.minimum(totals, capacity))
-        ),
-        overflow,
-    )

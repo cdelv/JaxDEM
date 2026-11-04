@@ -4,15 +4,16 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field, replace
+from functools import partial
+from typing import TYPE_CHECKING, Any
+
 import jax
 import jax.numpy as jnp
 
-from dataclasses import dataclass, field, replace
-from functools import partial
-from typing import TYPE_CHECKING, Any, Self
-
 from ..utils.linalg import cross, norm2
 from . import Collider, valid_interaction_mask
+from ._partition import pair_virial
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -70,7 +71,7 @@ class NaiveSimulator(Collider):
     stored history of the directed pair ``(i, j)``, the interaction on ``i``
     from ``j``. Every pair keeps the same slot for the life of the collider,
     so no remapping is ever needed. Stateless laws have a zero-width trailing
-    axis, which costs nothing. :meth:`System.create <jaxdem.system.System.create>` allocates the buffer.
+    axis, which costs nothing. :meth:`System.create` allocates the buffer.
 
     Complexity
     ----------
@@ -93,7 +94,7 @@ class NaiveSimulator(Collider):
         force_model: Any | None = None,
         *,
         reset_history: bool = False,
-    ) -> Self:
+    ) -> Collider:
         """Reallocate the dense history when the particle count changes."""
         history = self.history
         tail = history.shape[2:]
@@ -113,9 +114,8 @@ class NaiveSimulator(Collider):
         """Gather the dense history rows and columns of the surviving particles."""
         if self.history.size == 0:
             return system
-        history = self.history[new_to_old[:, None], new_to_old[None, :]]
-        collider = _naive_collider(system.collider)
-        return replace(system, collider=replace(collider, history=history))
+        history = self.history[new_to_old][:, new_to_old]
+        return replace(system, collider=replace(system.collider, history=history))
 
     @property
     def metadata(self) -> dict[str, Any]:
@@ -127,7 +127,7 @@ class NaiveSimulator(Collider):
         state: State, system: System, neighbor_list: jax.Array
     ) -> jax.Array:
         """Gather stored history for an explicit ``(N, k)`` pair query."""
-        collider = _naive_collider(system.collider)
+        collider = system.collider
         history = _dense_history(state, system, collider.history)
         rows = jnp.arange(state.N)[:, None]
         gathered = history[rows, jnp.maximum(neighbor_list, 0)]
@@ -164,8 +164,7 @@ class NaiveSimulator(Collider):
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
         pos = state.pos
-        collider = _naive_collider(system.collider)
-        history = _dense_history(state, system, collider.history)
+        history = _dense_history(state, system, system.collider.history)
 
         def row_energy(i: jax.Array, row_history: jax.Array) -> jax.Array:
             e_ij = jax.vmap(
@@ -273,7 +272,7 @@ class NaiveSimulator(Collider):
         return state, system, nl, jnp.any(overflows)
 
     @staticmethod
-    @jax.jit(inline=True, static_argnames=("advance_history", "quasistatic"))
+    @jax.jit(inline=True, static_argnames=("advance_history", "quasistatic", "virial"))
     @partial(jax.named_call, name="NaiveSimulator.compute_force")
     def compute_force(
         state: State,
@@ -281,7 +280,8 @@ class NaiveSimulator(Collider):
         *,
         advance_history: bool = True,
         quasistatic: bool = False,
-    ) -> tuple[State, System]:
+        virial: bool = False,
+    ) -> tuple[Any, ...]:
         r"""Compute the total force acting on each particle with a naive :math:`O(N^2)` all-pairs loop.
 
         This method sums the force contributions of the ``system.force_model``
@@ -298,18 +298,21 @@ class NaiveSimulator(Collider):
             Advance the stored pair history over this step.
         quasistatic : bool, optional
             Forwarded to the force law. True omits velocity-dependent terms.
+        virial : bool, optional
+            Also return the pair virial (see :meth:`Collider.compute_force`).
 
         Returns
         -------
         Tuple[State, System]
             The updated ``State`` with computed forces and the ``System`` with
-            the (possibly advanced) pair history.
+            the (possibly advanced) pair history, followed by the virial when
+            requested.
 
         """
         iota = jax.lax.iota(dtype=int, size=state.N)
         pos_p = state._pos_p_rot
         pos = state.pos
-        collider = _naive_collider(system.collider)
+        collider = system.collider
         allocated = _history_allocated(state, system, collider.history)
         if (
             advance_history
@@ -352,24 +355,21 @@ class NaiveSimulator(Collider):
                 new_history = row_history
             f_i = jnp.sum(res_f, axis=0)
             t_i = jnp.sum(res_t, axis=0) + cross(pos_pi, f_i)
-            return f_i, t_i, new_history
+            w_i = (
+                jnp.sum(pair_virial(i, iota, pos, res_f, state, system))
+                if virial
+                else None
+            )
+            return f_i, t_i, new_history, w_i
 
-        state.force, state.torque, history = jax.vmap(per_particle_i)(
+        state.force, state.torque, history, w = jax.vmap(per_particle_i)(
             iota, pos_p, history
         )
-        if not (advance_history and allocated):
-            return state, system
-        return state, replace(system, collider=replace(collider, history=history))
-
-
-def _naive_collider(collider: Collider) -> NaiveSimulator:
-    """Require the dense-history collider used by the naive evaluation methods."""
-    if not isinstance(collider, NaiveSimulator):
-        raise TypeError(
-            "NaiveSimulator evaluation requires a NaiveSimulator collider, "
-            f"got {type(collider).__name__}."
-        )
-    return collider
+        if advance_history and allocated:
+            system = replace(system, collider=replace(collider, history=history))
+        if virial:
+            return state, system, 0.5 * jnp.sum(w)
+        return state, system
 
 
 def _history_allocated(state: State, system: System, history: jax.Array) -> bool:
