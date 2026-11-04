@@ -1,0 +1,12 @@
+jaxdem.forces.wca
+=================
+
+.. automodule:: jaxdem.forces.wca
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      WCA
+   

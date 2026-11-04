@@ -1,0 +1,23 @@
+jaxdem.forces.cundall\_strack
+=============================
+
+.. automodule:: jaxdem.forces.cundall_strack
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      arithmetic_mean_friction
+      geometric_mean_friction
+      get_cundall_strack_contacts
+      maximum_friction
+      minimum_friction
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      CundallStrackContactData
+      CundallStrackForce
+   

@@ -1,0 +1,12 @@
+jaxdem.factory
+==============
+
+.. automodule:: jaxdem.factory
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Factory
+   

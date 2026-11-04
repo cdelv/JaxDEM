@@ -1,0 +1,20 @@
+jaxdem.material\_matchmakers
+============================
+
+.. automodule:: jaxdem.material_matchmakers
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      MaterialMatchmaker
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   harmonic
+   linear

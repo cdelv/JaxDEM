@@ -1,0 +1,12 @@
+jaxdem.forces.lennardjones
+==========================
+
+.. automodule:: jaxdem.forces.lennardjones
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      LennardJones
+   

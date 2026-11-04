@@ -1,0 +1,12 @@
+jaxdem.rl.action\_spaces.blockwise\_space
+=========================================
+
+.. automodule:: jaxdem.rl.action_spaces.blockwise_space
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      BlockwiseSpace
+   

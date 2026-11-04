@@ -1,0 +1,338 @@
+{
+  "title": "Shear flow disks",
+  "renderer": "ParaView",
+  "paraview_version": "6.2.0",
+  "manifest": "/tmp/jaxdem-media-shear_flow_disks-va5xfyk9/scene.json",
+  "size": [
+    960,
+    600
+  ],
+  "camera": "xy",
+  "bounds": [
+    -0.46739462018013,
+    5.0557990074157715,
+    -0.5005337595939636,
+    3.6112849712371826,
+    -0.699999988079071,
+    0.699999988079071
+  ],
+  "poster_time": 4.0,
+  "time_label": "t",
+  "native_times": [
+    1.0,
+    2.0,
+    3.0,
+    4.0
+  ],
+  "animation_times": [
+    1.0,
+    2.0,
+    3.0,
+    4.0
+  ],
+  "fps": 2,
+  "end_hold_frames": 0,
+  "end_hold_seconds": 0.0,
+  "encoded_frame_count": 4,
+  "series": [
+    {
+      "path": "/tmp/jaxdem-media-shear_flow_disks-va5xfyk9/vtk/group_00/batch_00000000_domain.pvd",
+      "kind": "domain",
+      "native_times": [
+        1.0,
+        2.0,
+        3.0,
+        4.0
+      ],
+      "source_points": 24,
+      "source_cells": 6,
+      "point_arrays": [
+        "Normals",
+        "TCoords"
+      ],
+      "representation": {},
+      "geometry_points": 24,
+      "geometry_cells": 6
+    },
+    {
+      "path": "/tmp/jaxdem-media-shear_flow_disks-va5xfyk9/vtk/group_00/batch_00000000_spheres.pvd",
+      "kind": "particles",
+      "native_times": [
+        1.0,
+        2.0,
+        3.0,
+        4.0
+      ],
+      "source_points": 8,
+      "source_cells": 0,
+      "point_arrays": [
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "rad",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_id",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color_by": "rad",
+        "color": [
+          0.12,
+          0.48,
+          0.72
+        ]
+      },
+      "geometry_points": 11536,
+      "geometry_cells": 23040
+    }
+  ],
+  "outputs": {
+    "scene.png": 93217,
+    "animation.mp4": 33632
+  },
+  "example": "shear_flow_disks.py",
+  "example_sha256": "bb6a8d7059ab484cd9cb0b9f5fe2fb6611468ab09dc676a0838cc812b6a8021c",
+  "library_revision": "f1faf9dae4e4d40d0f3969eb7d0028ad546339f3",
+  "library_sha256": "9f30aa41eea8e17e941ff6fec0afd451ba824b15277853a2678b051345d4a1d2",
+  "media_seconds": 2.931,
+  "simulation": {
+    "slug": "shear_flow_disks",
+    "source": "Current example State/System snapshots via VTKWriter; derived diagnostics via native VTK",
+    "groups": [
+      {
+        "label": "Saved trajectory",
+        "source_frames": 4,
+        "exported_frames": 4,
+        "selected_indices": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "particle_rows": [
+          8,
+          8,
+          8,
+          8
+        ],
+        "source_step_counts": [
+          100,
+          200,
+          300,
+          400
+        ],
+        "source_times": [
+          1.0000000000000007,
+          2.0000000000000013,
+          2.99999999999998,
+          3.9999999999999587
+        ],
+        "collection_times": [
+          1.0000000000000007,
+          2.0000000000000013,
+          2.99999999999998,
+          3.9999999999999587
+        ],
+        "offset": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "geometry_only_system": false
+      }
+    ],
+    "geometry": [
+      {
+        "label": "Saved trajectory",
+        "kind": "domain",
+        "path": "/tmp/jaxdem-media-shear_flow_disks-va5xfyk9/vtk/group_00/batch_00000000_domain.pvd",
+        "point_arrays": [
+          "Normals",
+          "TCoords"
+        ],
+        "frames": [
+          {
+            "time": 1.0,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              3.9724135398864746,
+              0.0,
+              3.6112849712371826,
+              0.0,
+              0.0
+            ],
+            "bytes": 3086,
+            "physical_summary": {}
+          },
+          {
+            "time": 2.0,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              4.3335418701171875,
+              0.0,
+              3.6112849712371826,
+              0.0,
+              0.0
+            ],
+            "bytes": 3082,
+            "physical_summary": {}
+          },
+          {
+            "time": 3.0,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              4.694670677185059,
+              0.0,
+              3.6112849712371826,
+              0.0,
+              0.0
+            ],
+            "bytes": 3082,
+            "physical_summary": {}
+          },
+          {
+            "time": 4.0,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              5.0557990074157715,
+              0.0,
+              3.6112849712371826,
+              0.0,
+              0.0
+            ],
+            "bytes": 3086,
+            "physical_summary": {}
+          }
+        ]
+      },
+      {
+        "label": "Saved trajectory",
+        "kind": "particles",
+        "path": "/tmp/jaxdem-media-shear_flow_disks-va5xfyk9/vtk/group_00/batch_00000000_spheres.pvd",
+        "point_arrays": [
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "rad",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_id",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 1.0,
+            "points": 8,
+            "cells": 0,
+            "bounds": [
+              0.45019085003814574,
+              3.5432625331035967,
+              0.2820246362206445,
+              2.7486659602597405,
+              0.0,
+              0.0
+            ],
+            "bytes": 7150,
+            "physical_summary": {
+              "radius_min": 0.5,
+              "radius_max": 0.7,
+              "speed_max": 0.12434383501516344,
+              "force_norm_max": 0.039705967693160815
+            }
+          },
+          {
+            "time": 2.0,
+            "points": 8,
+            "cells": 0,
+            "bounds": [
+              0.0319636483062804,
+              3.0636337487619794,
+              0.26235050702215557,
+              2.780504195999957,
+              0.0,
+              0.0
+            ],
+            "bytes": 7150,
+            "physical_summary": {
+              "radius_min": 0.5,
+              "radius_max": 0.7,
+              "speed_max": 0.10579819484177734,
+              "force_norm_max": 0.04357439448052931
+            }
+          },
+          {
+            "time": 3.0,
+            "points": 8,
+            "cells": 0,
+            "bounds": [
+              0.11157464222523439,
+              2.984461438375097,
+              0.225558019602167,
+              2.8309893234670938,
+              0.0,
+              0.0
+            ],
+            "bytes": 7150,
+            "physical_summary": {
+              "radius_min": 0.5,
+              "radius_max": 0.7,
+              "speed_max": 0.10764058967915058,
+              "force_norm_max": 0.03989875558935187
+            }
+          },
+          {
+            "time": 4.0,
+            "points": 8,
+            "cells": 0,
+            "bounds": [
+              0.1679213249969207,
+              2.9536904236994745,
+              0.19856778860883387,
+              2.8674714141151054,
+              0.0,
+              0.0
+            ],
+            "bytes": 7034,
+            "physical_summary": {
+              "radius_min": 0.5,
+              "radius_max": 0.7,
+              "speed_max": 0.11842017203727569,
+              "force_norm_max": 0.012900172602981597
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

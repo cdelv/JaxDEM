@@ -1,0 +1,12 @@
+jaxdem.integrators.velocity\_verlet\_rescaling
+==============================================
+
+.. automodule:: jaxdem.integrators.velocity_verlet_rescaling
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      VelocityVerletRescaling
+   

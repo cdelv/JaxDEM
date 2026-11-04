@@ -1,0 +1,27 @@
+jaxdem.rl.environments
+======================
+
+.. automodule:: jaxdem.rl.environments
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Environment
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   granulabot
+   multi_navigator
+   multi_roller
+   single_navigator
+   single_roller
+   swarm_navigator
+   swarm_roller
+   three_gears
+   two_gears

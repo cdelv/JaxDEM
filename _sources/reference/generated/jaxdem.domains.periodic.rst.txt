@@ -1,0 +1,12 @@
+jaxdem.domains.periodic
+=======================
+
+.. automodule:: jaxdem.domains.periodic
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      PeriodicDomain
+   

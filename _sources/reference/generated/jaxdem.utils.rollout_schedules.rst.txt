@@ -1,0 +1,13 @@
+jaxdem.utils.rollout\_schedules
+===============================
+
+.. automodule:: jaxdem.utils.rollout_schedules
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      make_save_steps_linear
+      make_save_steps_pseudolog
+   

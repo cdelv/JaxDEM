@@ -1,0 +1,23 @@
+jaxdem.analysis.kernels
+=======================
+
+.. automodule:: jaxdem.analysis.kernels
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      isf_angular_kernel_2d
+      isf_self_isotropic_kernel
+      isf_self_kvecs_kernel
+      msad_kernel_2d
+      msd_kernel
+      unwrap_angles_2d
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      KernelFn
+   

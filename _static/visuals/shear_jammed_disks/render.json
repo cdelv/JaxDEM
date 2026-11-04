@@ -1,0 +1,734 @@
+{
+  "title": "Shear jammed disks",
+  "renderer": "ParaView",
+  "paraview_version": "6.2.0",
+  "manifest": "/tmp/jaxdem-media-shear_jammed_disks-jplr0r6v/scene.json",
+  "size": [
+    960,
+    600
+  ],
+  "camera": "xy",
+  "bounds": [
+    -0.08524581044912338,
+    3.9502577781677246,
+    -0.4319828152656555,
+    3.5140650272369385,
+    -0.699999988079071,
+    0.699999988079071
+  ],
+  "poster_time": 0.024,
+  "time_label": "strain gamma",
+  "native_times": [
+    0.0,
+    0.002,
+    0.004,
+    0.006,
+    0.008,
+    0.01,
+    0.012,
+    0.014,
+    0.016,
+    0.018,
+    0.02,
+    0.022,
+    0.024
+  ],
+  "animation_times": [
+    0.0,
+    0.002,
+    0.004,
+    0.006,
+    0.008,
+    0.01,
+    0.012,
+    0.014,
+    0.016,
+    0.018,
+    0.02,
+    0.022,
+    0.024
+  ],
+  "fps": 6,
+  "end_hold_frames": 0,
+  "end_hold_seconds": 0.0,
+  "encoded_frame_count": 13,
+  "series": [
+    {
+      "path": "/tmp/jaxdem-media-shear_jammed_disks-jplr0r6v/vtk/group_00/batch_00000000_domain.pvd",
+      "kind": "domain",
+      "native_times": [
+        0.0,
+        0.002,
+        0.004,
+        0.006,
+        0.008,
+        0.01,
+        0.012,
+        0.014,
+        0.016,
+        0.018,
+        0.02,
+        0.022,
+        0.024
+      ],
+      "source_points": 24,
+      "source_cells": 6,
+      "point_arrays": [
+        "Normals",
+        "TCoords"
+      ],
+      "representation": {},
+      "geometry_points": 24,
+      "geometry_cells": 6
+    },
+    {
+      "path": "/tmp/jaxdem-media-shear_jammed_disks-jplr0r6v/vtk/group_00/batch_00000000_spheres.pvd",
+      "kind": "particles",
+      "native_times": [
+        0.0,
+        0.002,
+        0.004,
+        0.006,
+        0.008,
+        0.01,
+        0.012,
+        0.014,
+        0.016,
+        0.018,
+        0.02,
+        0.022,
+        0.024
+      ],
+      "source_points": 8,
+      "source_cells": 0,
+      "point_arrays": [
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "rad",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_id",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color_by": "rad",
+        "color": [
+          0.12,
+          0.48,
+          0.72
+        ]
+      },
+      "geometry_points": 11536,
+      "geometry_cells": 23040
+    }
+  ],
+  "outputs": {
+    "scene.png": 99287,
+    "animation.mp4": 35614
+  },
+  "example": "shear_jammed_disks.py",
+  "example_sha256": "3fd562867da527f252efc2614b7cccd8b050ed548ad7b7c3f6af7e5a76f8cae0",
+  "library_revision": "f1faf9dae4e4d40d0f3969eb7d0028ad546339f3",
+  "library_sha256": "9f30aa41eea8e17e941ff6fec0afd451ba824b15277853a2678b051345d4a1d2",
+  "media_seconds": 3.864,
+  "simulation": {
+    "slug": "shear_jammed_disks",
+    "source": "Current example State/System snapshots via VTKWriter; derived diagnostics via native VTK",
+    "groups": [
+      {
+        "label": "Saved trajectory",
+        "source_frames": 13,
+        "exported_frames": 13,
+        "selected_indices": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12
+        ],
+        "particle_rows": [
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8,
+          8
+        ],
+        "source_step_counts": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "source_times": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "collection_times": [
+          0.0,
+          0.002,
+          0.004,
+          0.006,
+          0.008,
+          0.01,
+          0.012,
+          0.014,
+          0.016,
+          0.018000000000000002,
+          0.020000000000000004,
+          0.022000000000000006,
+          0.024000000000000007
+        ],
+        "offset": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "geometry_only_system": false
+      }
+    ],
+    "geometry": [
+      {
+        "label": "Saved trajectory",
+        "kind": "domain",
+        "path": "/tmp/jaxdem-media-shear_jammed_disks-jplr0r6v/vtk/group_00/batch_00000000_domain.pvd",
+        "point_arrays": [
+          "Normals",
+          "TCoords"
+        ],
+        "frames": [
+          {
+            "time": 0.0,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              3.5140650272369385,
+              0.0,
+              3.5140650272369385,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.002,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              3.5210931301116943,
+              0.0,
+              3.5140650272369385,
+              0.0,
+              0.0
+            ],
+            "bytes": 3082,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.004,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              3.52812123298645,
+              0.0,
+              3.5140650272369385,
+              0.0,
+              0.0
+            ],
+            "bytes": 3082,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.006,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              3.535149335861206,
+              0.0,
+              3.5140650272369385,
+              0.0,
+              0.0
+            ],
+            "bytes": 3086,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.008,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              3.542177438735962,
+              0.0,
+              3.5140650272369385,
+              0.0,
+              0.0
+            ],
+            "bytes": 3082,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.01,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              3.549205780029297,
+              0.0,
+              3.5140650272369385,
+              0.0,
+              0.0
+            ],
+            "bytes": 3086,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.012,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              3.5562338829040527,
+              0.0,
+              3.5140650272369385,
+              0.0,
+              0.0
+            ],
+            "bytes": 3082,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.014,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              3.5632619857788086,
+              0.0,
+              3.5140650272369385,
+              0.0,
+              0.0
+            ],
+            "bytes": 3082,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.016,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              3.5702900886535645,
+              0.0,
+              3.5140650272369385,
+              0.0,
+              0.0
+            ],
+            "bytes": 3082,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.018,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              3.5773181915283203,
+              0.0,
+              3.5140650272369385,
+              0.0,
+              0.0
+            ],
+            "bytes": 3082,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.02,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              3.584346294403076,
+              0.0,
+              3.5140650272369385,
+              0.0,
+              0.0
+            ],
+            "bytes": 3086,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.022,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              3.591374397277832,
+              0.0,
+              3.5140650272369385,
+              0.0,
+              0.0
+            ],
+            "bytes": 3082,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.024,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              3.598402500152588,
+              0.0,
+              3.5140650272369385,
+              0.0,
+              0.0
+            ],
+            "bytes": 3082,
+            "physical_summary": {}
+          }
+        ]
+      },
+      {
+        "label": "Saved trajectory",
+        "kind": "particles",
+        "path": "/tmp/jaxdem-media-shear_jammed_disks-jplr0r6v/vtk/group_00/batch_00000000_spheres.pvd",
+        "point_arrays": [
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "rad",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_id",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 0.0,
+            "points": 8,
+            "cells": 0,
+            "bounds": [
+              0.41411245872988145,
+              3.3357094708872648,
+              0.2671187656941398,
+              2.674577707868677,
+              0.0,
+              0.0
+            ],
+            "bytes": 6930,
+            "physical_summary": {
+              "radius_min": 0.5,
+              "radius_max": 0.7,
+              "speed_max": 0.0,
+              "force_norm_max": 9.455277309415916e-08
+            }
+          },
+          {
+            "time": 0.002,
+            "points": 8,
+            "cells": 0,
+            "bounds": [
+              0.41701498623969613,
+              3.3388496036807296,
+              0.2676240612042541,
+              2.6744811057127786,
+              0.0,
+              0.0
+            ],
+            "bytes": 6934,
+            "physical_summary": {
+              "radius_min": 0.5,
+              "radius_max": 0.7,
+              "speed_max": 0.0,
+              "force_norm_max": 9.738863456270648e-08
+            }
+          },
+          {
+            "time": 0.004,
+            "points": 8,
+            "cells": 0,
+            "bounds": [
+              0.41991783701381413,
+              3.3419697607118906,
+              0.26811464494977977,
+              2.674396813987627,
+              0.0,
+              0.0
+            ],
+            "bytes": 6930,
+            "physical_summary": {
+              "radius_min": 0.5,
+              "radius_max": 0.7,
+              "speed_max": 0.0,
+              "force_norm_max": 8.905026403165826e-08
+            }
+          },
+          {
+            "time": 0.006,
+            "points": 8,
+            "cells": 0,
+            "bounds": [
+              0.4228211561583408,
+              3.3450706336068676,
+              0.2685902388800288,
+              2.6743249124104045,
+              0.0,
+              0.0
+            ],
+            "bytes": 6926,
+            "physical_summary": {
+              "radius_min": 0.5,
+              "radius_max": 0.7,
+              "speed_max": 0.0,
+              "force_norm_max": 8.724525674043449e-08
+            }
+          },
+          {
+            "time": 0.008,
+            "points": 8,
+            "cells": 0,
+            "bounds": [
+              0.4257248146617103,
+              3.3481536140932042,
+              0.2690507505826965,
+              2.6742656659708235,
+              0.0,
+              0.0
+            ],
+            "bytes": 6926,
+            "physical_summary": {
+              "radius_min": 0.5,
+              "radius_max": 0.7,
+              "speed_max": 0.0,
+              "force_norm_max": 8.586690373187869e-08
+            }
+          },
+          {
+            "time": 0.01,
+            "points": 8,
+            "cells": 0,
+            "bounds": [
+              0.4286296464121424,
+              3.351215325371595,
+              0.26949401427788316,
+              2.6742187009227534,
+              0.0,
+              0.0
+            ],
+            "bytes": 6926,
+            "physical_summary": {
+              "radius_min": 0.5,
+              "radius_max": 0.7,
+              "speed_max": 0.0,
+              "force_norm_max": 7.779157706425719e-08
+            }
+          },
+          {
+            "time": 0.012,
+            "points": 8,
+            "cells": 0,
+            "bounds": [
+              0.43153545471773347,
+              3.3542566850204008,
+              0.26991987673545587,
+              2.674184189956772,
+              0.0,
+              0.0
+            ],
+            "bytes": 6930,
+            "physical_summary": {
+              "radius_min": 0.5,
+              "radius_max": 0.7,
+              "speed_max": 0.0,
+              "force_norm_max": 7.98870136080398e-08
+            }
+          },
+          {
+            "time": 0.014,
+            "points": 8,
+            "cells": 0,
+            "bounds": [
+              0.4344430461630906,
+              3.3572761176842882,
+              0.27032695135809653,
+              2.6741617545979453,
+              0.0,
+              0.0
+            ],
+            "bytes": 6930,
+            "physical_summary": {
+              "radius_min": 0.5,
+              "radius_max": 0.7,
+              "speed_max": 0.0,
+              "force_norm_max": 9.80494429985743e-08
+            }
+          },
+          {
+            "time": 0.016,
+            "points": 8,
+            "cells": 0,
+            "bounds": [
+              0.4373517839584533,
+              3.360276976923926,
+              0.27071578517280953,
+              2.674151981563286,
+              0.0,
+              0.0
+            ],
+            "bytes": 6930,
+            "physical_summary": {
+              "radius_min": 0.5,
+              "radius_max": 0.7,
+              "speed_max": 0.0,
+              "force_norm_max": 9.541371465267402e-08
+            }
+          },
+          {
+            "time": 0.018,
+            "points": 8,
+            "cells": 0,
+            "bounds": [
+              0.4402626831411407,
+              3.363253706848346,
+              0.2710835820954223,
+              2.674154033840754,
+              0.0,
+              0.0
+            ],
+            "bytes": 6926,
+            "physical_summary": {
+              "radius_min": 0.5,
+              "radius_max": 0.7,
+              "speed_max": 0.0,
+              "force_norm_max": 9.390066053159569e-08
+            }
+          },
+          {
+            "time": 0.02,
+            "points": 8,
+            "cells": 0,
+            "bounds": [
+              0.443175646448144,
+              3.366208808309481,
+              0.2714306993607833,
+              2.674168162350418,
+              0.0,
+              0.0
+            ],
+            "bytes": 6930,
+            "physical_summary": {
+              "radius_min": 0.5,
+              "radius_max": 0.7,
+              "speed_max": 0.0,
+              "force_norm_max": 9.874737006265751e-08
+            }
+          },
+          {
+            "time": 0.022,
+            "points": 8,
+            "cells": 0,
+            "bounds": [
+              0.44609113981985393,
+              3.369140334043108,
+              0.27175566150959607,
+              2.6741939678219633,
+              0.0,
+              0.0
+            ],
+            "bytes": 6930,
+            "physical_summary": {
+              "radius_min": 0.5,
+              "radius_max": 0.7,
+              "speed_max": 0.0,
+              "force_norm_max": 9.453010304560747e-08
+            }
+          },
+          {
+            "time": 0.024,
+            "points": 8,
+            "cells": 0,
+            "bounds": [
+              0.4490094295045597,
+              3.3720477571866345,
+              0.272057463510637,
+              2.6742312146441063,
+              0.0,
+              0.0
+            ],
+            "bytes": 6926,
+            "physical_summary": {
+              "radius_min": 0.5,
+              "radius_max": 0.7,
+              "speed_max": 0.0,
+              "force_norm_max": 7.118811849764041e-08
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

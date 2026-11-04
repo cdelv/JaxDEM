@@ -1,0 +1,12 @@
+jaxdem.domains.reflect\_sphere
+==============================
+
+.. automodule:: jaxdem.domains.reflect_sphere
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      ReflectSphereDomain
+   
