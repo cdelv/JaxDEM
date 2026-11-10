@@ -1,12 +1,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Orbax checkpoint writers and loaders for simulations and RL models."""
+"""Orbax checkpoint writers and loaders for simulations, RL models and trainers."""
 
 from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
 
+import dataclasses
+import json
 import logging
 import warnings
 from dataclasses import dataclass, field
@@ -45,6 +47,7 @@ from ._directory import prepare_output_directory
 
 if TYPE_CHECKING:
     from ..rl.models import Model
+    from ..rl.trainers import Trainer
 
 
 _log = logging.getLogger(__name__)
@@ -94,28 +97,49 @@ def _validate_schema3_system_metadata(metadata: dict[str, Any]) -> None:
         )
 
 
-def _checkpoint_tree(system: Any) -> Any:
-    """Omit empty array payloads, which Orbax cannot store.
+def _is_key(x: Any) -> bool:
+    return isinstance(x, jax.Array) and jnp.issubdtype(x.dtype, jax.dtypes.prng_key)
 
-    Their shapes and dtypes are recovered from the reconstructed target.
-    Runtime histories remain arrays, including for stateless laws.
+
+def _checkpoint_tree(system: Any) -> Any:
+    """Omit empty array payloads and unwrap typed PRNG keys.
+
+    Orbax can store neither. Empty shapes, dtypes and key types are recovered
+    from the reconstructed target. Runtime histories remain arrays, including
+    for stateless laws.
     """
-    return jax.tree.map(
-        lambda x: None if isinstance(x, jax.Array) and x.size == 0 else x, system
-    )
+
+    def storable(x: Any) -> Any:
+        if _is_key(x):
+            return jax.random.key_data(x)
+        return None if isinstance(x, jax.Array) and x.size == 0 else x
+
+    return jax.tree.map(storable, system)
 
 
 def _restore_empty_arrays(target: Any, restored: Any) -> Any:
-    return jax.tree.map(
-        lambda template, value: (
-            template
-            if isinstance(template, jax.Array) and template.size == 0
-            else value
-        ),
-        target,
-        restored,
-        is_leaf=lambda x: x is None,
-    )
+    """Invert :func:`_checkpoint_tree` with the leaves of ``target``."""
+
+    def original(template: Any, value: Any) -> Any:
+        if isinstance(template, jax.Array) and template.size == 0:
+            return template
+        if _is_key(template):
+            return jax.random.wrap_key_data(value, impl=jax.random.key_impl(template))
+        return value
+
+    return jax.tree.map(original, target, restored, is_leaf=lambda x: x is None)
+
+
+def _lane(tree: Any, ndim: int) -> Any:
+    """First entry along ``ndim`` leading batch axes: one instance of a batch."""
+    return jax.tree.map(lambda x: x[(0,) * ndim], tree) if ndim else tree
+
+
+def _broadcast(tree: Any, batch: tuple[int, ...]) -> Any:
+    """Give a single-instance restore target the batch axes of its checkpoint."""
+    if not batch:
+        return tree
+    return jax.tree.map(lambda x: jnp.broadcast_to(x, (*batch, *jnp.shape(x))), tree)
 
 
 def _restore_layout_target(target: Any, saved: Any, *, legacy_facets: bool) -> Any:
@@ -250,6 +274,66 @@ def _deserialize_force_functions(
     return entries
 
 
+# Every item a JaxDEM checkpoint can hold. Loaders register them all, so that
+# reading one payload of a trainer checkpoint does not warn about the others.
+_ITEM_ARGS = {
+    **dict.fromkeys(
+        ("state", "system", "model_state", "optimizer_state", "trainer_state"),
+        ocp.args.StandardRestore,
+    ),
+    **dict.fromkeys(
+        ("state_metadata", "system_metadata", "model_metadata", "trainer_metadata"),
+        ocp.args.JsonRestore,
+    ),
+}
+
+
+def _state_system_args(state: State, system: System) -> dict[str, Any]:
+    """Orbax items for a state/system pair, shared with trainer checkpoints.
+
+    Leading batch axes are stored unchanged. The metadata describes one
+    instance and records the batch shape.
+    """
+    batch = tuple(state.pos.shape[:-2])
+    lane_state, lane_system = _lane((state, system), len(batch))
+    # Building metadata also validates that every persisted callback and
+    # custom force/energy function round-trips through its import path.
+    system_metadata = lane_system.metadata
+    system_metadata["checkpoint_metadata_version"] = CURRENT_SCHEMA_VERSION
+    system_metadata["serialization_manifest"] = make_serialization_manifest(
+        "orbax", "state_system"
+    )
+    system_metadata["state_shape"] = tuple(lane_state.pos.shape)
+    system_metadata["bond_id_shape"] = tuple(lane_state.bond_id.shape)
+
+    if system.minimizer is not None:
+        constructor_fn = getattr(system.minimizer, "_constructor", None)
+        if constructor_fn is not None:
+            mod = getattr(constructor_fn, "__module__", None)
+            if mod == "__main__":
+                warnings.warn(
+                    f"Minimizer constructor '{constructor_fn.__name__}' is defined in __main__. "
+                    "It will not be restorable from a different script. "
+                    "Define it in an importable module instead.",
+                    stacklevel=3,
+                )
+
+    return {
+        "state": ocp.args.StandardSave(_checkpoint_tree(state)),
+        "system": ocp.args.StandardSave(_checkpoint_tree(system)),
+        "state_metadata": ocp.args.JsonSave(
+            {
+                "shape": lane_state.shape,
+                "batch_shape": batch,
+                "only_spheres": state.only_spheres,
+                "facet_incidence_layout": FACET_INCIDENCE_LAYOUT_VERSION,
+                "facet_ids_extra_shape": lane_state.facet_ids_extra.shape,
+            }
+        ),
+        "system_metadata": ocp.args.JsonSave(system_metadata),
+    }
+
+
 @dataclass(slots=True, weakref_slot=True)
 class BaseCheckpointManager:
     """Base class that provides context management and shared setup for Orbax checkpointers."""
@@ -288,18 +372,30 @@ class BaseCheckpointManager:
             options=options,
         )
 
-    def _init_loader_manager(self, standard_items: tuple[str, ...] = ()) -> None:
+    def _init_loader_manager(self) -> None:
         """Build a read-only checkpoint manager. Shared by the loaders."""
         self.directory = Path(self.directory).resolve()
         options = ocp.CheckpointManagerOptions()
         registry = ocp.DefaultCheckpointHandlerRegistry()
-        for item in standard_items:
-            registry.add(item, ocp.args.StandardRestore)
+        for item, args in _ITEM_ARGS.items():
+            registry.add(item, args)
         self.checkpointer = ocp.CheckpointManager(
             self.directory,
             options=options,
             handler_registry=registry,
         )
+
+    def _resolve_step(self, step: int | None) -> int:
+        """Return ``step``, or the latest step if None, checking that it exists."""
+        if step is None:
+            step = self.checkpointer.latest_step()
+            if step is None:
+                raise FileNotFoundError(f"No checkpoints found in: {self.directory}")
+        if step not in self.checkpointer.all_steps():
+            raise FileNotFoundError(
+                f"step={step} checkpoints not found in: {self.directory}. Available steps: {self.checkpointer.all_steps()}"
+            )
+        return int(step)
 
     @partial(jax.named_call, name="block_until_ready")
     def block_until_ready(self) -> None:
@@ -381,43 +477,9 @@ class CheckpointWriter(BaseCheckpointManager):
             The current system configuration.
 
         """
-        # Building metadata also validates that every persisted callback and
-        # custom force/energy function round-trips through its import path.
-        system_metadata = system.metadata
-        system_metadata["checkpoint_metadata_version"] = CURRENT_SCHEMA_VERSION
-        system_metadata["serialization_manifest"] = make_serialization_manifest(
-            "orbax", "state_system"
-        )
-        system_metadata["state_shape"] = tuple(state.pos.shape)
-        system_metadata["bond_id_shape"] = tuple(state.bond_id.shape)
-
-        if system.minimizer is not None:
-            constructor_fn = getattr(system.minimizer, "_constructor", None)
-            if constructor_fn is not None:
-                mod = getattr(constructor_fn, "__module__", None)
-                if mod == "__main__":
-                    warnings.warn(
-                        f"Minimizer constructor '{constructor_fn.__name__}' is defined in __main__. "
-                        "It will not be restorable from a different script. "
-                        "Define it in an importable module instead.",
-                        stacklevel=2,
-                    )
-
         self.checkpointer.save(
             int(system.step_count),
-            args=ocp.args.Composite(
-                state=ocp.args.StandardSave(_checkpoint_tree(state)),
-                system=ocp.args.StandardSave(_checkpoint_tree(system)),
-                state_metadata=ocp.args.JsonSave(
-                    {
-                        "shape": state.shape,
-                        "only_spheres": state.only_spheres,
-                        "facet_incidence_layout": FACET_INCIDENCE_LAYOUT_VERSION,
-                        "facet_ids_extra_shape": state.facet_ids_extra.shape,
-                    }
-                ),
-                system_metadata=ocp.args.JsonSave(system_metadata),
-            ),
+            args=ocp.args.Composite(**_state_system_args(state, system)),
         )
 
 
@@ -432,7 +494,7 @@ class CheckpointLoader(BaseCheckpointManager):
     """
 
     def __post_init__(self) -> None:
-        self._init_loader_manager(("state", "system"))
+        self._init_loader_manager()
 
     @partial(jax.named_call, name="CheckpointLoader.load")
     def load(
@@ -460,15 +522,7 @@ class CheckpointLoader(BaseCheckpointManager):
             The restored `State` and `System`.
 
         """
-        if step is None:
-            step = self.checkpointer.latest_step()
-            if step is None:
-                raise FileNotFoundError(f"No checkpoints found in: {self.directory}")
-
-        if step not in self.checkpointer.all_steps():
-            raise FileNotFoundError(
-                f"step={step} checkpoints not found in: {self.directory}. Available steps: {self.checkpointer.all_steps()}"
-            )
+        step = self._resolve_step(step)
 
         metadata = self.checkpointer.restore(
             step,
@@ -483,6 +537,8 @@ class CheckpointLoader(BaseCheckpointManager):
         if metadata_version == CURRENT_SCHEMA_VERSION:
             _validate_schema3_system_metadata(system_metadata)
         state_shape = tuple(metadata.state_metadata["shape"])
+        # Batched pairs, as in trainer checkpoints, are rebuilt from one instance.
+        batch = tuple(metadata.state_metadata.get("batch_shape", ()))
         system_metadata["state_shape"] = tuple(
             system_metadata.get("state_shape", state_shape)
         )
@@ -508,7 +564,9 @@ class CheckpointLoader(BaseCheckpointManager):
             ):
                 raise RuntimeError("Invalid checkpoint facet incidence shape.")
             state_kw["facet_ids_extra"] = jnp.full(tuple(extra_shape), -1, dtype=int)
-        state_target = State.create(jnp.zeros(state_shape), **state_kw)
+        state_target = _broadcast(
+            State.create(jnp.zeros(state_shape), **state_kw), batch
+        )
         legacy_facets = not has_layout
         if not legacy_facets:
             layout = metadata.state_metadata["facet_incidence_layout"]
@@ -523,7 +581,7 @@ class CheckpointLoader(BaseCheckpointManager):
         if extra_shape is not None:
             saved_ids = item_metadata["state"].tree.get("facet_ids_extra")
             saved_vertices = item_metadata["state"].tree.get("facet_vertices_extra")
-            expected_ids = tuple(extra_shape)
+            expected_ids = (*batch, *extra_shape)
             expected_vertices = (*expected_ids, state_shape[-1])
             if expected_ids[-1] == 0:
                 if saved_ids is not None or saved_vertices is not None:
@@ -556,6 +614,7 @@ class CheckpointLoader(BaseCheckpointManager):
                 "incompatible with the current State schema."
             ) from exc
         state_target = _restore_layout_value(state_target, res_state.state)
+        lane_state = _lane(state_target, len(batch))
         system_metadata.setdefault("bonded_force_model_type", None)
         system_metadata.setdefault("bonded_force_model_kw", None)
         minimizer_meta = system_metadata.pop("minimizer", None)
@@ -642,7 +701,7 @@ class CheckpointLoader(BaseCheckpointManager):
 
             collider_kw = dict(collider_kw_meta)
             if _accepts_state(system_metadata.get("collider_type")):
-                collider_kw["state"] = state_target
+                collider_kw["state"] = lane_state
             if "secondary_collider" in collider_kw:
                 sub_val = collider_kw["secondary_collider"]
                 if (
@@ -650,17 +709,17 @@ class CheckpointLoader(BaseCheckpointManager):
                     and "kw" in sub_val
                     and _accepts_state(sub_val.get("type"))
                 ):
-                    sub_val["kw"]["state"] = state_target
+                    sub_val["kw"]["state"] = lane_state
             elif "secondary_collider_type" in collider_kw and _accepts_state(
                 collider_kw["secondary_collider_type"]
             ):
                 sub_kw = dict(collider_kw.get("secondary_collider_kw") or {})
-                sub_kw["state"] = state_target
+                sub_kw["state"] = lane_state
                 collider_kw["secondary_collider_kw"] = sub_kw
             system_metadata["collider_kw"] = collider_kw
 
         try:
-            system_target = System.create(**system_metadata)
+            system_target = _broadcast(System.create(**system_metadata), batch)
         except Exception:
             if metadata_version >= 2:
                 raise
@@ -760,15 +819,7 @@ class CheckpointModelLoader(BaseCheckpointManager):
         from ..rl.action_spaces import ActionSpace
         from ..rl.models import Model
 
-        if step is None:
-            step = self.checkpointer.latest_step()
-            if step is None:
-                raise FileNotFoundError(f"No checkpoints found in: {self.directory}")
-
-        if step not in self.checkpointer.all_steps():
-            raise FileNotFoundError(
-                f"step={step} checkpoints not found in: {self.directory}. Available steps: {self.checkpointer.all_steps()}"
-            )
+        step = self._resolve_step(step)
 
         model_metadata = self.checkpointer.restore(
             step,
@@ -776,7 +827,9 @@ class CheckpointModelLoader(BaseCheckpointManager):
                 model_metadata=ocp.args.JsonRestore(),
             ),
         )
-        model_metadata = model_metadata.model_metadata
+        model_metadata = dict(model_metadata.model_metadata)
+        # Stacked models, as in batched trainer checkpoints, share one definition.
+        batch = tuple(model_metadata.pop("batch_shape", ()))
 
         if "action_space_type" in model_metadata:
             action_space = ActionSpace.create(
@@ -818,7 +871,7 @@ class CheckpointModelLoader(BaseCheckpointManager):
         result = self.checkpointer.restore(
             step,
             args=ocp.args.Composite(
-                model_state=ocp.args.StandardRestore(state),
+                model_state=ocp.args.StandardRestore(_broadcast(state, batch)),
             ),
         )
         state = result.model_state
@@ -830,9 +883,369 @@ class CheckpointModelLoader(BaseCheckpointManager):
         return self.checkpointer.latest_step()
 
 
+_TRAINER_CHECKPOINT_VERSION = 1
+# Trainer fields with their own checkpoint items. The rest are plain values.
+_TRAINER_GRAPH_FIELDS = ("env", "graphdef", "graphstate", "key")
+
+
+def _dynamic_fields(obj: Any, skip: tuple[str, ...]) -> dict[str, Any]:
+    """Non-static dataclass fields of ``obj`` not named in ``skip``."""
+    return {
+        f.name: getattr(obj, f.name)
+        for f in dataclasses.fields(obj)
+        if f.name not in skip and not f.metadata.get("static")
+    }
+
+
+def _trainer_state(trainer: Any, scalars: Any) -> dict[str, Any]:
+    """Trainer leaves outside the environment state/system and the model graph.
+
+    ``scalars`` names the fields kept as Python numbers in the JSON metadata.
+    The other fields are arrays, also in a restore target that still holds
+    Python numbers where the saved trainer held arrays.
+    """
+    fields = _dynamic_fields(trainer, _TRAINER_GRAPH_FIELDS)
+    return {
+        "key": trainer.key,
+        "fields": {k: jnp.asarray(v) for k, v in fields.items() if k not in scalars},
+        "env": _dynamic_fields(trainer.env, ("state", "system")),
+    }
+
+
+def _static_metadata(obj: Any, lost: list[str]) -> dict[str, Any]:
+    """JSON form of the static dataclass fields of ``obj``.
+
+    A field without one, such as an optimizer that is not importable, is
+    stored as None and named in ``lost``.
+    """
+    meta: dict[str, Any] = {}
+    for f in dataclasses.fields(obj):
+        if f.metadata.get("static"):
+            value = obj._serialize_value(getattr(obj, f.name))
+            try:
+                json.dumps(value)
+            except TypeError:
+                lost.append(f.name)
+                value = None
+            meta[f.name] = value
+    return meta
+
+
+def _static_values(meta: dict[str, Any]) -> dict[str, Any]:
+    """Invert :func:`_static_metadata`. Lists return as hashable tuples."""
+    from ..factory import Factory
+
+    def hashable(value: Any) -> Any:
+        if isinstance(value, list):
+            return tuple(hashable(v) for v in value)
+        return value
+
+    return {k: hashable(Factory._deserialize_kws(v)) for k, v in meta.items()}
+
+
+def _registered(root: Any, name: Any) -> Any:
+    """Class that a checkpoint names by its registry key."""
+    from ..factory import _normalize_key
+
+    cls = root._registry.get(_normalize_key(name)) if isinstance(name, str) else None
+    if cls is None:
+        raise RuntimeError(
+            f"{root.__name__} {name!r} is not registered. Import the module "
+            "that defines it before loading, or pass `target`."
+        )
+    return cls
+
+
+@dataclass(slots=True)
+class CheckpointTrainerWriter(BaseCheckpointManager):
+    """Save complete :class:`jaxdem.rl.trainers.Trainer` objects with Orbax.
+
+    One checkpoint holds the environment, the model, the optimizer state, the
+    PRNG key and the hyperparameters: everything an exact continuation needs.
+    Stacked trainers (one leading axis per ``vmap`` or ``stack``) are saved as
+    they are.
+
+    :class:`CheckpointModelLoader` reads the model from the same directory
+    without the rest, and :class:`CheckpointLoader` reads the environment
+    state and system.
+
+    Notes
+    -----
+    The trainer graph must be ``(model, optimizer)``, as in
+    :class:`~jaxdem.rl.trainers.ppo_trainer.PPOTrainer`.
+    """
+
+    max_to_keep: int | None = None
+    """
+    Keep the last max_to_keep checkpoints. If None, keep all checkpoints.
+    """
+
+    save_every: int = 1
+    """
+    Checkpoint interval measured in the step supplied to :meth:`save`,
+    rather than in save calls.
+    """
+
+    clean: bool = False
+    """
+    If True, erase and recreate the target directory on construction.
+    If False (the default), keep existing checkpoints in the directory,
+    so a resumed run does not destroy earlier checkpoints.
+    """
+
+    def __post_init__(self) -> None:
+        self._prepare_directory(clean=self.clean)
+        self._init_writer_manager()
+
+    @partial(jax.named_call, name="CheckpointTrainerWriter.save")
+    def save(self, trainer: Trainer, step: int, *, force: bool = False) -> None:
+        """Save the trainer at the given step.
+
+        Parameters
+        ----------
+        trainer : Trainer
+            The trainer to save.
+        step : int
+            Number of completed epochs. Pass the same number as
+            ``start_epoch`` to continue from this checkpoint. The writer
+            skips a step that is not a multiple of ``save_every`` or that
+            does not exceed the latest saved step. A skipped step moves no
+            data off the device.
+        force : bool
+            Save even when ``save_every`` excludes this step. An existing
+            step is never replaced.
+
+        """
+        from ..rl.env_wrappers import _wrapper_chain
+
+        step = int(step)
+        if not force:
+            if not self.checkpointer.should_save(step):
+                return
+        elif step in self.checkpointer.all_steps():
+            # Orbax raises here, which would lose the trainer at the end of a run.
+            warnings.warn(
+                f"A checkpoint for step {step} already exists in "
+                f"{self.directory}. It was not replaced.",
+                stacklevel=2,
+            )
+            return
+
+        batch = tuple(jnp.shape(trainer.advantage_gamma))
+        model = _lane(trainer, len(batch)).model
+        model_metadata = {
+            **model.metadata,
+            "model_type": model.type_name,
+            "batch_shape": batch,
+        }
+
+        fields = _dynamic_fields(trainer, _TRAINER_GRAPH_FIELDS)
+        scalars = {k: v for k, v in fields.items() if isinstance(v, (bool, int, float))}
+        state = _trainer_state(trainer, scalars)
+        # These parts cannot be rebuilt from metadata: loading needs `target`.
+        needs_target: list[str] = []
+        if not getattr(trainer, "optimizer_config", ()):
+            needs_target.append("optimizer_config")
+        for name, tree in {**state["fields"], **state["env"]}.items():
+            if not all(
+                jnp.size(leaf) > 0
+                and not _is_key(leaf)
+                and all(isinstance(k, jax.tree_util.DictKey) for k in path)
+                for path, leaf in jax.tree_util.tree_leaves_with_path(tree)
+            ):
+                needs_target.append(name)
+
+        env_cls = type(trainer.env)
+        env_cls = getattr(env_cls, "_base_env_cls", env_cls)
+        metadata = {
+            "trainer_checkpoint_version": _TRAINER_CHECKPOINT_VERSION,
+            "trainer_type": getattr(type(trainer), "__registry_name__", None),
+            "batch_shape": batch,
+            "static": _static_metadata(trainer, needs_target),
+            "scalars": scalars,
+            "key_impl": (
+                str(jax.random.key_impl(trainer.key)) if _is_key(trainer.key) else None
+            ),
+            "env_type": getattr(env_cls, "__registry_name__", None),
+            "env_wrappers": _wrapper_chain(trainer.env),
+            "env_static": _static_metadata(trainer.env, needs_target),
+            "needs_target": needs_target,
+        }
+
+        self.checkpointer.save(
+            step,
+            args=ocp.args.Composite(
+                **_state_system_args(trainer.env.state, trainer.env.system),
+                model_state=ocp.args.StandardSave(trainer.graphstate[0]),
+                model_metadata=ocp.args.JsonSave(model_metadata),
+                optimizer_state=ocp.args.StandardSave(trainer.graphstate[1]),
+                trainer_state=ocp.args.StandardSave(_checkpoint_tree(state)),
+                trainer_metadata=ocp.args.JsonSave(metadata),
+            ),
+            force=True,
+        )
+
+
+@dataclass(slots=True)
+class CheckpointTrainerLoader(BaseCheckpointManager):
+    """Restore trainers saved by :class:`CheckpointTrainerWriter`.
+
+    Checkpoints are trusted input: restoration imports Python modules named in
+    their metadata, so untrusted checkpoint directories must not be loaded.
+    """
+
+    def __post_init__(self) -> None:
+        self._init_loader_manager()
+
+    @partial(jax.named_call, name="CheckpointTrainerLoader.load")
+    def load(
+        self,
+        step: int | None = None,
+        *,
+        target: Trainer | None = None,
+        strict: bool = True,
+    ) -> Trainer:
+        """Load the trainer at the given step.
+
+        The checkpoint describes itself: the environment, model, optimizer and
+        trainer are rebuilt from its metadata. Custom environment, model and
+        trainer classes must be registered, so import their modules first.
+
+        Parameters
+        ----------
+        step : Optional[int]
+            Number of completed epochs. If None, load the latest checkpoint.
+        target : Trainer, optional
+            A trainer with the structure of the saved one, built by the same
+            code. The saved arrays replace its arrays. Its classes, static
+            configuration and optimizer stay. A checkpoint needs a target
+            when the metadata cannot describe the trainer: an optimizer that
+            is not an importable function (a lambda or ``partial``), or
+            ``env_params`` that hold empty arrays, PRNG keys or containers
+            other than dicts.
+        strict : bool
+            Passed to :meth:`CheckpointLoader.load` for the environment system.
+
+        Returns
+        -------
+        Trainer
+            The restored trainer. Continue it with
+            ``trainer.train(trainer, start_epoch=step)``.
+
+        """
+        from flax import nnx
+
+        from ..rl.env_wrappers import _rewrap
+        from ..rl.environments import Environment
+        from ..rl.trainers import Trainer
+
+        step = self._resolve_step(step)
+
+        def restore(name: str, tree: Any = None) -> Any:
+            args = ocp.args.StandardRestore(tree)
+            return self.checkpointer.restore(
+                step, args=ocp.args.Composite(**{name: args})
+            )[name]
+
+        def restore_into(name: str, template: Any) -> Any:
+            return _restore_empty_arrays(
+                template, restore(name, _checkpoint_tree(template))
+            )
+
+        meta = self.checkpointer.restore(
+            step,
+            args=ocp.args.Composite(trainer_metadata=ocp.args.JsonRestore()),
+        ).trainer_metadata
+        if meta.get("trainer_checkpoint_version") != _TRAINER_CHECKPOINT_VERSION:
+            raise RuntimeError(
+                "Unsupported trainer checkpoint version "
+                f"{meta.get('trainer_checkpoint_version')!r}"
+            )
+        batch = tuple(meta["batch_shape"])
+
+        build: Any
+        if target is not None:
+            rest = restore_into(
+                "trainer_state", _trainer_state(target, meta["scalars"])
+            )
+            env = dataclasses.replace(
+                target.env,
+                state=restore_into("state", target.env.state),
+                system=restore_into("system", target.env.system),
+                **rest["env"],
+            )
+            graphdef, graph_target = target.graphdef, target.graphstate
+            model_state = restore("model_state", graph_target[0])
+            optimizer_target = graph_target[1]
+            key = rest["key"]
+            build = partial(dataclasses.replace, target)
+        else:
+            if meta["needs_target"]:
+                raise RuntimeError(
+                    "This checkpoint cannot rebuild the trainer fields "
+                    f"{meta['needs_target']} from its metadata. Build the "
+                    "trainer with the code that made the saved one and pass "
+                    "it as `target`."
+                )
+            trainer_cls = _registered(Trainer, meta["trainer_type"])
+            env_cls = _registered(Environment, meta["env_type"])
+            with CheckpointLoader(self.directory) as loader:
+                state, system = loader.load(step, strict=strict)
+            with CheckpointModelLoader(self.directory) as model_loader:
+                model_def, model_state = nnx.split(model_loader.load(step))
+            rest = jax.tree.map(jnp.asarray, restore("trainer_state"))
+
+            saved_env = rest.get("env", {})
+            env = _rewrap(
+                env_cls(
+                    state=state,
+                    system=system,
+                    # Orbax drops empty containers, such as env_params={}.
+                    **{
+                        f.name: saved_env.get(f.name, {})
+                        for f in dataclasses.fields(env_cls)
+                        if f.name not in ("state", "system")
+                        and not f.metadata.get("static")
+                    },
+                    **_static_values(meta["env_static"]),
+                ),
+                meta["env_wrappers"],
+            )
+
+            # The optimizer target comes from one model, then gains the batch axes.
+            static = _static_values(meta["static"])
+            model = nnx.merge(model_def, _lane(model_state, len(batch)))
+            tx = trainer_cls.optimizer_tx(**dict(static["optimizer_config"]))
+            graphdef, graph_target = nnx.split(
+                (model, nnx.Optimizer(model, tx, wrt=nnx.Param))
+            )
+            optimizer_target = _broadcast(graph_target[1], batch)
+            key = rest["key"]
+            if meta["key_impl"] is not None:
+                key = jax.random.wrap_key_data(key, impl=meta["key_impl"])
+            build = partial(trainer_cls, graphdef=graphdef, **static)
+
+        model, optimizer = nnx.merge(graphdef, graph_target, copy=True)
+        nnx.update(model, model_state)
+        nnx.update(optimizer, restore("optimizer_state", optimizer_target))
+        return build(
+            env=env,
+            graphstate=nnx.state((model, optimizer)),
+            key=key,
+            **meta["scalars"],
+            **rest.get("fields", {}),
+        )
+
+    @partial(jax.named_call, name="CheckpointTrainerLoader.latest_step")
+    def latest_step(self) -> int | None:
+        return self.checkpointer.latest_step()
+
+
 __all__ = [
     "CheckpointLoader",
     "CheckpointModelLoader",
     "CheckpointModelWriter",
+    "CheckpointTrainerLoader",
+    "CheckpointTrainerWriter",
     "CheckpointWriter",
 ]

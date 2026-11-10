@@ -75,6 +75,8 @@ def _wrap_env(
         # Preserve the original base class if already wrapped
         base_cls = getattr(cls, "_base_env_cls", cls)
         cast(Any, new_cls)._base_env_cls = base_cls
+        # Recorded so trainer checkpoints can rebuild this wrapper class.
+        cast(Any, new_cls)._wrapper = (prefix, cache_key)
         _WRAP_CACHE[key] = new_cls
 
     field_vals = {f.name: getattr(env, f.name) for f in fields(env)}
@@ -203,6 +205,27 @@ def unwrap(env: Environment) -> Environment:
     # _base_env_cls and similar class-level attributes.
     field_vals = {f.name: getattr(env, f.name) for f in fields(env)}
     return base_cls(**field_vals)
+
+
+def _wrapper_chain(env: Environment) -> list[tuple[str, Any]]:
+    """Wrappers applied to ``env``, innermost first, for trainer checkpoints."""
+    return [
+        vars(klass)["_wrapper"]
+        for klass in reversed(type(env).__mro__)
+        if "_wrapper" in vars(klass)
+    ]
+
+
+def _rewrap(env: Environment, chain: Any) -> Environment:
+    """Apply a chain recorded by :func:`_wrapper_chain` to an unwrapped environment."""
+    for prefix, key in chain:
+        if prefix == "Vec":
+            env = vectorise_env(env)
+        elif prefix == "Clipped":
+            env = clip_action_env(env, *key)
+        else:
+            raise ValueError(f"Cannot rebuild the environment wrapper {prefix!r}.")
+    return env
 
 
 __all__ = ["clip_action_env", "is_wrapped", "unwrap", "vectorise_env"]

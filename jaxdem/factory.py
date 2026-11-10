@@ -30,6 +30,11 @@ def _normalize_key(key: str) -> str:
     return key.replace(" ", "").replace("_", "").replace("-", "").lower()
 
 
+def _tuples(value: Any) -> Any:
+    """Convert nested lists to tuples."""
+    return tuple(_tuples(v) for v in value) if isinstance(value, list) else value
+
+
 @partial(
     jax.tree_util.register_dataclass, drop_fields=["_registry", "__registry_name__"]
 )
@@ -453,6 +458,11 @@ class Factory(ABC):
                     kw[p] = cls._deserialize_kws(val)
             else:
                 kw[p] = cls._deserialize_kws(val)
+            # Checkpoint metadata is JSON, which stores sequences as lists.
+            # Return the tuples the constructor declares, so that a restored
+            # component has the pytree structure of the saved one.
+            if param is not None and str(param.annotation).startswith("tuple["):
+                kw[p] = _tuples(kw[p])
 
         # Unpack nested Factory objects/dicts into _type and _kw arguments if the signature expects them
         for p in list(kw.keys()):

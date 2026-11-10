@@ -19,11 +19,11 @@ except ImportError:
 import datetime
 import json
 import math
+import operator
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from functools import partial
-from numbers import Integral
 from pathlib import Path
 
 import optax  # type: ignore[import-untyped]
@@ -35,15 +35,23 @@ from ..env_wrappers import clip_action_env, vectorise_env
 from . import ModelState, Trainer, TrajectoryData
 
 if TYPE_CHECKING:
+    from ...writers.checkpoints import CheckpointTrainerWriter
     from ..environments import Environment
     from ..models import Model
 
 
 def _require_int(name: str, value: Any, *, minimum: int | None = None) -> int:
-    """Return an integer argument without silently accepting bools or fractions."""
-    if isinstance(value, bool) or not isinstance(value, Integral):
-        raise ValueError(f"{name} must be an integer")
-    result = int(value)
+    """Return an integer argument without silently accepting bools or fractions.
+
+    Integer scalar arrays are accepted, because a trainer holds its epoch
+    counts as arrays after one epoch.
+    """
+    try:
+        if isinstance(value, bool):
+            raise TypeError
+        result = operator.index(value)
+    except TypeError:
+        raise ValueError(f"{name} must be an integer") from None
     if minimum is not None and result < minimum:
         raise ValueError(f"{name} must be at least {minimum}")
     return result
@@ -398,6 +406,33 @@ class PPOTrainer(Trainer):
     caps_noise_std: jax.Array = field(default_factory=lambda: jnp.asarray(0.05))
     """Spatial noise standard deviation in observation units, scalar or per feature."""
 
+    optimizer_config: tuple[tuple[str, Any], ...] = jax.tree.static(default=())
+    """
+    Arguments of :meth:`optimizer_tx` recorded by :meth:`Create`. Trainer
+    checkpoints use them to rebuild the optimizer. A change here does not
+    change the optimizer already stored in ``graphdef``.
+    """
+
+    @staticmethod
+    def optimizer_tx(
+        optimizer: Any,
+        learning_rate: float,
+        anneal_learning_rate: bool,
+        max_grad_norm: float,
+        accumulate_n_gradients: int,
+        num_epochs: int,
+        num_minibatches: int,
+    ) -> Any:
+        """Build the Optax transformation described by ``optimizer_config``."""
+        schedule: Any = float(learning_rate)
+        if anneal_learning_rate:
+            schedule = _epoch_learning_rate_schedule(
+                learning_rate, num_epochs, num_minibatches // accumulate_n_gradients
+            )
+        return _build_optimizer(
+            optimizer, schedule, float(max_grad_norm), accumulate_n_gradients
+        )
+
     @classmethod
     @partial(jax.named_call, name="PPOTrainer.Create")
     def Create(
@@ -599,20 +634,16 @@ class PPOTrainer(Trainer):
             )
 
         # --- Optimizer ---
-        updates_per_epoch = num_minibatches // accumulate_n_gradients
-        if anneal_learning_rate:
-            schedule = _epoch_learning_rate_schedule(
-                learning_rate, num_epochs, updates_per_epoch
-            )
-        else:
-            schedule = float(learning_rate)
-
-        tx = _build_optimizer(
-            optimizer,
-            schedule,
-            float(max_grad_norm),
-            accumulate_n_gradients,
+        optimizer_config = (
+            ("optimizer", optimizer),
+            ("learning_rate", float(learning_rate)),
+            ("anneal_learning_rate", bool(anneal_learning_rate)),
+            ("max_grad_norm", float(max_grad_norm)),
+            ("accumulate_n_gradients", accumulate_n_gradients),
+            ("num_epochs", num_epochs),
+            ("num_minibatches", num_minibatches),
         )
+        tx = cls.optimizer_tx(**dict(optimizer_config))
 
         graphdef, graphstate = nnx.split(
             (model, nnx.Optimizer(model, tx, wrt=nnx.Param))
@@ -647,6 +678,7 @@ class PPOTrainer(Trainer):
             caps_temporal_coeff=float(caps_temporal_coeff),
             caps_spatial_coeff=float(caps_spatial_coeff),
             caps_noise_std=caps_noise_std,
+            optimizer_config=optimizer_config,
         )
 
     @staticmethod
@@ -666,6 +698,7 @@ class PPOTrainer(Trainer):
         on_report: (
             Callable[[PPOTrainer, int, Mapping[str, float]], PPOTrainer | None] | None
         ) = None,
+        checkpoint_writer: CheckpointTrainerWriter | None = None,
     ) -> PPOTrainer:
         """Run the full PPO training loop.
 
@@ -681,14 +714,17 @@ class PPOTrainer(Trainer):
             Root directory for TensorBoard logs.
         save_every : int
             Positive integer interval for syncing metrics and logging iterations
-            when reporting is enabled. Does not save checkpoints. The first and
-            final epochs also produce reports.
+            when reporting is enabled. Does not save checkpoints. See
+            ``checkpoint_writer``. The first and final epochs also produce
+            reports.
         start_epoch : int
             Resume epoch counter for logging and rollout numbering. Exact
             learning-rate and momentum continuation also requires the restored
             trainer ``graphstate``; changing this label alone does not restore
             optimizer state. Exact trajectory continuation also requires the
-            environment, PRNG key, and recurrent carry.
+            environment, PRNG key, and recurrent carry. A trainer from
+            :class:`~jaxdem.writers.checkpoints.CheckpointTrainerLoader`
+            restores all of these. Pass its checkpoint step here.
             Must lie in ``[0, stop_at_epoch]``. At ``stop_at_epoch``, returns
             the trainer unchanged without opening a writer or running an epoch.
         debug_overflow_checks : bool
@@ -723,6 +759,12 @@ class PPOTrainer(Trainer):
 
             Hooks run even when ``verbose`` and ``log``
             are both false. Exceptions propagate after the writer closes.
+        checkpoint_writer : CheckpointTrainerWriter, optional
+            Saves the complete trainer as it trains. The step of a checkpoint
+            is the number of completed epochs, which is the ``start_epoch``
+            that continues it. The ``save_every`` of the writer sets the
+            interval, and the final epoch is always saved. Each save copies
+            the trainer to the host. The caller closes the writer.
 
         Returns
         -------
@@ -891,6 +933,12 @@ class PPOTrainer(Trainer):
                 current = candidate
             return current
 
+        def checkpoint(current: PPOTrainer, epoch: int) -> None:
+            if checkpoint_writer is not None:
+                checkpoint_writer.save(
+                    current, epoch + 1, force=epoch == total_epochs - 1
+                )
+
         directory = Path(directory)
         log_folder = directory / datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
@@ -917,6 +965,7 @@ class PPOTrainer(Trainer):
                     start_epoch,
                     final=start_epoch == total_epochs - 1,
                 )
+            checkpoint(tr_typed, start_epoch)
 
             start_time = time.perf_counter()
 
@@ -948,6 +997,7 @@ class PPOTrainer(Trainer):
                         int(epoch),
                         final=epoch == total_epochs - 1,
                     )
+                checkpoint(tr_typed, int(epoch))
             # Single end-of-training overflow check (one host sync total).
             if jnp.any(tr_typed.env.system.collider.overflow):
                 print("Warning: overflow detected in collider")

@@ -101,6 +101,8 @@ def test_system_copy_keeps_configuration_and_runs_independently():
         "CheckpointLoader",
         "CheckpointModelWriter",
         "CheckpointModelLoader",
+        "CheckpointTrainerWriter",
+        "CheckpointTrainerLoader",
     ],
 )
 def test_checkpoint_managers_preserve_inherited_configuration_and_context(

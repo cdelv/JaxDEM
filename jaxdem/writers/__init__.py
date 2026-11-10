@@ -114,6 +114,8 @@ if TYPE_CHECKING:
         CheckpointLoader as CheckpointLoader,
         CheckpointModelLoader as CheckpointModelLoader,
         CheckpointModelWriter as CheckpointModelWriter,
+        CheckpointTrainerLoader as CheckpointTrainerLoader,
+        CheckpointTrainerWriter as CheckpointTrainerWriter,
         CheckpointWriter as CheckpointWriter,
     )
 
@@ -147,6 +149,8 @@ def __getattr__(name: str) -> Any:
         "CheckpointLoader",
         "CheckpointModelLoader",
         "CheckpointModelWriter",
+        "CheckpointTrainerLoader",
+        "CheckpointTrainerWriter",
         "CheckpointWriter",
     }:
         try:

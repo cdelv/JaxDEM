@@ -86,12 +86,16 @@ def test_checkpoint_classes_remain_available_by_explicit_lazy_access():
         CheckpointLoader,
         CheckpointModelLoader,
         CheckpointModelWriter,
+        CheckpointTrainerLoader,
+        CheckpointTrainerWriter,
         CheckpointWriter,
     )
 
     assert jd.CheckpointLoader is CheckpointLoader
     assert jd.CheckpointModelLoader is CheckpointModelLoader
     assert jd.CheckpointModelWriter is CheckpointModelWriter
+    assert jd.CheckpointTrainerLoader is CheckpointTrainerLoader
+    assert jd.CheckpointTrainerWriter is CheckpointTrainerWriter
     assert jd.CheckpointWriter is CheckpointWriter
     assert writers.CheckpointLoader is CheckpointLoader
     assert writers.CheckpointModelLoader is CheckpointModelLoader

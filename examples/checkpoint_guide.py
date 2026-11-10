@@ -11,6 +11,7 @@ This guide introduces JaxDEM checkpointing utilities:
 
 Checkpoints are useful for long simulations, reproducibility, and restarting
 from intermediate steps. Install ``JaxDEM[io]`` for Orbax and HDF5 support.
+For reinforcement-learning trainers, see :doc:`trainer_checkpoint_guide`.
 The walkthrough writes only three tiny dynamic snapshots and one small bonded
 model; all output lives in an isolated temporary directory.
 """
