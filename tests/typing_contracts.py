@@ -3,9 +3,13 @@
 """Static checks of public result contracts; checked by mypy, not executed."""
 
 from typing import assert_type
+from collections.abc import Mapping
+
+import jax
 
 from jaxdem import State, System
 from jaxdem.colliders.naive import NaiveSimulator
+from jaxdem.rl.trainers import PPOTrainer, TrajectoryData
 from jaxdem.utils.jamming import (
     JamResult,
     JammingInfo,
@@ -50,3 +54,30 @@ class CustomNaive(NaiveSimulator):
 
 def refreshed_subtype(collider: CustomNaive, state: State) -> None:
     assert_type(collider.refresh(state), CustomNaive)
+
+
+def training_metrics(
+    trainer: PPOTrainer, trajectory: TrajectoryData
+) -> Mapping[str, jax.Array]:
+    return {
+        "entropy_coeff": trainer.ppo_entropy_coeff,
+        "rollout_reward": trajectory.reward.mean(),
+    }
+
+
+def report_training(
+    trainer: PPOTrainer, epoch: int, metrics: Mapping[str, float]
+) -> PPOTrainer | None:
+    return trainer if epoch >= 0 and metrics else None
+
+
+def training_reporting(trainer: PPOTrainer) -> None:
+    assert_type(
+        PPOTrainer.train(
+            trainer,
+            metrics_fn=training_metrics,
+            progress_metrics={"entropy_coeff": ".3f", "score": ".3f"},
+            on_report=report_training,
+        ),
+        PPOTrainer,
+    )

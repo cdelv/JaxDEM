@@ -23,4 +23,5 @@ User guide
     ../auto_examples/facets_guide
     ../auto_examples/custom_modules_guide
     ../auto_examples/intro_to_rl
+    ../auto_examples/training_metrics_guide
     ../auto_examples/batched_policy_training_guide

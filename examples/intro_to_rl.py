@@ -228,6 +228,8 @@ untrained_distances = np.asarray(evaluate_policy(tr.graphstate, held_out_env))
 # :py:meth:`~jaxdem.rl.trainers.ppo_trainer.PPOTrainer.epoch` directly exposes
 # the scalar diagnostics. Finite losses are checked here; actual navigation
 # quality is measured separately below.
+# For custom metrics in TensorBoard and the progress bar, see
+# :doc:`training_metrics_guide`.
 for epoch in range(num_epochs):
     tr, _transitions, metrics = tr.epoch(tr, jnp.asarray(epoch, dtype=int))
     loss = float(metrics["loss"])

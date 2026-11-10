@@ -20,6 +20,7 @@ import datetime
 import json
 import math
 import time
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from functools import partial
 from numbers import Integral
@@ -154,6 +155,32 @@ def _hparam_dict_from_tr(tr: PPOTrainer) -> dict[str, Any]:
 def _log_hparams_fallback(writer: Any, tr: PPOTrainer, step: int = 0) -> None:
     hp = _hparam_dict_from_tr(tr)
     writer.add_text("hparams/json", json.dumps(hp, indent=2), global_step=step)
+
+
+def _metric_scalars(values: Mapping[str, ArrayLike]) -> dict[str, jax.Array]:
+    """Check metric names and shapes without a device-to-host transfer."""
+    if not isinstance(values, Mapping):
+        raise TypeError("Metrics must be a mapping from names to real scalars")
+    result = {}
+    for name, value in values.items():
+        if not isinstance(name, str) or not name:
+            raise ValueError("Metric names must be nonempty strings")
+        try:
+            scalar = jnp.asarray(value)
+        except (TypeError, ValueError) as error:
+            raise TypeError(f"Metric {name!r} must be a real numeric scalar") from error
+        if scalar.ndim != 0:
+            raise ValueError(
+                f"Metric {name!r} must be scalar, got shape {scalar.shape}. "
+                "Reduce its values explicitly, for example with mean()."
+            )
+        if not any(
+            jnp.issubdtype(scalar.dtype, dtype)
+            for dtype in (jnp.bool_, jnp.integer, jnp.floating)
+        ):
+            raise TypeError(f"Metric {name!r} must be a real numeric scalar")
+        result[name] = scalar
+    return result
 
 
 @Trainer.register("PPO")
@@ -631,7 +658,14 @@ class PPOTrainer(Trainer):
         save_every: int = 2,
         start_epoch: int = 0,
         debug_overflow_checks: bool = False,
-        **kwargs: Any,
+        *,
+        metrics_fn: (
+            Callable[[PPOTrainer, TrajectoryData], Mapping[str, ArrayLike]] | None
+        ) = None,
+        progress_metrics: Mapping[str, str] | None = None,
+        on_report: (
+            Callable[[PPOTrainer, int, Mapping[str, float]], PPOTrainer | None] | None
+        ) = None,
     ) -> PPOTrainer:
         """Run the full PPO training loop.
 
@@ -647,7 +681,8 @@ class PPOTrainer(Trainer):
             Root directory for TensorBoard logs.
         save_every : int
             Positive integer interval for syncing metrics and logging iterations
-            when verbose output or logging is enabled. Does not save checkpoints.
+            when reporting is enabled. Does not save checkpoints. The first and
+            final epochs also produce reports.
         start_epoch : int
             Resume epoch counter for logging and rollout numbering. Exact
             learning-rate and momentum continuation also requires the restored
@@ -661,6 +696,33 @@ class PPOTrainer(Trainer):
             This forces a host synchronization per epoch, which defeats async
             dispatch, so it is off by default. The flag is always checked
             once at the end of training.
+        metrics_fn : callable, optional
+            Pure JAX function ``metrics_fn(trainer, trajectory)`` that returns
+            additional real scalars with fixed, nonempty names. JAX compiles
+            this function. It runs only at reporting intervals and receives
+            the updated trainer and latest rollout. Names must not replace
+            built-in metrics, ``elapsed``, or ``steps_per_sec``. Reduce batches
+            explicitly.
+
+            Environment snapshots can include automatic resets.
+            They do not measure terminal states before reset.
+        progress_metrics : mapping, optional
+            Metric names and Python number formats for the progress bar and
+            final summary, for example ``{"accuracy": ".1%", "score": ".3f"}``.
+            All metrics still go to TensorBoard as numeric values. ``None``
+            preserves the default display. An empty mapping hides the fields
+            and final summary. Timing fields start after the first epoch.
+            A one-epoch run reports zero elapsed time and throughput.
+        on_report : callable, optional
+            Host callback ``on_report(trainer, epoch, metrics)``. It receives
+            the zero-based epoch and a copy of the report's Python float values
+            after logging and display. Return an updated trainer or ``None``
+            to keep the current trainer. Preserve its class, PyTree structure,
+            and array shapes. The callback can change dynamic parameter values
+            for subsequent epochs.
+
+            Hooks run even when ``verbose`` and ``log``
+            are both false. Exceptions propagate after the writer closes.
 
         Returns
         -------
@@ -668,7 +730,6 @@ class PPOTrainer(Trainer):
             Trainer with updated parameters after training.
 
         """
-        _ = kwargs
         tr_typed = cast("PPOTrainer", tr)
         total_epochs = _require_int(
             "trainer.stop_at_epoch", tr_typed.stop_at_epoch, minimum=1
@@ -680,10 +741,156 @@ class PPOTrainer(Trainer):
                 f"start_epoch={start_epoch} must not exceed "
                 f"stop_at_epoch={total_epochs}"
             )
+        if metrics_fn is not None and not callable(metrics_fn):
+            raise TypeError("metrics_fn must be callable")
+        if on_report is not None and not callable(on_report):
+            raise TypeError("on_report must be callable")
+        formats = None
+        if progress_metrics is not None:
+            if not isinstance(progress_metrics, Mapping):
+                raise TypeError(
+                    "progress_metrics must map metric names to format strings"
+                )
+            formats = dict(progress_metrics)
+            for name, spec in formats.items():
+                if not isinstance(name, str) or not name:
+                    raise ValueError("Progress metric names must be nonempty strings")
+                if not isinstance(spec, str):
+                    raise TypeError(
+                        f"Format for progress metric {name!r} must be a string"
+                    )
+                try:
+                    format(0.0, spec)
+                except (TypeError, ValueError) as error:
+                    raise ValueError(
+                        f"Invalid format {spec!r} for progress metric {name!r}"
+                    ) from error
         if start_epoch == total_epochs:
             return tr_typed
 
+        def evaluate_metrics(
+            current: PPOTrainer, trajectory: TrajectoryData
+        ) -> dict[str, jax.Array]:
+            if metrics_fn is None:
+                return {}
+            return _metric_scalars(metrics_fn(current, trajectory))
+
+        compiled_metrics = jax.jit(evaluate_metrics)
+        custom_names: frozenset[str] | None = None
+        reporting = (
+            verbose
+            or log
+            or metrics_fn is not None
+            or progress_metrics is not None
+            or on_report is not None
+        )
         writer: Any = None
+        progress: Any = None
+        start_time: float | None = None
+        steps_per_epoch = (
+            int(tr_typed.env.max_num_agents)
+            * int(tr_typed.env.num_envs)
+            * int(tr_typed.num_steps_epoch)
+            * (1 + int(tr_typed.skip_frames))
+        )
+
+        def report(
+            current: PPOTrainer,
+            trajectory: TrajectoryData,
+            data: Mapping[str, ArrayLike],
+            epoch: int,
+            *,
+            final: bool = False,
+        ) -> PPOTrainer:
+            nonlocal custom_names
+            # The compiled PPO update already returns scalar metrics.
+            combined = dict(data)
+            reserved = set(combined) | {"elapsed", "steps_per_sec"}
+            if metrics_fn is not None:
+                extra = compiled_metrics(current, trajectory)
+                overlap = reserved.intersection(extra)
+                if overlap:
+                    raise ValueError(
+                        f"metrics_fn cannot replace reserved metrics: {sorted(overlap)}"
+                    )
+                names = frozenset(extra)
+                if custom_names is not None and names != custom_names:
+                    raise ValueError(
+                        "metrics_fn must return the same metric names on every report"
+                    )
+                custom_names = names
+                combined.update(extra)
+            available = set(combined) | {"elapsed", "steps_per_sec"}
+            if formats is not None and (missing := set(formats) - available):
+                raise ValueError(
+                    f"Unknown progress metrics: {sorted(missing)}. "
+                    f"Available metrics: {sorted(available)}"
+                )
+
+            # Fetch all scalar values together at the reporting interval.
+            values = {
+                name: float(value) for name, value in jax.device_get(combined).items()
+            }
+            if start_time is not None:
+                elapsed = time.perf_counter() - start_time
+                values["elapsed"] = elapsed
+                values["steps_per_sec"] = (
+                    (epoch - start_epoch) * steps_per_epoch / max(elapsed, 1e-9)
+                )
+            elif final:
+                values.update(elapsed=0.0, steps_per_sec=0.0)
+
+            if formats is None:
+                display = {"avg_score": f"{values['score']:.2f}"}
+                if "steps_per_sec" in values:
+                    display = {"steps/s": f"{values['steps_per_sec']:.2e}", **display}
+            else:
+                display = {
+                    name: format(values[name], spec)
+                    for name, spec in formats.items()
+                    if name in values
+                }
+            if progress is not None:
+                progress.set_postfix(display)
+            if writer is not None:
+                for name, value in values.items():
+                    writer.add_scalar(name, value, global_step=epoch)
+                writer.flush()
+            if final and display:
+                if formats is None:
+                    print(
+                        f"steps/s: {display['steps/s']}, "
+                        f"final avg_score: {display['avg_score']}"
+                    )
+                else:
+                    print(
+                        "final "
+                        + ", ".join(
+                            f"{name}: {value}" for name, value in display.items()
+                        )
+                    )
+
+            if on_report is not None:
+                leaves, structure = jax.tree.flatten(current)
+                shapes = [getattr(value, "shape", ()) for value in leaves]
+                updated = on_report(current, epoch, dict(values))
+                candidate = current if updated is None else updated
+                if type(candidate) is not type(current):
+                    raise TypeError(
+                        "on_report must return the same trainer class or None"
+                    )
+                updated_leaves, updated_structure = jax.tree.flatten(candidate)
+                if (
+                    cast(object, updated_structure) != structure
+                    or [getattr(value, "shape", ()) for value in updated_leaves]
+                    != shapes
+                ):
+                    raise ValueError(
+                        "on_report must preserve the trainer's PyTree structure and array shapes"
+                    )
+                current = candidate
+            return current
+
         directory = Path(directory)
         log_folder = directory / datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 
@@ -694,38 +901,35 @@ class PPOTrainer(Trainer):
                 if writer:
                     _log_hparams_fallback(writer, tr_typed, step=0)
 
-            # Precompute steps-per-epoch from Python-side constants (no JAX sync).
-            steps_per_epoch = (
-                int(tr_typed.env.max_num_agents)
-                * int(tr_typed.env.num_envs)
-                * int(tr_typed.num_steps_epoch)
-                * (1 + int(tr_typed.skip_frames))
-            )
-
             # Warmup JIT (first call traces + compiles). Runs epoch ``start_epoch``
             # so a resumed run executes every epoch index exactly once.
-            tr_typed, _td, data = tr_typed.epoch(
+            tr_typed, trajectory, data = tr_typed.epoch(
                 tr_typed, jnp.asarray(start_epoch, dtype=int)
             )
             if debug_overflow_checks and jnp.any(tr_typed.env.system.collider.overflow):
                 print("Warning: overflow detected in collider")
 
-            if writer is not None:
-                data_np = jax.device_get(data)
-                for k, v in data_np.items():
-                    writer.add_scalar(k, float(v), global_step=start_epoch)
-                writer.flush()
+            if reporting or start_epoch == total_epochs - 1:
+                tr_typed = report(
+                    tr_typed,
+                    trajectory,
+                    data,
+                    start_epoch,
+                    final=start_epoch == total_epochs - 1,
+                )
 
             start_time = time.perf_counter()
 
+            if verbose:
+                progress = trange(start_epoch + 1, total_epochs)
             it = (
-                trange(start_epoch + 1, total_epochs)
-                if verbose
+                progress
+                if progress is not None
                 else range(start_epoch + 1, total_epochs)
             )
             for epoch in it:
                 # Dispatch is async — returns immediately with futures.
-                tr_typed, _td, data = tr_typed.epoch(
+                tr_typed, trajectory, data = tr_typed.epoch(
                     tr_typed, jnp.asarray(epoch, dtype=int)
                 )
                 # NOTE: collider overflow is only checked here when explicitly
@@ -736,48 +940,25 @@ class PPOTrainer(Trainer):
                     if jnp.any(tr_typed.env.system.collider.overflow):
                         print("Warning: overflow detected in collider")
 
-                if (epoch % save_every == 0 or epoch == total_epochs - 1) and (
-                    verbose or log
-                ):
-                    # Single sync point: pull all metric scalars at once.
-                    data_np = jax.device_get(data)
-
-                    elapsed = time.perf_counter() - start_time
-                    sps = (epoch - start_epoch) * steps_per_epoch / max(elapsed, 1e-9)
-
-                    if verbose:
-                        set_postfix = getattr(it, "set_postfix", None)
-                        if set_postfix:
-                            set_postfix(
-                                {
-                                    "steps/s": f"{sps:.2e}",
-                                    "avg_score": f"{float(data_np['score']):.2f}",
-                                }
-                            )
-
-                    if log and writer is not None:
-                        for k, v in data_np.items():
-                            writer.add_scalar(k, float(v), global_step=epoch)
-                        writer.add_scalar("elapsed", elapsed, global_step=epoch)
-                        writer.add_scalar("steps_per_sec", sps, global_step=epoch)
-                        writer.flush()
-
-            # Final summary (syncs once).
-            data_np = jax.device_get(data)
-            elapsed = time.perf_counter() - start_time
-            sps = (
-                max(total_epochs - 1 - start_epoch, 1)
-                * steps_per_epoch
-                / max(elapsed, 1e-9)
-            )
-            print(f"steps/s: {sps:.2e}, final avg_score: {float(data_np['score']):.2f}")
+                if (reporting and epoch % save_every == 0) or epoch == total_epochs - 1:
+                    tr_typed = report(
+                        tr_typed,
+                        trajectory,
+                        data,
+                        int(epoch),
+                        final=epoch == total_epochs - 1,
+                    )
             # Single end-of-training overflow check (one host sync total).
             if jnp.any(tr_typed.env.system.collider.overflow):
                 print("Warning: overflow detected in collider")
             return tr_typed
         finally:
-            if writer is not None:
-                writer.close()
+            try:
+                if writer is not None:
+                    writer.close()
+            finally:
+                if progress is not None:
+                    progress.close()
 
     @staticmethod
     @partial(jax.named_call, name="PPOTrainer.loss_fn")

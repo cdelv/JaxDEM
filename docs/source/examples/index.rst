@@ -72,5 +72,6 @@ the optional, experimental reinforcement-learning subsystem.
 .. toctree::
    :maxdepth: 1
 
+   ../auto_examples/training_metrics_guide
    ../auto_examples/environment_custom_policy
    ../auto_examples/data/index
