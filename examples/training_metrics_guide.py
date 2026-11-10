@@ -9,7 +9,6 @@ See :doc:`intro_to_rl` for the environment, model, and trainer APIs.
 """
 
 import tempfile
-from pathlib import Path
 
 import jax
 import jax.numpy as jnp
@@ -30,7 +29,7 @@ num_envs = 64
 num_steps_epoch = 64
 num_minibatches = 8
 learning_rate = 1e-3
-epochs = 64  # Increase epochs to 2000 for a longer training run.
+epochs = 64
 
 env = rl.Environment.create(
     "MultiNavigator",
@@ -69,19 +68,8 @@ trainer = rl.Trainer.create(
     skip_frames=skip_frames,
     num_minibatches=num_minibatches,
     learning_rate=learning_rate,
-    anneal_learning_rate=False,
     num_epochs=epochs,
     stop_at_epoch=epochs,
-    advantage_gamma=0.99,
-    advantage_lambda=0.95,
-    ppo_entropy_coeff=0.001,
-    ppo_clip_eps=0.2,
-    ppo_value_coeff=2.0,
-    max_grad_norm=1.5,
-    caps_temporal_coeff=1e-4,
-    caps_spatial_coeff=1e-3,
-    caps_noise_std=0.01,
-    vtrace=False,
 )
 
 
@@ -101,19 +89,19 @@ def training_metrics(current, trajectory):
 
 
 # The progress mapping selects fields and their Python number formats.
-log_directory = Path(tempfile.mkdtemp(prefix="jaxdem-rl-metrics-"))
-trainer = trainer.train(
-    trainer,
-    directory=log_directory,
-    metrics_fn=training_metrics,
-    progress_metrics={
-        "accuracy": ".1%",
-        "score": ".3f",
-        "steps_per_sec": ".2e",
-    },
-    verbose=True,
-    log=True,
-)
+with tempfile.TemporaryDirectory(prefix="jaxdem-rl-metrics-") as log_directory:
+    trainer = trainer.train(
+        trainer,
+        directory=log_directory,
+        metrics_fn=training_metrics,
+        progress_metrics={
+            "accuracy": ".1%",
+            "score": ".3f",
+            "steps_per_sec": ".2e",
+        },
+        verbose=True,
+        log=True,
+    )
 
 
 # %%
