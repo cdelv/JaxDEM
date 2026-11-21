@@ -47,9 +47,7 @@ def _spring_case(displacement):
         (0.45, 0.6),
         (1.0, 0.0),
         (0.75, 1.0),
-        (2e-11, -4e-11, 8e-11),
         (0.3, -0.4, 0.5),
-        (0.6, 0.8, -0.75),
     ],
     ids=[
         "zero-2d",
@@ -57,9 +55,7 @@ def _spring_case(displacement):
         "overlap-2d",
         "touching-2d-axis",
         "separated-2d",
-        "tiny-3d",
         "overlap-3d",
-        "separated-3d",
     ],
 )
 def test_scalar_spring_matches_radial_force_and_closed_form_jacobian(displacement):

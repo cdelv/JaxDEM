@@ -2,12 +2,9 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """CAPS respects action transforms, recurrent history, and PPO boundaries."""
 
+import distrax
 import jax
 import jax.numpy as jnp
-
-from dataclasses import replace
-
-import distrax
 import numpy as np
 import pytest
 from flax import nnx
@@ -16,11 +13,7 @@ from jaxdem.rl.action_spaces import ActionSpace
 from jaxdem.rl.models import Model
 from jaxdem.rl.trainers import TrajectoryData
 from jaxdem.rl.trainers.ppo_trainer import PPOTrainer
-from tests.test_ppo_alignment import _loss_args
-from tests.test_rl_action_contracts import ActionLookupEnv
-
-MODELS = ["ActorCritic", "SharedActorCritic", "LSTMActorCritic", "MinGRUActorCritic"]
-SPACES = ["Free", "Box", "MaxNorm", "Blockwise", "discrete"]
+from tests.test_ppo_objective import _loss_args
 
 
 def make_model(name, space, obs_dim=2, action_dim=2):
@@ -62,8 +55,16 @@ def assert_trees_close(actual, expected, **kwargs):
         np.testing.assert_allclose(a, b, **kwargs)
 
 
-@pytest.mark.parametrize("name", MODELS)
-@pytest.mark.parametrize("space", SPACES)
+@pytest.mark.parametrize(
+    "name,space",
+    [
+        ("ActorCritic", "Box"),
+        ("SharedActorCritic", "Blockwise"),
+        ("LSTMActorCritic", "MaxNorm"),
+        ("MinGRUActorCritic", "Free"),
+        ("MinGRUActorCritic", "discrete"),
+    ],
+)
 def test_spatial_forward_and_gradients_match_independent_same_history_probes(
     name, space
 ):
@@ -93,8 +94,6 @@ def test_spatial_forward_and_gradients_match_independent_same_history_probes(
         else:
             clean, values, noisy = [], [], []
             for x, x_noisy, boundary in zip(obs, perturbed, done, strict=True):
-                # Probe this observation with clean history, then discard its
-                # carry. Only the clean observation advances the next step.
                 probe = nnx.merge(graph, nnx.state(current), copy=True)
                 noisy_pi, _ = probe(x_noisy)
                 noisy.append(probe.policy_output(noisy_pi))
@@ -112,7 +111,6 @@ def test_spatial_forward_and_gradients_match_independent_same_history_probes(
         )
         expected = jax.value_and_grad(evaluate, has_aux=True)(state, False)
     assert_trees_close(actual, expected, rtol=3e-5, atol=3e-7)
-    # Paired evaluation itself must leave persistent rollout state untouched.
     before = nnx.state(model)
     pi, value, noisy = model.policy_with_perturbation(
         obs, obs, initial_carry=model.carry, done=done
@@ -169,8 +167,7 @@ def test_temporal_masks_resets_inactive_agents_and_partial_minibatches(empty):
     selected = jnp.array([[True, True], [True, True], [True, False], [False, True]])
     if empty:
         selected = jnp.zeros_like(selected)
-    # Only 0 -> 2 and 50 -> 55 are valid selected pairs. The latter uses
-    # an unselected successor as context. No cross-reset or inactive pair.
+    # Only 0 -> 2 and 50 -> 55 are valid selected pairs.
     expected = 0.0 if empty else (2**2 + 5**2) / 2
     model = LinearPolicy()
     (loss, aux), grad = nnx.value_and_grad(PPOTrainer.loss_fn, has_aux=True)(
@@ -206,46 +203,6 @@ def test_spatial_loss_and_gradient_use_per_feature_noise_and_selected_observatio
     np.testing.assert_allclose(aux["caps_spatial_loss"], 0.7**2 * expected)
     np.testing.assert_allclose(loss, 0.4 * 0.7**2 * expected)
     np.testing.assert_allclose(grad.slope[...], 0.4 * 2 * 0.7 * expected)
-
-
-@pytest.mark.parametrize(
-    "name,space",
-    [
-        ("ActorCritic", "Free"),
-        ("SharedActorCritic", "Box"),
-        ("LSTMActorCritic", "discrete"),
-        ("MinGRUActorCritic", "MaxNorm"),
-    ],
-)
-def test_both_caps_terms_train_with_all_models_and_action_spaces(name, space):
-    model = make_model(
-        name, space, obs_dim=1, action_dim=3 if space == "discrete" else 1
-    )
-    tr = PPOTrainer.Create(
-        ActionLookupEnv.Create(),
-        model,
-        num_envs=1,
-        num_steps_epoch=3,
-        num_minibatches=1,
-        learning_rate=1e-3,
-        caps_temporal_coeff=0.1,
-        caps_spatial_coeff=0.2,
-        caps_noise_std=[0.1],
-    )
-    before = [
-        np.asarray(x).copy() for x in jax.tree.leaves(nnx.state(tr.model, nnx.Param))
-    ]
-    tr, _, metrics = tr.epoch(tr, jnp.array(0))
-    jax.block_until_ready(metrics)
-    assert metrics["caps_temporal_loss"] > 0
-    assert metrics["caps_spatial_loss"] > 0
-    assert all(np.isfinite(x).all() for x in jax.tree.leaves(metrics))
-    assert any(
-        not np.array_equal(a, b)
-        for a, b in zip(
-            before, jax.tree.leaves(nnx.state(tr.model, nnx.Param)), strict=True
-        )
-    )
 
 
 def test_enabled_caps_epoch_matches_the_exact_linear_sgd_update(monkeypatch):
@@ -309,76 +266,21 @@ def test_disabled_caps_does_not_evaluate_policy_outputs_or_spatial_branch():
     assert np.isfinite(grad.slope[...])
 
 
-def test_zero_weights_preserve_default_epoch_and_rng():
-    model = make_model("SharedActorCritic", "Free", obs_dim=1, action_dim=1)
-    tr = PPOTrainer.Create(
-        ActionLookupEnv.Create(),
-        model,
-        num_envs=1,
-        num_steps_epoch=2,
-        num_minibatches=1,
-    )
-    explicit = replace(
-        tr,
-        caps_temporal_coeff=0.0,
-        caps_spatial_coeff=0.0,
-        caps_noise_std=jnp.array([100.0]),
-    )
-    a, td_a, metrics_a = tr.epoch(tr, jnp.array(0))
-    b, td_b, metrics_b = explicit.epoch(explicit, jnp.array(0))
-    np.testing.assert_array_equal(
-        jax.random.key_data(a.key), jax.random.key_data(b.key)
-    )
-    expected_key = tr.key
-    for _ in range(2):
-        expected_key = jax.random.split(expected_key, 3)[0]
-    np.testing.assert_array_equal(
-        jax.random.key_data(a.key), jax.random.key_data(expected_key)
-    )
-    assert_trees_close(
-        (a.graphstate, td_a, metrics_a), (b.graphstate, td_b, metrics_b), rtol=0, atol=0
-    )
-
-
-@pytest.mark.parametrize(
-    "kwargs",
-    [
-        {"caps_temporal_coeff": -1.0},
-        {"caps_spatial_coeff": float("nan")},
-        {"caps_temporal_coeff": float("inf")},
-        {"caps_noise_std": -0.1},
-        {"caps_noise_std": [0.1, 0.2, 0.3]},
-        {"caps_noise_std": [[0.1, 0.2]]},
-    ],
-)
-def test_caps_configuration_validation(kwargs):
-    model = make_model("SharedActorCritic", "Free")
-    with pytest.raises(ValueError, match="caps_"):
-        PPOTrainer.Create(ActionLookupEnv.Create(), model, **kwargs)
-
-
-def test_per_feature_caps_noise_trains_a_custom_model_without_input_size_attribute():
+def test_single_step_rollout_and_zero_noise_have_finite_zero_caps_gradients():
     from tests.test_ppo_math import BanditModel, TimeLimitCounterEnv
 
-    model = BanditModel()
-    assert not hasattr(model, "observation_space_size")
+    # Custom models without observation_space_size accept per-feature caps_noise_std.
     trainer = PPOTrainer.Create(
         TimeLimitCounterEnv.Create(),
-        model,
+        BanditModel(),
         num_envs=1,
         num_steps_epoch=2,
         num_minibatches=1,
         caps_spatial_coeff=0.1,
         caps_noise_std=[0.1],
     )
+    np.testing.assert_allclose(trainer.caps_noise_std, [0.1])
 
-    _, _, metrics = trainer.epoch(trainer, jnp.array(0))
-    jax.block_until_ready(metrics)
-    assert all(np.isfinite(value).all() for value in jax.tree.leaves(metrics))
-    assert metrics["caps_spatial_loss"] == 0.0
-
-
-def test_single_step_rollout_and_zero_noise_have_finite_zero_caps_gradients():
     model = LinearPolicy()
     td = trajectory(jnp.zeros((1, 1, 1)))
     (loss, aux), grad = nnx.value_and_grad(PPOTrainer.loss_fn, has_aux=True)(

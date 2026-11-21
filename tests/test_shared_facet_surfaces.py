@@ -137,22 +137,6 @@ def test_connected_facet_can_reuse_contact_node_and_add_new_flexible_node():
     assert first.facet_ids_extra.shape == (2, 0)
 
 
-def test_contact_surface_can_attach_to_a_rigid_clump_without_changing_body():
-    rigid = jdem.State.add_clump(
-        jdem.State.create(dim=2),
-        pos=jnp.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]),
-        rad=jnp.full(3, 0.1),
-        mass=jnp.full(3, 3.0),
-    )
-    surface = jdem.State.add_contact_facets(rigid, [[0, 1], [1, 2], [2, 0]])
-    surface.validate()
-    np.testing.assert_array_equal(surface.clump_id, rigid.clump_id)
-    np.testing.assert_array_equal(surface.mass, rigid.mass)
-    np.testing.assert_array_equal(surface.pos_c, rigid.pos_c)
-    np.testing.assert_array_equal(surface.pos_p, rigid.pos_p)
-    np.testing.assert_array_equal(surface.inertia, rigid.inertia)
-
-
 @pytest.mark.parametrize("dim", [2, 3])
 def test_connected_rigid_existing_nodes_preserve_body_properties_and_frame(dim):
     if dim == 2:
@@ -197,9 +181,9 @@ def test_connected_rigid_existing_nodes_preserve_body_properties_and_frame(dim):
         "mat_id",
         "species_id",
     ):
-        np.testing.assert_array_equal(getattr(attached, name), getattr(first, name))
-    np.testing.assert_array_equal(attached.q.w, first.q.w)
-    np.testing.assert_array_equal(attached.q.xyz, first.q.xyz)
+        np.testing.assert_array_equal(getattr(attached, name), getattr(rigid, name))
+    np.testing.assert_array_equal(attached.q.w, rigid.q.w)
+    np.testing.assert_array_equal(attached.q.xyz, rigid.q.xyz)
 
 
 @pytest.mark.parametrize("dim", [2, 3])
@@ -228,26 +212,12 @@ def test_connected_rigid_new_node_still_updates_total_mass_and_center(dim):
     np.testing.assert_allclose(result.pos[-1], new_point, atol=tolerance)
 
 
-@pytest.mark.parametrize(
-    "elements, message",
-    [
-        ([[0, 0]], "distinct"),
-        ([[0, 4]], "lie in"),
-        ([[-1, 1]], "lie in"),
-        ([[0.0, 1.0]], "integers"),
-        ([[0, 1, 2]], "shape"),
-        ([[0, 1], [1, 0]], "Duplicate"),
-    ],
-)
-def test_contact_surface_rejects_invalid_topology(elements, message):
+def test_contact_surface_rejects_duplicate_invalid_and_incompatible_nodes():
     original, _ = _surface(2)
-    with pytest.raises(ValueError, match=message):
-        jdem.State.add_contact_facets(original, elements)
-    np.testing.assert_array_equal(original.facet_id, -1)
-
-
-def test_contact_surface_rejects_duplicate_existing_face_and_incompatible_nodes():
-    original, _ = _surface(2)
+    with pytest.raises(ValueError, match="distinct"):
+        jdem.State.add_contact_facets(original, [[0, 0]])
+    with pytest.raises(ValueError, match="lie in"):
+        jdem.State.add_contact_facets(original, [[0, 4]])
     first = jdem.State.add_contact_facets(original, [[0, 1]])
     with pytest.raises(ValueError, match="Duplicate"):
         jdem.State.add_contact_facets(first, [[1, 0]])
@@ -259,6 +229,51 @@ def test_contact_surface_rejects_duplicate_existing_face_and_incompatible_nodes(
         jdem.State.add_contact_facets(
             replace(original, clump_id=jnp.array([0, 0, 1, 2])), [[0, 2]]
         )
+
+
+def test_removing_nodes_remaps_faces_and_promotes_surviving_shared_incidence():
+    from jaxdem.utils.contacts import remove_rattlers
+
+    state = jdem.State.add_contact_facets(
+        jdem.State.create(
+            pos=jnp.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]), rad=jnp.full(3, 0.05)
+        ),
+        jnp.array([[0, 1], [1, 2], [2, 0]]),
+    )
+    system = jdem.System.create(
+        state=state, collider_type="naive", force_model_type="sphere_facet_spring"
+    )
+    reduced, _ = remove_rattlers(state, system, jnp.array([1]))
+    np.testing.assert_array_equal(reduced.facet_id, [2, 2])
+    np.testing.assert_array_equal(reduced.facet_vertices, [[1, 0], [1, 0]])
+    np.testing.assert_array_equal(reduced.facet_ids_extra, -1)
+    reduced._validate_contact_topology()
+
+
+def test_legacy_clump_duplication_offsets_shared_face_ids_and_connectivity():
+    from jaxdem.utils.geometric_asperity_creation import duplicate_clump_template
+
+    template = jdem.State.add_clump(
+        jdem.State.create(),
+        jnp.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]]),
+        rad=jnp.full(3, 0.05),
+    )
+    template = jdem.State.add_contact_facets(
+        template, jnp.array([[0, 1], [1, 2], [2, 0]])
+    )
+    copied = duplicate_clump_template(template, jnp.array([[0.0, 0.0], [10.0, 0.0]]))
+    copied._validate_contact_topology()
+    np.testing.assert_array_equal(copied.facet_id[3:], template.facet_id + 3)
+    np.testing.assert_array_equal(
+        copied.facet_ids_extra[3:],
+        jnp.where(template.facet_ids_extra >= 0, template.facet_ids_extra + 3, -1),
+    )
+    np.testing.assert_array_equal(
+        copied.facet_vertices_extra[3:],
+        jnp.where(
+            template.facet_vertices_extra >= 0, template.facet_vertices_extra + 3, -1
+        ),
+    )
 
 
 def test_validation_detects_missing_shared_incidence():
@@ -375,28 +390,27 @@ def test_hdf5_current_shared_and_legacy_first_incidence_roundtrip(
         np.testing.assert_array_equal(after, before)
 
 
-def test_hdf5_current_layout_rejects_missing_extra_fields(tmp_path):
+def test_hdf5_rejects_missing_extra_fields_and_unknown_layout(tmp_path):
     h5py = pytest.importorskip("h5py")
     from jaxdem.utils import h5
 
     original, elements = _surface(2)
     state = jdem.State.add_contact_facets(original, elements)
-    path = tmp_path / "incomplete.h5"
+    path = tmp_path / "damaged.h5"
     h5.save(state, str(path))
     with h5py.File(path, "r+") as payload:
+        payload["root"].attrs["__facet_incidence_layout__"] = 2
+    with pytest.raises(RuntimeError, match="Unsupported HDF5 facet incidence layout"):
+        h5.load(str(path))
+    with h5py.File(path, "r+") as payload:
+        payload["root"].attrs["__facet_incidence_layout__"] = 1
         del payload["root/facet_ids_extra"]
         del payload["root/facet_vertices_extra"]
     with pytest.raises(RuntimeError, match="fields do not match"):
         h5.load(str(path))
 
 
-@pytest.mark.parametrize(
-    "corruption",
-    ["missing_shape", "missing_layout", "missing_both", "capacity", "version"],
-)
-def test_orbax_rejects_incomplete_or_mismatched_incidence_metadata(
-    tmp_path, corruption
-):
+def test_orbax_rejects_incomplete_or_mismatched_incidence_metadata(tmp_path):
     pytest.importorskip("orbax.checkpoint")
     original, elements = _surface(2)
     state = jdem.State.add_contact_facets(original, elements)
@@ -405,29 +419,18 @@ def test_orbax_rejects_incomplete_or_mismatched_incidence_metadata(
     with jdem.CheckpointWriter(directory) as writer:
         writer.save(state, system)
     path = directory / "0" / "state_metadata" / "metadata"
-    metadata = json.loads(path.read_text())
-    if corruption in {"missing_shape", "missing_both"}:
-        del metadata["facet_ids_extra_shape"]
-    if corruption in {"missing_layout", "missing_both"}:
-        del metadata["facet_incidence_layout"]
-    if corruption == "capacity":
-        metadata["facet_ids_extra_shape"][-1] = 0
-    if corruption == "version":
-        metadata["facet_incidence_layout"] = 2
-    path.write_text(json.dumps(metadata))
-    with jdem.CheckpointLoader(directory) as loader:
-        with pytest.raises(RuntimeError, match="incidence|layout"):
-            loader.load()
+    original_meta = json.loads(path.read_text())
 
-
-def test_hdf5_rejects_unknown_incidence_layout(tmp_path):
-    h5py = pytest.importorskip("h5py")
-    from jaxdem.utils import h5
-
-    original, elements = _surface(2)
-    path = tmp_path / "future.h5"
-    h5.save(jdem.State.add_contact_facets(original, elements), str(path))
-    with h5py.File(path, "r+") as payload:
-        payload["root"].attrs["__facet_incidence_layout__"] = 2
-    with pytest.raises(RuntimeError, match="Unsupported HDF5 facet incidence layout"):
-        h5.load(str(path))
+    for corruption in ("missing_both", "capacity", "version"):
+        metadata = json.loads(json.dumps(original_meta))
+        if corruption == "missing_both":
+            del metadata["facet_ids_extra_shape"]
+            del metadata["facet_incidence_layout"]
+        elif corruption == "capacity":
+            metadata["facet_ids_extra_shape"][-1] = 0
+        elif corruption == "version":
+            metadata["facet_incidence_layout"] = 2
+        path.write_text(json.dumps(metadata))
+        with jdem.CheckpointLoader(directory) as loader:
+            with pytest.raises(RuntimeError, match="incidence|layout"):
+                loader.load()

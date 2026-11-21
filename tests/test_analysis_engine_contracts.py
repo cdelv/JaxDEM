@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Check chunked analysis shapes, pair budgets, and bounded compilation caches."""
+"""Check chunked analysis shapes, timestep bins, pair budgets, and JIT cache bounds."""
 
 from __future__ import annotations
 
@@ -12,6 +12,8 @@ import pytest
 from jaxdem.analysis import (
     BinSpec,
     LagBinsExact,
+    TimeBins,
+    build_pairs,
     clear_jit_cache,
     evaluate_binned,
 )
@@ -85,28 +87,31 @@ def test_empty_pairs_preserve_kernel_output_tree_and_bin_shapes():
     assert bool(jnp.all(jnp.isnan(result.mean["delta"])))
 
 
-def test_analysis_jit_cache_is_bounded_and_explicitly_clearable():
+def test_analysis_jit_cache_is_bounded_and_explicitly_clearable(monkeypatch):
     clear_jit_cache()
+    monkeypatch.setattr(engine, "_JIT_CACHE_MAXSIZE", 2)
     arrays = {"x": jnp.arange(2.0)}
     bins = LagBinsExact(2, [1])
-    for scale in range(engine._JIT_CACHE_MAXSIZE + 5):
-        result = evaluate_binned(
-            displacement, arrays, bins, kernel_kwargs={"scale": scale}
+    try:
+        for scale in range(4):
+            result = evaluate_binned(
+                displacement, arrays, bins, kernel_kwargs={"scale": scale}
+            )
+            np.testing.assert_allclose(result.sums, [scale])
+            np.testing.assert_allclose(result.mean, [scale])
+        assert len(engine._JIT_CACHE) == 2
+        np.testing.assert_allclose(
+            evaluate_binned(displacement, arrays, bins, kernel_kwargs={"scale": 1}).sums,
+            [1],
         )
-        np.testing.assert_allclose(result.sums, [scale])
-        np.testing.assert_allclose(result.mean, [scale])
-    assert len(engine._JIT_CACHE) == engine._JIT_CACHE_MAXSIZE
-    np.testing.assert_allclose(
-        evaluate_binned(displacement, arrays, bins, kernel_kwargs={"scale": 1}).sums,
-        [1],
-    )
-    clear_jit_cache()
+    finally:
+        clear_jit_cache()
     assert not engine._JIT_CACHE
 
 
 def test_max_pairs_rejects_estimate_before_allocation_or_enumeration():
     bins = OverBudgetBins(2)
-    with np.testing.assert_raises_regex(ValueError, "exceeding max_pairs=100"):
+    with pytest.raises(ValueError, match="exceeding max_pairs=100"):
         evaluate_binned(displacement, {"x": jnp.arange(2.0)}, bins, max_pairs=100)
     assert not bins.iterated
 
@@ -127,3 +132,42 @@ def test_max_pairs_rejects_estimate_before_allocation_or_enumeration():
         evaluate_binned(
             forbidden, {"x": jnp.arange(3.0)}, UnderestimatedBins(3), max_pairs=2
         )
+
+
+def test_time_bins_accept_singleton_and_empty_timestep_arrays():
+    singleton = TimeBins.from_source({"timestep": np.asarray([7])})
+    assert singleton.values().tolist() == [7]
+    assert list(singleton.iter_tuples(0)) == [[0]]
+
+    empty = TimeBins(0, timestep=np.asarray([], dtype=int))
+    assert empty.num_bins() == 0
+    assert empty.values().size == 0
+
+
+def test_time_bins_reject_ambiguous_timestep_labels():
+    for labels, message in (
+        ([0, 2, 1, 3], "strictly increasing"),
+        ([0, 1, 1, 3], "strictly increasing"),
+        ([0.0, 1.5, 3.0], "integers"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            TimeBins(len(labels), timestep=np.asarray(labels))
+    with pytest.raises(ValueError, match="integers"):
+        TimeBins.from_source({"timestep": np.asarray([0.0, 1.5, 3.0])})
+
+
+def test_lag_bins_preserve_nonuniform_integer_pairs():
+    labels = np.asarray([0, 2, 5, 9])
+    bins = LagBinsExact(4, [3, 4, 5, 7, 9], timestep=labels)
+    pairs = build_pairs(bins)
+
+    actual = list(
+        zip(pairs.bin_id.tolist(), pairs.pair_i.tolist(), pairs.pair_j.tolist())
+    )
+    assert actual == [
+        (0, 1, 2),
+        (1, 2, 3),
+        (2, 0, 2),
+        (3, 1, 3),
+        (4, 0, 3),
+    ]

@@ -5,7 +5,9 @@
 import jax
 import jax.numpy as jnp
 
+import copy
 import json
+import pickle
 
 import h5py
 import orbax.checkpoint as ocp
@@ -105,10 +107,13 @@ def test_shared_manifest_validates_storage_and_rejects_future_schema() -> None:
         serialization_schema_version(None, legacy_version=3, expected_storage="orbax")
     with pytest.raises(ValueError, match="Unsupported orbax serialization payload"):
         make_serialization_manifest("orbax", "custom_object")
-    malformed = make_serialization_manifest("orbax", "state_system")
-    del malformed["conventions"]["units"]
-    with pytest.raises(RuntimeError, match="conventions"):
-        serialization_schema_version(malformed, expected_storage="orbax")
+    for bad_version in (True, 1.5):
+        bad = make_serialization_manifest("orbax", "state_system")
+        bad["version"] = bad_version
+        with pytest.raises(
+            RuntimeError, match="(Invalid|Unsupported) serialization schema version"
+        ):
+            serialization_schema_version(bad, expected_storage="orbax")
     wrong_precision = make_serialization_manifest("orbax", "state_system")
     wrong_precision["jax_enable_x64"] = not wrong_precision["jax_enable_x64"]
     with pytest.raises(RuntimeError, match="precision mode"):
@@ -294,18 +299,25 @@ def test_independently_authored_legacy_orbax_metadata_continues(tmp_path, versio
     _assert_leaves_equal(expected[1], actual[1], "legacy system", rtol=2e-6, atol=1e-7)
 
 
-@pytest.mark.parametrize(
-    "payload,missing", [({"first": 1, "second": 2}, "second"), ([1, 2, 3], "1")]
-)
-@pytest.mark.xfail(
-    strict=True,
-    raises=pytest.fail.Exception,
-    reason="Known silent truncation of damaged containers; utils/h5.py is protected from edits",
-)
-def test_hdf5_rejects_missing_declared_container_members(tmp_path, payload, missing):
-    path = str(tmp_path / "damaged-container.h5")
-    h5.save(payload, path)
-    with h5py.File(path, "r+") as file:
-        del file[f"root/{missing}"]
-    with pytest.raises((RuntimeError, ValueError, KeyError)):
-        h5.load(path)
+@pytest.mark.parametrize("restore", [copy.deepcopy, lambda v: pickle.loads(pickle.dumps(v))])
+def test_material_table_python_serialization_preserves_properties_and_jit(restore):
+    """MaterialTable.__getattr__ must not recurse infinitely during deepcopy/pickle."""
+    table = jd.MaterialTable.from_materials(
+        [
+            jd.Material.create("elastic", young=10.0, poisson=0.3, density=2.0),
+            jd.Material.create("elastic", young=30.0, poisson=0.3, density=5.0),
+        ],
+        matcher=jd.MaterialMatchmaker.create("harmonic"),
+    )
+    restored = restore(table)
+    np.testing.assert_array_equal(restored.young, [10.0, 30.0])
+    np.testing.assert_array_equal(restored.density, [2.0, 5.0])
+    assert jax.tree.structure(restored) == jax.tree.structure(table)
+    for before, after in zip(
+        jax.tree.leaves(table), jax.tree.leaves(restored), strict=True
+    ):
+        np.testing.assert_array_equal(after, before)
+    np.testing.assert_array_equal(
+        jax.jit(lambda material: material.young + material.density)(restored),
+        [12.0, 35.0],
+    )

@@ -5,7 +5,7 @@
 import jax
 import jax.numpy as jnp
 
-from dataclasses import replace
+from dataclasses import FrozenInstanceError, replace
 
 import numpy as np
 import pytest
@@ -49,26 +49,18 @@ def test_jit_geometry_assignments_refresh_cache(orientation_first):
     assert jnp.allclose(out_state.pos, pos_c + expected_rot, atol=1e-5)
 
 
-def test_replace_updates_cache():
-    pos_c = jnp.array([[1.0, 2.0, 3.0]])
-    pos_p = jnp.array([[1.0, 0.0, 0.0]])
-    q_init = jdem.utils.quaternion.Quaternion.create(
-        jnp.array([[1.0]]), jnp.array([[0.0, 0.0, 0.0]])
+def test_quaternion_is_frozen_and_assignment_refreshes_cache():
+    state = jdem.State.create(pos=jnp.zeros((1, 2)), pos_p=jnp.array([[1.0, 0.0]]))
+    q = jdem.utils.quaternion.Quaternion.create(
+        jnp.array([[2**-0.5]]), jnp.array([[0.0, 0.0, 2**-0.5]])
     )
-
-    state = jdem.State.create(pos=pos_c, pos_p=pos_p, q=q_init)
-
-    # Rotate 90 degrees around Z axis
-    q_new = jdem.utils.quaternion.Quaternion.create(
-        jnp.array([[0.70710678]]), jnp.array([[0.0, 0.0, 0.70710678]])
-    )
-
-    # Using dataclasses.replace
-    state_replaced = replace(state, q=q_new)
-
-    expected_rot = jnp.array([[0.0, 1.0, 0.0]])
-    assert jnp.allclose(state_replaced._pos_p_rot, expected_rot, atol=1e-5)
-    assert jnp.allclose(state_replaced.pos, pos_c + expected_rot, atol=1e-5)
+    with pytest.raises(FrozenInstanceError):
+        state.q.w = q.w
+    with pytest.raises(FrozenInstanceError):
+        state.q.xyz = q.xyz
+    state.q = q
+    np.testing.assert_allclose(state.pos, [[0.0, 1.0]], atol=1e-6)
+    state.validate()
 
 
 @pytest.mark.parametrize("dim", [2, 3])

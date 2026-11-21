@@ -17,7 +17,6 @@ from jaxdem.integrators import LinearIntegrator, RotationIntegrator
 from jaxdem.material_matchmakers import MaterialMatchmaker
 from jaxdem.utils import h5
 from tests.test_checkpoints import _assert_leaves_equal
-from jaxdem.rl.environments import granulabot
 
 ARCHITECTURES = [
     "ActorCritic",
@@ -28,17 +27,13 @@ ARCHITECTURES = [
 ACTION_SPACES = ["Free", "Box", "MaxNorm", "Blockwise", "discrete"]
 
 
-def test_model_serialization_matrix_covers_builtin_models_and_action_spaces():
-    from jaxdem.rl.models import Model
-    from jaxdem.rl.action_spaces import ActionSpace
-
-    for factory, names in [(Model, ARCHITECTURES), (ActionSpace, ACTION_SPACES[:-1])]:
-        expected = {
-            cls
-            for cls in factory._registry.values()
-            if cls.__module__.startswith("jaxdem.")
-        }
-        assert {factory._registry[name.lower()] for name in names} == expected
+MODEL_SPACE_PAIRS = [
+    ("ActorCritic", "Free"),
+    ("SharedActorCritic", "Box"),
+    ("LSTMActorCritic", "MaxNorm"),
+    ("MinGRUActorCritic", "Blockwise"),
+    ("LSTMActorCritic", "discrete"),
+]
 
 
 # One component changes at a time. Aliases share a serializer; distinct classes do not.
@@ -57,7 +52,6 @@ COMPONENTS = {
             "forcerouter",
             "spherefacetspring",
             "facetfacetspring",
-            "granulabotcontacts",
         ],
     ),
     "domain": (Domain, ["free", "periodic", "leesedwards", "reflect", "reflectsphere"]),
@@ -69,7 +63,6 @@ COMPONENTS = {
             "celllist",
             "multicelllist",
             "neighborlist",
-            "granulabotneighbors",
         ],
     ),
     "linear_integrator": (
@@ -84,7 +77,6 @@ COMPONENTS = {
             "plasticdeformableparticlemodel",
             "plasticperimeterdeformableparticlemodel",
             "plasticbendingdeformableparticlemodel",
-            "granulabotmagnets",
         ],
     ),
     "material_matchmaker": (MaterialMatchmaker, ["harmonic", "linear"]),
@@ -93,16 +85,6 @@ CASES = [(family, name) for family, (_, names) in COMPONENTS.items() for name in
 
 
 def configured_system(family, name):
-    if name == "granulabotmagnets":
-        state = jd.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.0, 0.0]]), rad=jnp.full(2, 0.1)
-        )
-        model = granulabot.MagnetPairs.Create(
-            pairs=[[0, 1]], weights=[0.25], particle_count=2
-        )
-        return jd.System.initialize(
-            state, jd.System.create(state=state, bonded_force_model=model)
-        )
     if family == "bonded_force_model":
         from tests.test_plastic_reference_state import _plastic_system
 
@@ -140,7 +122,7 @@ def configured_system(family, name):
     if family == "force_model":
         if name in {"wca", "wcashifted", "lennardjones"}:
             material = jd.Material.create("lj", epsilon=0.7, density=1.0)
-        if name in {"cundallstrack", "granulabotcontacts", "dampedspring"}:
+        if name in {"cundallstrack", "dampedspring"}:
             material = jd.Material.create(
                 "elasticfrict", young=2.0, density=1.0, poisson=0.25, mu=0.6, e=0.8
             )
@@ -196,12 +178,7 @@ def configured_system(family, name):
             )
     elif family == "collider":
         options["collider_type"] = name
-        if name == "granulabotneighbors":
-            law = jd.ForceModel.create("granulabotcontacts")
-            material = jd.Material.create(
-                "elasticfrict", density=1.0, young=2.0, poisson=0.25, mu=0.6, e=0.8
-            )
-        elif name != "neighborlist":
+        if name != "neighborlist":
             options["collider_kw"] = {}
     elif family != "material_matchmaker":
         options[family + "_type"] = name
@@ -239,72 +216,66 @@ MATERIALS = {
 }
 
 
-def test_serialized_material_table_includes_every_builtin_material_class():
-    expected = {
-        cls
-        for cls in jd.Material._registry.values()
-        if cls.__module__.startswith("jaxdem.")
-    }
-    assert {jd.Material._registry[name] for name in MATERIALS} == expected
+def test_serialization_tables_cover_all_builtin_classes():
+    from jaxdem.rl.action_spaces import ActionSpace
+    from jaxdem.rl.models import Model
+
+    tables = [
+        (jd.Material, list(MATERIALS)),
+        (Model, ARCHITECTURES),
+        (ActionSpace, ACTION_SPACES[:-1]),
+        *COMPONENTS.values(),
+    ]
+    for factory, names in tables:
+        expected = {
+            cls
+            for cls in factory._registry.values()
+            if cls.__module__.startswith("jaxdem.")
+            and not cls.__module__.startswith("jaxdem.rl.environments.")
+        }
+        assert {factory._registry[name.lower()] for name in names} == expected
 
 
-@pytest.mark.parametrize("family", COMPONENTS)
-def test_serialization_table_covers_all_builtin_classes(family):
-    factory, names = COMPONENTS[family]
-    expected = {
-        cls
-        for cls in factory._registry.values()
-        if cls.__module__.startswith("jaxdem.")
-    }
-    assert {factory._registry[name] for name in names} == expected
-
-
-@pytest.mark.parametrize("storage", ["hdf5", "hdf5_async", "orbax"])
 @pytest.mark.parametrize(
     "family,name", CASES, ids=[f"{family}-{name or 'noop'}" for family, name in CASES]
 )
-def test_component_configuration_and_continuation(tmp_path, storage, family, name):
+def test_component_configuration_and_continuation(tmp_path, family, name):
     state, system = configured_system(family, name)
-    assert_round_trip_and_continue(tmp_path, storage, state, system)
+    assert_round_trip_and_continue(tmp_path, state, system)
 
 
-def assert_round_trip_and_continue(tmp_path, storage, state, system):
+def assert_round_trip_and_continue(tmp_path, state, system):
     state, system = jd.System.step(state, system)
-    if storage in {"hdf5", "hdf5_async"}:
-        if storage == "hdf5_async":
-            with jd.H5Writer(directory=tmp_path) as writer:
-                writer.save(state, system)
-            path = tmp_path / "snapshot_00000000.h5"
-        else:
-            path = tmp_path / "state.h5"
-            h5.save((state, system), str(path))
-        restored = h5.load(str(path))
-    else:
-        with jd.CheckpointWriter(tmp_path / "checkpoint") as writer:
-            writer.save(state, system)
-        with jd.CheckpointLoader(tmp_path / "checkpoint") as loader:
-            restored = loader.load()
-    if isinstance(system.force_model, jd.forces.DampedSpringForce):
-        assert system.collider.history.shape[-1] == 0
-        assert restored[1].collider.history.shape[-1] == 0
-    _assert_leaves_equal(state, restored[0], "stored state")
-    _assert_leaves_equal(system, restored[1], "stored system")
     expected = jd.System.step(state, system, n=3)
-    actual = jd.System.step(*restored, n=3)
-    _assert_leaves_equal(
-        expected[0], actual[0], "continued state", rtol=2e-6, atol=1e-7
-    )
-    _assert_leaves_equal(
-        expected[1], actual[1], "continued system", rtol=2e-6, atol=1e-7
-    )
-    return restored
+
+    h5_path = tmp_path / "state.h5"
+    h5.save((state, system), str(h5_path))
+    restored_h5 = h5.load(str(h5_path))
+
+    ckpt_path = tmp_path / "checkpoint"
+    with jd.CheckpointWriter(ckpt_path) as writer:
+        writer.save(state, system)
+    with jd.CheckpointLoader(ckpt_path) as loader:
+        restored_orbax = loader.load()
+
+    for label, restored in (("hdf5", restored_h5), ("orbax", restored_orbax)):
+        if isinstance(system.force_model, jd.forces.DampedSpringForce):
+            assert system.collider.history.shape[-1] == 0
+            assert restored[1].collider.history.shape[-1] == 0
+        _assert_leaves_equal(state, restored[0], f"{label} stored state")
+        _assert_leaves_equal(system, restored[1], f"{label} stored system")
+        actual = jd.System.step(*restored, n=3)
+        _assert_leaves_equal(
+            expected[0], actual[0], f"{label} continued state", rtol=2e-6, atol=1e-7
+        )
+        _assert_leaves_equal(
+            expected[1], actual[1], f"{label} continued system", rtol=2e-6, atol=1e-7
+        )
+    return restored_h5, restored_orbax
 
 
-@pytest.mark.parametrize("storage", ["hdf5", "hdf5_async", "orbax"])
 @pytest.mark.parametrize("optimizer", ["fire", "damped_newtonian", "adam"])
-def test_minimizer_and_importable_callbacks_keep_configuration(
-    tmp_path, storage, optimizer
-):
+def test_minimizer_and_importable_callbacks_keep_configuration(tmp_path, optimizer):
     import optax
     from tests.custom_forces import advance_shear_before_step, mark_after_step
     from tests.test_checkpoints import dummy_target_fn
@@ -322,23 +293,31 @@ def test_minimizer_and_importable_callbacks_keep_configuration(
         user_pre_step_actions=advance_shear_before_step,
         user_post_step_actions=mark_after_step,
     )
-    restored = assert_round_trip_and_continue(tmp_path, storage, state, system)
+    restored_h5, restored_orbax = assert_round_trip_and_continue(
+        tmp_path, state, system
+    )
     # Exercise executable reconstruction, beyond comparing the saved metadata.
-    expected = factory(**kw)
-    actual = restored[1].minimizer
-    params = jnp.array([[0.7, -0.2], [0.4, 0.3]])
-    expected_state, actual_state = expected.init(params), actual.init(params)
-    for step in range(2):
-        gradient = 0.4 * params + (step + 1) * jnp.array([[0.1, -0.3], [0.2, 0.4]])
-        reference, expected_state = expected.update(gradient, expected_state, params)
-        update, actual_state = actual.update(gradient, actual_state, params)
-        _assert_leaves_equal(reference, update, "restored optimizer update")
-        _assert_leaves_equal(expected_state, actual_state, "restored optimizer state")
-        params = optax.apply_updates(params, reference)
+    for restored in (restored_h5, restored_orbax):
+        expected = factory(**kw)
+        actual = restored[1].minimizer
+        params = jnp.array([[0.7, -0.2], [0.4, 0.3]])
+        expected_state, actual_state = expected.init(params), actual.init(params)
+        for step in range(2):
+            gradient = 0.4 * params + (step + 1) * jnp.array(
+                [[0.1, -0.3], [0.2, 0.4]]
+            )
+            reference, expected_state = expected.update(
+                gradient, expected_state, params
+            )
+            update, actual_state = actual.update(gradient, actual_state, params)
+            _assert_leaves_equal(reference, update, "restored optimizer update")
+            _assert_leaves_equal(
+                expected_state, actual_state, "restored optimizer state"
+            )
+            params = optax.apply_updates(params, reference)
 
 
-@pytest.mark.parametrize("architecture", ARCHITECTURES)
-@pytest.mark.parametrize("space", ACTION_SPACES)
+@pytest.mark.parametrize("architecture,space", MODEL_SPACE_PAIRS)
 def test_model_parameters_action_space_and_nonzero_carry_continue(
     tmp_path, architecture, space
 ):

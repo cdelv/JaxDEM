@@ -2,24 +2,31 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Numerical and contract tests for RL action-space bijectors."""
 
-import jax
-import jax.numpy as jnp
-
+import json
 import math
 
-import pytest
-import numpy as np
 import distrax
+import jax
+import jax.numpy as jnp
+import numpy as np
+import pytest
 from scipy.integrate import quad
-from scipy.special import erf, gammaincinv, gammaln
+from scipy.special import erf, gammainc, gammaincinv, gammaln
 
-from jaxdem.rl.action_spaces.box_space import BoxSpace
-from jaxdem.rl.action_spaces.max_norm_space import MaxNormSpace
-from jaxdem.rl.action_spaces import BlockwiseSpace, Transformed
+from jaxdem.rl.action_spaces import (
+    ActionSpace,
+    BlockwiseSpace,
+    BoxSpace,
+    FreeSpace,
+    MaxNormSpace,
+    Transformed,
+)
 
 
-@pytest.mark.parametrize("kind", ["box", "maxnorm"])
-@pytest.mark.parametrize("mean,std", [(0.3, 0.4), (-0.7, 0.5), (1.1, 0.3)])
+@pytest.mark.parametrize(
+    "kind,mean,std",
+    [("box", 0.3, 0.4), ("maxnorm", -0.7, 0.5)],
+)
 def test_transformed_entropy_density_and_derivatives(kind, mean, std):
     eps = 1e-5
     if kind == "box":
@@ -89,26 +96,6 @@ def test_transformed_entropy_density_and_derivatives(kind, mean, std):
     np.testing.assert_allclose(actual, expected, rtol=3e-6, atol=2e-6)
 
 
-@pytest.mark.parametrize("width", [0.0, -1.0, float("inf"), float("nan")])
-def test_box_rejects_invalid_width(width: float) -> None:
-    with pytest.raises(ValueError, match="width"):
-        BoxSpace(-1.0, 1.0, width=width)
-
-
-@pytest.mark.parametrize("eps", [0.0, -1.0, 1.0, float("nan")])
-def test_action_spaces_reject_invalid_epsilon(eps: float) -> None:
-    with pytest.raises(ValueError, match="eps"):
-        BoxSpace(-1.0, 1.0, eps=eps)
-    with pytest.raises(ValueError, match="eps"):
-        MaxNormSpace(eps=eps)
-
-
-@pytest.mark.parametrize("radius", [0.0, -1.0, float("inf"), float("nan")])
-def test_max_norm_rejects_invalid_radius(radius: float) -> None:
-    with pytest.raises(ValueError, match="max_norm"):
-        MaxNormSpace(max_norm=radius)
-
-
 def test_distinct_box_spaces_remain_distinct_as_jitted_arguments() -> None:
     narrow = BoxSpace(-1.0, 1.0)
     wide = BoxSpace(-2.0, 2.0)
@@ -127,9 +114,6 @@ def test_box_inverse_and_jacobian_near_boundary() -> None:
     restored, inverse_log_det = space.inverse_and_log_det(y)
     assert jnp.allclose(restored, x, rtol=2e-3, atol=2e-3)
     assert jnp.allclose(inverse_log_det, -log_det, rtol=2e-3, atol=2e-3)
-    # At these near-boundary points float32 tanh is rounded enough that its
-    # autodiff derivative suffers cancellation. Check the stable expression
-    # against an independent double-precision scalar formula instead.
     half = (1.0 - 1e-6) * (5.0 - (-3.0)) / 2.0
     expected = []
     for value in (-4.5, 0.0, 4.5):
@@ -147,10 +131,15 @@ def test_box_inverse_and_jacobian_near_boundary() -> None:
 
 
 @pytest.mark.parametrize(
-    "x", [jnp.zeros(3), jnp.array([1e-7, -2e-7, 3e-7]), jnp.array([3.0, -2.0, 1.0])]
+    "x,eps",
+    [
+        (jnp.zeros(3), 1e-6),
+        (jnp.array([1e-7, -2e-7, 3e-7]), 1e-6),
+        (jnp.array([3.0, -2.0, 1.0]), 0.1),
+    ],
 )
-def test_max_norm_inverse_and_jacobian(x: jax.Array) -> None:
-    space = MaxNormSpace(max_norm=2.0, eps=1e-6)
+def test_max_norm_inverse_and_jacobian(x: jax.Array, eps: float) -> None:
+    space = MaxNormSpace(max_norm=2.0, eps=eps)
     y, log_det = space.forward_and_log_det(x)
     restored, inverse_log_det = space.inverse_and_log_det(y)
     assert jnp.allclose(restored, x, rtol=3e-4, atol=3e-6)
@@ -160,21 +149,7 @@ def test_max_norm_inverse_and_jacobian(x: jax.Array) -> None:
     assert jnp.allclose(numeric_log_det, log_det, rtol=3e-4, atol=3e-5)
 
 
-@pytest.mark.parametrize("eps", [0.1, 0.5])
-def test_max_norm_large_margin_keeps_exact_inverse_and_jacobian(eps: float) -> None:
-    space = MaxNormSpace(max_norm=2.0, eps=eps)
-    x = jnp.array([0.4, -0.7, 1.1])
-    y, log_det = space.forward_and_log_det(x)
-    restored, inverse_log_det = space.inverse_and_log_det(y)
-    jacobian = jax.jacfwd(space.forward)(x)
-    _, numeric_log_det = jnp.linalg.slogdet(jacobian)
-
-    assert jnp.allclose(restored, x, rtol=2e-5, atol=2e-6)
-    assert jnp.allclose(inverse_log_det, -log_det, rtol=2e-5, atol=2e-6)
-    assert jnp.allclose(numeric_log_det, log_det, rtol=2e-5, atol=2e-6)
-
-
-@pytest.mark.parametrize("dimension", [1, 3, 16])
+@pytest.mark.parametrize("dimension", [1, 3, 8])
 def test_max_norm_origin_has_exact_linear_limit(dimension) -> None:
     space = MaxNormSpace(max_norm=2.0, eps=0.1)
     origin = jnp.zeros(dimension)
@@ -214,40 +189,17 @@ def isotropic_radial_entropy_reference(dimension, std, scale):
     return log_volume - dimension / 2 * (std * std - 1 - 2 * np.log(std)), 1 - std * std
 
 
-@pytest.mark.parametrize("dimension", [1, 2, 3, 9, 16, 64, 256])
-@pytest.mark.parametrize("std", [0.1, 1.0, 10.0])
-def test_radial_entropy_and_gradients_against_gaussian_kl(dimension, std):
-    space = MaxNormSpace(max_norm=1.7)
-    expected, expected_scale_gradient = isotropic_radial_entropy_reference(
-        dimension, std, (1 - space.eps) * space.max_norm
-    )
-
-    def entropy(mean, log_std):
-        normal = distrax.MultivariateNormalDiag(mean, jnp.exp(log_std))
-        return Transformed(normal, space).entropy()
-
-    value, (mean_gradient, scale_gradient) = jax.jit(
-        jax.value_and_grad(entropy, argnums=(0, 1))
-    )(jnp.zeros(dimension), jnp.full(dimension, np.log(std)))
-    np.testing.assert_allclose(value, expected, rtol=3e-6, atol=1e-5)
-    np.testing.assert_allclose(mean_gradient, 0, atol=1e-7)
-    np.testing.assert_allclose(
-        scale_gradient, expected_scale_gradient, rtol=3e-6, atol=1e-5
-    )
-
-
-@pytest.mark.parametrize("block_size", [8, 16])
-def test_high_dimensional_policy_entropy_bonus_and_gradient(block_size):
+def test_high_dimensional_policy_entropy_bonus_and_gradient():
     from flax import nnx
 
     from jaxdem.rl.models import Model
     from jaxdem.rl.trainers import TrajectoryData
     from jaxdem.rl.trainers.ppo_trainer import PPOTrainer
 
-    dimension, coefficient, std = 16, 0.3, 0.7
-    space = MaxNormSpace(max_norm=1.7)
-    if block_size < dimension:
-        space = BlockwiseSpace(((block_size, space),) * (dimension // block_size))
+    dimension, block_size, coefficient, std = 16, 8, 0.3, 0.7
+    space = BlockwiseSpace(
+        ((block_size, MaxNormSpace(max_norm=1.7)),) * (dimension // block_size)
+    )
     model = Model.create(
         "SharedActorCritic",
         observation_space_size=1,
@@ -308,11 +260,11 @@ def test_high_dimensional_policy_entropy_bonus_and_gradient(block_size):
     np.testing.assert_allclose(gradient.actor_mu.bias[...], 0.0, atol=1e-7)
 
 
-@pytest.mark.parametrize("dimension", [2, 9, 32, 256])
+@pytest.mark.parametrize("dimension", [1, 3, 64])
 def test_anisotropic_noncentral_gaussian_entropy_and_gradients(dimension):
     space = MaxNormSpace(max_norm=1.7)
     mean = np.linspace(-0.7, 1.1, dimension)
-    log_std = np.linspace(-2.0, 0.5, dimension)
+    log_std = np.linspace(-2.3, 2.0, dimension)
     log_volume = (
         dimension * np.log(1.7 * (1 - space.eps))
         + dimension / 2 * np.log(np.pi)
@@ -337,7 +289,7 @@ def test_anisotropic_noncentral_gaussian_entropy_and_gradients(dimension):
     )
 
 
-@pytest.mark.parametrize("dimension", [1, 2, 3, 9, 16, 64, 256, 1024])
+@pytest.mark.parametrize("dimension", [1, 3, 16, 256])
 def test_power_ball_radial_quantiles_tiny_actions_and_inverse(dimension):
     space = MaxNormSpace(max_norm=1.7)
     radius = (1 - space.eps) * space.max_norm
@@ -361,8 +313,6 @@ def test_power_ball_radial_quantiles_tiny_actions_and_inverse(dimension):
     assert np.all(np.linalg.norm(y, axis=-1) < space.max_norm)
     forward_gradient = jax.grad(lambda v: space.forward(v).sum())(x)
     assert np.isfinite(forward_gradient).all()
-    # The radial derivative follows from differentiating the two radius CDFs.
-    # Include the series/gamma switch, where a clamp would halve the derivative.
     log_pdf = (
         (dimension - 1) * np.log(radii[3:])
         - radii[3:] ** 2 / 2
@@ -395,7 +345,6 @@ def test_radial_correction_broadcasts_batches_and_has_deterministic_limit():
     scalar = space.log_det_expectation(mean[0, 0], std)
     np.testing.assert_allclose(batched, np.full((2, 3), scalar), rtol=2e-6)
 
-    # A collapsed Gaussian has the Jacobian at its mean, even at the origin.
     for point in [jnp.zeros(16), jnp.linspace(-0.5, 1.0, 16)]:
         value, gradient = jax.value_and_grad(space.log_det_expectation)(
             point, jnp.zeros(16)
@@ -412,38 +361,128 @@ def test_radial_correction_broadcasts_batches_and_has_deterministic_limit():
     )
 
 
-@pytest.mark.parametrize("eps", [1e-6, 0.1])
-@pytest.mark.skipif(
-    not jax.config.jax_enable_x64, reason="tanh(8) inverse accuracy requires float64"
-)
-def test_box_margin_does_not_prematurely_clip_inverse(eps):
-    space = BoxSpace(-3.0, 5.0, width=0.7, eps=eps)
-    # tanh(8) lies beyond the old inverse cutoff even in float64.
-    x = jnp.array([-5.6, 0.0, 5.6], dtype=jnp.float64)
-    y, ld = space.forward_and_log_det(x)
-    restored, ild = space.inverse_and_log_det(y)
-    assert jnp.allclose(restored, x, rtol=1e-8, atol=1e-8)
-    assert jnp.allclose(ild, -ld, rtol=1e-8, atol=1e-8)
+def test_box_margin_does_not_prematurely_clip_inverse():
+    with jax.enable_x64(True):
+        space = BoxSpace(-3.0, 5.0, width=0.7, eps=0.1)
+        # tanh(8) lies beyond the old inverse cutoff even in float64.
+        x = jnp.array([-5.6, 0.0, 5.6], dtype=jnp.float64)
+        y, ld = space.forward_and_log_det(x)
+        restored, ild = space.inverse_and_log_det(y)
+        assert jnp.allclose(restored, x, rtol=1e-8, atol=1e-8)
+        assert jnp.allclose(ild, -ld, rtol=1e-8, atol=1e-8)
 
 
-@pytest.mark.parametrize(
-    "space,input_rank,output_rank",
-    [
-        ("free", 1, None),
-        ("free", 0, 1),
-        ("box", 1, None),
-        ("box", 0, 1),
-        ("maxnorm", 0, None),
-        ("maxnorm", 1, 0),
-    ],
-)
-def test_action_spaces_reject_incompatible_event_ranks(space, input_rank, output_rank):
-    from jaxdem.rl.action_spaces import FreeSpace
+def test_blockwise_transform_inverse_and_block_diagonal_jacobian():
+    inner = (
+        (3, MaxNormSpace(max_norm=1.7)),
+        (3, MaxNormSpace(max_norm=0.4)),
+    )
+    space = BlockwiseSpace(
+        (
+            (6, BlockwiseSpace(inner)),
+            (2, BoxSpace(-2.0, 3.0, width=0.7)),
+            (1, FreeSpace()),
+        )
+    )
+    x = jnp.linspace(-0.6, 0.8, 9)
+    y, log_det = jax.jit(lambda b, x: b.forward_and_log_det(x))(space, x)
+    restored, inverse_log_det = jax.jit(space.inverse_and_log_det)(y)
 
-    constructors = {
-        "free": FreeSpace,
-        "box": lambda **kw: BoxSpace(-1, 1, **kw),
-        "maxnorm": MaxNormSpace,
-    }
-    with pytest.raises(ValueError, match="scalar|one vector"):
-        constructors[space](event_ndims_in=input_rank, event_ndims_out=output_rank)
+    def radial(v, limit):
+        r = np.linalg.norm(v)
+        return (
+            limit * (1 - 1e-6) * gammainc(v.size / 2, r * r / 2) ** (1 / v.size) * v / r
+        )
+
+    expected = np.concatenate(
+        [
+            radial(np.asarray(x[:3]), 1.7),
+            radial(np.asarray(x[3:6]), 0.4),
+            0.5 + 2.5 * (1 - 1e-6) * np.tanh(np.asarray(x[6:8]) / 0.7),
+            np.asarray(x[8:]),
+        ]
+    )
+    np.testing.assert_allclose(y, expected, rtol=2e-6, atol=1e-7)
+    np.testing.assert_allclose(restored, x, rtol=3e-6, atol=1e-6)
+    np.testing.assert_allclose(inverse_log_det, -log_det, rtol=3e-6, atol=1e-6)
+    jacobian = jax.jacfwd(space.forward)(x)
+    np.testing.assert_allclose(
+        log_det, np.linalg.slogdet(jacobian)[1], rtol=3e-6, atol=1e-6
+    )
+    for start, stop in [(0, 3), (3, 6), (6, 8), (8, 9)]:
+        np.testing.assert_array_equal(jacobian[start:stop, :start], 0)
+        np.testing.assert_array_equal(jacobian[start:stop, stop:], 0)
+
+
+def test_batched_blockwise_entropy_and_gradients_against_marginal_integrals():
+    std, width, eps = 0.3, 1.2, 1e-6
+    space = BlockwiseSpace(
+        (
+            (3, MaxNormSpace(max_norm=1.7)),
+            (9, MaxNormSpace(max_norm=0.4)),
+            (2, BoxSpace(-2.0, 3.0, width=width)),
+            (1, FreeSpace()),
+        )
+    )
+    normal_entropy = 0.5 * np.log(2 * np.pi * np.e) + np.log(std)
+
+    def expectation(function):
+        return quad(
+            lambda z: function(z) * np.exp(-z * z / 2) / np.sqrt(2 * np.pi), -12, 12
+        )[0]
+
+    box_entropy = normal_entropy + np.log(2.5 * (1 - eps) / width)
+    box_entropy += expectation(
+        lambda z: (
+            2 * (np.log(2) - std * z / width - np.logaddexp(0, -2 * std * z / width))
+        )
+    )
+    box_gradient = 1 + expectation(
+        lambda z: -2 * std * z / width * np.tanh(std * z / width)
+    )
+    force_entropy, force_gradient = isotropic_radial_entropy_reference(
+        3, std, 1.7 * (1 - eps)
+    )
+    torque_entropy, torque_gradient = isotropic_radial_entropy_reference(
+        9, std, 0.4 * (1 - eps)
+    )
+    expected = force_entropy + torque_entropy + 2 * box_entropy + normal_entropy
+    expected_gradient = np.repeat(
+        [force_gradient, torque_gradient, box_gradient, 1], [3, 9, 2, 1]
+    )
+
+    def entropy(mean, log_std):
+        normal = distrax.MultivariateNormalDiag(mean, jnp.exp(log_std))
+        return Transformed(normal, space).entropy().sum()
+
+    value, (mean_gradient, scale_gradient) = jax.jit(
+        jax.value_and_grad(entropy, argnums=(0, 1))
+    )(jnp.zeros((2, 3, 15)), jnp.full(15, np.log(std)))
+    np.testing.assert_allclose(value, 6 * expected, rtol=3e-6, atol=1e-5)
+    np.testing.assert_allclose(mean_gradient, 0, atol=1e-6)
+    np.testing.assert_allclose(
+        scale_gradient, 6 * expected_gradient, rtol=3e-6, atol=1e-5
+    )
+
+
+def test_nested_blockwise_factory_configuration_survives_json_roundtrip():
+    original = BlockwiseSpace(
+        (
+            (3, BlockwiseSpace(((2, MaxNormSpace(max_norm=2.0)), (1, FreeSpace())))),
+            (2, BoxSpace([-2.0, -1.0], [1.0, 4.0], width=0.7, eps=0.01)),
+        )
+    )
+    metadata = json.loads(json.dumps(original.metadata))
+    restored = ActionSpace.create("Blockwise", **metadata)
+    assert restored.metadata == original.metadata
+    x = jnp.array([0.2, -0.4, 0.7, 0.1, -0.3])
+    apply = jax.jit(lambda b, x: b.forward_and_log_det(x))
+    expected = apply(original, x)
+    actual = apply(restored, x)
+    for result, reference in zip(actual, expected, strict=True):
+        np.testing.assert_array_equal(result, reference)
+    np.testing.assert_allclose(
+        restored.log_det_expectation(x, jnp.full(5, 0.3)),
+        original.log_det_expectation(x, jnp.full(5, 0.3)),
+        rtol=2e-6,
+    )

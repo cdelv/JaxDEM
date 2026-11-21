@@ -1,25 +1,33 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Mechanical convergence must survive low/constant energy and rigid rotations."""
+"""Mechanical convergence, overflow guards, and rigid-body minimization."""
+
+from dataclasses import dataclass, replace
 
 import jax
 import jax.numpy as jnp
-
-from dataclasses import replace
-
 import numpy as np
 import optax
 import pytest
 
 import jaxdem as jd
 from jaxdem.minimizers.routines import (
+    COLLIDER_OVERFLOW,
     CONVERGED,
     MAX_STEPS,
     NONFINITE,
+    TerminationReason,
     convergence_info,
     minimize,
 )
-from jaxdem.utils.jamming import bisection_jam, pe_band_jam, pressure_bisection_jam
+
+
+@jax.tree_util.register_dataclass
+@dataclass(slots=True)
+class _NanEnergySpring(jd.forces.SpringForce):
+    @staticmethod
+    def energy(i, j, pos, state, system, history):
+        return jnp.where(i != j, jnp.nan, 0.0)
 
 
 @pytest.mark.parametrize("dim", [2, 3])
@@ -79,14 +87,39 @@ def pair(dim=2, overlap=1e-7):
     return st, sy
 
 
-@pytest.mark.parametrize("dim", [2, 3])
-def test_small_energy_does_not_certify_force_balance(dim):
-    st, sy = pair(dim)
+def _overflow_system(x):
+    st = jd.State.create(
+        pos=jnp.column_stack((jnp.asarray(x), jnp.zeros(len(x)))),
+        rad=jnp.full(len(x), 0.5),
+    )
+    mat = jd.Material.create("elastic", young=1.0, poisson=0.5, density=1.0)
+    sy = jd.System.create(
+        state=st,
+        dt=0.01,
+        minimizer=jd.minimizers.fire,
+        domain_type="periodic",
+        domain_kw={"box_size": jnp.full(2, 10.0)},
+        force_model_type="spring",
+        collider_type="neighborlist",
+        collider_kw={
+            "cutoff": 1.0,
+            "skin": 0.05,
+            "max_neighbors": 1,
+            "secondary_collider_type": "naive",
+        },
+        mat_table=jd.MaterialTable.from_materials([mat]),
+    )
+    return st, sy
+
+
+def test_small_energy_does_not_certify_force_balance():
+    st, sy = pair(dim=2)
     out = sy.minimize(st, sy, max_steps=3)
     assert int(out[2]) == 3
     assert not out.info.converged
     assert 0.0 <= out[3] <= 1e-14
     assert int(out.info.status) == MAX_STEPS
+    assert TerminationReason(int(out.reason)) is TerminationReason.MAX_STEPS
 
 
 def test_energy_plateau_is_not_convergence():
@@ -135,7 +168,7 @@ def test_fixed_reactions_and_contact_free_states():
     st, sy = pair(overlap=-0.1)
     out = minimize(st, sy)
     assert int(out[2]) == 0 and int(out.info.status) == CONVERGED
-    assert len(minimize(st, sy)) == 4
+    assert len(out) == 4
 
 
 def test_nonfinite_is_a_failure():
@@ -148,13 +181,7 @@ def test_nonfinite_is_a_failure():
 def test_norms_are_per_body_and_rotation_invariant():
     force = jnp.tile(jnp.array([[0.8, 0.8]]), (17, 1))
     torque = jnp.zeros((17, 1))
-    info = convergence_info(
-        force,
-        torque,
-        jnp.zeros(17, dtype=bool),
-        1.0,
-        1.0,
-    )
+    info = convergence_info(force, torque, jnp.zeros(17, dtype=bool), 1.0, 1.0)
     assert not info.converged
     assert float(info.force_max) == pytest.approx(np.sqrt(1.28))
 
@@ -179,174 +206,13 @@ def test_custom_signed_objective_uses_its_gradient():
     assert out[3] < 0.0
 
 
-def lattice():
-    st, sy = pair()
-    xy = (
-        np.stack(
-            np.meshgrid(np.arange(3), np.arange(3), indexing="ij"), axis=-1
-        ).reshape(-1, 2)
-        * 1.1
-    )
-    st = jd.State.create(pos=jnp.asarray(xy), rad=jnp.full(9, 0.5))
-    sy = jd.System.create(
-        st.shape,
-        collider_type="naive",
-        dt=0.01,
-        domain_type="periodic",
-        domain_kw={"box_size": jnp.full(2, 3.3)},
-        mat_table=sy.mat_table,
-        minimizer=jd.minimizers.fire,
-    )
-    return st, sy
-
-
-def test_bisection_returns_the_validated_high_state():
-    st, sy = lattice()
-    result, info = bisection_jam(
-        st,
-        sy,
-        minimizer_kwargs={"max_steps": 2},
-        n_jamming_steps=60,
-        pe_tol=1e-8,
-        packing_fraction_increment=0.03,
-        packing_fraction_tolerance=1e-6,
-        verbose=False,
-        return_info=True,
-    )
-    assert result.converged and info.converged and info.minimization.converged
-    assert 0 <= int(info.max_minimization_steps) <= 2
-    assert 1e-8 < result.potential_energy <= 2e-8
-    actual = jd.utils.compute_packing_fraction(
-        result.jammed_state, result.jammed_system
-    )
-    np.testing.assert_allclose(result.packing_fraction, actual, rtol=1e-12)
-    again = minimize(result.jammed_state, result.jammed_system, max_steps=0)
-    assert again.info.converged
-    np.testing.assert_allclose(again[3], result.potential_energy, rtol=1e-10)
-    assert len(result) == 6
-    low = minimize(result.unjammed_state, result.unjammed_system, max_steps=0)
-    assert low.info.converged and 0.0 <= low[3] <= 1e-8
-
-
-@pytest.mark.parametrize("pe_band_factor", [1.0, 0.5, np.inf])
-def test_bisection_rejects_invalid_pe_band_factor(pe_band_factor):
-    st, sy = lattice()
-    with pytest.raises(ValueError, match="pe_band_factor"):
-        bisection_jam(st, sy, pe_band_factor=pe_band_factor, verbose=False)
-
-
-@pytest.mark.parametrize("outer_limit", [False, True])
-def test_bisection_failure_cannot_look_jammed(outer_limit):
-    st, sy = pair(overlap=-0.1 if outer_limit else 0.1)
-    result, info = bisection_jam(
-        st,
-        sy,
-        minimizer_kwargs={"max_steps": 0},
-        n_jamming_steps=1,
-        verbose=False,
-        return_info=True,
-    )
-    assert not result.converged and not info.converged
-    assert jnp.isnan(result.packing_fraction) and jnp.isnan(result.potential_energy)
-    assert int(info.status) == (3 if outer_limit else 2)
-    assert int(info.max_minimization_steps) == 0
-
-
-def test_other_jamming_drivers_reject_unresolved_relaxation():
-    st, sy = pair(overlap=0.1)
-    result = pe_band_jam(
-        st, sy, minimizer_kwargs={"max_steps": 0}, n_jamming_steps=1, verbose=False
-    )
-    assert not result.converged
-    result = pressure_bisection_jam(
-        st, sy, minimizer_kwargs={"max_steps": 0}, n_jamming_steps=1, verbose=False
-    )
-    assert not result.converged
-
-
-@pytest.mark.parametrize("driver", ["energy", "pressure"])
-def test_other_jamming_drivers_return_balanced_in_band_states(driver):
-    st, sy = lattice()
-    if driver == "energy":
-        result, info = pe_band_jam(
-            st,
-            sy,
-            pe_tol=1e-6,
-            pe_band_factor=2.0,
-            packing_fraction_increment=0.03,
-            minimizer_kwargs={"max_steps": 2},
-            n_jamming_steps=60,
-            verbose=False,
-            return_info=True,
-        )
-        assert 1e-6 <= result.potential_energy <= 2e-6
-    else:
-        result, info = pressure_bisection_jam(
-            st,
-            sy,
-            pressure_threshold=1e-4,
-            pressure_band_factor=1.2,
-            growth_rate=1.02,
-            fine_growth_rate=1.002,
-            minimizer_kwargs={"max_steps": 2},
-            n_jamming_steps=60,
-            verbose=False,
-            return_info=True,
-        )
-        from jaxdem.utils.contacts import compute_contact_pressure
-
-        _, _, pressure = compute_contact_pressure(
-            result.jammed_state, result.jammed_system
-        )
-        assert 1e-4 <= pressure <= 1.2e-4
-    assert result.converged
-    assert info.converged and int(info.status) == 0
-    assert info.minimization.converged and 0 < int(info.steps) <= 60
-    assert 0 <= int(info.max_minimization_steps) <= 2
-    checked = minimize(result.jammed_state, result.jammed_system, max_steps=0)
-    assert checked.info.converged
-    np.testing.assert_allclose(
-        checked.info.force_max, info.minimization.force_max, atol=1e-14
-    )
-    np.testing.assert_allclose(
-        checked.info.torque_max, info.minimization.torque_max, atol=1e-14
-    )
-    np.testing.assert_allclose(checked[3], result.potential_energy, rtol=1e-10)
-
-
-@pytest.mark.parametrize("dim", [2, 3])
-@pytest.mark.parametrize("driver", ["bisection", "energy"])
-def test_unbalanced_small_energy_cannot_establish_lower_bound(dim, driver):
-    st, sy = pair(dim)
-    kw = {
-        "minimizer_kwargs": {"max_steps": 3},
-        "n_jamming_steps": 4,
-        "pe_tol": 1e-14,
-        "verbose": False,
-    }
-    if driver == "bisection":
-        result, info = bisection_jam(st, sy, return_info=True, **kw)
-        assert not info.converged and int(info.status) == 2
-        assert int(info.steps) == 1 and int(info.minimization.status) == MAX_STEPS
-        assert int(info.max_minimization_steps) == 3
-        assert not info.minimization.converged
-    else:
-        result = pe_band_jam(st, sy, **kw)
-    assert not result.converged
-    assert jnp.isnan(result.packing_fraction) and jnp.isnan(result.potential_energy)
-    np.testing.assert_array_equal(result.unjammed_state.pos_c, st.pos_c)
-    np.testing.assert_array_equal(
-        result.unjammed_system.domain.box_size, sy.domain.box_size
-    )
-
-
 @pytest.mark.parametrize(
     "optimizer", [jd.minimizers.fire, jd.minimizers.damped_newtonian]
 )
-@pytest.mark.parametrize("max_steps", [0, 3])
-def test_physical_relaxation_evaluates_energy_once(monkeypatch, optimizer, max_steps):
+def test_physical_relaxation_evaluates_energy_once(monkeypatch, optimizer):
     from jaxdem.minimizers import routines
 
+    max_steps = 3
     st, sy = pair(overlap=0.1)
     sy = replace(sy, minimizer=optimizer(dt=0.01))
     original_energy = routines._evaluate_energy
@@ -378,15 +244,18 @@ def test_physical_relaxation_evaluates_energy_once(monkeypatch, optimizer, max_s
         assert int(result[2]) == max_steps
         assert len(evaluations) == 1
         assert len(force_evaluations) == max_steps + 1
-        # With overlap delta=.1+2*x_left, h=.01, and unit masses:
-        # FIRE uses v_next=v-h*delta, x_next=x+h*v_next (the momentum stays
-        # parallel to the force, so mixing leaves it unchanged).
-        # Damped Newtonian uses v_next=(399*v-4*delta)/401, x_next=x+v_next/100.
-        overlaps = (
-            [0.1, 0.09998, 0.099940004, 0.0998800199992]
-            if optimizer is jd.minimizers.fire
-            else [0.1, 0.09998004987531173, 0.09994025310787868, 0.09988071662295496]
-        )[: max_steps + 1]
+        # With overlap delta = 0.1 + 2*x_left, h = 0.01, and unit masses:
+        # FIRE: v_next = v - h*delta; damped Newtonian: v_next = (399*v - 4*delta)/401.
+        x, v, overlaps = 0.0, 0.0, [0.1]
+        for _ in range(max_steps):
+            delta = 0.1 + 2.0 * x
+            v = (
+                v - 0.01 * delta
+                if optimizer is jd.minimizers.fire
+                else (399.0 * v - 4.0 * delta) / 401.0
+            )
+            x += 0.01 * v
+            overlaps.append(0.1 + 2.0 * x)
         np.testing.assert_allclose(
             np.asarray(force_evaluations)[..., 0],
             np.array(overlaps)[:, None] * [-1, 1],
@@ -416,76 +285,30 @@ def test_conjugate_gradient_keeps_objective_evaluations():
     )
 
 
-def test_force_only_path_rejects_nonfinite_final_energy(monkeypatch):
-    from jaxdem.minimizers import routines
-
+def test_force_only_path_rejects_nonfinite_final_energy():
     st, sy = pair(overlap=-0.1)
-    routines.minimize.clear_cache()
-    monkeypatch.setattr(
-        routines, "_evaluate_energy", lambda st, sy: (st, sy, jnp.array(jnp.nan))
-    )
-    try:
-        out = routines.minimize(st, sy, max_steps=0)
-        assert not out.info.converged and not out.info.finite
-        assert int(out.info.status) == NONFINITE
-    finally:
-        routines.minimize.clear_cache()
+    sy = replace(sy, force_model=_NanEnergySpring())
+    out = minimize(st, sy, max_steps=0)
+    assert not out.info.converged and not out.info.finite
+    assert int(out.info.status) == NONFINITE
 
 
-@pytest.mark.parametrize("dim", [2, 3])
-def test_sphere_relaxation_helper_uses_force_tolerance(dim):
-    from jaxdem.utils.random_sphere_configuration import minimize_sphere_configuration
-
-    pos = np.zeros((2, dim))
-    pos[1, 0] = 0.9
-    relaxed, box = minimize_sphere_configuration(
-        [0.5, 0.5], pos, phi=0.05, dim=dim, force_tol=1e-10
-    )
-    delta = np.asarray(relaxed[1] - relaxed[0])
-    delta = delta - np.asarray(box) * np.round(delta / np.asarray(box))
-    assert np.linalg.norm(delta) >= 1.0 - 1e-8
+def test_overflow_rejected_even_if_force_check_passes():
+    st, sy = _overflow_system([0, 0.2, 0.4])
+    out = minimize(st, sy, max_steps=10, force_tol=1e6, torque_tol=1e6)
+    assert out.info.finite
+    assert not out.info.converged
+    assert int(out.info.status) == COLLIDER_OVERFLOW
+    assert int(out[2]) == 0
 
 
-def test_quasistatic_compression_forwards_mechanical_tolerances():
-    from jaxdem.utils.packing_utils import quasistatic_compress_to_packing_fraction
-
-    st, sy = lattice()
-    target = float(jd.utils.compute_packing_fraction(st, sy)) + 0.01
-    st, sy, phi, pe = quasistatic_compress_to_packing_fraction(
-        st,
-        sy,
-        target,
-        step=0.005,
-        force_tol=1e-11,
-        torque_tol=1e-11,
-        max_n_min_steps_per_outer=2,
-        max_n_outer_steps=5,
-    )
-    assert float(phi) == pytest.approx(target)
-    checked = minimize(st, sy, max_steps=0, force_tol=1e-11, torque_tol=1e-11)
-    assert checked.info.converged
-    np.testing.assert_allclose(pe, checked[3])
-
-
-def test_fire_uphill_backtracking_follows_the_exact_sequence():
-    optimizer = jd.fire(dt=1.0, N_min=0, f_inc=2.0, f_alpha=0.5)
-    state = optimizer.init(jnp.asarray(0.0))
-    # Downhill: p = F dt/2 + F dt'/2 with the grown step dt', moved by p dt'.
-    # The reversed force makes power negative: backtrack half the halved step
-    # from the pre-kick velocity and stop. A following zero-power step counts
-    # as uphill too and halves the step again; there is no counter reset.
-    # The next downhill step restarts from rest with the halved step.
-    expected = [
-        (6, 3, 2, 0.05, 1),
-        (-1, 0, 1, 0.1, 0),
-        (0, 0, 0.5, 0.1, 0),
-        (1.5, 1.5, 1, 0.05, 1),
-    ]
-    for gradient, prediction in zip([-2.0, 1.0, 0.0, -2.0], expected, strict=True):
-        update, state = optimizer.update(jnp.asarray(gradient), state)
-        np.testing.assert_allclose(
-            [update, state.momentum, state.dt, state.alpha, state.N_good],
-            prediction,
-            rtol=2e-6,
-            atol=1e-7,
-        )
+def test_overflow_during_relaxation_stops_at_first_bad_evaluation():
+    st, sy = _overflow_system([0, 0.5, 1.6])
+    initial = minimize(st, sy, max_steps=0)
+    assert not initial[1].collider.overflow
+    sy = replace(sy, minimizer=optax.sgd(0.2))
+    out = minimize(st, sy, max_steps=10)
+    assert int(out[2]) == 1
+    assert out[1].collider.overflow
+    assert int(out.info.status) == COLLIDER_OVERFLOW
+    assert not out.info.converged

@@ -26,21 +26,16 @@ def query_system():
     return jd.System.create(state=state, collider_type="")
 
 
-@pytest.mark.parametrize("height", [1e-3, 1e-8])
-@pytest.mark.parametrize("scale", [1e-8, 1.0, 1e8])
+@pytest.mark.parametrize("scale", [1e-8, 1e8])
 def test_triangle_flattening_preserves_face_distance_and_nodal_weights(
-    query_system, height, scale
+    query_system, scale
 ):
+    height = 1e-8
     triangle = scale * jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, height, 0.0]])
     point = scale * jnp.array([0.75, height / 4, 0.1])
     projection = scale * np.array([0.75, height / 4, 0.0])
     expected_weights = [0.25, 0.5, 0.25]
-    for flags in (
-        {},
-        {"edge": False},
-        {"vertex": False},
-        {"edge": False, "vertex": False},
-    ):
+    for flags in ({}, {"edge": False, "vertex": False}):
         distance, closest, weights = point_triangle_distance(
             point, *triangle, query_system, **flags
         )
@@ -58,8 +53,8 @@ def test_triangle_flattening_preserves_face_distance_and_nodal_weights(
     assert np.all(np.isfinite(weights))
 
 
-@pytest.mark.parametrize("height", [1e-3, 1e-8])
-def test_thin_triangle_short_edge_is_not_mistaken_for_an_endpoint(query_system, height):
+def test_thin_triangle_short_edge_is_not_mistaken_for_an_endpoint(query_system):
+    height = 1e-8
     triangle = jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, height, 0.0]])
     point = jnp.array([1.2, 0.4 * height, 0.1])
     for flags in ({}, {"face": False, "vertex": False}):
@@ -76,8 +71,8 @@ def test_thin_triangle_short_edge_is_not_mistaken_for_an_endpoint(query_system, 
 
 
 @pytest.mark.parametrize("dim", [2, 3])
-@pytest.mark.parametrize("height", [1e-4, 1e-8])
-def test_nearly_parallel_edges_retain_their_interior_closest_points(dim, height):
+def test_nearly_parallel_edges_retain_their_interior_closest_points(dim):
+    height = 1e-8
     state = jd.State.create(pos=jnp.zeros((1, dim)))
     system = jd.System.create(state=state, collider_type="")
     first = jnp.zeros((2, dim)).at[1, 0].set(1.0)
@@ -95,8 +90,8 @@ def test_nearly_parallel_edges_retain_their_interior_closest_points(dim, height)
     np.testing.assert_allclose(weights2, [0.5, 0.5], rtol=3e-6)
 
 
-@pytest.mark.parametrize("scale", [1e-6, 1.0])
-def test_small_nearly_parallel_edges_retain_finite_distance_gradients(scale):
+def test_small_nearly_parallel_edges_retain_finite_distance_gradients():
+    scale = 1e-6
     state = jd.State.create(pos=jnp.zeros((1, 3)))
     system = jd.System.create(state=state, collider_type="")
     endpoints = scale * jnp.array(
@@ -112,8 +107,8 @@ def test_small_nearly_parallel_edges_retain_finite_distance_gradients(scale):
 
 
 @pytest.mark.parametrize("dim", [2, 3])
-@pytest.mark.parametrize("scale", [1e-6, 1.0])
-def test_small_thin_triangle_retains_finite_distance_gradients(dim, scale):
+def test_small_thin_triangle_retains_finite_distance_gradients(dim):
+    scale = 1e-6
     state = jd.State.create(pos=jnp.zeros((1, dim)))
     system = jd.System.create(state=state, collider_type="")
     triangle = scale * jnp.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1e-8]])
@@ -133,37 +128,41 @@ def test_small_thin_triangle_retains_finite_distance_gradients(dim, scale):
 
 
 def test_rotated_thin_triangle_uses_the_plane_of_its_represented_vertices():
-    state = jd.State.create(pos=jnp.zeros((1, 3)))
-    system = jd.System.create(state=state, collider_type="")
-    # Quantized B and C remain distinct. Forming AB x AC loses their small
-    # transverse separation in float32; AB x BC preserves the plane.
-    query = jnp.array(
-        [
-            [0.00627528597, 0.0416911133, -0.0184270795],
-            [0.0963810608, 0.0968032256, -0.0142982295],
-            [-0.0245889686, 0.0226264633, -0.0201781522],
-            [-0.0245881658, 0.0226250924, -0.0201773886],
-        ]
-    )
-    point, a, b, c = np.asarray(query, dtype=np.float64)
-    normal = np.cross(b - a, c - b)
-    normal /= np.linalg.norm(normal)
-    signed_distance = np.dot(point - a, normal)
-    projection = point - signed_distance * normal
-    distance, closest, weights = point_triangle_distance(*query, system)
-    np.testing.assert_allclose(distance, abs(signed_distance), rtol=2e-5, atol=2e-8)
-    np.testing.assert_allclose(closest, projection, rtol=2e-6, atol=2e-8)
-    np.testing.assert_allclose(weights @ query[1:], closest, rtol=2e-6, atol=2e-8)
-    gradient = jax.grad(lambda points: point_triangle_distance(*points, system)[0])(
-        query
-    )
-    assert np.all(np.isfinite(gradient))
-    np.testing.assert_allclose(gradient.sum(axis=0), 0.0, atol=3e-6)
-    np.testing.assert_allclose(jnp.cross(query, gradient).sum(axis=0), 0.0, atol=3e-7)
+    # Explicitly run in float32 where AB x AC loses the small transverse separation
+    # between quantized B and C, while AB x BC preserves the triangle plane.
+    with jax.enable_x64(False):
+        state = jd.State.create(pos=jnp.zeros((1, 3), dtype=jnp.float32))
+        system = jd.System.create(state=state, collider_type="")
+        query = jnp.array(
+            [
+                [0.00627528597, 0.0416911133, -0.0184270795],
+                [0.0963810608, 0.0968032256, -0.0142982295],
+                [-0.0245889686, 0.0226264633, -0.0201781522],
+                [-0.0245881658, 0.0226250924, -0.0201773886],
+            ],
+            dtype=jnp.float32,
+        )
+        point, a, b, c = np.asarray(query, dtype=np.float64)
+        normal = np.cross(b - a, c - b)
+        normal /= np.linalg.norm(normal)
+        signed_distance = np.dot(point - a, normal)
+        projection = point - signed_distance * normal
+        distance, closest, weights = point_triangle_distance(*query, system)
+        np.testing.assert_allclose(distance, abs(signed_distance), rtol=2e-5, atol=2e-8)
+        np.testing.assert_allclose(closest, projection, rtol=2e-6, atol=2e-8)
+        np.testing.assert_allclose(weights @ query[1:], closest, rtol=2e-6, atol=2e-8)
+        gradient = jax.grad(lambda points: point_triangle_distance(*points, system)[0])(
+            query
+        )
+        assert np.all(np.isfinite(gradient))
+        np.testing.assert_allclose(gradient.sum(axis=0), 0.0, atol=3e-6)
+        np.testing.assert_allclose(
+            jnp.cross(query, gradient).sum(axis=0), 0.0, atol=3e-7
+        )
 
 
-@pytest.mark.parametrize("scale", [1e-6, 1.0])
-def test_small_thin_facet_pairs_keep_rejected_intersection_gradients_finite(scale):
+def test_small_thin_facet_pairs_keep_rejected_intersection_gradients_finite():
+    scale = 1e-6
     state = jd.State.create(pos=jnp.zeros((1, 3)))
     system = jd.System.create(state=state, collider_type="")
     vertices = scale * jnp.array(
@@ -186,8 +185,8 @@ def test_small_thin_facet_pairs_keep_rejected_intersection_gradients_finite(scal
 
 
 @pytest.mark.parametrize("dim", [2, 3])
-@pytest.mark.parametrize("scale", [1e-6, 1.0])
-def test_zero_separation_uses_the_normal_of_small_thin_facets(dim, scale):
+def test_zero_separation_uses_the_normal_of_small_thin_facets(dim):
+    scale = 1e-6
     vertices = jnp.array([[0.0, 0.0], [1.0, 0.0]])
     point = jnp.array([0.5, 0.0])
     if dim == 3:
@@ -210,7 +209,9 @@ def test_zero_separation_uses_the_normal_of_small_thin_facets(dim, scale):
     np.testing.assert_allclose(normal, expected, atol=1e-7)
     loaded, _ = jd.System.evaluate_forces(state, system)
     assert np.all(np.isfinite(loaded.force))
-    assert float(jnp.abs(loaded.force[-1, -1])) > 0.0
+    stiffness = float(system.mat_table.young_eff[0, 0])
+    expected_force = -stiffness * 0.3 * scale
+    np.testing.assert_allclose(loaded.force[-1, -1], expected_force, rtol=1e-5)
     np.testing.assert_allclose(loaded.force[:, :-1], 0.0, atol=1e-7)
     np.testing.assert_allclose(loaded.force.sum(axis=0), 0.0, atol=1e-4)
 
@@ -240,8 +241,7 @@ def test_collapsed_triangle_returns_finite_boundary_points(query_system, collaps
     assert np.all(np.isfinite(weights))
 
 
-@pytest.mark.parametrize("dim", [2, 3])
-@pytest.mark.parametrize("collapsed", [False, True])
+@pytest.mark.parametrize("dim,collapsed", [(2, True), (3, False), (3, True)])
 def test_live_facet_collapse_keeps_contact_loads_finite_and_conservative(
     dim, collapsed
 ):

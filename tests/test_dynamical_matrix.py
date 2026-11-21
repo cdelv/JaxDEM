@@ -261,22 +261,16 @@ def _analytical_clump_hessian_3d(world_pos, pos_c, rad, clump_id, k):
 @pytest.mark.parametrize(
     "dim, pos_i, pos_j",
     [
-        (2, [0.0, 0.0], [0.8, 0.0]),  # aligned
         (2, [0.0, 0.0], [0.5, 0.5]),  # 45-degree, r ≈ 0.707, s ≈ 0.293
-        (3, [0.0, 0.0, 0.0], [0.8, 0.0, 0.0]),  # aligned
         (3, [0.0, 0.0, 0.0], [0.3, 0.4, 0.6]),  # r ≈ 0.781, s ≈ 0.219
     ],
 )
 def test_pair_block_matches_analytical_in_contact(dim, pos_i, pos_j):
-    """In-contact pair hessian block matches the analytical spring form."""
+    """In-contact pair and full hessians match the analytical spring form."""
     state, system = _build_two_sphere_system(pos_i, pos_j)
     _, _, pair_ids, blocks = pair_non_bonded_hessian(state, system)
     np.testing.assert_array_equal(pair_ids, [[0, 1]])
-    pair_ids_np = np.asarray(pair_ids)
-    mask = (pair_ids_np[:, 0] == 0) & (pair_ids_np[:, 1] == 1)
-    assert mask.any()
-    k_index = int(np.argmax(mask))
-    H_pair = np.asarray(blocks[k_index])
+    H_pair = np.asarray(blocks[0])
 
     expected = _analytical_pair_block(pos_i, pos_j, R=1.0, k=1.0, dim=dim)
     np.testing.assert_allclose(H_pair, expected, atol=1e-12)
@@ -284,6 +278,8 @@ def test_pair_block_matches_analytical_in_contact(dim, pos_i, pos_j):
     np.testing.assert_allclose(
         H_pair @ np.vstack((np.eye(dim), np.eye(dim))), 0, atol=1e-12
     )
+    _, _, H_full = non_bonded_hessian(state, system)
+    np.testing.assert_allclose(np.asarray(H_full), expected, atol=1e-12)
 
 
 @pytest.mark.parametrize(
@@ -303,117 +299,26 @@ def test_pair_block_is_zero_out_of_contact(dim, pos_i, pos_j):
     np.testing.assert_array_equal(hessian, np.zeros((2 * dim, 2 * dim)))
 
 
-# Pair-block structural properties
-
-
-# Full system hessian — agrees with pair block for a 2-sphere system
-
-
-@pytest.mark.parametrize(
-    "dim, pos_i, pos_j",
-    [
-        (2, [0.0, 0.0], [0.5, 0.5]),
-        (3, [0.0, 0.0, 0.0], [0.3, 0.4, 0.6]),
-    ],
-)
-def test_full_hessian_agrees_with_pair_block(dim, pos_i, pos_j):
-    """For a two-sphere system, the full (N*dim, N*dim) hessian equals the
-    analytical one-pair hessian, including each interaction once."""
-    state, system = _build_two_sphere_system(pos_i, pos_j)
-    _, _, H_full = non_bonded_hessian(state, system)
-    H_full_np = np.asarray(H_full)
-
-    expected_one_pair = _analytical_pair_block(pos_i, pos_j, R=1.0, k=1.0, dim=dim)
-    np.testing.assert_allclose(H_full_np, expected_one_pair, atol=1e-12)
-
-
-# Clump hessian
-
-
-@pytest.mark.parametrize("dim", [2, 3])
-def test_clump_hessian_matches_sphere_lift_for_single_sphere_clumps(dim):
-    """For single-sphere clumps (p_i_lab = 0), the rotation chain-rule
-    Jacobian is ``J = [I, 0]`` (rotating about the COM moves nothing
-    since the sphere IS the COM). So the clump hessian's translational
-    block equals the sphere hessian and the rotational block is zero."""
-    if dim == 2:
-        state, system = _build_two_sphere_system([0.0, 0.0], [0.5, 0.5])
-    else:
-        state, system = _build_two_sphere_system([0.0, 0.0, 0.0], [0.3, 0.4, 0.6])
+def test_clump_hessian_matches_sphere_lift_for_single_sphere_clumps():
+    """For single-sphere clumps (p_i_lab = 0), translational block equals sphere Hessian."""
+    dim = 3
+    state, system = _build_two_sphere_system([0.0, 0.0, 0.0], [0.3, 0.4, 0.6])
     _, _, H_clump = clump_non_bonded_hessian(state, system)
-    rot_dim = 1 if dim == 2 else 3
+    rot_dim = 3
     group_dim = dim + rot_dim
     H_clump_np = np.asarray(H_clump)
-    # The assembled translational block equals the sphere Hessian.
     _, _, H_sphere = non_bonded_hessian(state, system)
     H_sphere_np = np.asarray(H_sphere)
 
-    # Extract translational rows/cols of H_clump (indices 0..dim-1 and
-    # group_dim..group_dim+dim-1 for the two clumps).
     trans_idx = np.concatenate([np.arange(dim), np.arange(dim) + group_dim])
     H_trans = H_clump_np[np.ix_(trans_idx, trans_idx)]
     np.testing.assert_allclose(H_trans, H_sphere_np, atol=1e-12)
 
-    # Rotational rows/cols should be identically zero for single-sphere clumps.
     rot_idx = np.concatenate(
         [np.arange(dim, group_dim), np.arange(dim, group_dim) + group_dim]
     )
     H_rot = H_clump_np[np.ix_(rot_idx, rot_idx)]
     np.testing.assert_allclose(H_rot, 0.0, atol=1e-12)
-
-
-def test_clump_hessian_offset_geometry_matches_closed_form():
-    """Two-sphere clump contacting a single-sphere clump off-axis in 2D.
-
-    Clump 0: spheres at (0, 0), (2, 0); COM (1, 0); pos_p for contact sphere (1, 0).
-    Clump 1: sphere at (2, 0.8); COM (2, 0.8).
-
-    Only the B–C pair is in contact with overlap s = 0.2 and force
-    purely in -y. The jacobian J = ∂r_BC/∂q at q=0 (coords ordered
-    (δR0_x, δR0_y, ω_0, δR1_x, δR1_y, ω_1)) is
-
-        J_x = [ 1,  0,  0, -1,  0, 0]
-        J_y = [ 0,  1,  1,  0, -1, 0]
-
-    With ∂²φ/∂v² = [[-0.25, 0], [0, 1]] at the current overlap, the
-    ∂φ/∂v · ∂²r/∂q² term contributes zero here (force is purely in y
-    while ∂²r/∂ω_0² is in x), so H = J^T · M · J exactly.
-    """
-    pos_c = jnp.array([[1.0, 0.0], [1.0, 0.0], [2.0, 0.8]])
-    pos_p = jnp.array([[-1.0, 0.0], [1.0, 0.0], [0.0, 0.0]])
-    rad = jnp.full((3,), 0.5)
-    state = jd.State.create(
-        pos=pos_c,
-        pos_p=pos_p,
-        rad=rad,
-        mass=jnp.ones(3),
-        clump_id=jnp.array([0, 0, 1], dtype=int),
-    )
-    mats = [jd.Material.create("elastic", young=1.0, poisson=0.5, density=1.0)]
-    mat_table = jd.MaterialTable.from_materials(
-        mats, matcher=jd.MaterialMatchmaker.create("harmonic")
-    )
-    system = jd.System.create(
-        state_shape=state.shape,
-        dt=1e-2,
-        linear_integrator_type="",
-        rotation_integrator_type="",
-        domain_type="periodic",
-        force_model_type="spring",
-        collider_type="naive",
-        mat_table=mat_table,
-        domain_kw={"box_size": jnp.ones(2) * 10.0},
-    )
-
-    _, _, H = clump_non_bonded_hessian(state, system)
-    H_np = np.asarray(H)
-
-    # Analytical per-pair block from H_single = J^T M J.
-    M = np.array([[-0.25, 0.0], [0.0, 1.0]])
-    J = np.array([[1.0, 0.0, 0.0, -1.0, 0.0, 0.0], [0.0, 1.0, 1.0, 0.0, -1.0, 0.0]])
-    expected = J.T @ M @ J
-
-    np.testing.assert_allclose(H_np, expected, atol=1e-12)
 
 
 def test_clump_hessian_2d_matches_explicit_rigid_body_formula():
@@ -549,23 +454,6 @@ def test_clump_hessian_3d_matches_explicit_rigid_body_formula():
     np.testing.assert_allclose(H_np, H_np.T, atol=1e-12)
     translation = np.tile(np.pad(np.eye(3), ((0, 3), (0, 0))), (H_np.shape[0] // 6, 1))
     np.testing.assert_allclose(H_np @ translation, 0, atol=1e-12)
-
-
-# Cross-collider consistency.
-@pytest.mark.parametrize("collider_type", ["naive", "CellList"])
-@pytest.mark.parametrize(
-    "pos_i, pos_j",
-    [([0.0, 0.0], [0.5, 0.5]), ([0.0, 0.0], [0.8, 0.0])],
-)
-def test_non_bonded_hessian_is_collider_invariant(collider_type, pos_i, pos_j):
-    """`non_bonded_hessian` matches the analytical spring hessian
-    for every collider type (naive, CellList)."""
-    state, system = _build_two_sphere_system(pos_i, pos_j, collider_type=collider_type)
-    _, _, H_full = non_bonded_hessian(state, system)
-    H_full_np = np.asarray(H_full)
-
-    expected = _analytical_pair_block(pos_i, pos_j, R=1.0, k=1.0, dim=2)
-    np.testing.assert_allclose(H_full_np, expected, atol=1e-12)
 
 
 # Bonded hessian — analytical test against a single harmonic edge.

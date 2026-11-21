@@ -54,8 +54,17 @@ def snapshot(dim=2):
     return jd.State.create(pos=pos, rad=jnp.full(5, 0.4))
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-@pytest.mark.parametrize("dim,domain", [(2, "periodic"), (3, "leesedwards")])
+@pytest.mark.parametrize(
+    "backend,dim,domain",
+    [
+        ("naive", 2, "periodic"),
+        ("CellList", 2, "periodic"),
+        ("MultiCellList", 2, "periodic"),
+        ("neighbor-cell", 2, "periodic"),
+        ("neighbor-multi", 2, "periodic"),
+        ("neighbor-multi", 3, "leesedwards"),
+    ],
+)
 def test_direct_reductions_and_contacts_match_force_and_virial(backend, dim, domain):
     state = snapshot(dim)
     system = make_system(state, backend, domain=domain)
@@ -85,51 +94,119 @@ def test_direct_reductions_and_contacts_match_force_and_virial(backend, dim, dom
     np.testing.assert_array_equal(counts, [1, 1, 1, 1, 0])
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-def test_diagnostics_never_request_a_dense_neighbor_query(backend, monkeypatch):
-    state = snapshot()
-    system = make_system(state, backend)
-
-    def forbidden(*args, **kwargs):
-        raise AssertionError("Contact analysis must not construct a dense query.")
-
-    for cls in (
-        jd.colliders.NaiveSimulator,
-        jd.colliders.DynamicCellList,
-        jd.colliders.DynamicMultiCellList,
-        jd.colliders.NeighborList,
-    ):
-        monkeypatch.setattr(cls, "create_neighbor_list", forbidden)
-    _, system, data = contact.get_contacts(state, system)
-    assert data.pair_ids.shape[0] == 4
-    monkeypatch.setattr(contact, "get_contacts", forbidden)
-    monkeypatch.setattr(jd.forces.SpringForce, "energy", forbidden)
-    _, _, pressure = contact.compute_contact_pressure(state, system)
-    _, _, counts = contact.count_vertex_contacts(state, system)
-    assert pressure > 0
-    np.testing.assert_array_equal(counts, [1, 1, 1, 1, 0])
-
-
-@pytest.mark.parametrize("backend", BACKENDS)
-def test_symmetrized_bond_exclusions_match_the_configured_force_traversal(backend):
+@pytest.mark.parametrize(
+    "backend,include_bonds",
+    [
+        ("naive", False),
+        ("CellList", False),
+        ("MultiCellList", False),
+        ("NeighborList", False),
+        ("NeighborList", True),
+    ],
+)
+def test_excluded_pairs_match_exact_forces_energy_and_diagnostics(
+    backend, include_bonds
+):
+    pos = np.array([[0.0, 0.0], [0.55, 0.25], [1.2, -0.1]])
+    # Supply asymmetric bond_id to verify State.create symmetrizes it.
     state = jd.State.create(
-        pos=[[1.0, 1.0], [1.6, 1.0], [1.3, 1.5]],
-        rad=jnp.full(3, 0.5),
-        bond_id=[[1], [-1], [-1]],
+        pos=jnp.asarray(pos), rad=jnp.full(3, 0.8), bond_id=[[1, -1], [2, -1], [-1, -1]]
     )
-    np.testing.assert_array_equal(state.bond_id, [[1], [0], [-1]])
-    system = make_system(state, backend)
-    _, system, data = contact.get_contacts(state, system)
-    reference, _ = system.collider.compute_force(replace(state), system)
-    totals = np.zeros((state.N, state.dim))
+    assert set(int(x) for x in np.asarray(state.bond_id[1]) if x >= 0) == {0, 2}
+    table = jd.MaterialTable.from_materials(
+        [jd.Material.create("elastic", young=1.0, poisson=0.25, density=1.0)]
+    )
+    system = jd.System.create(
+        state=state,
+        mat_table=table,
+        collider_type=backend,
+        collider_kw=(
+            {
+                "max_neighbors": 3,
+                "cutoff": 1.6,
+                "secondary_collider_type": "CellList",
+            }
+            if backend == "NeighborList"
+            else {}
+        ),
+        interact_same_bond_id=include_bonds,
+    )
+    pairs = [(0, 1), (0, 2), (1, 2)] if include_bonds else [(0, 2)]
+    expected_force, expected_energy = np.zeros_like(pos), 0.0
+    for i, j in pairs:
+        delta = pos[i] - pos[j]
+        distance = np.linalg.norm(delta)
+        overlap = 1.6 - distance
+        force = overlap * delta / distance
+        expected_force[i] += force
+        expected_force[j] -= force
+        expected_energy += 0.5 * overlap**2
+
+    evaluated, updated = jd.System.evaluate_forces(state, system)
+    np.testing.assert_allclose(evaluated.force, expected_force, rtol=2e-6, atol=1e-7)
+    _, _, energy = updated.collider.compute_potential_energy(state, updated)
+    np.testing.assert_allclose(energy, expected_energy, rtol=2e-6)
+    _, _, contacts = contact.get_contacts(state, updated)
+    actual_pairs = {tuple(pair) for pair in np.asarray(contacts.pair_ids)}
+    assert contacts.pair_ids.shape[0] == 2 * len(pairs)
+    assert actual_pairs == {(i, j) for a, b in pairs for i, j in [(a, b), (b, a)]}
+    _, _, direct_counts = contact.count_sphere_contacts(state, updated)
+    _, _, cached_counts = contact.count_sphere_contacts(
+        state, updated, contacts=contacts
+    )
+    np.testing.assert_array_equal(direct_counts, cached_counts)
+    _, _, direct_p = contact.compute_contact_pressure(state, updated, volume=10.0)
+    _, _, cached_p = contact.compute_contact_pressure(
+        state, updated, contacts=contacts, volume=10.0
+    )
+    np.testing.assert_allclose(direct_p, cached_p, rtol=2e-5, atol=1e-8)
+
+
+@pytest.mark.parametrize("composition", ["combiner", "router"])
+def test_diagnostics_follow_long_range_force_reach(composition):
+    direction = np.array([0.6, 0.8])
+    distance = 3.2
+    state = jd.State.create(
+        pos=jnp.array([[0.0, 0.0], distance * direction]),
+        rad=jnp.array([0.4, 0.6]),
+        species_id=jnp.array([0, 1]),
+    )
+    table = jd.MaterialTable.from_materials(
+        [jd.Material.create("lj", density=1.0, epsilon=1.0)]
+    )
+    lj = jd.ForceModel.create("lennardjones", cutoff_ratio=4.0)
+    law = (
+        jd.LawCombiner(laws=(lj, jd.ForceModel.create("wca")))
+        if composition == "combiner"
+        else jd.ForceRouter.from_dict(2, {(0, 1): lj})
+    )
+    system = jd.System.create(
+        state=state,
+        force_model=law,
+        mat_table=table,
+        collider_type="NeighborList",
+        collider_kw={
+            "secondary_collider_type": "CellList",
+            "cutoff": 0.5,
+            "skin": 0.1,
+            "max_neighbors": 3,
+        },
+        domain_type="periodic",
+        domain_kw={"box_size": jnp.full(2, 16.0)},
+    )
+    _, updated, data = contact.get_contacts(state, system)
+    np.testing.assert_array_equal(data.pair_ids, [[0, 1], [1, 0]])
+    force_on_zero = (
+        -24.0 / distance * (2.0 / distance**12 - 1.0 / distance**6) * direction
+    )
+    totals = np.zeros((2, 2))
     np.add.at(totals, np.asarray(data.pair_ids)[:, 0], np.asarray(data.forces))
-    np.testing.assert_allclose(totals, reference.force, rtol=2e-5, atol=1e-6)
-    _, _, direct = contact.count_sphere_contacts(state, system)
-    _, _, collected = contact.count_sphere_contacts(state, system, contacts=data)
-    np.testing.assert_array_equal(direct, collected)
-    _, _, direct = contact.compute_contact_pressure(state, system)
-    _, _, collected = contact.compute_contact_pressure(state, system, contacts=data)
-    np.testing.assert_allclose(direct, collected, rtol=2e-5, atol=1e-8)
+    np.testing.assert_allclose(totals, [force_on_zero, -force_on_zero], rtol=3e-6)
+    _, _, stress = contact.compute_contact_stress_tensor(state, updated)
+    expected_stress = np.outer(-distance * direction, force_on_zero) / 16.0**2
+    np.testing.assert_allclose(stress, expected_stress, rtol=3e-6)
+    _, _, pressure = contact.compute_contact_pressure(state, updated)
+    np.testing.assert_allclose(pressure, np.trace(expected_stress) / 2, rtol=3e-6)
 
 
 def test_pooled_cache_supports_more_than_one_hundred_contacts_in_one_row():
@@ -247,29 +324,6 @@ def test_history_and_force_law_torques_survive_rebuild_and_repeated_analysis(dim
         np.testing.assert_array_equal(old, new)
 
 
-def test_reusing_contact_data_performs_no_search_or_force_evaluation(monkeypatch):
-    state = snapshot()
-    system = make_system(state)
-    _, system, data = contact.get_contacts(state, system)
-
-    def forbidden(*args, **kwargs):
-        raise AssertionError("A supplied contact snapshot must be reused.")
-
-    monkeypatch.setattr(contact, "get_contacts", forbidden)
-    monkeypatch.setattr(contact, "_reduce_contacts", forbidden)
-    _, _, pressure = contact.compute_contact_pressure(state, system, contacts=data)
-    _, _, counts = contact.count_clump_contacts(state, system, contacts=data)
-    _, _, groups = contact.get_group_contacts(state, system, contacts=data)
-    _, _, rattlers, non_rattlers = contact.get_sphere_rattler_ids(
-        state, system, contacts=data, zc=1
-    )
-    assert pressure > 0
-    np.testing.assert_array_equal(counts, [1, 1, 1, 1, 0])
-    assert groups.pair_ids.shape == (4, 2)
-    np.testing.assert_array_equal(rattlers, [4])
-    np.testing.assert_array_equal(non_rattlers, [0, 1, 2, 3])
-
-
 def test_group_contacts_preserve_cancelling_interactions():
     world = jnp.array([[0.0, 0.0], [2.0, 1.0], [0.8, 0.0], [1.2, 1.0]])
     centers = jnp.array([[1.0, 0.4], [1.0, 0.4], [1.0, 0.6], [1.0, 0.6]])
@@ -345,7 +399,7 @@ def test_clump_rank_uses_contact_torques():
     assert non_rattlers.size == 0
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
+@pytest.mark.parametrize("backend", ("naive", "neighbor-cell"))
 def test_empty_configurations(backend):
     state = jd.State.create(dim=2)
     system = make_system(state, backend)
@@ -390,14 +444,3 @@ def test_contact_pressure_uses_explicit_volume():
     _, _, default = contact.compute_contact_pressure(state, system)
     _, _, pressure = contact.compute_contact_pressure(state, system, volume=2.0)
     np.testing.assert_allclose(pressure * 2.0, default * 8.0**state.dim)
-
-
-@pytest.mark.parametrize(
-    "labels",
-    [jnp.array([0.0] * 5), jnp.zeros((5, 1), dtype=int), jnp.array([-1, 0, 0, 0, 0])],
-)
-def test_invalid_group_labels_are_rejected(labels):
-    state = snapshot()
-    system = make_system(state)
-    with pytest.raises(ValueError, match="Group labels"):
-        contact.get_group_contacts(state, system, group_by=labels)

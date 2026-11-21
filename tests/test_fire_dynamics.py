@@ -1,21 +1,21 @@
-"""FIRE follows global, mass-weighted velocity-Verlet dynamics."""
+"""FIRE follows global, mass-weighted velocity-Verlet dynamics and quaternion charts."""
 
-import warnings
+from dataclasses import replace
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-import pytest
 from scipy.spatial.transform import Rotation
 
 import jaxdem as jd
 from jaxdem.minimizers.routines import (
+    _objective_energy,
     _rotation_inverse_inertia,
     _rotation_pullback,
     _rotation_residual,
+    _state_to_delta_params,
 )
 from jaxdem.utils import Quaternion
-from jaxdem.utils.h5 import _construct_minimizer
 
 
 def test_fire_mixes_with_one_norm_over_every_degree_of_freedom():
@@ -34,20 +34,24 @@ def test_fire_mixes_with_one_norm_over_every_degree_of_freedom():
     np.testing.assert_allclose(update, expected, rtol=1e-12)
 
 
-def test_fire_uphill_step_backtracks_half_a_reduced_step_and_stops():
-    optimizer = jd.fire(dt=1.0, alpha_init=0.1)
-    state = optimizer.init(jnp.zeros((1, 2)))._replace(
-        momentum=jnp.array([[1.0, 0.0]]), alpha=jnp.array(0.05), N_good=jnp.array(7)
-    )
-
-    update, advanced = optimizer.update(jnp.array([[1.0, 0.0]]), state)
-
-    # v = 1 - 1/2 opposes F = -1, so dt halves and x moves back by v dt / 2.
-    np.testing.assert_allclose(update, [[-0.5 * 0.5 / 2.0, 0.0]], rtol=1e-12)
-    np.testing.assert_array_equal(advanced.momentum, 0.0)
-    assert float(advanced.dt) == 0.5
-    assert float(advanced.alpha) == 0.1
-    assert int(advanced.N_good) == 0
+def test_fire_uphill_backtracking_follows_the_exact_sequence():
+    optimizer = jd.fire(dt=1.0, N_min=0, f_inc=2.0, f_alpha=0.5)
+    state = optimizer.init(jnp.asarray(0.0))
+    # Downhill -> uphill backtrack half the halved step -> zero-power uphill -> restart.
+    expected = [
+        (6, 3, 2, 0.05, 1),
+        (-1, 0, 1, 0.1, 0),
+        (0, 0, 0.5, 0.1, 0),
+        (1.5, 1.5, 1, 0.05, 1),
+    ]
+    for gradient, prediction in zip([-2.0, 1.0, 0.0, -2.0], expected, strict=True):
+        update, state = optimizer.update(jnp.asarray(gradient), state)
+        np.testing.assert_allclose(
+            [update, state.momentum, state.dt, state.alpha, state.N_good],
+            prediction,
+            rtol=2e-6,
+            atol=1e-7,
+        )
 
 
 def _quadratic_force(stiffness, center):
@@ -195,12 +199,75 @@ def test_minimize_moves_bodies_with_their_masses_and_inertia():
     assert int(unscaled.steps) != int(results[0].steps)
 
 
-def test_saved_minimizer_arguments_removed_from_fire_are_ignored_on_load():
-    with pytest.warns(RuntimeWarning, match="N_bad_max"):
-        restored = _construct_minimizer(
-            "jaxdem.minimizers.optimizers.fire", {"dt": 0.01, "N_bad_max": 10}
+def test_nonidentity_quaternion_gradient_matches_independent_energy():
+    body = np.array([[1.0, 0.0, 0.0], [-0.5, 0.6, 0.2], [-0.5, -0.6, -0.2]])
+    target = np.array([[0.3, 0.5, -0.2], [-0.7, 0.1, 0.4], [0.2, -0.3, 0.6]])
+    reference_rotation = Rotation.from_rotvec(np.deg2rad([20.0, -10.0, 35.0]))
+    q = reference_rotation.as_quat(scalar_first=True)
+    state = jd.State.add_clump(
+        jd.State.create(dim=3), pos=jnp.asarray(body), rad=jnp.full(3, 0.1)
+    )
+    state = replace(
+        state,
+        q=Quaternion(
+            w=jnp.full((3, 1), q[0]), xyz=jnp.broadcast_to(jnp.asarray(q[1:]), (3, 3))
+        ),
+    )
+
+    def force(pos, st, sy):
+        return -(pos - jnp.asarray(target)), jnp.zeros_like(st.torque)
+
+    def energy(pos, st, sy):
+        return 0.5 * jnp.sum((pos - jnp.asarray(target)) ** 2, axis=-1)
+
+    system = jd.System.create(
+        state=state,
+        collider_type="",
+        force_manager_kw={"force_functions": [(force, energy)]},
+    )
+    params = _state_to_delta_params(state)
+    center = np.array([0.3, -0.2, 0.1])
+    params["pos_c"] = params["pos_c"].at[0].set(jnp.asarray(center))
+    body = np.asarray(state.pos_p) @ reference_rotation.as_matrix().T
+
+    def independent(raw, extra=np.eye(3)):
+        w, x, y, z = raw / np.linalg.norm(raw)
+        skew = np.array([[0, -z, y], [z, 0, -x], [-y, x, 0]])
+        rotation = np.eye(3) + 2 * w * skew + 2 * skew @ skew
+        return 0.5 * np.sum((body @ rotation.T @ extra.T + center - target) ** 2)
+
+    raw0 = np.array([0.8, 0.3, -0.4, 0.1])
+    for scale in (0.1, 1.0, 10.0):
+        raw = raw0 * scale
+        trial = {**params, "rotation": params["rotation"].at[0].set(jnp.asarray(raw))}
+        value, gradient = jax.value_and_grad(
+            lambda p: _objective_energy(p, state, system)[0]
+        )(trial)
+        actual = np.asarray(gradient["rotation"][0])
+        step = 1e-5 * scale
+        predicted = np.array(
+            [
+                (
+                    independent(raw + np.eye(4)[i] * step)
+                    - independent(raw - np.eye(4)[i] * step)
+                )
+                / (2 * step)
+                for i in range(4)
+            ]
         )
-    assert dict(restored.kw) == {"dt": 0.01}
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        _construct_minimizer("jaxdem.minimizers.optimizers.fire", {"dt": 0.01})
+        np.testing.assert_allclose(value, independent(raw), rtol=2e-6)
+        np.testing.assert_allclose(
+            actual * scale, predicted * scale, rtol=2e-5, atol=2e-6
+        )
+        np.testing.assert_allclose(actual @ raw, 0, atol=1e-6)
+        angular = []
+        for axis in np.eye(3):
+            plus = Rotation.from_rotvec(axis * 1e-5).as_matrix()
+            minus = Rotation.from_rotvec(-axis * 1e-5).as_matrix()
+            angular.append((independent(raw, plus) - independent(raw, minus)) / (2e-5))
+        np.testing.assert_allclose(
+            _rotation_residual(jnp.asarray(raw[None]), jnp.asarray(actual[None]))[0],
+            angular,
+            rtol=2e-5,
+            atol=2e-6,
+        )

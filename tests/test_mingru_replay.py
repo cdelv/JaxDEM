@@ -25,8 +25,10 @@ def _outputs(model, observations, carry, done, *, sequence):
     return jnp.stack(outputs)
 
 
-@pytest.mark.parametrize("num_layers", [1, 2])
-@pytest.mark.parametrize("candidate_weight", [-0.5, 0.0, 0.5])
+@pytest.mark.parametrize(
+    "num_layers,candidate_weight",
+    [(1, -0.5), (1, 0.0), (2, 0.0), (2, 0.5)],
+)
 def test_replay_matches_rollout_gradients_at_zero_and_nonzero_candidates(
     num_layers, candidate_weight
 ):

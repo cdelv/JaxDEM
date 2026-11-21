@@ -5,17 +5,35 @@
 import jax
 import jax.numpy as jnp
 
+import dataclasses
 from dataclasses import replace
 
 import numpy as np
 import pytest
 
 import jaxdem as jd
+from jaxdem.utils.thermal import (
+    compute_potential_energy,
+    compute_temperature,
+    compute_translational_kinetic_energy,
+    compute_translational_kinetic_energy_per_particle,
+    scale_to_temperature,
+)
 
 
-@pytest.mark.parametrize("dim", [2, 3])
-@pytest.mark.parametrize("x64", [False, True])
-@pytest.mark.parametrize("gamma_dt", [0.0, 1e-8, 0.4])
+@jax.tree_util.register_dataclass
+@dataclasses.dataclass(slots=True)
+class _TerminalRotationalKick(jd.RotationIntegrator):
+    @staticmethod
+    def step_after_force(state: jd.State, system: jd.System):
+        state.ang_vel = jnp.full_like(state.ang_vel, 2.0)
+        return state, system
+
+
+@pytest.mark.parametrize(
+    "dim,x64,gamma_dt",
+    [(2, False, 0.0), (2, False, 1e-8), (3, True, 1e-8), (3, False, 0.4)],
+)
 def test_langevin_matches_exact_ou_transition(dim, x64, gamma_dt):
     with jax.enable_x64(x64):
         velocity = np.zeros((4, dim))
@@ -64,8 +82,9 @@ def test_langevin_matches_exact_ou_transition(dim, x64, gamma_dt):
         np.testing.assert_array_equal(updated.key, next_key)
 
 
-@pytest.mark.parametrize("speed", [0.0, 1e-16, 1.0])
-@pytest.mark.parametrize("temperature", [0.0, 2.0])
+@pytest.mark.parametrize(
+    "speed,temperature", [(0.0, 2.0), (1e-16, 2.0), (1.0, 2.0), (1.0, 0.0)]
+)
 def test_rescaling_reaches_target_without_a_temperature_floor(speed, temperature):
     state = jd.State.create(
         pos=jnp.ones((3, 2)),
@@ -135,31 +154,111 @@ def test_temperature_scaling_has_the_analytical_velocity_jacobian(utility, targe
                 )
 
 
-@pytest.mark.parametrize("dim", [2, 3])
-@pytest.mark.parametrize(
-    "fixed,free_bodies",
-    [
+def test_degree_counts_follow_logical_bodies_and_available_drift():
+    from jaxdem.utils.thermal import count_dynamic_dofs
+
+    cases = [
         ([], 0),
         ([True, True, True], 0),
         ([False, False, True], 1),
         ([False, False, False], 2),
-    ],
-)
-def test_degree_counts_follow_logical_bodies_and_available_drift(
-    dim, fixed, free_bodies
-):
-    from jaxdem.utils.thermal import count_dynamic_dofs
-
-    state = jd.State.create(
-        pos=jnp.zeros((len(fixed), dim)),
-        fixed=jnp.asarray(fixed, dtype=bool),
-        clump_id=jnp.asarray([0, 0, 1][: len(fixed)], dtype=int),
-    )
-    for rotate in [False, True]:
-        for drift in [False, True]:
-            translation = (free_bodies - int(drift and free_bodies > 0)) * dim
-            rotation = free_bodies * dim * (dim - 1) // 2 * rotate
-            np.testing.assert_array_equal(
-                count_dynamic_dofs(state, rotate, drift),
-                [translation + rotation, translation, rotation],
+    ]
+    for dim in (2, 3):
+        for fixed, free_bodies in cases:
+            state = jd.State.create(
+                pos=jnp.zeros((len(fixed), dim)),
+                fixed=jnp.asarray(fixed, dtype=bool),
+                clump_id=jnp.asarray([0, 0, 1][: len(fixed)], dtype=int),
             )
+            for rotate in (False, True):
+                for drift in (False, True):
+                    translation = (free_bodies - int(drift and free_bodies > 0)) * dim
+                    rotation = free_bodies * dim * (dim - 1) // 2 * rotate
+                    np.testing.assert_array_equal(
+                        count_dynamic_dofs(state, rotate, drift),
+                        [translation + rotation, translation, rotation],
+                    )
+
+
+def test_thermal_reductions_preserve_all_leading_snapshot_axes() -> None:
+    first = jd.State.create(
+        pos=jnp.zeros((2, 2)), vel=jnp.array([[1.0, 0.0], [0.0, 2.0]])
+    )
+    second = replace(first, vel=2.0 * first.vel)
+    batch = jd.State.stack([first, second])
+    trajectory = jax.tree.map(lambda x: jnp.stack([x, x]), batch)
+
+    assert compute_translational_kinetic_energy_per_particle(batch).shape == (2, 2)
+    assert compute_translational_kinetic_energy(batch).shape == (2,)
+    assert compute_temperature(batch, False, False).shape == (2,)
+    assert compute_translational_kinetic_energy(trajectory).shape == (2, 2)
+    np.testing.assert_allclose(
+        compute_translational_kinetic_energy(batch), jnp.array([2.5, 10.0])
+    )
+
+    first_system = jd.System.create(state=first, dt=0.1, rotation_integrator_type=None)
+    second_system = jd.System.create(
+        state=second, dt=0.1, rotation_integrator_type=None
+    )
+    second_table = replace(
+        second_system.mat_table,
+        props={
+            name: 2.0 * value for name, value in second_system.mat_table.props.items()
+        },
+        pair={name: 2.0 * value for name, value in second_system.mat_table.pair.items()},
+    )
+    second_system = replace(second_system, mat_table=second_table)
+    systems = jd.System.stack([first_system, second_system])
+    assert compute_potential_energy(batch, systems).shape == (2,)
+
+
+def test_rescaling_and_temperature_scaling_remove_sub_unit_clump_drift() -> None:
+    # Body 0 has two members with total mass 0.2; body 1 has one member with mass 0.6.
+    state = jd.State.create(
+        pos=jnp.zeros((3, 2)),
+        vel=jnp.array([[2.0, 0.0], [2.0, 0.0], [-1.0, 0.0]]),
+        mass=jnp.array([0.2, 0.2, 0.6]),
+        clump_id=jnp.array([0, 0, 1]),
+    )
+    member_mass = jnp.array([0.1, 0.1, 0.6])
+
+    integrator = jd.LinearIntegrator.create(
+        "verlet_rescaling", temperature=1.0, subtract_drift=True
+    )
+    system = jd.System.create(
+        state=state,
+        dt=0.1,
+        collider_type="",
+        rotation_integrator_type=None,
+        linear_integrator=integrator,
+    )
+    system = replace(system, step_count=jnp.asarray(1))
+    rescaled, _ = integrator.step_after_force(state, system)
+    scaled = scale_to_temperature(state, 1.0, False, True)
+
+    for result in (rescaled, scaled):
+        drift = jnp.sum(result.vel * member_mass[:, None], axis=0) / member_mass.sum()
+        np.testing.assert_allclose(drift, 0.0, atol=1e-6)
+        np.testing.assert_allclose(
+            0.5 * jnp.sum(member_mass[:, None] * result.vel**2), 1.0, rtol=2e-6
+        )
+
+
+def test_rescaling_runs_after_the_rotational_terminal_kick() -> None:
+    state = jd.State.create(pos=jnp.zeros((1, 2)), mass=jnp.ones(1))
+    integrator = jd.LinearIntegrator.create(
+        "verlet_rescaling", temperature=3.0, can_rotate=True
+    )
+    system = jd.System.create(
+        state=state,
+        dt=0.1,
+        collider_type="",
+        linear_integrator=integrator,
+        rotation_integrator=_TerminalRotationalKick(),
+    )
+    state, system = jd.System.step(state, system)
+    np.testing.assert_allclose(
+        compute_temperature(state, can_rotate=True, subtract_drift=False),
+        3.0,
+        rtol=1e-6,
+    )

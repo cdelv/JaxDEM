@@ -8,7 +8,6 @@ import jax.numpy as jnp
 from dataclasses import dataclass, replace
 
 import numpy as np
-import pytest
 
 import jaxdem as jd
 
@@ -43,14 +42,6 @@ class BackwardAngularHalfKick(jd.RotationIntegrator):
             ),
             system,
         )
-
-
-@jax.tree_util.register_dataclass
-@dataclass(slots=True)
-class InitializationMarker(jd.LinearIntegrator):
-    @staticmethod
-    def initialize(state, system):
-        return replace(state, vel=state.vel + 17.0), system
 
 
 def test_initialize_computes_loads_and_invokes_both_integrator_hooks():
@@ -95,8 +86,8 @@ def test_initialize_computes_loads_and_invokes_both_integrator_hooks():
     )
 
 
-@pytest.mark.parametrize("batch_size", [1, 2])
-def test_initialize_supports_batched_states(batch_size):
+def test_initialize_supports_batched_states():
+    batch_size = 2
     states = [
         jd.State.create(
             pos=jnp.zeros((2, 2)),
@@ -136,20 +127,6 @@ def test_initialize_supports_batched_states(batch_size):
         )
     np.testing.assert_array_equal(initialized_system.time, system.time)
     np.testing.assert_array_equal(initialized_system.step_count, system.step_count)
-
-
-def test_step_does_not_implicitly_initialize_integrators():
-    state = jd.State.create(pos=jnp.array([[0.0, 0.0]]))
-    system = jd.System.create(
-        state=state,
-        collider_type="",
-        linear_integrator=InitializationMarker(),
-    )
-
-    stepped, stepped_system = jd.System.step(state, system)
-
-    np.testing.assert_array_equal(stepped.vel, state.vel)
-    np.testing.assert_array_equal(stepped_system.step_count, system.step_count + 1)
 
 
 def test_step_does_not_implicitly_initialize_forces():

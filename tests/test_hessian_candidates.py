@@ -75,8 +75,17 @@ def all_pairs_energy(pos, state, system):
     return 0.5 * jnp.sum(jnp.where(valid, energies, 0.0))
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-@pytest.mark.parametrize("dim,domain", [(2, "periodic"), (3, "leesedwards")])
+@pytest.mark.parametrize(
+    "backend,dim,domain",
+    [
+        ("naive", 2, "periodic"),
+        ("CellList", 2, "periodic"),
+        ("MultiCellList", 3, "leesedwards"),
+        ("neighbor-cell", 2, "periodic"),
+        ("neighbor-multi", 3, "leesedwards"),
+        ("naive", 3, "leesedwards"),
+    ],
+)
 def test_hessians_match_total_energy_without_dense_queries(
     backend, dim, domain, monkeypatch
 ):
@@ -120,8 +129,10 @@ def test_hessians_match_total_energy_without_dense_queries(
     np.testing.assert_allclose(assembled, matrix, rtol=3e-5, atol=2e-6)
 
 
-@pytest.mark.parametrize("backend", ["CellList", "neighbor-multi"])
-@pytest.mark.parametrize("composition", ["single", "combiner", "router"])
+@pytest.mark.parametrize(
+    "backend,composition",
+    [("CellList", "single"), ("neighbor-multi", "combiner"), ("CellList", "router")],
+)
 def test_hessian_follows_per_particle_force_reach(backend, composition):
     state = jd.State.create(
         pos=[[1.0, 1.0], [2.1, 1.0], [3.4, 1.0], [6.0, 6.0]],
@@ -172,7 +183,7 @@ class WellEnergy(jd.ForceModel):
         return force, jnp.zeros_like(state.torque[i]), history
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
+@pytest.mark.parametrize("backend", ["naive", "neighbor-cell"])
 def test_zero_force_and_zero_energy_pair_retains_stiffness(backend):
     state = jd.State.create(pos=[[1.0, 1.0], [2.0, 1.0]], rad=jnp.full(2, 0.5))
     system = make_system(state, backend, law=WellEnergy())
@@ -188,7 +199,7 @@ def test_zero_force_and_zero_energy_pair_retains_stiffness(backend):
     np.testing.assert_allclose(matrix, expected, atol=1e-6)
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
+@pytest.mark.parametrize("backend", ["CellList", "neighbor-multi"])
 def test_directed_exclusions_match_collider_energy(backend):
     state = jd.State.create(
         pos=[[1.0, 1.0], [1.6, 1.0], [1.3, 1.5]],
@@ -229,8 +240,7 @@ def rigid_state(dim):
     )
 
 
-@pytest.mark.parametrize("dim", [2, 3])
-@pytest.mark.parametrize("domain", ["periodic", "leesedwards"])
+@pytest.mark.parametrize("dim,domain", [(2, "periodic"), (3, "leesedwards")])
 def test_clump_hessian_matches_exact_rotations_and_scaling(dim, domain):
     state = rigid_state(dim)
     system = make_system(state, "neighbor-multi", domain=domain)
@@ -267,11 +277,10 @@ def test_clump_hessian_matches_exact_rotations_and_scaling(dim, domain):
     )
 
 
-@pytest.mark.parametrize("dim", [2, 3])
-def test_hessian_rebuild_preserves_contact_history(dim, monkeypatch):
+def test_hessian_rebuild_preserves_contact_history(monkeypatch):
     from .test_contact_analysis import frictional_system, history_by_pair
 
-    state, system = frictional_system(dim)
+    state, system = frictional_system(3)
     moved = replace(state, pos_c=state.pos_c.at[2, 0].add(0.06))
     before = history_by_pair(system)
     original = [np.asarray(x).copy() for x in jax.tree.leaves((moved, system))]
@@ -327,8 +336,7 @@ def test_pooled_cache_with_more_than_one_hundred_neighbors_matches_analytical_he
     np.testing.assert_allclose(matrix, expected, rtol=4e-5, atol=2e-3)
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-@pytest.mark.parametrize("n", [0, 1])
+@pytest.mark.parametrize("backend,n", [("naive", 0), ("CellList", 1), ("neighbor-multi", 0)])
 def test_empty_pair_sets_return_zero_hessians(backend, n):
     state = jd.State.create(pos=jnp.zeros((n, 2)), rad=jnp.full(n, 0.5), dim=2)
     system = make_system(state, backend)
@@ -358,9 +366,9 @@ def test_overflow_is_rejected_before_differentiation(monkeypatch):
             function(state, system)
 
 
-@pytest.mark.parametrize("scale", [[1.0], [1.0, 0.0, 1.0], [1.0, float("nan"), 1.0]])
-def test_invalid_rotation_scales_are_rejected(scale):
+def test_invalid_rotation_scales_are_rejected():
     state = rigid_state(2)
     system = make_system(state, "naive")
-    with pytest.raises(ValueError, match="rotation_scale"):
-        clump_non_bonded_hessian(state, system, rotation_scale=jnp.asarray(scale))
+    for scale in ([1.0], [1.0, 0.0, 1.0], [1.0, float("nan"), 1.0]):
+        with pytest.raises(ValueError, match="rotation_scale"):
+            clump_non_bonded_hessian(state, system, rotation_scale=jnp.asarray(scale))

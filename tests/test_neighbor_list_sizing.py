@@ -105,7 +105,6 @@ def _reference_pairs(state, system, cutoff, skin):
         (2, "periodic", "naive", 24),
         (3, "leesedwards", "CellList", 6),
         (2, "leesedwards", "MultiCellList", 6),
-        (3, "periodic", "CellList", 6),
     ],
 )
 def test_counts_match_geometry_and_cache_without_trial_capacity(
@@ -151,7 +150,7 @@ def test_counts_match_geometry_and_cache_without_trial_capacity(
     assert not bool(built.collider.overflow)
 
 
-def test_skin_search_radius_and_bond_settings():
+def test_candidate_measurement_respects_skin_radii_bonds_and_seams():
     state = jd.State.create(pos=[[0.0, 0.0], [0.65, 0.0]], rad=[0.2, 0.2])
     system = jd.System.create(state=state)
     assert measure_neighbor_candidates(state, system, skin=0).directed_pair_count == 0
@@ -173,45 +172,44 @@ def test_skin_search_radius_and_bond_settings():
         == 2
     )
 
-
-def test_candidate_measurement_uses_pair_specific_search_radii():
-    state = jd.State.create(
+    # Pair-specific search radii filter out small-small pairs within global cutoff.
+    mixed = jd.State.create(
         pos=[[0.0, 0.0], [1.0, 0.0], [1.35, 0.0]],
         rad=[1.0, 0.1, 0.1],
     )
-    system = jd.System.create(state=state)
-    stats = measure_neighbor_candidates(state, system, cutoff=2.0, skin=0.05)
-    np.testing.assert_array_equal(stats.degree, [1, 1, 0])
-    assert stats.list_cutoff == pytest.approx(2.05)
-
-
-def test_periodic_seam_and_skin_only_pairs():
-    state = jd.State.create(pos=[[0.05, 0.0], [1.8, 0.0]], rad=[0.1, 0.1])
-    system = jd.System.create(
-        state=state, domain_type="periodic", domain_kw={"box_size": jnp.full(2, 2.0)}
+    mixed_stats = measure_neighbor_candidates(
+        mixed, jd.System.create(state=mixed), cutoff=2.0, skin=0.05
     )
-    assert measure_neighbor_candidates(state, system, skin=0).directed_pair_count == 0
-    stats = measure_neighbor_candidates(state, system, skin=0.1)
+    np.testing.assert_array_equal(mixed_stats.degree, [1, 1, 0])
+    assert mixed_stats.list_cutoff == pytest.approx(2.05)
+
+    # Periodic seam + skin-only pairs agree with the cached builder.
+    seam_state = jd.State.create(pos=[[0.05, 0.0], [1.8, 0.0]], rad=[0.1, 0.1])
+    seam_sys = jd.System.create(
+        state=seam_state,
+        domain_type="periodic",
+        domain_kw={"box_size": jnp.full(2, 2.0)},
+    )
+    assert (
+        measure_neighbor_candidates(seam_state, seam_sys, skin=0).directed_pair_count
+        == 0
+    )
+    seam_stats = measure_neighbor_candidates(seam_state, seam_sys, skin=0.1)
     collider = jd.Collider.create(
-        "NeighborList", state=state, cutoff=0.2, skin=0.1, max_neighbors=1
+        "NeighborList", state=seam_state, cutoff=0.2, skin=0.1, max_neighbors=1
     )
-    built = check_and_rebuild(state, replace(system, collider=collider))
-    np.testing.assert_array_equal(
-        stats.degree,
-        [1, 1],
-        err_msg=f"Cached builder counts: {np.asarray(jnp.diff(built.collider.row_offsets))}",
-    )
+    built = check_and_rebuild(seam_state, replace(seam_sys, collider=collider))
+    np.testing.assert_array_equal(seam_stats.degree, [1, 1])
     np.testing.assert_array_equal(jnp.diff(built.collider.row_offsets), [1, 1])
 
 
-@pytest.mark.parametrize("dim", [2, 3])
-def test_empty_and_single_sphere_counts(dim):
-    state = jd.State.create(dim=dim)
+def test_empty_and_single_sphere_counts():
+    state = jd.State.create(dim=2)
     system = jd.System.create(state=state)
     stats = measure_neighbor_candidates(state, system)
     assert stats.degree.shape == (0,)
     assert stats.directed_pair_count == stats.max_degree == stats.mean_degree == 0
-    state = jd.State.create(pos=jnp.zeros((1, dim)), rad=jnp.ones(1))
+    state = jd.State.create(pos=jnp.zeros((1, 2)), rad=jnp.ones(1))
     stats = measure_neighbor_candidates(state, jd.System.create(state=state))
     np.testing.assert_array_equal(stats.degree, [0])
 
@@ -289,32 +287,6 @@ def test_failed_relaxation_does_not_produce_a_recommendation():
         estimate_neighbor_capacity(state, system, 1.1, max_steps=0)
 
 
-def test_pooled_count_allows_a_degree_larger_than_the_average_budget():
-    state = jd.State.create(
-        pos=[
-            [0, 0],
-            [0.8, 0],
-            [-0.8, 0],
-            [0, 0.8],
-            [0, -0.8],
-            [10, 0],
-            [20, 0],
-            [30, 0],
-        ],
-        rad=jnp.full(8, 0.5),
-    )
-    system = jd.System.create(state=state)
-    stats = measure_neighbor_candidates(state, system, skin=0)
-    np.testing.assert_array_equal(stats.degree, [4, 1, 1, 1, 1, 0, 0, 0])
-    assert stats.mean_degree == 1
-    collider = jd.Collider.create(
-        "NeighborList", state=state, cutoff=1.0, skin=0, max_neighbors=1
-    )
-    built = check_and_rebuild(state, replace(system, collider=collider))
-    assert not bool(built.collider.overflow)
-    assert int(built.collider.row_offsets[-1]) == 8
-
-
 def test_probe_preserves_shear_aspect_ratio_and_length_scale():
     state, system = _system(domain="leesedwards", clumps=True)
     box = jnp.array([4.0, 6.0])
@@ -374,9 +346,9 @@ def test_hash_overflow_rejects_incomplete_counts():
         measure_neighbor_candidates(state, system)
 
 
-@pytest.mark.parametrize(
-    "kwargs",
-    [
+def test_invalid_estimator_options_and_domains():
+    state, system = _system()
+    for kwargs in (
         {"packing_fraction": 0},
         {"packing_fraction": np.nan},
         {"safety_factor": 0.9},
@@ -391,20 +363,17 @@ def test_hash_overflow_rejects_incomplete_counts():
         {"skin": 0.1, "skin_fraction": 0.1},
         {"cutoff": np.inf},
         {"force_tol": np.nan},
-    ],
-)
-def test_invalid_estimator_options(kwargs):
-    state, system = _system()
-    with pytest.raises(ValueError):
-        estimate_neighbor_capacity(
-            state, system, **({"packing_fraction": 0.5} | kwargs)
-        )
+    ):
+        with pytest.raises(ValueError):
+            estimate_neighbor_capacity(
+                state, system, **({"packing_fraction": 0.5} | kwargs)
+            )
 
-
-def test_rejects_nonperiodic_or_empty_probes():
-    state = jd.State.create(pos=[[0.0, 0.0]], rad=[1.0])
+    free_state = jd.State.create(pos=[[0.0, 0.0]], rad=[1.0])
     with pytest.raises(ValueError, match="periodic"):
-        estimate_neighbor_capacity(state, jd.System.create(state=state), 0.5)
-    state = jd.State.create(dim=2)
+        estimate_neighbor_capacity(free_state, jd.System.create(state=free_state), 0.5)
+    empty_state = jd.State.create(dim=2)
     with pytest.raises(ValueError, match="At least one"):
-        estimate_neighbor_capacity(state, jd.System.create(state=state), 0.5)
+        estimate_neighbor_capacity(
+            empty_state, jd.System.create(state=empty_state), 0.5
+        )

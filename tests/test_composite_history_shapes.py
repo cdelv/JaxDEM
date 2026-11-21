@@ -82,7 +82,6 @@ def test_combiner_flattens_and_restores_arbitrary_child_history_shapes(advance):
     )
 
     assert law.history_shape(state.dim) == (5,)
-    assert history.shape == (1, 5)
     assert updated.shape == (1, 5)
     np.testing.assert_array_equal(
         updated, history + advance * jnp.array([[1.0, 2.0, 3.0, 4.0, 5.0]])

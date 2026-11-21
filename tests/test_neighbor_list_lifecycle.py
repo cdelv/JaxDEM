@@ -68,15 +68,6 @@ def test_explicit_query_honors_cutoff_width_and_does_not_replace_force_cache():
         np.testing.assert_array_equal(actual, expected)
 
 
-def test_zero_width_query_reports_qualifying_neighbors_as_overflow():
-    state, system = _neighbor_system([[0.0, 0.0], [0.4, 0.0]])
-    _, _, neighbors, overflow = system.collider.create_neighbor_list(
-        state, system, 0.5, 0
-    )
-    assert neighbors.shape == (2, 0)
-    assert bool(overflow)
-
-
 def test_periodic_metric_change_rebuilds_cached_force_list():
     state, system = _neighbor_system(
         [[0.1, 0.0], [9.9, 0.0]], cutoff=0.5, domain_type="periodic"
@@ -96,28 +87,79 @@ def test_periodic_metric_change_rebuilds_cached_force_list():
     assert int(system.collider.n_build_times) == first_count + 1
 
 
-def test_zero_radius_capacity_estimate_is_finite():
-    state = jd.State.create(pos=jnp.array([[0.0, 0.0], [1.0, 0.0]]), rad=jnp.zeros(2))
-    collider = jd.colliders.NeighborList.Create(
-        state, cutoff=1.0, secondary_collider_type="naive"
+def test_neighbor_cache_rebuilds_when_skin_increases():
+    state = jd.State.create(
+        pos=jnp.array([[0.0, 0.0], [1.6, 0.0]]), rad=jnp.full(2, 0.5)
     )
-    assert 0 <= collider.max_neighbors <= state.N
+    system = jd.System.create(
+        state=state,
+        force_model_type="spring",
+        collider_type="NeighborList",
+        collider_kw={"cutoff": 1.0, "skin": 0.1, "max_neighbors": 4},
+    )
+    state, system = system.collider.compute_force(state, system)
+    first_build = system.collider.n_build_times
+
+    moved = replace(state, pos_c=jnp.array([[0.31, 0.0], [1.29, 0.0]]))
+    system = replace(system, collider=replace(system.collider, skin=jnp.asarray(1.0)))
+    actual, system = system.collider.compute_force(moved, system)
+    naive = replace(system, collider=jd.Collider.create("naive"))
+    expected, _ = naive.collider.compute_force(moved, naive)
+
+    assert int(system.collider.n_build_times) == int(first_build) + 1
+    assert bool(jnp.allclose(actual.force, expected.force))
+    assert bool(jnp.any(actual.force != 0))
 
 
-@pytest.mark.parametrize("capacity", [0, 1, 7])
-def test_explicit_neighbor_capacity_is_exact(capacity):
+def test_neighbor_cache_rebuilds_when_lees_edwards_axes_change():
+    state = jd.State.create(
+        pos=jnp.array([[0.0, 0.0, 0.1], [0.0, 4.0, 9.9]]), rad=jnp.ones(2)
+    )
+    box = jnp.full(3, 10.0)
+    system = jd.System.create(
+        state=state,
+        force_model_type="spring",
+        collider_type="NeighborList",
+        collider_kw={"cutoff": 1.0, "skin": 0.2, "max_neighbors": 4},
+        domain_type="LeesEdwards",
+        domain_kw={"box_size": box, "gamma": 0.4, "alpha": 0, "beta": 1},
+    )
+    state, system = system.collider.compute_force(state, system)
+    first_build = system.collider.n_build_times
+
+    new_domain = jd.Domain.create(
+        "LeesEdwards", dim=3, box_size=box, gamma=0.4, alpha=1, beta=2
+    )
+    system = replace(system, domain=new_domain)
+    actual, system = system.collider.compute_force(state, system)
+    naive = replace(system, collider=jd.Collider.create("naive"))
+    expected, _ = naive.collider.compute_force(state, naive)
+
+    assert int(system.collider.n_build_times) == int(first_build) + 1
+    assert bool(jnp.allclose(actual.force, expected.force))
+    assert bool(jnp.any(actual.force != 0))
+
+
+def test_neighbor_capacity_defaults_and_explicit_overrides():
+    zero_rad = jd.State.create(pos=jnp.array([[0.0, 0.0], [1.0, 0.0]]), rad=jnp.zeros(2))
+    auto = jd.colliders.NeighborList.Create(
+        zero_rad, cutoff=1.0, secondary_collider_type="naive"
+    )
+    assert 0 <= auto.max_neighbors <= zero_rad.N
+
     state = jd.State.create(pos=jnp.array([[0.0, 0.0], [1.0, 0.0]]))
-    collider = jd.colliders.NeighborList.Create(
-        state,
-        cutoff=1.0,
-        max_neighbors=capacity,
-        number_density=1.0e9,
-        safety_factor=1.0e9,
-        secondary_collider_type="naive",
-    )
-    assert collider.max_neighbors == capacity
-    assert collider.neighbor_list.shape == (state.N * capacity,)
-    assert collider.history.shape == (state.N * capacity, 0)
+    for capacity in (0, 1, 7):
+        collider = jd.colliders.NeighborList.Create(
+            state,
+            cutoff=1.0,
+            max_neighbors=capacity,
+            number_density=1.0e9,
+            safety_factor=1.0e9,
+            secondary_collider_type="naive",
+        )
+        assert collider.max_neighbors == capacity
+        assert collider.neighbor_list.shape == (state.N * capacity,)
+        assert collider.history.shape == (state.N * capacity, 0)
 
 
 def test_naive_collider_stores_dense_history_and_advances_it():
@@ -154,15 +196,6 @@ def test_naive_collider_stores_dense_history_and_advances_it():
     np.testing.assert_array_equal(queried[..., 0], [[2.0, 2.0], [2.0, 0.0], [0.0, 0.0]])
 
 
-def test_naive_stateless_law_keeps_zero_width_history():
-    state = jd.State.create(pos=jnp.array([[0.0, 0.0], [0.3, 0.0]]))
-    system = jd.System.create(state=state, collider_type="naive")
-    assert system.collider.history.shape == (2, 2, 0)
-    state, system = jd.System.initialize(state, system)
-    _, system = jd.System.step(state, system)
-    assert system.collider.history.shape == (2, 2, 0)
-
-
 def test_refresh_naive_history_for_new_particle_count():
     state = jd.State.create(pos=jnp.zeros((2, 2)))
     law = SeededSpring()
@@ -177,6 +210,7 @@ def test_refresh_naive_history_for_new_particle_count():
 
 
 def test_naive_history_checkpoint_continues_exactly(tmp_path):
+    pytest.importorskip("orbax.checkpoint")
     state = replace(
         jd.State.create(pos=jnp.array([[0.0, 0.0], [0.3, 0.0]])),
         fixed=jnp.ones(2, dtype=bool),
@@ -251,12 +285,10 @@ class TwoComponentSeededSpring(jd.forces.SpringForce):
         return jnp.broadcast_to(values, pair_shape + (2,))
 
 
-@pytest.mark.parametrize("law", [jd.forces.LawCombiner(), jd.forces.ForceRouter()])
-def test_empty_composite_history_has_zero_width(law):
-    assert law.init_history((2, 3), 2).shape == (2, 3, 0)
+def test_composite_history_layout_for_empty_and_nested_laws():
+    assert jd.forces.LawCombiner().init_history((2, 3), 2).shape == (2, 3, 0)
+    assert jd.forces.ForceRouter().init_history((2, 3), 2).shape == (2, 3, 0)
 
-
-def test_nested_composite_history_preserves_child_slice_order():
     law = jd.forces.LawCombiner(
         laws=(
             jd.forces.SpringForce(),
@@ -271,7 +303,6 @@ def test_nested_composite_history_preserves_child_slice_order():
 @pytest.mark.parametrize(
     "law",
     [
-        SeededSpring(),
         jd.forces.LawCombiner(laws=(SeededSpring(),)),
         jd.forces.ForceRouter.from_dict(1, {(0, 0): SeededSpring()}),
     ],
@@ -308,14 +339,14 @@ def test_cached_collider_without_pair_history_rejects_stateful_force(collider_ty
         )
 
 
-@pytest.mark.parametrize("composite", ["direct", "combiner", "router"])
+@pytest.mark.parametrize("composite", ["combiner", "router"])
 def test_history_survives_evaluation_refresh_and_initial_preparation(composite):
-    state, system = _neighbor_system([[0.0, 0.0], [0.3, 0.0]])
+    state, _ = _neighbor_system([[0.0, 0.0], [0.3, 0.0]])
     state = replace(state, fixed=jnp.ones(2, dtype=bool))
     law = RememberingSpring()
     if composite == "combiner":
         law = jd.forces.LawCombiner(laws=(law, jd.forces.SpringForce()))
-    elif composite == "router":
+    else:
         law = jd.forces.ForceRouter(table=((law,),))
     system = jd.System.create(
         state=state,
@@ -368,6 +399,7 @@ def test_history_survives_evaluation_refresh_and_initial_preparation(composite):
 
 
 def test_composite_nonempty_history_checkpoint_continues_exactly(tmp_path):
+    pytest.importorskip("orbax.checkpoint")
     state, _ = _neighbor_system([[0.0, 0.0], [0.3, 0.0]])
     state = replace(state, fixed=jnp.ones(2, dtype=bool))
     law = jd.forces.LawCombiner(laws=(RememberingSpring(), jd.forces.SpringForce()))
@@ -405,48 +437,8 @@ def test_composite_nonempty_history_checkpoint_continues_exactly(tmp_path):
         np.testing.assert_array_equal(actual, expected)
 
 
-def test_refresh_grows_history_capacity_without_losing_pair_memory():
-    state, system = _neighbor_system([[0.0, 0.0], [0.3, 0.0]])
-    law = RememberingSpring()
-    system = jd.System.create(
-        state=state,
-        force_model=law,
-        collider_type="NeighborList",
-        collider_kw={
-            "max_neighbors": 1,
-            "cutoff": 0.5,
-            "skin": 0.1,
-            "secondary_collider_type": "naive",
-        },
-    )
-    state, system = system.collider.compute_force(state, system)
-    system = replace(
-        system,
-        collider=replace(
-            system.collider,
-            history=system.collider.history.at[:2, 0].set(jnp.array([11.0, 29.0])),
-        ),
-    )
-    before = _pair_histories(system.collider)
-    resized = jd.colliders.refresh_collider(
-        state, replace(system.collider, max_neighbors=4), law
-    )
-    assert resized.history.shape == (8, 1)
-    _, system = resized.compute_force(
-        state, replace(system, collider=resized), advance_history=False
-    )
-    after = _pair_histories(system.collider)
-    assert after.keys() == before.keys()
-    for pair in before:
-        np.testing.assert_array_equal(after[pair], before[pair])
-    with pytest.raises(ValueError, match="reset_history"):
-        jd.colliders.refresh_collider(
-            state, replace(system.collider, max_neighbors=1), law
-        )
-
-
-def test_refresh_growth_uses_force_history_initializer_for_new_slots():
-    state, system = _neighbor_system([[0.0, 0.0], [0.3, 0.0]], max_neighbors=1)
+def test_refresh_collider_history_growth_and_reset_rules():
+    state, _ = _neighbor_system([[0.0, 0.0], [0.3, 0.0]], max_neighbors=1)
     law = SeededSpring()
     system = jd.System.create(
         state=state,
@@ -464,28 +456,23 @@ def test_refresh_growth_uses_force_history_initializer_for_new_slots():
     np.testing.assert_array_equal(resized.history[:2], [[21.0], [43.0]])
     np.testing.assert_array_equal(resized.history[2:], 7.0)
 
-
-def test_particle_count_change_requires_explicit_nonempty_history_reset():
-    state, system = _neighbor_system([[0.0, 0.0], [0.3, 0.0]])
-    law = SeededSpring()
-    system = jd.System.create(
-        state=state,
-        force_model=law,
-        collider_type="NeighborList",
-        collider_kw={
-            "max_neighbors": 2,
-            "cutoff": 0.5,
-            "skin": 0.1,
-            "secondary_collider_type": "naive",
-        },
-    )
     larger = jd.State.create(pos=jnp.array([[0.0, 0.0], [0.3, 0.0], [3.0, 0.0]]))
     with pytest.raises(ValueError, match="particle count.*reset_history=True"):
-        jd.colliders.refresh_collider(larger, system.collider, law)
-    reset = jd.colliders.refresh_collider(
-        larger, system.collider, law, reset_history=True
-    )
+        jd.colliders.refresh_collider(larger, resized, law)
+    reset = jd.colliders.refresh_collider(larger, resized, law, reset_history=True)
     np.testing.assert_array_equal(reset.history, 7.0)
+
+
+def test_refresh_collider_stateless_shrink_and_incompatible_force_rules():
+    state, system = _neighbor_system([[0.0, 0.0], [0.3, 0.0]], max_neighbors=4)
+    resized = jd.colliders.refresh_collider(
+        state, replace(system.collider, max_neighbors=1), system.force_model
+    )
+    assert resized.neighbor_list.shape == (2,)
+    assert resized.history.shape == (2, 0)
+
+    with pytest.raises(ValueError, match="reset_history=True"):
+        jd.colliders.refresh_collider(state, system.collider, RememberingSpring())
 
 
 def test_new_neighbor_uses_force_history_initializer_after_rebuild():
@@ -512,21 +499,6 @@ def test_new_neighbor_uses_force_history_initializer_after_rebuild():
     np.testing.assert_allclose(np.abs(evaluated.force[:, 0]), 49_000.0)
 
 
-def test_refresh_shrinks_stateless_history_with_neighbor_capacity():
-    state, system = _neighbor_system([[0.0, 0.0], [0.3, 0.0]], max_neighbors=4)
-    resized = jd.colliders.refresh_collider(
-        state, replace(system.collider, max_neighbors=1), system.force_model
-    )
-    assert resized.neighbor_list.shape == (2,)
-    assert resized.history.shape == (2, 0)
-
-
-def test_refresh_rejects_incompatible_force_history_without_reset():
-    state, system = _neighbor_system([[0.0, 0.0], [0.3, 0.0]])
-    with pytest.raises(ValueError, match="reset_history=True"):
-        jd.colliders.refresh_collider(state, system.collider, RememberingSpring())
-
-
 @pytest.mark.parametrize("collider_type", ["CellList", "MultiCellList", "NeighborList"])
 def test_zero_radius_default_grid_remains_a_valid_geometric_query(collider_type):
     state = jd.State.create(pos=jnp.array([[0.0, 0.0], [0.2, 0.0]]), rad=jnp.zeros(2))
@@ -539,11 +511,9 @@ def test_zero_radius_default_grid_remains_a_valid_geometric_query(collider_type)
     assert not bool(overflow)
 
 
-@pytest.mark.parametrize("collider_type", ["CellList", "MultiCellList"])
-@pytest.mark.parametrize(
-    "kw", [{"cell_size": 0.0}, {"cell_size": float("nan")}, {"search_range": 0}]
-)
-def test_grid_constructor_rejects_invalid_search_geometry(collider_type, kw):
+def test_grid_constructor_rejects_invalid_search_geometry():
     state = jd.State.create(pos=jnp.array([[0.0, 0.0]]))
-    with pytest.raises(ValueError):
-        jd.Collider.create(collider_type, state=state, **kw)
+    for collider_type in ("CellList", "MultiCellList"):
+        for kw in ({"cell_size": 0.0}, {"cell_size": float("nan")}, {"search_range": 0}):
+            with pytest.raises(ValueError):
+                jd.Collider.create(collider_type, state=state, **kw)

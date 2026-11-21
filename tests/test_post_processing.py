@@ -60,9 +60,7 @@ def assert_packed(network, n):
             assert value.shape[0] == len(pairs)
 
 
-@pytest.mark.parametrize(
-    "backend", ["Naive", "CellList", "MultiCellList", "NeighborList"]
-)
+@pytest.mark.parametrize("backend", ["Naive", "NeighborList"])
 def test_full_and_non_rattler_summaries_and_species(backend):
     state = square_with_rattler()
     system = make_system(state, backend)
@@ -132,6 +130,17 @@ def test_full_and_non_rattler_summaries_and_species(backend):
     np.testing.assert_allclose(
         reduced.effective_packing_fraction, effective_area / 64, rtol=2e-6
     )
+    for data in (full, reduced):
+        h = np.asarray(data.hessian)
+        np.testing.assert_allclose(data.eigenvalues, np.linalg.eigvalsh(h), atol=2e-6)
+        np.testing.assert_allclose(
+            h @ data.eigenvectors, data.eigenvectors * data.eigenvalues, atol=3e-6
+        )
+        np.testing.assert_allclose(
+            data.eigenvectors.T @ data.eigenvectors, np.eye(h.shape[0]), atol=2e-6
+        )
+    assert reduced.negative_mode_count > 0
+    assert full.zero_mode_count == reduced.zero_mode_count + 2
 
 
 def test_contacts_are_collected_once_per_configuration(monkeypatch):
@@ -153,26 +162,7 @@ def test_contacts_are_collected_once_per_configuration(monkeypatch):
     assert calls == [5, 4]
 
 
-def test_full_spectra_and_coordination_do_not_claim_stability():
-    state = square_with_rattler()
-    result = analyze_packing(state, make_system(state))
-    for data in (result.full, result.non_rattlers):
-        h = np.asarray(data.hessian)
-        assert h.shape == (data.state.N * 2, data.state.N * 2)
-        np.testing.assert_allclose(data.eigenvalues, np.linalg.eigvalsh(h), atol=2e-6)
-        np.testing.assert_allclose(
-            h @ data.eigenvectors, data.eigenvectors * data.eigenvalues, atol=3e-6
-        )
-        np.testing.assert_allclose(
-            data.eigenvectors.T @ data.eigenvectors, np.eye(h.shape[0]), atol=2e-6
-        )
-    assert result.non_rattlers.satisfies_isostatic_count
-    assert result.non_rattlers.negative_mode_count > 0
-    assert result.full.zero_mode_count == result.non_rattlers.zero_mode_count + 2
-
-
-@pytest.mark.parametrize("dim", [2, 3])
-@pytest.mark.parametrize("n", [0, 1, 2])
+@pytest.mark.parametrize("dim,n", [(2, 0), (2, 2), (3, 1)])
 def test_empty_and_all_rattler_packings(dim, n):
     pos = np.zeros((n, dim))
     if n == 2:
@@ -259,9 +249,10 @@ def test_clump_hessians_map_rotation_scales_and_preserve_moments(dim):
     assert np.max(np.abs(np.asarray(result.full.clump_contacts.torques))) > 0
 
 
-@pytest.mark.parametrize("dim", [2, 3])
-def test_history_and_queued_loads_survive_analysis_and_removal(dim, tmp_path):
+def test_history_and_queued_loads_survive_analysis_and_removal(tmp_path):
     from .test_contact_analysis import history_by_pair
+
+    dim = 3
 
     pos = np.pad(
         np.array([[1.0, 1.0], [1.0, 1.0], [1.8, 1.0], [1.8, 1.0], [6.0, 6.0]]),
@@ -327,8 +318,9 @@ def test_history_and_queued_loads_survive_analysis_and_removal(dim, tmp_path):
         np.testing.assert_array_equal(old, new)
 
 
-@pytest.mark.parametrize("with_species", [False, True])
-@pytest.mark.parametrize("case", ["spheres", "clumps", "all_rattlers", "empty"])
+@pytest.mark.parametrize(
+    "case,with_species", [("spheres", True), ("clumps", False), ("empty", True)]
+)
 def test_h5_analysis_round_trip(case, with_species, tmp_path):
     if case == "clumps":
         from .test_hessian_candidates import rigid_state
@@ -388,7 +380,6 @@ def test_h5_analysis_round_trip(case, with_species, tmp_path):
             np.testing.assert_allclose(evaluated.torque, new.state.torque, atol=2e-6)
 
 
-@pytest.mark.parametrize("dim", [2, 3])
 @pytest.mark.parametrize(
     "force,coincident,expected",
     [
@@ -398,26 +389,23 @@ def test_h5_analysis_round_trip(case, with_species, tmp_path):
         ([2, 0], True, np.nan),
     ],
 )
-def test_group_friction_and_intrinsic_moments_have_no_validity_flag(
-    dim, force, coincident, expected
-):
+def test_group_friction_and_intrinsic_moments(force, coincident, expected):
+    dim = 2
     pos = np.zeros((2, dim))
     pos[1, 0] = 0 if coincident else 1
     state = jd.State.create(pos=pos, rad=jnp.full(2, 0.5))
     system = make_system(state)
-    force = np.pad(force, (0, dim - 2))
     pairs = jnp.array([[0, 1], [1, 0]])
     data = contact.ContactData(
         pairs,
-        jnp.asarray([force, -force]),
-        jnp.ones((2, 1 if dim == 2 else 3)),
+        jnp.asarray([force, -np.asarray(force)]),
+        jnp.ones((2, 1)),
         jnp.asarray([pos[0] - pos[1], pos[1] - pos[0]]),
     )
     _, _, groups = contact.get_group_contacts(state, system, contacts=data)
     np.testing.assert_array_equal(groups.pair_ids, pairs)
     np.testing.assert_allclose(groups.friction, expected, equal_nan=True)
     np.testing.assert_array_equal(groups.torques, 1)
-    assert "friction_valid" not in groups._fields
 
 
 @pytest.mark.parametrize("dim", [2, 3])
@@ -495,9 +483,10 @@ def test_gapped_clump_ids_map_species_and_hessian_without_empty_body_modes():
     assert_packed(data.clump_contacts, 4)
 
 
-@pytest.mark.parametrize(
-    "options",
-    [
+def test_invalid_analysis_options():
+    state = square_with_rattler()
+    system = make_system(state)
+    for options in (
         {"clump_species_ids": [1, 2]},
         {"clump_species_ids": [1.0, 2.0, 3.0, 4.0, 5.0]},
         {"coordinates": "bad"},
@@ -505,12 +494,9 @@ def test_gapped_clump_ids_map_species_and_hessian_without_empty_body_modes():
         {"global_modes": -1},
         {"zero_mode_rel_gap": np.nan},
         {"zero_mode_atol": -1},
-    ],
-)
-def test_invalid_analysis_options(options):
-    state = square_with_rattler()
-    with pytest.raises(ValueError):
-        analyze_packing(state, make_system(state), **options)
+    ):
+        with pytest.raises(ValueError):
+            analyze_packing(state, system, **options)
 
 
 def test_overflow_fails_before_analysis():

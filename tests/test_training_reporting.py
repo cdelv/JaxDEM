@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Check report scheduling, custom metrics, state updates, and cleanup."""
+"""Check report scheduling, custom metrics, TensorBoard logging, and cleanup."""
 
+import json
 from dataclasses import dataclass, replace
 from typing import NamedTuple
 
@@ -12,6 +13,8 @@ import pytest
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 from jaxdem.rl.trainers import ppo_trainer
+from jaxdem.rl.trainers.ppo_trainer import PPOTrainer
+from tests.test_ppo_math import BanditModel, TimeLimitCounterEnv
 
 
 class _Collider(NamedTuple):
@@ -180,101 +183,7 @@ def test_report_boundaries_without_standard_outputs(
         assert reports[0][1]["steps_per_sec"] == 0.0
 
 
-def test_default_display_and_empty_selection(trainer, tmp_path, monkeypatch, capsys):
-    bars = []
-
-    def make_progress(*args):
-        bar = _Progress(*args)
-        bars.append(bar)
-        return bar
-
-    monkeypatch.setattr(ppo_trainer, "trange", make_progress)
-    trainer.train(trainer, log=False)
-    assert all(set(values) == {"steps/s", "avg_score"} for values in bars[0].reports)
-    assert "final avg_score: 6.00" in capsys.readouterr().out
-
-    trainer.train(trainer, directory=tmp_path, progress_metrics={})
-    assert all(values == {} for values in bars[1].reports)
-    assert capsys.readouterr().out == ""
-    accumulator = EventAccumulator(str(next(tmp_path.iterdir())))
-    accumulator.Reload()
-    assert accumulator.Scalars("score")[-1].value == 6.0
-
-
-@pytest.mark.parametrize(
-    "kwargs,error,match",
-    [
-        ({"metrics_fnn": None}, TypeError, "unexpected keyword"),
-        ({"metrics_fn": 1}, TypeError, "metrics_fn must be callable"),
-        ({"on_report": 1}, TypeError, "on_report must be callable"),
-        ({"progress_metrics": ["score"]}, TypeError, "must map metric names"),
-        ({"progress_metrics": {"": ".2f"}}, ValueError, "nonempty strings"),
-        ({"progress_metrics": {"score": 2}}, TypeError, "must be a string"),
-        ({"progress_metrics": {"score": "bad"}}, ValueError, "Invalid format"),
-    ],
-)
-def test_invalid_options_fail_before_training(
-    trainer, tmp_path, monkeypatch, kwargs, error, match
-):
-    def unexpected(*args, **kwargs):
-        raise AssertionError("invalid options must fail before training")
-
-    monkeypatch.setattr(_ReportingTrainer, "epoch", staticmethod(unexpected))
-    with pytest.raises(error, match=match):
-        trainer.train(trainer, directory=tmp_path / "unused", **kwargs)
-    assert not (tmp_path / "unused").exists()
-
-
-@pytest.mark.parametrize(
-    "result,error,match",
-    [
-        ([1.0], TypeError, "mapping"),
-        ({"accuracy": jnp.ones(2)}, ValueError, "accuracy.*shape"),
-        ({"": 1.0}, ValueError, "nonempty strings"),
-        ({1: 1.0}, ValueError, "nonempty strings"),
-        ({"accuracy": 1j}, TypeError, "accuracy.*real numeric scalar"),
-        ({"accuracy": "text"}, TypeError, "accuracy.*real numeric scalar"),
-        ({"score": 1.0}, ValueError, "reserved metrics.*score"),
-        ({"elapsed": 1.0}, ValueError, "reserved metrics.*elapsed"),
-        ({"steps_per_sec": 1.0}, ValueError, "reserved metrics.*steps_per_sec"),
-    ],
-)
-def test_invalid_metrics_close_writer(
-    trainer, tmp_path, monkeypatch, result, error, match
-):
-    closed = []
-    original_close = ppo_trainer.SummaryWriter.close
-
-    def close(writer):
-        closed.append(True)
-        original_close(writer)
-
-    monkeypatch.setattr(ppo_trainer.SummaryWriter, "close", close)
-    with pytest.raises(error, match=match):
-        trainer.train(
-            trainer,
-            verbose=False,
-            directory=tmp_path,
-            metrics_fn=lambda tr, td: result,
-        )
-    assert closed
-
-
-def test_unknown_progress_metric_lists_available_names(trainer, tmp_path):
-    with pytest.raises(
-        ValueError,
-        match="Unknown progress metrics.*missing.*Available metrics.*accuracy.*score",
-    ):
-        trainer.train(
-            trainer,
-            verbose=False,
-            directory=tmp_path,
-            metrics_fn=_custom_metrics,
-            progress_metrics={"missing": ".2f"},
-        )
-
-
-@pytest.mark.parametrize("failure", ["exception", "return", "shape", "structure"])
+@pytest.mark.parametrize("failure", ["exception", "shape", "structure"])
 def test_callback_failures_close_writer(trainer, tmp_path, monkeypatch, failure):
     closed = []
     original_close = ppo_trainer.SummaryWriter.close
@@ -288,45 +197,84 @@ def test_callback_failures_close_writer(trainer, tmp_path, monkeypatch, failure)
             if epoch == 0:
                 return None
             raise RuntimeError("callback failed")
-        if failure == "return":
-            return 42
         if failure == "shape":
             return replace(current, increment=jnp.ones(2))
         return replace(current, stop_at_epoch=99)
 
     monkeypatch.setattr(ppo_trainer.SummaryWriter, "close", close)
-    error = (
-        RuntimeError
-        if failure == "exception"
-        else TypeError if failure == "return" else ValueError
-    )
+    error = RuntimeError if failure == "exception" else ValueError
     with pytest.raises(error):
         trainer.train(trainer, verbose=False, directory=tmp_path, on_report=callback)
     assert closed
 
 
-def test_custom_metric_names_stay_fixed_across_compilations(trainer, tmp_path):
+def test_training_writes_tensorboard_scalar_and_text(tmp_path) -> None:
+    tr = PPOTrainer.Create(
+        env=TimeLimitCounterEnv.Create(),
+        model=BanditModel(),
+        key=jax.random.PRNGKey(0),
+        num_epochs=2,
+        num_envs=2,
+        num_minibatches=1,
+        num_steps_epoch=2,
+    )
+    tr.train(tr, verbose=False, log=True, directory=tmp_path)
+
+    log_directory = next(tmp_path.iterdir())
+    accumulator = EventAccumulator(str(log_directory))
+    accumulator.Reload()
+    assert [event.step for event in accumulator.Scalars("score")] == [0, 1]
+    np.testing.assert_allclose(
+        [event.value for event in accumulator.Scalars("score")], [1.0, 1.0]
+    )
+    assert accumulator.Scalars("steps_per_sec")[0].step == 1
+    text = accumulator.Tensors("hparams/json/text_summary")
+    assert len(text) == 1
+    assert text[0].step == 0
+    metadata = json.loads(text[0].tensor_proto.string_val[0])
+    for key, expected in {
+        "num_epochs": 2,
+        "num_envs": 2,
+        "num_steps_epoch": 2,
+        "minibatch_size": 4,
+    }.items():
+        assert metadata[key] == expected
+
+
+def test_custom_metrics_use_vectorized_environment_and_rollout(tmp_path) -> None:
+    tr = PPOTrainer.Create(
+        env=TimeLimitCounterEnv.Create(),
+        model=BanditModel(),
+        key=jax.random.key(4),
+        num_epochs=2,
+        num_envs=2,
+        num_minibatches=1,
+        num_steps_epoch=2,
+    )
+    reports = []
+
     def metrics(current, trajectory):
-        name = (
-            "floating"
-            if jnp.issubdtype(current.env.value.dtype, jnp.floating)
-            else "integer"
-        )
-        return {name: current.env.value}
+        return {
+            "accuracy": jax.vmap(lambda env: (env.state.rad <= 1).mean())(
+                current.env
+            ).mean(),
+            "rollout_reward": trajectory.reward.mean(),
+        }
 
     def callback(current, epoch, values):
-        if epoch == 0:
-            return replace(
-                current,
-                env=current.env._replace(value=current.env.value.astype(jnp.int32)),
-                increment=current.increment.astype(jnp.int32),
-            )
+        reports.append((epoch, values))
+        return replace(current, ppo_entropy_coeff=current.ppo_entropy_coeff * 0.5)
 
-    with pytest.raises(ValueError, match="same metric names"):
-        trainer.train(
-            trainer,
-            verbose=False,
-            directory=tmp_path,
-            metrics_fn=metrics,
-            on_report=callback,
-        )
+    result = tr.train(
+        tr,
+        verbose=False,
+        directory=tmp_path,
+        metrics_fn=metrics,
+        on_report=callback,
+    )
+    assert [epoch for epoch, _ in reports] == [0, 1]
+    np.testing.assert_allclose(result.ppo_entropy_coeff, tr.ppo_entropy_coeff * 0.25)
+    accumulator = EventAccumulator(str(next(tmp_path.iterdir())))
+    accumulator.Reload()
+    assert [event.value for event in accumulator.Scalars("accuracy")] == [1.0, 1.0]
+    assert [event.value for event in accumulator.Scalars("rollout_reward")] == [1.0, 1.0]

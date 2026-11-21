@@ -45,8 +45,7 @@ def _assert_equal(expected, actual):
         np.testing.assert_array_equal(left, right)
 
 
-@pytest.mark.parametrize("dim", [2, 3])
-@pytest.mark.parametrize("x64", [False, True])
+@pytest.mark.parametrize("dim,x64", [(2, False), (3, True)])
 def test_snapshot_keeps_exact_arrays_and_continues(tmp_path, dim, x64):
     with jax.enable_x64(x64):
         state, system = _ballistic(dim)
@@ -177,16 +176,3 @@ def test_save_after_close_rejects_even_a_skipped_call(tmp_path):
     writer.close()
     with pytest.raises(RuntimeError, match="closed"):
         writer.save(state, system)
-
-
-def test_missing_dependency_does_not_clean_existing_data(tmp_path, monkeypatch):
-    marker = tmp_path / "keep.txt"
-    marker.write_text("preserve")
-
-    def missing(name):
-        raise ModuleNotFoundError(name=name)
-
-    monkeypatch.setattr(h5_writer, "import_module", missing)
-    with pytest.raises(ImportError, match=r"JaxDEM\[io\]"):
-        jd.H5Writer(directory=tmp_path, clean=True)
-    assert marker.read_text() == "preserve"

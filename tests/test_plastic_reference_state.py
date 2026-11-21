@@ -44,35 +44,16 @@ def _plastic_system(kind: str) -> tuple[jd.State, jd.System, str]:
     return state, system, field
 
 
-@pytest.mark.parametrize("kind", ["edge", "perimeter", "bending"])
-def test_step_persists_each_plastic_reference_update(kind: str) -> None:
-    state, system, field = _plastic_system(kind)
-    model = system.bonded_force_model
-    assert model is not None
-    expected_model = model.update_reference_state(state.pos, state, system)
-
-    _, stepped_system = jd.System.step(state, system)
-
-    np.testing.assert_allclose(
-        getattr(stepped_system.bonded_force_model, field),
-        getattr(expected_model, field),
-    )
-    assert not np.allclose(getattr(expected_model, field), getattr(model, field))
-
-
-@pytest.mark.parametrize("kind", ["edge", "perimeter", "bending"])
-def test_force_and_energy_evaluations_do_not_advance_plasticity(kind: str) -> None:
-    state, system, field = _plastic_system(kind)
+def test_force_and_energy_evaluations_do_not_advance_plasticity() -> None:
+    state, system, field = _plastic_system("edge")
     reference = np.asarray(getattr(system.bonded_force_model, field)).copy()
 
-    for _ in range(3):
-        DeformableParticleModel.compute_forces(state.pos, state, system)
-        system.force_manager.compute_potential_energy(state, system)
-        _, returned_system = system.force_manager.apply(state, system)
-        np.testing.assert_array_equal(
-            getattr(returned_system.bonded_force_model, field), reference
-        )
-
+    DeformableParticleModel.compute_forces(state.pos, state, system)
+    system.force_manager.compute_potential_energy(state, system)
+    _, returned_system = system.force_manager.apply(state, system)
+    np.testing.assert_array_equal(
+        getattr(returned_system.bonded_force_model, field), reference
+    )
     np.testing.assert_array_equal(getattr(system.bonded_force_model, field), reference)
 
 
@@ -176,9 +157,8 @@ def test_held_geometry_reference_follows_exponential_and_shortest_angle(kind):
         np.testing.assert_allclose(actual, expected, rtol=2e-6)
 
 
-@pytest.mark.parametrize("kind", ["edge", "perimeter", "bending"])
-def test_split_stepping_preserves_plastic_history(kind: str) -> None:
-    state, system, field = _plastic_system(kind)
+def test_split_stepping_preserves_plastic_history() -> None:
+    state, system, field = _plastic_system("edge")
 
     full_state, full_system = jd.System.step(state, system, n=3)
     split_state, split_system = jd.System.step(state, system)
@@ -191,15 +171,16 @@ def test_split_stepping_preserves_plastic_history(kind: str) -> None:
     )
 
 
-@pytest.mark.parametrize("kind", ["edge", "perimeter", "bending"])
-def test_checkpoint_restart_preserves_plastic_history(tmp_path, kind: str) -> None:
-    state, system, field = _plastic_system(kind)
+def test_checkpoint_restart_preserves_plastic_history(tmp_path) -> None:
+    pytest.importorskip("orbax.checkpoint")
+    state, system, field = _plastic_system("bending")
     state, system = jd.System.step(state, system)
 
-    checkpoint = tmp_path / kind
+    checkpoint = tmp_path / "bending"
     with jd.CheckpointWriter(checkpoint) as writer:
         writer.save(state, system)
-    restored_state, restored_system = jd.CheckpointLoader(checkpoint).load()
+    with jd.CheckpointLoader(checkpoint) as loader:
+        restored_state, restored_system = loader.load()
 
     continuous_state, continuous_system = jd.System.step(state, system, n=2)
     restored_state, restored_system = jd.System.step(

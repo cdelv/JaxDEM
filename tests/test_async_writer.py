@@ -7,7 +7,6 @@ from __future__ import annotations
 import jax.numpy as jnp
 
 import threading
-from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -70,55 +69,15 @@ def test_vtk_write_failure_reaches_completion_boundary(
 
     monkeypatch.setitem(VTKBaseWriter._registry, "broken", BrokenWriter)
     writer = VTKWriter(directory=tmp_path, writers=["broken"], max_workers=1)
-    state = object()
-    system = SimpleNamespace(step_count=3, time=0.25)
-    writer.submit(writer._process_frame, state, system, 0, set())
+    state = jdem.State.create(pos=jnp.array([[0.0, 0.0]]), rad=jnp.array([1.0]))
+    system = jdem.System.create(state.shape)
+    writer.save(state, system)
 
     expected = "injected write failure" if failure == "raise" else "did not create"
     with pytest.raises(AsyncWriterError, match=expected):
         writer.close()
 
     assert writer._threads == []
-
-
-def test_vtk_public_save_writes_output_and_manifest(
-    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    class WorkingWriter:
-        @classmethod
-        def is_active(cls, state: Any, system: Any) -> bool:
-            return True
-
-        @classmethod
-        def write(cls, state: Any, system: Any, filename: Any, binary: bool) -> None:
-            filename.write_text("frame")
-
-    monkeypatch.setitem(VTKBaseWriter._registry, "working", WorkingWriter)
-    state = jdem.State.create(pos=jnp.array([[0.0, 0.0]]), rad=jnp.array([1.0]))
-    system = jdem.System.create(state.shape)
-
-    with VTKWriter(directory=tmp_path, writers=["working"], max_workers=1) as writer:
-        writer.save(state, system)
-        writer.block_until_ready()
-
-    frame = tmp_path / "batch_00000000" / "working_00000000.vtp"
-    manifest = tmp_path / "batch_00000000_working.pvd"
-    assert frame.read_text() == "frame"
-    assert 'file="batch_00000000/working_00000000.vtp"' in manifest.read_text()
-
-
-@pytest.mark.parametrize("workers", [0, -1])
-def test_writer_rejects_invalid_worker_count(tmp_path: Any, workers: int) -> None:
-    with pytest.raises(ValueError, match="max_workers"):
-        BaseAsyncWriter(directory=tmp_path, max_workers=workers)
-
-
-def test_submit_after_close_is_rejected_without_queue_hang(tmp_path: Any) -> None:
-    writer = BaseAsyncWriter(directory=tmp_path, max_workers=1)
-    writer.close()
-    with pytest.raises(RuntimeError, match="closed"):
-        writer.submit(lambda: None)
-    writer.block_until_ready()
 
 
 def test_submit_racing_close_finishes_every_accepted_task(

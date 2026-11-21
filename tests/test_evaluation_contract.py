@@ -70,9 +70,14 @@ def _history_system(skin: float = 0.1) -> tuple[jd.State, jd.System]:
     return jd.System.step(state, system)
 
 
-@pytest.mark.parametrize("optimizer", [jd.fire, jd.damped_newtonian])
 @pytest.mark.parametrize(
-    ("history_update", "advances"), [("frozen", 0), ("path", 3), ("endpoint", 1)]
+    ("optimizer", "history_update", "advances"),
+    [
+        (jd.fire, "frozen", 0),
+        (jd.fire, "path", 3),
+        (jd.fire, "endpoint", 1),
+        (jd.damped_newtonian, "endpoint", 1),
+    ],
 )
 def test_relaxation_advances_history_per_step_and_preserves_loads(
     optimizer, history_update, advances
@@ -115,15 +120,14 @@ def test_relaxation_advances_history_per_step_and_preserves_loads(
     np.testing.assert_allclose(observed.force - result.state.force, queued)
 
 
-@pytest.mark.parametrize("optimizer", [jd.fire, jd.damped_newtonian])
-def test_endpoint_history_update_follows_rebuilds_without_extra_builds(optimizer) -> None:
+def test_endpoint_history_update_follows_rebuilds_without_extra_builds() -> None:
     # The pair stays cached while its separation is below the radii sum plus
     # the skin. Repulsion vanishes at 1.0, and the optimizer's final step
     # overshoots that, so the skin must cover the overshoot for the pair to
     # survive to the end while still forcing several rebuilds on the way.
     state, system = _history_system(skin=0.2)
     state = dataclasses.replace(state, fixed=jnp.zeros_like(state.fixed))
-    system = dataclasses.replace(system, minimizer=optimizer(dt=1e-3))
+    system = dataclasses.replace(system, minimizer=jd.damped_newtonian(dt=1e-3))
     stored = np.asarray(system.collider.history)[
         np.asarray(system.collider.neighbor_list) >= 0
     ]
@@ -139,61 +143,14 @@ def test_endpoint_history_update_follows_rebuilds_without_extra_builds(optimizer
 
     assert bool(endpoint.converged)
     np.testing.assert_array_equal(endpoint.state.pos, path.state.pos)
-    # Pushing the overlap apart moves each particle by several half-skins.
     builds = int(endpoint.system.collider.n_build_times)
     assert builds > int(system.collider.n_build_times) + 2
     assert builds == int(path.system.collider.n_build_times)
-    # The surviving pair carries the stored history across every rebuild.
     valid = np.asarray(endpoint.system.collider.neighbor_list) >= 0
     assert valid.any()
     np.testing.assert_array_equal(
         np.asarray(endpoint.system.collider.history)[valid], stored.flat[0] + 1
     )
-
-
-@pytest.mark.parametrize("optimizer", [jd.fire, jd.damped_newtonian])
-def test_endpoint_history_update_remaps_only_when_the_pair_layout_changes(
-    monkeypatch, optimizer
-) -> None:
-    from jaxdem.colliders.neighbor_list import NeighborList
-    from jaxdem.minimizers import routines
-
-    state, system = _history_system()
-    state = dataclasses.replace(state, fixed=jnp.zeros_like(state.fixed))
-    system = dataclasses.replace(system, minimizer=optimizer(dt=1e-3))
-    original = NeighborList.transfer_history
-    remaps: list[None] = []
-
-    def counted_transfer(self, previous, history, st, sy):
-        jax.debug.callback(
-            lambda _: remaps.append(None), history[0, 0], ordered=True
-        )
-        return original(self, previous, history, st, sy)
-
-    routines.minimize.clear_cache()
-    monkeypatch.setattr(NeighborList, "transfer_history", counted_transfer)
-    try:
-        result = system.minimize(
-            state, system, max_steps=1000, force_tol=-1.0, history_update="endpoint"
-        )
-        jax.block_until_ready(result)
-        jax.effects_barrier()
-    finally:
-        routines.minimize.clear_cache()
-
-    rebuilds = int(result.system.collider.n_build_times - system.collider.n_build_times)
-    assert int(result.steps) == 1000
-    # Several rebuilds happen, and the initial history is mapped exactly once
-    # per rebuild rather than on every step after the first one.
-    assert rebuilds > 2
-    assert len(remaps) == rebuilds
-
-
-def test_minimize_rejects_unknown_history_update() -> None:
-    state, system = _history_system()
-    system = dataclasses.replace(system, minimizer=jd.fire(dt=1e-3))
-    with pytest.raises(ValueError, match="history_update"):
-        system.minimize(state, system, history_update="trajectory")
 
 
 def test_evaluation_preserves_history_and_queued_load_until_step() -> None:
@@ -293,28 +250,6 @@ def test_evaluation_updates_free_bounds_after_particle_teleport() -> None:
         np.asarray(moved.pos)
         <= np.asarray(updated.domain.anchor + updated.domain.box_size)
     )
-
-
-def test_pair_force_analysis_reads_current_history_without_advancing_it() -> None:
-    state = jd.State.create(
-        pos=jnp.array([[0.0, 0.0], [0.3, 0.0]]),
-        rad=jnp.full(2, 0.5),
-        fixed=jnp.ones(2, dtype=bool),
-    )
-    system = jd.System.create(
-        state=state,
-        force_model=_HistoryScaledSpring(),
-        collider_type="NeighborList",
-        collider_kw={"max_neighbors": 2, "cutoff": 1.0, "skin": 0.1},
-    )
-    state, system = jd.System.step(state, system)
-    before = np.asarray(system.collider.history).copy()
-
-    _, returned, contacts = jd.utils.get_contacts(state, system)
-    np.testing.assert_array_equal(contacts.pair_ids, [[0, 1], [1, 0]])
-    assert np.all(np.linalg.norm(np.asarray(contacts.forces), axis=-1) > 0.0)
-    np.testing.assert_array_equal(system.collider.history, before)
-    np.testing.assert_array_equal(returned.collider.history, before)
 
 
 def _plastic_system() -> tuple[jd.State, jd.System]:

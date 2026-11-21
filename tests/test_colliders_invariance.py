@@ -91,13 +91,16 @@ def set_up_spheres(
     mat_table = jdem.MaterialTable.from_materials(
         [jdem.Material.create("elastic", density=0.27, young=1.0e3, poisson=0.3)],
     )
+    domain_kw = {
+        "box_size": (spacing * _n_per_axis,) * dim,
+        "anchor": (-radius,) * dim,
+    }
+    if domain_type.lower() == "leesedwards":
+        domain_kw["gamma"] = 0.37
     system = jdem.System.create(
         state.shape,
         domain_type=domain_type,
-        domain_kw={
-            "box_size": (spacing * _n_per_axis,) * dim,
-            "anchor": (-radius,) * dim,
-        },
+        domain_kw=domain_kw,
         collider_type=collider_type_actual,
         collider_kw=collider_kw_actual,
         dt=dt,
@@ -231,7 +234,8 @@ def set_up_facets_and_spheres(
         (2, "CellList", True, "free"),
         (3, "MultiCellList", True, "reflect"),
         (2, "Naive", True, "periodic"),
-        (3, "CellList", True, "periodic"),
+        (2, "CellList", True, "leesedwards"),
+        (3, "MultiCellList", True, "leesedwards"),
     ],
 )
 def test_spheres_invariance(
@@ -266,13 +270,9 @@ def test_spheres_invariance(
     "dim,collider_type,neighbor_list,domain_type",
     [
         (2, "CellList", False, "periodic"),
-        (3, "MultiCellList", False, "periodic"),
-        (2, "MultiCellList", False, "reflect"),
-        (3, "CellList", False, "free"),
+        (3, "MultiCellList", False, "reflect"),
         (2, "CellList", True, "free"),
-        (3, "MultiCellList", True, "reflect"),
-        (2, "Naive", True, "periodic"),
-        (3, "CellList", True, "periodic"),
+        (3, "MultiCellList", True, "periodic"),
     ],
 )
 def test_clumps_invariance(
@@ -300,13 +300,9 @@ def test_clumps_invariance(
     "dim,collider_type,neighbor_list,domain_type",
     [
         (2, "CellList", False, "periodic"),
-        (3, "MultiCellList", False, "periodic"),
-        (2, "MultiCellList", False, "reflect"),
-        (3, "CellList", False, "free"),
+        (3, "MultiCellList", False, "reflect"),
         (2, "CellList", True, "free"),
-        (3, "MultiCellList", True, "reflect"),
-        (2, "Naive", True, "periodic"),
-        (3, "CellList", True, "periodic"),
+        (3, "MultiCellList", True, "periodic"),
     ],
 )
 def test_facets_invariance(

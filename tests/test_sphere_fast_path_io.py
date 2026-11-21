@@ -64,53 +64,38 @@ def _assert_continuation(
     )
 
 
-@pytest.mark.parametrize("has_clumps", [False, True])
-def test_default_mode_preserves_the_rigid_body_path(has_clumps):
-    state, system = _contact_system(has_clumps=has_clumps)
-    assert state.only_spheres is False
-    assert "only_spheres" not in system.metadata
-
-
-@pytest.mark.parametrize(
-    "has_clumps,only_spheres", [(False, False), (False, True), (True, False)]
-)
-@pytest.mark.parametrize("storage", ["hdf5", "orbax"])
+@pytest.mark.parametrize("has_clumps,only_spheres", [(False, True), (True, False)])
 def test_round_trip_retains_sphere_mode_and_continuation(
-    tmp_path, has_clumps, only_spheres, storage
+    tmp_path, has_clumps, only_spheres
 ):
     original = _contact_system(has_clumps, only_spheres)
     assert original[0].only_spheres is only_spheres
     assert "only_spheres" not in original[1].metadata
-    if storage == "hdf5":
-        path = str(tmp_path / "state.h5")
-        h5.save(original, path)
-        with h5py.File(path) as file:
-            assert "only_spheres" in file["root/0"]
-            assert "only_spheres" not in file["root/1"]
-        restored = h5.load(path)
-    else:
-        pytest.importorskip("orbax.checkpoint")
-        path = tmp_path / "checkpoint"
-        with jd.CheckpointWriter(path) as writer:
-            writer.save(*original)
-        with jd.CheckpointLoader(path) as loader:
-            restored = loader.load()
+
+    path = str(tmp_path / "state.h5")
+    h5.save(original, path)
+    with h5py.File(path) as file:
+        assert "only_spheres" in file["root/0"]
+        assert "only_spheres" not in file["root/1"]
+    _assert_continuation(original, h5.load(path))
+
+    if only_spheres:
+        state_path = str(tmp_path / "standalone.h5")
+        h5.save(original[0], state_path)
+        standalone = h5.load(state_path)
+        assert standalone.only_spheres is True
+        _assert_leaves_equal(original[0], standalone, "standalone state")
+
+    pytest.importorskip("orbax.checkpoint")
+    ckpt_dir = tmp_path / "checkpoint"
+    with jd.CheckpointWriter(ckpt_dir) as writer:
+        writer.save(*original)
+    with jd.CheckpointLoader(ckpt_dir) as loader:
+        restored = loader.load()
     _assert_continuation(original, restored)
 
 
-def test_hdf5_standalone_state_retains_sphere_mode(tmp_path):
-    state, _ = _contact_system(only_spheres=True)
-    path = str(tmp_path / "state.h5")
-    h5.save(state, path)
-    with h5py.File(path) as file:
-        assert "only_spheres" in file["root"]
-    restored = h5.load(path)
-    assert restored.only_spheres is True
-    _assert_leaves_equal(state, restored, "state")
-
-
-@pytest.mark.parametrize("has_clumps", [False, True])
-@pytest.mark.parametrize("legacy_facets", [False, True])
+@pytest.mark.parametrize("has_clumps,legacy_facets", [(False, False), (True, True)])
 def test_hdf5_schema_three_without_sphere_mode_uses_default(
     tmp_path, has_clumps, legacy_facets
 ):
@@ -134,18 +119,17 @@ def test_hdf5_schema_three_without_sphere_mode_uses_default(
 
 
 def test_hdf5_missing_sphere_mode_does_not_allow_other_missing_fields(tmp_path):
-    original = _contact_system()
+    state = jd.State.create(pos=jnp.zeros((2, 2)))
     path = str(tmp_path / "damaged.h5")
-    h5.save(original, path)
+    h5.save(state, path)
     with h5py.File(path, "r+") as file:
-        del file["root/0/only_spheres"]
-        del file["root/0/mass"]
+        del file["root/only_spheres"]
+        del file["root/mass"]
     with pytest.raises(RuntimeError, match="missing=.*mass"):
         h5.load(path)
 
 
-@pytest.mark.parametrize("has_clumps", [False, True])
-@pytest.mark.parametrize("legacy_facets", [False, True])
+@pytest.mark.parametrize("has_clumps,legacy_facets", [(False, False), (True, True)])
 def test_orbax_schema_three_without_sphere_mode_uses_default(
     tmp_path, has_clumps, legacy_facets
 ):

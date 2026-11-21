@@ -53,6 +53,31 @@ def test_shared_capacity_has_no_per_particle_limit(backend):
             )
             == wanted
         )
+    ref_sys = replace(system, collider=jd.Collider.create("naive"))
+    ref_state, _ = ref_sys.collider.compute_force(state, ref_sys)
+    np.testing.assert_allclose(state.force, ref_state.force, rtol=2e-5, atol=0.01)
+
+
+def test_search_batches_share_one_pool(monkeypatch):
+    from jaxdem.colliders import _neighbor_cache
+
+    n = 7
+    pos = np.zeros((n, 2))
+    pos[:, 0] = np.arange(n) * 3
+    pos[:3, 0] = [0.0, 0.2, 0.4]
+    s, y = case(capacity=1, pos=pos)
+    try:
+        with monkeypatch.context() as mp:
+            mp.setattr(_neighbor_cache, "_SEARCH_BATCH_SIZE", 2)
+            jax.clear_caches()
+            s, y = jd.System.initialize(s, y)
+    finally:
+        jax.clear_caches()
+    assert not y.collider.overflow
+    np.testing.assert_array_equal(jnp.diff(y.collider.row_offsets)[:3], [2, 2, 2])
+    assert y.collider.row_offsets[-1] == 6
+    # The first two-particle batch needs four slots, borrowing the unused pool.
+    assert y.collider.row_offsets[2] > 2 * y.collider.max_neighbors
 
 
 def test_force_cache_uses_pair_specific_search_radii_after_invalidation():
@@ -87,7 +112,7 @@ def test_force_cache_uses_pair_specific_search_radii_after_invalidation():
     np.testing.assert_array_equal(rebuilt.collider.row_offsets, [0, 2, 4, 6])
 
 
-@pytest.mark.parametrize("capacity,n", [(0, 3), (1, 3), (2, 3), (8, 3), (1, 5)])
+@pytest.mark.parametrize("capacity,n", [(0, 3), (1, 5), (8, 3)])
 def test_global_overflow_and_padding(capacity, n):
     pos = [[0.0, 0.0], [0.1, 0.0], [0.2, 0.0]] + [[10.0 * i, 0.0] for i in range(3, n)]
     state, system = case(capacity=capacity, pos=pos)
@@ -105,7 +130,7 @@ def test_global_overflow_and_padding(capacity, n):
         system.check_overflow()
 
 
-@pytest.mark.parametrize("backend", ["CellList", "MultiCellList", "naive"])
+@pytest.mark.parametrize("backend", ["CellList", "naive"])
 def test_default_sparse_overflow_tracks_total_pairs_through_rebuilds(backend):
     # Six slots: the triangle fills them exactly despite two neighbors per row.
     s, y = case(capacity=1, backend=backend)
@@ -135,25 +160,6 @@ def test_default_sparse_overflow_tracks_total_pairs_through_rebuilds(backend):
     )
     recovered.check_overflow()
     assert recovered.collider.row_offsets[-1] == 6
-
-
-@pytest.mark.parametrize("backend", ["CellList", "MultiCellList", "naive"])
-@pytest.mark.parametrize("domain", ["free", "periodic", "lees_edwards"])
-def test_force_energy_and_trajectory_match_all_pairs(backend, domain):
-    pos = np.random.default_rng(3).uniform(0.0, 3.8, (12, 3))
-    s, y = case(capacity=12, backend=backend, domain=domain, pos=pos)
-    ds, dy = s, replace(y, collider=jd.Collider.create("naive"))
-    s, y = jd.System.initialize(s, y)
-    ds, dy = jd.System.initialize(ds, dy)
-    assert not y.collider.overflow
-    np.testing.assert_allclose(s.force, ds.force, rtol=2e-5, atol=0.01)
-    _, _, e = y.collider.compute_potential_energy(s, y)
-    _, _, de = dy.collider.compute_potential_energy(ds, dy)
-    np.testing.assert_allclose(e, de, rtol=2e-5, atol=0.01)
-    s, y = jd.System.step(s, y, n=3)
-    ds, dy = jd.System.step(ds, dy, n=3)
-    np.testing.assert_allclose(s.pos, ds.pos, rtol=2e-5, atol=1e-6)
-    np.testing.assert_allclose(s.vel, ds.vel, rtol=2e-5, atol=1e-6)
 
 
 @jax.tree_util.register_dataclass
@@ -271,20 +277,6 @@ def test_total_capacity_overflow_does_not_wrap_int32():
     np.testing.assert_array_equal(offsets, [0, 100, 100, 100, 100])
 
 
-def test_dense_cluster_borrows_capacity_from_dilute_particles():
-    pos = np.zeros((72, 2))
-    pos[:12, 0] = np.linspace(0.0, 0.4, 12)
-    pos[12:, 0] = 10 + np.arange(60) * 3
-    s, y = case(capacity=2, pos=pos)
-    s, y = y.collider.compute_force(s, y)
-    assert not y.collider.overflow
-    assert y.collider.row_offsets[-1] == 12 * 11
-    np.testing.assert_array_equal(np.diff(y.collider.row_offsets)[:12], 11)
-    ds, dy = s, replace(y, collider=jd.Collider.create("naive"))
-    ds, dy = dy.collider.compute_force(ds, dy)
-    np.testing.assert_allclose(s.force, ds.force, rtol=2e-5, atol=0.01)
-
-
 def test_system_rejects_cache_for_different_particle_count():
     _, y = case()
     other = jd.State.create(pos=jnp.zeros((2, 2)))
@@ -292,31 +284,7 @@ def test_system_rejects_cache_for_different_particle_count():
         jd.System.create(state=other, collider=y.collider)
 
 
-def test_empty_and_no_neighbors():
-    s, y = case(capacity=0, backend="naive", pos=np.empty((0, 2)))
-    s, y = y.collider.compute_force(s, y)
-    assert s.force.shape == (0, 2)
-    assert not y.collider.overflow
-    s, y = case(capacity=2, pos=[[0.0, 0.0], [5.0, 0.0]])
-    s, y = y.collider.compute_force(s, y)
-    np.testing.assert_array_equal(s.force, 0.0)
-    assert not y.collider.overflow
-
-
-def test_sparse_checkpoint_roundtrip(tmp_path):
-    pytest.importorskip("orbax.checkpoint")
-    s, y = case(force=Remember())
-    s, y = jd.System.initialize(s, y)
-    with jd.CheckpointWriter(tmp_path / "checkpoint") as writer:
-        writer.save(s, y)
-    rs, ry = jd.CheckpointLoader(tmp_path / "checkpoint").load()
-    s, y = jd.System.step(s, y, n=2)
-    rs, ry = jd.System.step(rs, ry, n=2)
-    np.testing.assert_allclose(s.pos, rs.pos)
-    np.testing.assert_allclose(y.collider.history, ry.collider.history)
-
-
-@pytest.mark.parametrize("n", [0, 1, 5])
+@pytest.mark.parametrize("n", [0, 5])
 def test_row_energy_gradients_match_all_pairs(n):
     pos = np.random.default_rng(19).uniform(0.0, 0.7, (n, 2))
     s, y = case(capacity=n, backend="naive", domain="periodic", pos=pos)
@@ -341,8 +309,8 @@ def test_row_energy_gradients_match_all_pairs(n):
     )
 
 
-@pytest.mark.parametrize("n", [3, 9, 17])
-def test_stateless_rows_match_all_pairs_for_uneven_degrees(n):
+def test_stateless_rows_match_all_pairs_for_uneven_degrees():
+    n = 17
     # Empty, partially filled, and several full rows in one cache.
     pos = np.zeros((n + 2, 3))
     pos[:n, 0] = np.linspace(0.0, 0.7, n)

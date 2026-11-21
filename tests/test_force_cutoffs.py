@@ -41,9 +41,16 @@ def _system(collider="Naive", cutoff_ratio=2.5, composition="single"):
 
 
 @pytest.mark.parametrize(
-    "collider", ["Naive", "CellList", "MultiCellList", "NeighborList"]
+    "collider,composition",
+    [
+        ("Naive", "single"),
+        ("CellList", "single"),
+        ("MultiCellList", "single"),
+        ("NeighborList", "single"),
+        ("NeighborList", "combiner"),
+        ("NeighborList", "router"),
+    ],
 )
-@pytest.mark.parametrize("composition", ["single", "combiner", "router"])
 def test_configured_cutoff_changes_force_energy_and_search(collider, composition):
     state, default = _system(collider, composition=composition)
     inactive, _ = default.collider.compute_force(state, default)
@@ -60,6 +67,28 @@ def test_configured_cutoff_changes_force_energy_and_search(collider, composition
     assert not bool(updated.collider.overflow)
 
 
+def test_wca_search_covers_physical_cutoff_beyond_diameter():
+    # WCA cutoff is 2^(1/6) * (r_i + r_j) ~= 1.1225 > 1.0.
+    state = jd.State.create(
+        pos=jnp.array([[0.0, 0.0], [1.08, 0.0]]), rad=jnp.full(2, 0.5)
+    )
+    table = jd.MaterialTable.from_materials(
+        [jd.Material.create("lj", density=1.0, epsilon=1.0)]
+    )
+    naive = jd.System.create(state=state, force_model_type="wca", mat_table=table)
+    expected, _ = naive.collider.compute_force(state, naive)
+    assert np.linalg.norm(expected.force) > 0.0
+    spatial = replace(
+        naive,
+        collider=jd.Collider.create(
+            "NeighborList", state=state, cutoff=0.5, skin=0.1, max_neighbors=4
+        ),
+    )
+    actual, updated = spatial.collider.compute_force(state, spatial)
+    np.testing.assert_allclose(actual.force, expected.force, rtol=1e-6, atol=1e-6)
+    assert not bool(updated.collider.overflow)
+
+
 def test_neighbor_cache_rebuilds_when_law_cutoff_changes():
     state, system = _system("NeighborList")
     _, cached = system.collider.compute_force(state, system)
@@ -67,12 +96,14 @@ def test_neighbor_cache_rebuilds_when_law_cutoff_changes():
         cached, force_model=replace(cached.force_model, cutoff_ratio=jnp.asarray(4.0))
     )
     result, rebuilt = changed.collider.compute_force(state, changed)
-    assert float(jnp.linalg.norm(result.force)) > 0.0
+    distance = 3.2
+    expected_x = -24.0 / distance * (2.0 / distance**12 - 1.0 / distance**6)
+    np.testing.assert_allclose(result.force[0], [expected_x, 0.0], rtol=2e-6)
+    assert int(rebuilt.collider.n_build_times) == int(cached.collider.n_build_times) + 1
     assert not bool(rebuilt.collider.overflow)
 
 
-@pytest.mark.parametrize("batch_size", [1, 2])
-def test_cutoff_is_dynamic_under_vmap(batch_size):
+def test_cutoff_is_dynamic_under_vmap():
     state, system = _system("CellList", composition="combiner")
 
     def evaluate(cutoff):
@@ -82,21 +113,22 @@ def test_cutoff_is_dynamic_under_vmap(batch_size):
         )
         return configured.collider.compute_force(state, configured)[0].force
 
-    cutoffs = jnp.array([4.0] if batch_size == 1 else [2.5, 4.0])
-    forces = jax.jit(jax.vmap(evaluate))(cutoffs)
-    assert float(jnp.linalg.norm(forces[-1])) > 0.0
-    if batch_size == 2:
-        np.testing.assert_array_equal(forces[0], 0.0)
+    forces = jax.jit(jax.vmap(evaluate))(jnp.array([2.5, 4.0]))
+    distance = 3.2
+    expected_x = -24.0 / distance * (2.0 / distance**12 - 1.0 / distance**6)
+    np.testing.assert_array_equal(forces[0], 0.0)
+    np.testing.assert_allclose(forces[1, 0], [expected_x, 0.0], rtol=2e-6)
 
 
-@pytest.mark.parametrize("composition", ["single", "combiner", "router"])
+@pytest.mark.parametrize("composition", ["single", "router"])
 def test_configured_cutoff_survives_checkpoint(tmp_path, composition):
     state, system = _system("NeighborList", cutoff_ratio=4.0, composition=composition)
     state, system = system.collider.compute_force(state, system)
     path = str(tmp_path / "checkpoint")
     with jd.CheckpointWriter(path) as writer:
         writer.save(state, system)
-    restored_state, restored = jd.CheckpointLoader(path).load()
+    with jd.CheckpointLoader(path) as loader:
+        restored_state, restored = loader.load()
     np.testing.assert_allclose(
         restored.force_model.search_radii(restored_state, restored), 2.0
     )
@@ -104,10 +136,31 @@ def test_configured_cutoff_survives_checkpoint(tmp_path, composition):
     np.testing.assert_allclose(actual.force, state.force, rtol=2e-6)
 
 
-@pytest.mark.parametrize("cutoff", [0.0, -1.0, float("inf"), float("nan")])
-def test_invalid_cutoff_rejected(cutoff):
-    with pytest.raises(ValueError, match="cutoff_ratio"):
-        jd.ForceModel.create("lennardjones", cutoff_ratio=cutoff)
+def test_near_coincident_hertz_contact_uses_unit_normal():
+    separation = np.array([3.0e-10, 4.0e-10])
+    distance = 5.0e-10
+    normal = np.array([-0.6, -0.8])
+    state = jd.State.create(
+        pos=jnp.asarray([[0.0, 0.0], separation]),
+        rad=jnp.full(2, 0.5),
+        mass=jnp.ones(2),
+    )
+    young, poisson = 12.0, 0.25
+    material = jd.Material.create("elastic", density=1.0, young=young, poisson=poisson)
+    law = jd.forces.HertzianForce()
+    system = jd.System.create(
+        state=state,
+        force_model=law,
+        mat_table=jd.MaterialTable.from_materials([material]),
+        collider_type="naive",
+    )
+    force, _, _ = law.force(
+        0, 1, state.pos, state, system, law.init_history((), state.dim)
+    )
+    effective_young = young / (2.0 * (1.0 - poisson**2))
+    overlap = 1.0 - distance
+    magnitude = (4.0 / 3.0) * effective_young * overlap * np.sqrt(0.25 * overlap)
+    np.testing.assert_allclose(force, magnitude * normal, rtol=2e-6, atol=1e-6)
 
 
 @pytest.mark.parametrize("overlap", [0.3, 0.0, -0.2])

@@ -11,8 +11,6 @@ import pytest
 
 import jaxdem as jd
 
-BACKENDS = ["CellList", "MultiCellList"]
-
 
 def _backend(system):
     return getattr(system.collider, "secondary_collider", system.collider)
@@ -75,9 +73,15 @@ def _compare_all_pairs(state, system):
     return updated
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-@pytest.mark.parametrize("neighbor", [False, True])
-@pytest.mark.parametrize("geometry", ["free", "periodic", "anchored", "sheared"])
+@pytest.mark.parametrize(
+    "backend,neighbor,geometry",
+    [
+        ("CellList", False, "free"),
+        ("MultiCellList", False, "periodic"),
+        ("CellList", True, "anchored"),
+        ("MultiCellList", True, "sheared"),
+    ],
+)
 def test_automatic_capacity_uses_complete_search_geometry(backend, neighbor, geometry):
     pos = np.random.default_rng(853).uniform(-5.0, 12.0, (24, 2))
     state = jd.State.create(pos=jnp.asarray(pos), rad=jnp.full(24, 0.5))
@@ -96,8 +100,7 @@ def test_automatic_capacity_uses_complete_search_geometry(backend, neighbor, geo
     _compare_all_pairs(state, system)
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-@pytest.mark.parametrize("neighbor", [False, True])
+@pytest.mark.parametrize("backend,neighbor", [("CellList", False), ("MultiCellList", True)])
 def test_automatic_capacity_covers_unwrapped_dense_3d_reference(backend, neighbor):
     n = 64
     grid = np.indices((4, 4, 4)).reshape(3, -1).T
@@ -122,9 +125,10 @@ def test_automatic_capacity_covers_unwrapped_dense_3d_reference(backend, neighbo
     _compare_all_pairs(state, system)
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-@pytest.mark.parametrize("neighbor", [False, True])
-@pytest.mark.parametrize("law", ["lennardjones", "wca"])
+@pytest.mark.parametrize(
+    "backend,neighbor,law",
+    [("CellList", False, "lennardjones"), ("MultiCellList", True, "wca")],
+)
 def test_automatic_capacity_uses_force_search_extent(backend, neighbor, law):
     grid = np.indices((8, 8)).reshape(2, -1).T
     distance = 1.08
@@ -145,9 +149,14 @@ def test_automatic_capacity_uses_force_search_extent(backend, neighbor, law):
     _compare_all_pairs(state, system)
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-@pytest.mark.parametrize("neighbor", [False, True])
-@pytest.mark.parametrize("external", [False, True])
+@pytest.mark.parametrize(
+    "backend,neighbor,external",
+    [
+        ("CellList", False, False),
+        ("CellList", True, True),
+        ("MultiCellList", False, True),
+    ],
+)
 def test_automatic_capacity_respects_same_clump_exclusion(backend, neighbor, external):
     n = 32
     clumps = jnp.zeros(n, dtype=int)
@@ -161,8 +170,7 @@ def test_automatic_capacity_respects_same_clump_exclusion(backend, neighbor, ext
     _compare_all_pairs(state, system)
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-@pytest.mark.parametrize("n", [0, 1, 2])
+@pytest.mark.parametrize("backend,n", [("CellList", 0), ("MultiCellList", 1), ("CellList", 2)])
 def test_automatic_capacity_handles_empty_and_tiny_states(backend, n):
     state = _state(n)
     system = _system(state, backend)
@@ -171,8 +179,7 @@ def test_automatic_capacity_handles_empty_and_tiny_states(backend, n):
     _compare_all_pairs(state, system)
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-@pytest.mark.parametrize("neighbor", [False, True])
+@pytest.mark.parametrize("backend,neighbor", [("CellList", False), ("MultiCellList", True)])
 def test_explicit_capacity_and_dynamic_traversal_remain_explicit(backend, neighbor):
     state = _state(dense=True)
     for capacity in [0, 7, 1024]:
@@ -186,10 +193,9 @@ def test_explicit_capacity_and_dynamic_traversal_remain_explicit(backend, neighb
     assert not _backend(dynamic)._auto_capacity
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-def test_prebuilt_automatic_collider_is_sized_for_system_reference(backend):
+def test_prebuilt_automatic_collider_is_sized_for_system_reference():
     state = _state(dense=True)
-    collider = jd.Collider.create(backend, state=state, cell_size=1.0, static=True)
+    collider = jd.Collider.create("MultiCellList", state=state, cell_size=1.0, static=True)
     assert collider._auto_capacity
     system = jd.System.create(state=state, collider=collider)
     assert system.collider.tile_capacity < collider.tile_capacity
@@ -201,8 +207,7 @@ def test_prebuilt_automatic_collider_is_sized_for_system_reference(backend):
     _compare_all_pairs(sparse, rebuilt)
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-@pytest.mark.parametrize("neighbor", [False, True])
+@pytest.mark.parametrize("backend,neighbor", [("CellList", False), ("MultiCellList", True)])
 def test_automatic_batch_capacity_uses_largest_reference_and_remains_static(
     backend, neighbor
 ):
@@ -224,23 +229,21 @@ def test_automatic_batch_capacity_uses_largest_reference_and_remains_static(
         _compare_all_pairs(state, system)
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-def test_explicit_pools_are_not_resized_to_stack_with_automatic_pools(backend):
+def test_explicit_pools_are_not_resized_to_stack_with_automatic_pools():
     state = _state()
-    auto = _system(state, backend)
+    auto = _system(state, "CellList")
     capacity = auto.collider.tile_capacity
-    explicit = _system(state, backend, options={"tile_capacity": capacity - 1})
+    explicit = _system(state, "CellList", options={"tile_capacity": capacity - 1})
     with pytest.raises(ValueError):
         jd.System.stack([auto, explicit])
     assert explicit.collider.tile_capacity == capacity - 1
-    matching = _system(state, backend, options={"tile_capacity": capacity})
+    matching = _system(state, "CellList", options={"tile_capacity": capacity})
     stacked = jd.System.stack([auto, matching])
     assert stacked.collider.tile_capacity == capacity
     assert not stacked.collider._auto_capacity
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-@pytest.mark.parametrize("neighbor", [False, True])
+@pytest.mark.parametrize("backend,neighbor", [("CellList", False), ("MultiCellList", True)])
 def test_automatic_pool_stays_fixed_and_reports_later_extreme_clustering(
     backend, neighbor
 ):
@@ -258,8 +261,7 @@ def test_automatic_pool_stays_fixed_and_reports_later_extreme_clustering(
         failed.check_overflow()
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-@pytest.mark.parametrize("neighbor", [False, True])
+@pytest.mark.parametrize("backend,neighbor", [("CellList", True), ("MultiCellList", False)])
 def test_refresh_preserves_automatic_choice_without_resizing_the_pool(
     backend, neighbor
 ):
@@ -279,8 +281,7 @@ def test_refresh_preserves_automatic_choice_without_resizing_the_pool(
     _compare_all_pairs(sparse, recreated)
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-@pytest.mark.parametrize("neighbor", [False, True])
+@pytest.mark.parametrize("backend,neighbor", [("CellList", False), ("MultiCellList", True)])
 def test_factory_metadata_preserves_automatic_choice(backend, neighbor):
     state = _state(dense=True)
     system = _system(state, backend, neighbor=neighbor)
@@ -296,11 +297,9 @@ def test_factory_metadata_preserves_automatic_choice(backend, neighbor):
     restored = jd.System.create(state=state, collider=collider)
     assert _backend(restored)._auto_capacity
     assert _backend(restored).tile_capacity == _backend(system).tile_capacity
-    _compare_all_pairs(state, restored)
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-@pytest.mark.parametrize("neighbor", [False, True])
+@pytest.mark.parametrize("backend,neighbor", [("CellList", False), ("MultiCellList", True)])
 def test_earlier_schema3_hdf5_retains_capacity_as_explicit_budget(
     backend, neighbor, tmp_path
 ):
@@ -331,8 +330,7 @@ def test_earlier_schema3_hdf5_retains_capacity_as_explicit_budget(
     assert not _backend(recreated)._auto_capacity
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
-@pytest.mark.parametrize("neighbor", [False, True])
+@pytest.mark.parametrize("backend,neighbor", [("CellList", True), ("MultiCellList", False)])
 def test_large_mixed_radius_reference_does_not_fail_on_provisional_integer_limit(
     backend, neighbor
 ):

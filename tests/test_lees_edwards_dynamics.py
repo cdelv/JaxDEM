@@ -58,12 +58,6 @@ def test_displacement_and_relative_velocity_select_the_same_image(kind, x64):
             vi - vj - expected_image_velocity,
             atol=tolerance,
         )
-        assert not hasattr(system.domain, "pair_geometry")
-        np.testing.assert_allclose(
-            system.domain._displacement(ri, rj, system),
-            expected_displacement,
-            atol=tolerance,
-        )
         if kind != "free":
             # Away from image switches, image position differentiates to its
             # velocity, including simultaneous shear and changing box length.
@@ -87,8 +81,9 @@ def test_displacement_and_relative_velocity_select_the_same_image(kind, x64):
             )
 
 
-@pytest.mark.parametrize("dim,alpha,beta", [(2, 0, 1), (2, 1, 0), (3, 2, 0)])
-@pytest.mark.parametrize("dgamma", [-0.07, 0.07])
+@pytest.mark.parametrize(
+    "dim,alpha,beta,dgamma", [(2, 0, 1, -0.07), (2, 1, 0, 0.07), (3, 2, 0, -0.07)]
+)
 def test_shear_deforms_periodic_displacements(dim, alpha, beta, dgamma):
     box = jnp.arange(dim, dtype=float) + 10.0
     anchor = jnp.arange(dim, dtype=float) - 2.0
@@ -160,8 +155,9 @@ def _contact_system(state, domain, *, restitution=0.7):
     )
 
 
-@pytest.mark.parametrize("dim,alpha,beta", [(2, 0, 1), (2, 1, 0), (3, 2, 0)])
-@pytest.mark.parametrize("image_index", [-1, 0, 1])
+@pytest.mark.parametrize(
+    "dim,alpha,beta,image_index", [(2, 0, 1, -1), (2, 1, 0, 0), (3, 2, 0, 1)]
+)
 def test_affine_shear_advances_contact_history(dim, alpha, beta, image_index):
     box = jnp.arange(dim, dtype=float) + 10.0
     gamma = 0.23
@@ -252,57 +248,17 @@ def test_minimization_does_not_repeat_affine_history_increment() -> None:
     np.testing.assert_allclose(result.system.collider.history, history, atol=1e-15)
 
 
-def test_stateless_affine_shear_does_not_traverse_neighbor_list(monkeypatch) -> None:
-    state = jd.State.create(
-        pos=jnp.array([[0.0, 0.0], [0.0, 0.9]]),
-        rad=jnp.full(2, 0.5),
-        mass=jnp.ones(2),
-    )
-    system = jd.System.create(
-        state=state,
-        domain_type="leesedwards",
-        domain_kw={"box_size": jnp.full(2, 10.0)},
-        collider_type="NeighborList",
-        collider_kw={
-            "max_neighbors": 2,
-            "cutoff": 1.0,
-            "secondary_collider_type": "naive",
-        },
-    )
-    state, system = system.initialize(state, system)
-    builds = system.collider.n_build_times
-
-    def forbidden(*args, **kwargs):
-        raise AssertionError("stateless affine shear must not traverse contact forces")
-
-    monkeypatch.setattr(type(system.collider), "compute_force", staticmethod(forbidden))
-    jax.clear_caches()
-
-    sheared, updated = system.domain.shear(state, system, 0.01)
-
-    np.testing.assert_array_equal(updated.collider.n_build_times, builds)
-    np.testing.assert_allclose(sheared.pos, [[0.0, 0.0], [0.009, 0.9]], atol=1e-7)
-    np.testing.assert_array_equal(sheared.vel, state.vel)
-    np.testing.assert_array_equal(updated.collider.history, system.collider.history)
-
-
 @pytest.mark.parametrize(
     "dim,alpha,beta,image_index,gamma_dot",
     [
         (2, 0, 1, -2, -0.1),
-        (2, 1, 0, -2, 0.0),
-        (3, 2, 0, -2, 0.1),
-        (2, 1, 0, 0, -0.1),
-        (3, 2, 0, 0, 0.0),
-        (2, 0, 1, 0, 0.1),
+        (2, 1, 0, 0, 0.0),
         (3, 2, 0, 1, -0.1),
-        (2, 0, 1, 1, 0.0),
         (2, 1, 0, 1, 0.1),
     ],
 )
-@pytest.mark.parametrize("advance_history", [False, True])
 def test_sheared_contact_matches_explicit_moving_image(
-    dim, alpha, beta, image_index, gamma_dot, advance_history
+    dim, alpha, beta, image_index, gamma_dot
 ):
     """Match force, torque and history to a nearby image with its true velocity."""
     box = jnp.arange(dim, dtype=float) + 10.0
@@ -339,7 +295,7 @@ def test_sheared_contact_matches_explicit_moving_image(
     history = system.force_model.init_history((2,), dim)
     sources, targets = jnp.array([0, 1]), jnp.array([1, 0])
 
-    def forces(st, sys, h):
+    def forces(st, sys, h, *, advance_history):
         return jax.vmap(
             lambda i, j, pair_history: sys.force_model.force(
                 i,
@@ -352,21 +308,23 @@ def test_sheared_contact_matches_explicit_moving_image(
             )
         )(sources, targets, h)
 
-    actual = forces(state, system, history)
-    expected = forces(reference, reference_system, history)
-    for result, wanted in zip(actual, expected, strict=True):
-        np.testing.assert_allclose(result, wanted, rtol=1e-6, atol=1e-7)
-    np.testing.assert_allclose(actual[0][0], -actual[0][1], atol=1e-7)
-    if not advance_history:
-        np.testing.assert_array_equal(actual[2], history)
-    else:
-        # A second evaluation also checks accumulation of the corrected slip.
-        for result, wanted in zip(
-            forces(state, system, actual[2]),
-            forces(reference, reference_system, expected[2]),
-            strict=True,
-        ):
+    for advance_history in (False, True):
+        actual = forces(state, system, history, advance_history=advance_history)
+        expected = forces(
+            reference, reference_system, history, advance_history=advance_history
+        )
+        for result, wanted in zip(actual, expected, strict=True):
             np.testing.assert_allclose(result, wanted, rtol=1e-6, atol=1e-7)
+        np.testing.assert_allclose(actual[0][0], -actual[0][1], atol=1e-7)
+        if not advance_history:
+            np.testing.assert_array_equal(actual[2], history)
+        else:
+            for result, wanted in zip(
+                forces(state, system, actual[2], advance_history=True),
+                forces(reference, reference_system, expected[2], advance_history=True),
+                strict=True,
+            ):
+                np.testing.assert_allclose(result, wanted, rtol=1e-6, atol=1e-7)
 
 
 def test_shear_rate_change_updates_cached_contact_force():

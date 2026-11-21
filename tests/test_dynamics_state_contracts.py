@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Focused contracts for stepping, state validation, and thermal reductions."""
+"""Focused contracts for collider tracing, static/dynamic stepping, and opt-in validation."""
 
 from __future__ import annotations
 
@@ -8,8 +8,6 @@ import jax
 import jax.numpy as jnp
 
 import dataclasses
-import subprocess
-import sys
 
 import numpy as np
 import pytest
@@ -17,24 +15,6 @@ import pytest
 import jaxdem as jdem
 from jaxdem.colliders import DynamicCellList, NeighborList
 from jaxdem.utils.quaternion import Quaternion
-from jaxdem.utils.thermal import (
-    compute_potential_energy,
-    compute_temperature,
-    scale_to_temperature,
-    compute_translational_kinetic_energy,
-    compute_translational_kinetic_energy_per_particle,
-)
-
-
-@jax.tree_util.register_dataclass
-@dataclasses.dataclass(slots=True)
-class _TerminalRotationalKick(jdem.RotationIntegrator):
-    @staticmethod
-    def step_after_force(
-        state: jdem.State, system: jdem.System
-    ) -> tuple[jdem.State, jdem.System]:
-        state.ang_vel = jnp.full_like(state.ang_vel, 2.0)
-        return state, system
 
 
 def _free_system(state: jdem.State) -> jdem.System:
@@ -90,27 +70,6 @@ def test_static_step_supports_reverse_mode_and_dynamic_step_is_explicit() -> Non
         jdem.System.step(state, system, n=jnp.asarray(2))
 
 
-def test_frozen_quaternion_replacement_refreshes_geometry() -> None:
-    state = jdem.State.create(pos=jnp.zeros((1, 2)), pos_p=jnp.array([[1.0, 0.0]]))
-    q = Quaternion.create(jnp.array([[2**-0.5]]), jnp.array([[0.0, 0.0, 2**-0.5]]))
-    with pytest.raises(dataclasses.FrozenInstanceError):
-        state.q.w = q.w
-    with pytest.raises(dataclasses.FrozenInstanceError):
-        state.q.xyz = q.xyz
-    np.testing.assert_allclose(state.pos, jnp.array([[1.0, 0.0]]), atol=1e-6)
-
-    state.q = q
-    np.testing.assert_allclose(state.pos, jnp.array([[0.0, 1.0]]), atol=1e-6)
-    state.validate()
-
-    identity = Quaternion.create(jnp.ones((1, 1)), jnp.zeros((1, 3)))
-    state = dataclasses.replace(state, q=identity)
-    np.testing.assert_allclose(state.pos, jnp.array([[1.0, 0.0]]), atol=1e-6)
-
-    changed = dataclasses.replace(state, q=q)
-    np.testing.assert_allclose(changed.pos, jnp.array([[0.0, 1.0]]), atol=1e-6)
-
-
 def test_opt_in_validation_checks_physics_but_construction_stays_permissive() -> None:
     state = jdem.State.create(pos=jnp.zeros((1, 2)), mass=jnp.array([0.0]))
     assert state.mass[0] == 0.0
@@ -122,9 +81,10 @@ def test_opt_in_validation_checks_physics_but_construction_stays_permissive() ->
     with pytest.raises(ValueError, match="material table"):
         system.validate(state)
 
-    invalid_ids = dataclasses.replace(state, clump_id=state.clump_id.astype(float))
     with pytest.raises(ValueError, match="integer dtype"):
-        invalid_ids.validate()
+        dataclasses.replace(state, clump_id=state.clump_id.astype(float)).validate()
+    with pytest.raises(ValueError, match="boolean dtype"):
+        dataclasses.replace(state, fixed=state.fixed.astype(int)).validate()
     with pytest.raises(ValueError, match="mat_id entries must be nonnegative"):
         dataclasses.replace(state, mat_id=jnp.array([-1])).validate()
     with pytest.raises(ValueError, match="species_id entries must be nonnegative"):
@@ -140,191 +100,11 @@ def test_opt_in_validation_checks_physics_but_construction_stays_permissive() ->
             state, facet_vertices=jnp.full(state.facet_vertices.shape, jnp.inf)
         ).validate()
 
-
-def test_clump_validation_handles_sparse_ids_and_detects_disagreement() -> None:
-    state = jdem.State.create(
+    clump = jdem.State.create(
         pos=jnp.array([[0.0, 0.0], [0.0, 0.0], [1.0, 0.0], [1.0, 0.0]]),
         clump_id=jnp.array([1, 1, 3, 3]),
         mass=jnp.array([2.0, 2.0, 4.0, 4.0]),
     )
-    state.validate()
+    clump.validate()
     with pytest.raises(ValueError, match="mass.*not replicated"):
-        dataclasses.replace(state, mass=state.mass.at[1].set(3.0)).validate()
-
-
-def test_validation_rejects_nonboolean_fixed_before_dynamic_masking() -> None:
-    state = jdem.State.create(pos=jnp.zeros((1, 2)))
-    with pytest.raises(ValueError, match="boolean dtype"):
-        dataclasses.replace(state, fixed=state.fixed.astype(int)).validate()
-
-
-def test_thermal_reductions_preserve_all_leading_snapshot_axes() -> None:
-    first = jdem.State.create(
-        pos=jnp.zeros((2, 2)), vel=jnp.array([[1.0, 0.0], [0.0, 2.0]])
-    )
-    second = dataclasses.replace(first, vel=2.0 * first.vel)
-    batch = jdem.State.stack([first, second])
-    trajectory = jax.tree.map(lambda x: jnp.stack([x, x]), batch)
-
-    assert compute_translational_kinetic_energy_per_particle(batch).shape == (2, 2)
-    assert compute_translational_kinetic_energy(batch).shape == (2,)
-    assert compute_temperature(batch, False, False).shape == (2,)
-    assert compute_translational_kinetic_energy(trajectory).shape == (2, 2)
-    np.testing.assert_allclose(
-        compute_translational_kinetic_energy(batch), jnp.array([2.5, 10.0])
-    )
-
-    first_system = _free_system(first)
-    second_system = _free_system(second)
-    second_table = dataclasses.replace(
-        second_system.mat_table,
-        props={
-            name: 2.0 * value for name, value in second_system.mat_table.props.items()
-        },
-        pair={
-            name: 2.0 * value for name, value in second_system.mat_table.pair.items()
-        },
-    )
-    second_system = dataclasses.replace(second_system, mat_table=second_table)
-    systems = jdem.System.stack([first_system, second_system])
-    assert compute_potential_energy(batch, systems).shape == (2,)
-
-
-def test_rescaling_removes_mass_weighted_body_drift() -> None:
-    # Body 0 has two members but total mass 2; body 1 has one member and mass 6.
-    state = jdem.State.create(
-        pos=jnp.zeros((3, 2)),
-        vel=jnp.array([[3.0, 0.0], [3.0, 0.0], [-1.0, 0.0]]),
-        mass=jnp.array([2.0, 2.0, 6.0]),
-        clump_id=jnp.array([0, 0, 1]),
-    )
-    integrator = jdem.LinearIntegrator.create(
-        "verlet_rescaling", temperature=1.0, subtract_drift=True
-    )
-    system = dataclasses.replace(
-        _free_system(state), linear_integrator=integrator, step_count=jnp.asarray(1)
-    )
-    state, _ = integrator.step_after_force(state, system)
-
-    member_mass = jnp.array([1.0, 1.0, 6.0])
-    drift = jnp.sum(state.vel * member_mass[:, None], axis=0) / member_mass.sum()
-    np.testing.assert_allclose(drift, 0.0, atol=1e-6)
-    np.testing.assert_allclose(
-        0.5 * jnp.sum(member_mass[:, None] * state.vel**2), 1.0, rtol=2e-6
-    )
-
-
-def test_rescaling_drift_is_correct_below_unit_total_mass() -> None:
-    state = jdem.State.create(
-        pos=jnp.zeros((3, 2)),
-        vel=jnp.array([[2.0, 0.0], [2.0, 0.0], [-1.0, 0.0]]),
-        mass=jnp.array([0.2, 0.2, 0.6]),
-        clump_id=jnp.array([0, 0, 1]),
-    )
-    integrator = jdem.LinearIntegrator.create(
-        "verlet_rescaling", temperature=1.0, subtract_drift=True
-    )
-    system = dataclasses.replace(
-        _free_system(state), linear_integrator=integrator, step_count=jnp.asarray(1)
-    )
-    state, _ = integrator.step_after_force(state, system)
-    member_mass = jnp.array([0.1, 0.1, 0.6])
-    drift = jnp.sum(state.vel * member_mass[:, None], axis=0) / member_mass.sum()
-    np.testing.assert_allclose(drift, 0.0, atol=1e-6)
-    np.testing.assert_allclose(
-        0.5 * jnp.sum(member_mass[:, None] * state.vel**2), 1.0, rtol=2e-6
-    )
-
-
-@pytest.mark.parametrize(
-    "kwargs",
-    [
-        {"rescale_every": 0.5},
-        {"temperature": float("nan")},
-        {"k_B": float("inf")},
-    ],
-)
-def test_rescaling_constructor_rejects_invalid_host_values(
-    kwargs: dict[str, object],
-) -> None:
-    with pytest.raises(ValueError):
-        jdem.LinearIntegrator.create("verlet_rescaling", **kwargs)
-
-
-def test_rescaling_runs_after_the_rotational_terminal_kick() -> None:
-    state = jdem.State.create(pos=jnp.zeros((1, 2)), mass=jnp.ones(1))
-    integrator = jdem.LinearIntegrator.create(
-        "verlet_rescaling", temperature=3.0, can_rotate=True
-    )
-    system = dataclasses.replace(
-        _free_system(state),
-        linear_integrator=integrator,
-        rotation_integrator=_TerminalRotationalKick(),
-    )
-    state, system = jdem.System.step(state, system)
-    np.testing.assert_allclose(
-        compute_temperature(state, can_rotate=True, subtract_drift=False),
-        3.0,
-        rtol=1e-6,
-    )
-
-
-def test_temperature_scaling_excludes_and_preserves_fixed_particles() -> None:
-    state = jdem.State.create(
-        pos=jnp.zeros((2, 2)),
-        vel=jnp.array([[10.0, 0.0], [1.0, 0.0]]),
-        fixed=jnp.array([True, False]),
-    )
-    np.testing.assert_allclose(compute_temperature(state, False, False), 0.5)
-    scaled = scale_to_temperature(state, 2.0, False, False)
-    np.testing.assert_allclose(scaled.vel[0], jnp.array([10.0, 0.0]))
-    np.testing.assert_allclose(scaled.vel[1], jnp.array([2.0, 0.0]), rtol=2e-6)
-
-
-def test_temperature_scaling_uses_body_mass_once_for_clump_drift() -> None:
-    state = jdem.State.create(
-        pos=jnp.zeros((3, 2)),
-        vel=jnp.array([[3.0, 0.0], [3.0, 0.0], [-1.0, 0.0]]),
-        mass=jnp.array([2.0, 2.0, 6.0]),
-        clump_id=jnp.array([0, 0, 1]),
-    )
-    scaled = scale_to_temperature(state, 1.0, False, True)
-    member_mass = jnp.array([1.0, 1.0, 6.0])
-    drift = jnp.sum(scaled.vel * member_mass[:, None], axis=0) / member_mass.sum()
-    np.testing.assert_allclose(drift, 0.0, atol=1e-6)
-    np.testing.assert_allclose(
-        0.5 * jnp.sum(member_mass[:, None] * scaled.vel**2), 1.0, rtol=2e-6
-    )
-
-
-def test_public_state_guards_survive_python_optimization() -> None:
-    code = """
-import jax.numpy as jnp
-from jaxdem import State
-a = State.create(pos=jnp.zeros((1, 2)))
-b = State.create(pos=jnp.zeros((1, 3)))
-try:
-    State.stack([a, b])
-except ValueError:
-    raise SystemExit(0)
-raise SystemExit(1)
-"""
-    result = subprocess.run([sys.executable, "-O", "-c", code], check=False)
-    assert result.returncode == 0
-
-
-@pytest.mark.parametrize(
-    ("kwargs", "message"),
-    [
-        ({"n": -1}, "nonnegative"),
-        ({"n": 1, "stride": 0.5}, "stride"),
-        ({"strides": jnp.array([0.5])}, "integer array"),
-        ({"strides": jnp.zeros((1, 1), dtype=int)}, "1D integer array"),
-    ],
-)
-def test_rollout_rejects_invalid_counts(
-    kwargs: dict[str, object], message: str
-) -> None:
-    state = jdem.State.create(pos=jnp.zeros((1, 2)))
-    with pytest.raises(ValueError, match=message):
-        jdem.System.trajectory_rollout(state, _free_system(state), **kwargs)
+        dataclasses.replace(clump, mass=clump.mass.at[1].set(3.0)).validate()

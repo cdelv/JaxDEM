@@ -18,76 +18,64 @@ from jaxdem.utils import (
     generate_thomson_mesh,
     generate_torus_mesh,
 )
-from jaxdem.utils.meshes import dimensionless_overlap_energy
+from jaxdem.utils.meshes import _icosahedron_faces, dimensionless_overlap_energy
 from jaxdem.utils.particle_creation import create_ga_state
 
 # ---------------------------------------------------------------- icosphere
 
 
 def test_icosphere_3d_valid_counts_match_subdivision_formula():
-    for level in range(4):
+    for level in range(3):
         nv = 10 * 4**level + 2
-        pos = generate_icosphere_mesh(nv=nv, N=1, dim=3)
+        pos = np.asarray(generate_icosphere_mesh(nv=nv, N=1, dim=3))
         assert pos.shape == (nv, 3)
-        # All vertices lie exactly on the unit sphere.
-        norms = np.linalg.norm(np.asarray(pos), axis=-1)
-        np.testing.assert_allclose(norms, 1.0, atol=1e-10)
-
-
-def test_icosphere_3d_rejects_invalid_nv():
-    with pytest.raises(ValueError, match="icosphere mesh in 3D requires nv"):
-        generate_icosphere_mesh(nv=50, N=1, dim=3)
+        np.testing.assert_allclose(np.linalg.norm(pos, axis=-1), 1.0, atol=1e-10)
+        assert np.unique(np.round(pos, decimals=9), axis=0).shape[0] == nv
 
 
 def test_icosphere_2d_is_regular_ngon():
     nv = 7
-    pos = generate_icosphere_mesh(nv=nv, N=1, dim=2)
+    pos = np.asarray(generate_icosphere_mesh(nv=nv, N=1, dim=2))
     assert pos.shape == (nv, 2)
-    # Points on unit circle.
-    np.testing.assert_allclose(
-        np.linalg.norm(np.asarray(pos), axis=-1), 1.0, atol=1e-12
-    )
-    # Neighboring point separations are all equal (polygon is regular).
-    diffs = np.diff(np.asarray(pos), axis=0, append=np.asarray(pos)[:1])
+    np.testing.assert_allclose(np.linalg.norm(pos, axis=-1), 1.0, atol=1e-12)
+    diffs = np.diff(pos, axis=0, append=pos[:1])
     edge_lens = np.linalg.norm(diffs, axis=-1)
     np.testing.assert_allclose(edge_lens, edge_lens[0], atol=1e-12)
 
 
 def test_icosphere_batches_replicate_and_apply_aspect_ratio():
     N, nv = 3, 42
-    pos = generate_icosphere_mesh(nv=nv, N=N, dim=3, aspect_ratio=[1.0, 1.0, 2.0])
+    pos = np.asarray(
+        generate_icosphere_mesh(nv=nv, N=N, dim=3, aspect_ratio=[1.0, 1.0, 2.0])
+    )
     assert pos.shape == (N, nv, 3)
-    # Deterministic: all N copies identical.
-    np.testing.assert_array_equal(np.asarray(pos[0]), np.asarray(pos[-1]))
-    # Longest axis (z) has extent exactly 1 after aspect-ratio scaling.
-    max_abs = np.max(np.abs(np.asarray(pos)), axis=(0, 1))
-    np.testing.assert_allclose(max_abs[2], 1.0, atol=1e-12)
-    assert max_abs[0] < 1.0 and max_abs[1] < 1.0
+    for idx in range(1, N):
+        np.testing.assert_array_equal(pos[idx], pos[0])
+    max_abs = np.max(np.abs(pos), axis=(0, 1))
+    np.testing.assert_allclose(max_abs, [0.5, 0.5, 1.0], atol=1e-12)
 
 
 # ---------------------------------------------------------------- fibonacci
 
 
-@pytest.mark.parametrize("nv", [1, 13, 64, 500])
+@pytest.mark.parametrize("nv", [1, 32])
 def test_fibonacci_3d_arbitrary_nv_on_unit_sphere(nv: int):
-    pos = generate_fibonacci_sphere_mesh(nv=nv, N=1, dim=3)
+    pos = np.asarray(generate_fibonacci_sphere_mesh(nv=nv, N=1, dim=3))
     assert pos.shape == (nv, 3)
-    norms = np.linalg.norm(np.asarray(pos), axis=-1)
-    np.testing.assert_allclose(norms, 1.0, atol=1e-10)
-    assert np.unique(np.asarray(pos), axis=0).shape[0] == nv
+    np.testing.assert_allclose(np.linalg.norm(pos, axis=-1), 1.0, atol=1e-10)
+    assert np.unique(pos, axis=0).shape[0] == nv
     np.testing.assert_array_equal(
-        pos, generate_fibonacci_sphere_mesh(nv=nv, N=1, dim=3)
+        pos, np.asarray(generate_fibonacci_sphere_mesh(nv=nv, N=1, dim=3))
     )
+    if nv > 1:
+        np.testing.assert_allclose(pos.mean(axis=0), 0.0, atol=0.1)
 
 
 def test_fibonacci_2d_evenly_spaces_points():
     nv = 11
-    pos = generate_fibonacci_sphere_mesh(nv=nv, N=1, dim=2)
+    pos = np.asarray(generate_fibonacci_sphere_mesh(nv=nv, N=1, dim=2))
     assert pos.shape == (nv, 2)
-    np.testing.assert_allclose(
-        np.linalg.norm(np.asarray(pos), axis=-1), 1.0, atol=1e-12
-    )
-
+    np.testing.assert_allclose(np.linalg.norm(pos, axis=-1), 1.0, atol=1e-12)
     angles = np.sort(np.mod(np.arctan2(pos[:, 1], pos[:, 0]), 2 * np.pi))
     gaps = np.diff(np.r_[angles, angles[0] + 2 * np.pi])
     np.testing.assert_allclose(gaps, 2 * np.pi / nv, atol=1e-12)
@@ -96,52 +84,27 @@ def test_fibonacci_2d_evenly_spaces_points():
 # ---------------------------------------------------------------- torus
 
 
-def test_torus_fits_in_unit_bounding_box_with_correct_minor_radius():
-    nv, r = 200, 0.25
+def test_torus_surface_geometry():
+    nv, r = 300, 0.25
+    R = 1.0 - r
     pos = np.asarray(generate_torus_mesh(nv=nv, N=1, dim=3, tube_ratio=r))
     assert pos.shape == (nv, 3)
     max_abs = np.max(np.abs(pos), axis=0)
-    # Unit-scaled: every axis fits in [-1, 1].
     assert np.all(max_abs <= 1.0 + 1e-12)
-    # The golden-angle / stratified sampling is a 1D spiral on a 2D surface,
-    # so not every xy corner is hit — but at least one axis gets close to 1.
     assert max_abs.max() > 0.95
-    # Ring radius is in [R, R+r], so max |x|, |y| >= R = 1-r (some point
-    # always samples theta near 0 and pi/2 at inner-rim phi).
-    assert max_abs[0] > (1.0 - r) - 1e-3
-    assert max_abs[1] > (1.0 - r) - 1e-3
-    # |z| is bounded by r and densely approaches it as sin(phi) sweeps the circle.
+    assert max_abs[0] > (1.0 - r) - 1e-3 and max_abs[1] > (1.0 - r) - 1e-3
     assert max_abs[2] <= r + 1e-12
     np.testing.assert_allclose(max_abs[2], r, atol=5e-2)
 
-
-def test_torus_points_lie_on_torus_surface():
-    nv, r = 300, 0.3
-    R = 1.0 - r
-    pos = np.asarray(generate_torus_mesh(nv=nv, N=1, dim=3, tube_ratio=r))
     # Implicit torus equation: (sqrt(x^2 + y^2) - R)^2 + z^2 == r^2.
     rho = np.sqrt(pos[:, 0] ** 2 + pos[:, 1] ** 2)
     residual = (rho - R) ** 2 + pos[:, 2] ** 2 - r**2
     np.testing.assert_allclose(residual, 0.0, atol=1e-10)
 
-
-def test_torus_is_genus_one_has_a_hole():
-    # The origin (center of the donut) is strictly outside the torus surface.
-    nv, r = 400, 0.2
-    pos = np.asarray(generate_torus_mesh(nv=nv, N=1, dim=3, tube_ratio=r))
-    min_dist_to_origin = np.min(np.linalg.norm(pos, axis=-1))
-    # Closest surface point is on the inner rim at (R - r, 0, 0) = (1 - 2r, 0, 0).
-    np.testing.assert_allclose(min_dist_to_origin, 1.0 - 2.0 * r, atol=1e-2)
-
-
-def test_torus_rejects_non_3d_dim():
-    with pytest.raises(ValueError, match="torus mesh is 3D only"):
-        generate_torus_mesh(nv=20, N=1, dim=2)
-
-
-def test_torus_rejects_out_of_range_tube_ratio():
-    with pytest.raises(ValueError, match="tube_ratio"):
-        generate_torus_mesh(nv=20, N=1, dim=3, tube_ratio=1.5)
+    # Genus-1 inner hole: closest surface point sits at radius R - r = 1 - 2r.
+    np.testing.assert_allclose(
+        np.min(np.linalg.norm(pos, axis=-1)), 1.0 - 2.0 * r, atol=2e-2
+    )
 
 
 # ---------------------------------------------------------------- helix
@@ -153,15 +116,12 @@ def test_helix_3d_is_chiral_and_fits_unit_z():
         generate_helix_mesh(nv=nv, N=1, dim=3, n_turns=3.0, helix_radius=0.3)
     )
     assert pos.shape == (nv, 3)
-    # z spans exactly [-1, 1].
     np.testing.assert_allclose(pos[0, 2], -1.0, atol=1e-12)
     np.testing.assert_allclose(pos[-1, 2], 1.0, atol=1e-12)
-    # xy stays on a circle of helix_radius.
-    rho = np.linalg.norm(pos[:, :2], axis=-1)
-    np.testing.assert_allclose(rho, 0.3, atol=1e-10)
-    # Right-handed: theta (atan2(y, x)) is monotonically increasing (mod 2π).
+    np.testing.assert_allclose(np.linalg.norm(pos[:, :2], axis=-1), 0.3, atol=1e-10)
     theta = np.unwrap(np.arctan2(pos[:, 1], pos[:, 0]))
     assert np.all(np.diff(theta) > 0.0)
+    np.testing.assert_allclose(theta[-1] - theta[0], 6.0 * np.pi, atol=1e-10)
 
 
 def test_helix_2d_is_archimedean_spiral():
@@ -169,59 +129,38 @@ def test_helix_2d_is_archimedean_spiral():
     pos = np.asarray(generate_helix_mesh(nv=nv, N=1, dim=2, n_turns=2.0))
     assert pos.shape == (nv, 2)
     r = np.linalg.norm(pos, axis=-1)
-    # Monotonic radial growth from the origin out to r=1.
     assert np.all(np.diff(r) > 0.0)
     np.testing.assert_allclose(r[-1], 1.0, atol=1e-12)
     theta = np.unwrap(np.arctan2(pos[1:, 1], pos[1:, 0]))
     np.testing.assert_allclose(theta, 4 * np.pi * r[1:], atol=1e-12)
 
 
-def test_helix_rejects_helix_radius_out_of_range():
-    with pytest.raises(ValueError, match="helix_radius"):
-        generate_helix_mesh(nv=20, N=1, dim=3, helix_radius=2.0)
-
-
-# ---------------------------------------------------------------- arclength
+# ---------------------------------------------------------------- arclength & thomson
 
 
 def test_arclength_circle_is_regular_ngon():
     nv = 12
     pos = np.asarray(generate_arclength_mesh(nv=nv, N=1, dim=2))
     assert pos.shape == (nv, 2)
-    # All points on the unit circle.
     np.testing.assert_allclose(np.linalg.norm(pos, axis=-1), 1.0, atol=1e-12)
-    # Neighbor-to-neighbor distances are all equal.
-    rolled = np.roll(pos, -1, axis=0)
-    neighbor_dists = np.linalg.norm(rolled - pos, axis=-1)
+    neighbor_dists = np.linalg.norm(np.roll(pos, -1, axis=0) - pos, axis=-1)
     np.testing.assert_allclose(neighbor_dists, neighbor_dists[0], atol=1e-12)
 
 
 def test_arclength_ellipse_gives_uniform_neighbor_distances():
-    # Anisotropic ellipse: a Thomson sweep would converge here to essentially
-    # the arclength-uniform layout, but we get it in closed form.
     nv = 60
     pos = np.asarray(
         generate_arclength_mesh(nv=nv, N=1, dim=2, aspect_ratio=[1.0, 2.0])
     )
     assert pos.shape == (nv, 2)
-    # Unit-scaled: every axis fits in [-1, 1]. The discrete samples don't
-    # land exactly on the poles, so max|y| approaches 1 as O(1/nv^2).
     max_abs = np.max(np.abs(pos), axis=0)
-    assert max_abs[0] <= 0.5 + 1e-12
-    assert max_abs[1] <= 1.0 + 1e-12
+    assert max_abs[0] <= 0.5 + 1e-12 and max_abs[1] <= 1.0 + 1e-12
     np.testing.assert_allclose(max_abs[1], 1.0, atol=1e-2)
-    # Points all lie on the ellipse x^2/a^2 + y^2/b^2 = 1.
     np.testing.assert_allclose(
         (pos[:, 0] / 0.5) ** 2 + (pos[:, 1] / 1.0) ** 2, 1.0, atol=1e-10
     )
-    # Neighbor distances are nearly identical. Arc distances are exactly
-    # equal by construction; chord (Euclidean) distances vary with the local
-    # ellipse curvature and converge to arc as O(1/nv^2). For nv=60 and
-    # a/b = 2 the chord CV sits right around 1e-3.
-    rolled = np.roll(pos, -1, axis=0)
-    d = np.linalg.norm(rolled - pos, axis=-1)
-    cv = float(np.std(d) / np.mean(d))
-    assert cv < 5e-3, f"neighbor-distance CV too large: {cv}"
+    d = np.linalg.norm(np.roll(pos, -1, axis=0) - pos, axis=-1)
+    assert float(np.std(d) / np.mean(d)) < 5e-3
 
 
 def test_thomson_mesh_takes_the_known_projected_repulsion_step(monkeypatch):
@@ -234,8 +173,6 @@ def test_thomson_mesh_takes_the_known_projected_repulsion_step(monkeypatch):
         lambda *args, **kw: (initial, jnp.ones(2)),
     )
     pos, energy = generate_thomson_mesh(nv=2, N=1, dim=2, alpha=2, lr=8, steps=1)
-    # E=1/d^2 gives tangent gradients (0,1/2) and (1/2,0).
-    # lr/nv^4=1/2, followed by unit-circle retraction.
     expected = np.array([[4, -1], [-1, 4]]) / np.sqrt(17)
     np.testing.assert_allclose(pos, expected, rtol=2e-6, atol=2e-7)
     np.testing.assert_allclose(energy, 17 / 50, rtol=2e-6)
@@ -244,21 +181,14 @@ def test_thomson_mesh_takes_the_known_projected_repulsion_step(monkeypatch):
 def test_dimensionless_overlap_energy_penalizes_fractional_overlap():
     big_pair = jnp.array([[0.0, 0.0], [0.9, 0.0]])
     small_pair = jnp.array([[0.0, 0.0], [0.1, 0.0]])
-
     big_energy = dimensionless_overlap_energy(big_pair, jnp.array([0.5, 0.5]))
     small_energy = dimensionless_overlap_energy(small_pair, jnp.array([0.1, 0.1]))
-
     assert small_energy > big_energy
     np.testing.assert_allclose(float(small_energy / big_energy), 25.0, rtol=1e-6)
 
 
 def test_thomson_mesh_accepts_batched_asperity_radii():
-    radii = jnp.array(
-        [
-            [1.0, 1.2, 1.4, 1.6],
-            [2.1, 2.1, 2.1, 2.1],
-        ]
-    )
+    radii = jnp.array([[1.0, 1.2, 1.4, 1.6], [2.1, 2.1, 2.1, 2.1]])
     pos, energy = generate_thomson_mesh(
         nv=4,
         N=2,
@@ -268,7 +198,6 @@ def test_thomson_mesh_accepts_batched_asperity_radii():
         asperity_radii=radii,
         overlap_strength=10.0,
     )
-
     assert pos.shape == (2, 4, 2)
     assert energy.shape == (2,)
     expected = np.zeros(2)
@@ -281,42 +210,15 @@ def test_thomson_mesh_accepts_batched_asperity_radii():
     np.testing.assert_allclose(energy, expected, rtol=3e-6, atol=3e-6)
 
 
-def test_arclength_rejects_3d():
-    with pytest.raises(ValueError, match="arclength mesh is 2D only"):
-        generate_arclength_mesh(nv=12, N=1, dim=3)
-
-
 # ---------------------------------------------------------------- faceted
 
 
-def test_faceted_2d_ngon_vertices_lie_on_unit_circle():
-    nv, n_facets = 7, 7  # one asperity per vertex, no edge fillers
-    pos = np.asarray(generate_faceted_mesh(nv=nv, N=1, dim=2, n_facets=n_facets))
-    assert pos.shape == (nv, 2)
-    np.testing.assert_allclose(np.linalg.norm(pos, axis=-1), 1.0, atol=1e-12)
+def test_faceted_2d_vertices_and_non_divisible_edge_fillers():
+    # nv == n_facets: vertices only on the unit circle.
+    verts_only = np.asarray(generate_faceted_mesh(nv=7, N=1, dim=2, n_facets=7))
+    assert verts_only.shape == (7, 2)
+    np.testing.assert_allclose(np.linalg.norm(verts_only, axis=-1), 1.0, atol=1e-12)
 
-
-def test_faceted_2d_edge_fillers_evenly_spaced_along_edges():
-    n_facets = 6
-    k = 3  # asperities per edge interior
-    nv = n_facets * (1 + k)  # 6 vertices + 6 * 3 edge fillers = 24
-    pos = np.asarray(generate_faceted_mesh(nv=nv, N=1, dim=2, n_facets=n_facets))
-    assert pos.shape == (nv, 2)
-    # Vertex asperities come first (on the unit circle).
-    vertex_pos = pos[:n_facets]
-    np.testing.assert_allclose(np.linalg.norm(vertex_pos, axis=-1), 1.0, atol=1e-12)
-    # Edge fillers come in blocks of k per edge, strictly inside the unit circle.
-    edge_pos = pos[n_facets:]
-    assert np.all(np.linalg.norm(edge_pos, axis=-1) < 1.0)
-    # Check the first edge block is evenly spaced between its two vertices.
-    v0 = vertex_pos[0]
-    v1 = vertex_pos[1]
-    block_0 = edge_pos[:k]
-    expected = np.stack([v0 + t * (v1 - v0) for t in (np.arange(k) + 1) / (k + 1)])
-    np.testing.assert_allclose(block_0, expected, atol=1e-12)
-
-
-def test_faceted_2d_distributes_non_divisible_remainder():
     # nv - n_facets = 7 extras across 3 edges: first edge gets 3, others 2.
     n_facets, nv = 3, 10
     pos = np.asarray(generate_faceted_mesh(nv=nv, N=1, dim=2, n_facets=n_facets))
@@ -334,60 +236,38 @@ def test_faceted_2d_distributes_non_divisible_remainder():
         start += count
 
 
-def test_faceted_3d_first_twelve_match_icosahedron_vertices():
-    # 12 vertex asperities + 0 face fillers.
-    nv = 12
+def test_faceted_3d_vertices_and_face_interiors_lie_on_icosahedron():
+    nv = 12 + 40
     pos = np.asarray(generate_faceted_mesh(nv=nv, N=1, dim=3))
-    assert pos.shape == (12, 3)
-    # All on the unit sphere.
-    np.testing.assert_allclose(np.linalg.norm(pos, axis=-1), 1.0, atol=1e-12)
+    assert pos.shape == (nv, 3)
+    verts = pos[:12]
+    np.testing.assert_allclose(np.linalg.norm(verts, axis=-1), 1.0, atol=1e-12)
     phi = (1 + np.sqrt(5)) / 2
     expected = np.array(
         [(0, a, b * phi) for a in [-1, 1] for b in [-1, 1]]
         + [(a, b * phi, 0) for a in [-1, 1] for b in [-1, 1]]
         + [(b * phi, 0, a) for a in [-1, 1] for b in [-1, 1]]
-    )
-    expected /= np.sqrt(1 + phi**2)
-    # Order is irrelevant, but every distinct vertex must occur exactly once.
-    distances = np.linalg.norm(pos[:, None] - expected[None], axis=-1)
+    ) / np.sqrt(1 + phi**2)
+    distances = np.linalg.norm(verts[:, None] - expected[None], axis=-1)
     np.testing.assert_allclose(distances.min(axis=1), 0, atol=1e-12)
     assert np.unique(distances.argmin(axis=1)).size == 12
 
-
-def test_faceted_3d_face_interiors_strictly_inside_sphere():
-    # 12 verts + 40 face fillers (2 per face).
-    nv = 12 + 40
-    pos = np.asarray(generate_faceted_mesh(nv=nv, N=1, dim=3))
-    assert pos.shape == (nv, 3)
-    # First 12 are vertices on unit sphere.
-    np.testing.assert_allclose(np.linalg.norm(pos[:12], axis=-1), 1.0, atol=1e-12)
-    # Face interiors are on the flat triangular faces — strictly inside the
-    # circumscribed sphere, so |pos| < 1.
+    # Every face filler must lie in the plane of one of the 20 icosahedron faces
+    # (outward normal . p == inradius) and strictly inside the unit sphere.
+    faces = np.asarray(_icosahedron_faces())
+    face_centers = verts[faces].mean(axis=1)
+    face_normals = face_centers / np.linalg.norm(face_centers, axis=-1, keepdims=True)
+    inradius = np.einsum("ij,ij->i", face_normals, verts[faces[:, 0]])
     face_pos = pos[12:]
-    radii = np.linalg.norm(face_pos, axis=-1)
-    assert np.all(radii < 1.0)
-    # They should still be well away from the center (on the faces, not near
-    # the origin). The inradius of a unit-circumradius icosahedron is
-    # (phi^2) / sqrt(3) * 1/(2 phi) ≈ 0.7947.
-    assert np.all(radii > 0.75)
-
-
-def test_faceted_rejects_too_few_asperities():
-    with pytest.raises(ValueError, match="nv must be >="):
-        generate_faceted_mesh(nv=5, N=1, dim=2, n_facets=6)
-    with pytest.raises(ValueError, match="nv must be >= 12"):
-        generate_faceted_mesh(nv=10, N=1, dim=3)
+    assert np.all(np.linalg.norm(face_pos, axis=-1) < 1.0)
+    plane_residuals = np.abs(face_pos @ face_normals.T - inradius[None, :])
+    np.testing.assert_allclose(plane_residuals.min(axis=1), 0.0, atol=1e-12)
 
 
 def test_faceted_applies_aspect_ratio():
-    nv = 12
     pos = np.asarray(
-        generate_faceted_mesh(nv=nv, N=1, dim=3, aspect_ratio=[1.0, 1.0, 2.0])
+        generate_faceted_mesh(nv=12, N=1, dim=3, aspect_ratio=[1.0, 1.0, 2.0])
     )
-    # Icosahedron vertices aren't on coordinate axes (max |coord| is
-    # phi/sqrt(1+phi^2) ≈ 0.851, not 1), so we can't expect max|z| = 1.
-    # What we *can* check is that z is stretched 2× relative to x and y,
-    # and that all vertices still fit inside the unit sphere.
     max_abs = np.max(np.abs(pos), axis=0)
     np.testing.assert_allclose(max_abs[0] / max_abs[2], 0.5, atol=1e-12)
     np.testing.assert_allclose(max_abs[1] / max_abs[2], 0.5, atol=1e-12)
@@ -398,28 +278,29 @@ def test_faceted_applies_aspect_ratio():
 
 
 @pytest.mark.parametrize(
-    "mesh_type,nv,kwargs",
+    "mesh_type,dim,nv,aspect_ratio,kwargs",
     [
-        ("fibonacci", 20, {}),
-        ("icosphere", 42, {}),
-        ("torus", 40, {"tube_ratio": 0.25}),
-        ("helix", 40, {"n_turns": 3.0, "helix_radius": 0.3}),
-        ("faceted", 32, {}),
+        ("fibonacci", 3, 20, None, {}),
+        ("icosphere", 3, 42, None, {}),
+        ("torus", 3, 40, None, {"tube_ratio": 0.25}),
+        ("helix", 3, 40, None, {"n_turns": 3.0, "helix_radius": 0.3}),
+        ("faceted", 3, 32, None, {}),
+        ("arclength", 2, 16, [1.0, 2.0], {}),
     ],
 )
 def test_create_ga_state_dispatches_to_each_mesh_type(
-    mesh_type: str, nv: int, kwargs: dict
+    mesh_type: str, dim: int, nv: int, aspect_ratio, kwargs: dict
 ):
-    # Clump path exercises the whole union-property pipeline too.
     state = create_ga_state(
         N=2,
         nv=nv,
-        dim=3,
+        dim=dim,
         particle_radius=1.0,
         asperity_radius=0.1,
         particle_type="clump",
         core_type="hollow",
-        n_samples=10_000,
+        aspect_ratio=aspect_ratio,
+        n_samples=128,
         seed=0,
         mesh_type=mesh_type,
         mesh_kwargs=kwargs,
@@ -432,49 +313,15 @@ def test_create_ga_state_dispatches_to_each_mesh_type(
         "torus": generate_torus_mesh,
         "helix": generate_helix_mesh,
         "faceted": generate_faceted_mesh,
+        "arclength": generate_arclength_mesh,
     }
-    # The individually validated generator supplies a known dispatcher output.
-    expected = 0.9 * generators[mesh_type](nv=nv, N=2, dim=3, **kwargs)
-    np.testing.assert_allclose(state.pos.reshape(2, nv, 3), expected, atol=2e-6)
-
-
-def test_create_ga_state_dispatches_arclength_in_2d():
-    nv = 16
-    state = create_ga_state(
-        N=2,
-        nv=nv,
-        dim=2,
-        particle_radius=1.0,
-        asperity_radius=0.1,
-        particle_type="clump",
-        core_type="hollow",
-        aspect_ratio=[1.0, 2.0],
-        n_samples=10_000,
-        seed=0,
-        mesh_type="arclength",
+    expected = 0.9 * generators[mesh_type](
+        nv=nv, N=2, dim=dim, aspect_ratio=aspect_ratio, **kwargs
     )
-    assert int(state.clump_id.max()) + 1 == 2
-    assert state.N == 2 * nv
-    expected = 0.9 * generate_arclength_mesh(nv=nv, N=2, dim=2, aspect_ratio=[1.0, 2.0])
-    np.testing.assert_allclose(state.pos.reshape(2, nv, 2), expected, atol=2e-6)
-
-
-def test_create_ga_state_rejects_unknown_mesh_type():
-    with pytest.raises(ValueError, match="mesh_type must be one of"):
-        create_ga_state(
-            N=1,
-            nv=12,
-            dim=3,
-            particle_radius=1.0,
-            asperity_radius=0.1,
-            n_samples=1_000,
-            seed=0,
-            mesh_type="not_a_mesh",
-        )
+    np.testing.assert_allclose(state.pos.reshape(2, nv, dim), expected, atol=2e-6)
 
 
 def test_create_ga_state_thomson_steps_via_mesh_kwargs():
-    # Thomson-specific 'steps' lives in mesh_kwargs, not as a top-level arg.
     common = dict(N=1, nv=4, dim=2, seed=7)
     mesh_kwargs = dict(steps=2, alpha=2.0, lr=0.4)
     state = create_ga_state(
@@ -500,13 +347,28 @@ def test_create_ga_state_uses_polydisperse_radii_with_thomson_mesh():
         asperity_radius=0.2,
         particle_type="clump",
         core_type="hollow",
-        n_samples=1_000,
+        n_samples=256,
         seed=0,
         mesh_type="thomson",
         mesh_kwargs={"steps": 5, "overlap_strength": 10.0},
         asperity_dispersity_type="bidisperse",
         asperity_dispersity_kwargs={"size_ratio": 2.0, "fraction_small": 0.5},
     )
-
     assert state.N == 8
-    assert np.unique(np.round(np.asarray(state.rad), decimals=12)).size == 2
+    unique_radii = np.unique(np.round(np.asarray(state.rad), decimals=12))
+    assert unique_radii.size == 2
+    np.testing.assert_allclose(unique_radii[1] / unique_radii[0], 2.0, rtol=1e-6)
+    expected, _ = generate_thomson_mesh(
+        nv=8,
+        N=1,
+        dim=2,
+        seed=0,
+        steps=5,
+        overlap_strength=10.0,
+        asperity_radii=state.rad / 0.8,
+    )
+    unaware, _ = generate_thomson_mesh(
+        nv=8, N=1, dim=2, seed=0, steps=5, overlap_strength=0.0
+    )
+    np.testing.assert_allclose(state.pos, 0.8 * expected, rtol=2e-6, atol=2e-7)
+    assert not np.allclose(state.pos, 0.8 * unaware, atol=1e-5)

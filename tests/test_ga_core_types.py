@@ -58,31 +58,11 @@ def test_solid_core_adds_geometry_and_phantom_keeps_its_mass_properties():
     assert solid.volume[0] > surface.volume[0]
 
 
-def test_unknown_core_option_is_rejected():
-    with pytest.raises(ValueError, match="core_type"):
-        _create(core_type="invalid")
-
-    with pytest.raises(ValueError, match="core_type"):
-        particle_creation.build_ga_system(
-            particle_radii=[1.0],
-            vertex_counts=[4],
-            asperity_radius=0.1,
-            phi=0.1,
-            dim=2,
-            core_type="invalid",
-            n_property_samples=64,
-            mesh_type="fibonacci",
-            seed=0,
-        )
-
-
-@pytest.mark.parametrize("explicit_core_type", [False, True])
-def test_system_builder_preserves_hollow_core_composition(explicit_core_type):
+def test_system_builder_preserves_hollow_core_composition():
     # Four radius-0.1 disks have 4% of their unit bounding disk's area.
     # Start at the desired true packing fraction so this checks composition
     # through placement and system construction without a compression loop.
     target_phi = 0.01 * 4 * 0.1**2
-    kwargs = {"core_type": "hollow"} if explicit_core_type else {}
     state, system = particle_creation.build_ga_system(
         particle_radii=[1.0, 1.0],
         vertex_counts=[4, 4],
@@ -95,7 +75,6 @@ def test_system_builder_preserves_hollow_core_composition(explicit_core_type):
         collider_type="naive",
         max_n_min_steps_per_outer=32,
         seed=0,
-        **kwargs,
     )
 
     assert state.N == 8

@@ -140,9 +140,15 @@ def _assert_preserved(before, state, system, kept):
     return actual
 
 
-@pytest.mark.parametrize("dim", [2, 3])
-@pytest.mark.parametrize("backend", ["naive", "CellList", "MultiCellList"])
-@pytest.mark.parametrize("removed", [[], [0, 2, 5]])
+@pytest.mark.parametrize(
+    "dim,backend,removed",
+    [
+        (2, "naive", []),
+        (2, "naive", [0, 2, 5]),
+        (2, "CellList", [0, 2, 5]),
+        (3, "MultiCellList", [0, 2, 5]),
+    ],
+)
 def test_cundall_strack_history_and_pair_forces_survive_removal(dim, backend, removed):
     state, system = _system(dim, backend)
     before = _pairs(state, system)

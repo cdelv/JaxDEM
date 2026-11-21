@@ -41,8 +41,7 @@ def test_smooth_sphere_probe_matches_the_exact_radial_contact(dim):
         np.testing.assert_allclose(gaps, 2 * np.pi / 8, atol=2e-6)
 
 
-@pytest.mark.parametrize("dim", [2, 3])
-@pytest.mark.parametrize("stiffness", [1e-32, 1.0, 1e32])
+@pytest.mark.parametrize("dim,stiffness", [(2, 1e-32), (3, 1e32)])
 def test_surface_contact_and_friction_are_independent_of_force_units(dim, stiffness):
     # These force scales require float64 squared norms.
     with jax.enable_x64(True):

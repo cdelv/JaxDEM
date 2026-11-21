@@ -204,3 +204,50 @@ def test_batched_reflection_keeps_per_replica_geometry_and_restitution(dim):
         rtol=3e-6,
     )
     np.testing.assert_allclose(final.vel[..., 1:], 0.0, atol=1e-9)
+
+
+def test_step_dispatches_unbatched_and_all_batch_sizes():
+    state = jd.State.create(
+        pos=jnp.array([[0.0, 0.0], [10.0, 0.0]]),
+        vel=jnp.array([[0.25, -0.5], [-0.75, 1.0]]),
+    )
+    system = jd.System.create(state=state, dt=0.01, rotation_integrator_type=None)
+
+    expected_state, _ = jd.System.step(state, system, n=3)
+    assert expected_state.shape == (2, 2)
+    np.testing.assert_allclose(
+        expected_state.pos_c, state.pos_c + 3 * system.dt * state.vel
+    )
+
+    for batch_size in (1, 2):
+        states = [
+            replace(state, vel=state.vel * (batch_index + 1))
+            for batch_index in range(batch_size)
+        ]
+        expected = [jd.System.step(item, system, n=3) for item in states]
+        expected_states = jd.State.stack([item[0] for item in expected])
+        expected_systems = jd.System.stack([item[1] for item in expected])
+
+        actual_state, actual_system = jd.System.step(
+            jd.State.stack(states), jd.System.stack([system] * batch_size), n=3
+        )
+        assert actual_state.shape == (batch_size, 2, 2)
+        for got, want in zip(
+            jax.tree.leaves((actual_state, actual_system)),
+            jax.tree.leaves((expected_states, expected_systems)),
+            strict=True,
+        ):
+            np.testing.assert_allclose(got, want)
+
+
+@pytest.mark.parametrize("stack_state", [False, True])
+def test_step_rejects_mismatched_state_and_system_layouts(stack_state):
+    state = jd.State.create(pos=jnp.array([[0.0, 0.0]]))
+    system = jd.System.create(state=state, dt=0.01, rotation_integrator_type=None)
+    if stack_state:
+        state = jd.State.stack([state])
+    else:
+        system = jd.System.stack([system])
+
+    with pytest.raises(ValueError, match="matching state and system layouts"):
+        jd.System.step(state, system)

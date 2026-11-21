@@ -25,11 +25,12 @@ def _two_spheres() -> tuple[jdem.State, jdem.System]:
 
 def test_registry_keys_are_normalized():
     """All spellings of a registry key resolve to the same class."""
+    state, _ = _two_spheres()
     classes = {
-        type(jdem.Collider.create("CellList", state=_two_spheres()[0])),
-        type(jdem.Collider.create("cell_list", state=_two_spheres()[0])),
-        type(jdem.Collider.create("celllist", state=_two_spheres()[0])),
-        type(jdem.Collider.create("Cell-List", state=_two_spheres()[0])),
+        type(jdem.Collider.create("CellList", state=state)),
+        type(jdem.Collider.create("cell_list", state=state)),
+        type(jdem.Collider.create("celllist", state=state)),
+        type(jdem.Collider.create("Cell-List", state=state)),
     }
     assert len(classes) == 1
 
@@ -100,9 +101,13 @@ def test_trajectory_rollout_initial_frame_via_zero_stride():
     )
     assert traj_init[0].pos.shape[0] == 4
     assert bool(jnp.all(traj_init[0].pos[0] == state.pos))
+    np.testing.assert_allclose(traj_init[0].pos[1:], traj[0].pos)
 
 
 def test_vtk_writer_name_normalization(tmp_path: Path):
+    vtk = pytest.importorskip("vtk")
+    from vtk.util.numpy_support import vtk_to_numpy
+
     state, system = _two_spheres()
     # Underscored user-facing spellings must resolve to the registered writers.
     writer = jdem.VTKWriter(
@@ -112,8 +117,6 @@ def test_vtk_writer_name_normalization(tmp_path: Path):
     writer.close()
     files = sorted(p.name for p in (tmp_path / "batch_00000000").glob("*.vtp"))
     assert any(f.startswith("spheres") for f in files)
-    import vtk
-    from vtk.util.numpy_support import vtk_to_numpy
 
     reader = vtk.vtkXMLPolyDataReader()
     reader.SetFileName(str(next((tmp_path / "batch_00000000").glob("spheres*.vtp"))))

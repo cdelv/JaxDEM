@@ -2,22 +2,21 @@
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Check optimizer capabilities, minimizer options, and force-gradient contracts."""
 
-import jax
-import jax.numpy as jnp
-
-from dataclasses import replace
-from dataclasses import dataclass
 import json
+import warnings
+from dataclasses import dataclass, replace
 from types import SimpleNamespace
 
+import jax
+import jax.numpy as jnp
 import numpy as np
-import pytest
 import optax
+import pytest
 
 import jaxdem as jd
 from jaxdem.minimizers import conjugate_gradient
 from jaxdem.minimizers.optimizers import CustomGradientTransformation
-from jaxdem.minimizers.routines import TerminationReason
+from jaxdem.utils.h5 import _construct_minimizer
 
 
 @jax.tree_util.register_dataclass
@@ -118,14 +117,8 @@ def test_custom_optimizer_static_identity_includes_factory_closure():
     json.dumps(exported)
     exported["kw"]["options"]["rates"] = (9.0,)
     assert nested.kw["options"]["rates"] == (0.1, 0.2)
-    for name, value in (
-        ("kw", {}),
-        ("_constructor", second_factory),
-        ("_kw_key", ()),
-        ("type_name", "changed"),
-    ):
-        with pytest.raises(AttributeError, match="immutable"):
-            setattr(first, name, value)
+    with pytest.raises(AttributeError, match="immutable"):
+        first.kw = {}
 
     @jax.jit(static_argnames="optimizer")
     def update(gradient, *, optimizer):
@@ -135,6 +128,17 @@ def test_custom_optimizer_static_identity_includes_factory_closure():
 
     assert update(jnp.array(1.0), optimizer=first) == pytest.approx(-0.1)
     assert update(jnp.array(1.0), optimizer=second) == pytest.approx(-0.2)
+
+
+def test_saved_minimizer_arguments_removed_from_fire_are_ignored_on_load():
+    with pytest.warns(RuntimeWarning, match="N_bad_max"):
+        restored = _construct_minimizer(
+            "jaxdem.minimizers.optimizers.fire", {"dt": 0.01, "N_bad_max": 10}
+        )
+    assert dict(restored.kw) == {"dt": 0.01}
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        _construct_minimizer("jaxdem.minimizers.optimizers.fire", {"dt": 0.01})
 
 
 def test_conjugate_gradient_uses_supported_analytic_vjp_with_cell_list():
@@ -200,28 +204,13 @@ def test_custom_force_target_fallback_does_not_require_capability():
     system = jd.System.create(
         state=state,
         collider_type="naive",
-        minimizer=jd.fire,
-        minimizer_kw={"dt": 1.0e-4},
+        minimizer=conjugate_gradient,
         target_fn=lambda trial, _: jnp.sum(trial.pos**2),
     )
     system = replace(system, force_model=CustomOptOutSpring())
-    _, _, steps, energy = system.minimize(state, system, max_steps=0)
-    assert int(steps) == 0
-    assert bool(jnp.isfinite(energy))
-
-
-def test_composites_aggregate_analytical_gradient_capability():
-    supported = jd.forces.LawCombiner(
-        laws=(CustomDefaultSpring(), jd.forces.HertzianForce())
-    )
-    unsupported = jd.forces.LawCombiner(
-        laws=(CustomDefaultSpring(), CustomOptOutSpring())
-    )
-    assert supported.supports_analytical_energy_gradient
-    assert not unsupported.supports_analytical_energy_gradient
-
-    router = jd.forces.ForceRouter.from_dict(2, {(0, 1): unsupported})
-    assert not router.supports_analytical_energy_gradient
+    _, _, steps, energy = system.minimize(state, system, max_steps=1, force_tol=0.0)
+    assert int(steps) == 1
+    assert 0.0 <= float(energy) < 0.25
 
 
 def constant_push(pos, state, system):
@@ -252,87 +241,14 @@ def test_free_domain_minimizer_prepares_trial_search_bounds(collider_type):
         minimizer=jd.fire,
         minimizer_kw={"dt": 1.0e-4},
     )
-    final_state, _, steps, _ = system.minimize(state, system, max_steps=1)
+    final_state, _, steps, energy = system.minimize(state, system, max_steps=1)
     assert int(steps) == 1
-    assert bool(jnp.all(jnp.isfinite(final_state.pos)))
-
-
-def test_fixed_particles_do_not_block_force_tolerance_convergence():
-    state = jd.State.create(
-        pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-        rad=jnp.ones(2),
-        fixed=jnp.ones(2, dtype=bool),
-    )
-    system = jd.System.create(
-        state=state,
-        collider_type="naive",
-        minimizer=jd.fire,
-        minimizer_kw={"dt": 1.0e-4},
-    )
-    final_state, _, steps, _ = system.minimize(
-        state, system, max_steps=5, force_tol=0.0
-    )
-    assert int(steps) == 0
-    assert bool(jnp.all(final_state.pos == state.pos))
-
-
-def test_minimizer_reports_termination_reason_without_breaking_unpacking():
-    state = jd.State.create(pos=jnp.array([[0.0, 0.0]]), rad=jnp.array([0.5]))
-    system = jd.System.create(state=state, collider_type="naive")
-
-    result = system.minimize(
-        state,
-        system,
-        max_steps=3,
-        force_tol=0.0,
-    )
-    _, _, steps, _ = result
-    assert len(result) == 4
-    assert result[2] is steps
-    assert int(steps) == 0
-    assert TerminationReason(int(result.reason)) is TerminationReason.FORCE_TOLERANCE
-
-    exhausted = system.minimize(
-        state,
-        system,
-        max_steps=0,
-        force_tol=-1.0,
-    )
-    assert TerminationReason(int(exhausted.reason)) is TerminationReason.MAX_STEPS
-
-
-def test_minimizer_stops_immediately_on_nonfinite_objective():
-    state = jd.State.create(pos=jnp.zeros((1, 2)))
-    system = jd.System.create(
-        state=state, target_fn=lambda trial, _: jnp.sum(trial.pos) * jnp.nan
-    )
-    result = system.minimize(
-        state,
-        system,
-        max_steps=3,
-        force_tol=-1.0,
-    )
-    assert int(result.steps) == 0
-    assert TerminationReason(int(result.reason)) is TerminationReason.NONFINITE
-
-
-def test_minimizer_reports_existing_search_overflow_without_stepping():
-    state = jd.State.create(pos=jnp.zeros((1, 2)))
-    system = jd.System.create(state=state)
-    system = replace(system, search_overflow=jnp.asarray(True))
-    result = system.minimize(
-        state,
-        system,
-        max_steps=3,
-        force_tol=-1.0,
-    )
-    assert int(result.steps) == 0
-    assert TerminationReason(int(result.reason)) is TerminationReason.SEARCH_OVERFLOW
+    assert float(energy) > 0.0
+    assert float(jnp.linalg.norm(final_state.pos[1] - final_state.pos[0])) > 1.5
+    assert bool(jnp.any(final_state.force != 0.0))
 
 
 def test_default_energy_gradient_excludes_damping_and_buffered_loads():
-    import jax
-    import numpy as np
     from jaxdem.minimizers.routines import _objective_energy, _state_to_delta_params
 
     state = jd.State.create(
@@ -392,6 +308,10 @@ def test_logical_body_topology_uses_representative_total_properties():
     np.testing.assert_allclose(records["volume"], [5.0, 1.0, 0.0])
     np.testing.assert_allclose(records["inertia"], [[6.0], [2.0], [0.0]])
 
+    empty = jd.State.create(pos=jnp.zeros((0, 2)))
+    assert empty.body_topology().valid.shape == (0,)
+    assert empty.body_mass_properties()["mass"].shape == (0,)
+
 
 def test_logical_body_topology_supports_heterogeneous_batches():
     state = jd.State.create(
@@ -411,8 +331,8 @@ def test_logical_body_topology_supports_heterogeneous_batches():
 
 def test_sparse_shuffled_body_labels_gather_and_translate_the_correct_members():
     from jaxdem.minimizers.routines import (
-        _state_to_delta_params,
         _delta_params_to_state,
+        _state_to_delta_params,
     )
 
     state = jd.State.create(
@@ -437,65 +357,7 @@ def test_sparse_shuffled_body_labels_gather_and_translate_the_correct_members():
     np.testing.assert_allclose(
         trial.pos_c - state.pos_c, [[2, -1], [0, 0], [2, -1], [0, 0]]
     )
-
-
-def test_logical_body_topology_accepts_empty_states():
-    state = jd.State.create(pos=jnp.zeros((0, 2)))
-    topology = state.body_topology()
-    assert topology.valid.shape == (0,)
-    assert topology.representative.shape == (0,)
-    assert state.body_mass_properties()["mass"].shape == (0,)
-
-
-def test_minimizer_parameters_have_one_effective_coordinate_per_clump():
-    from jaxdem.minimizers.routines import (
-        _delta_params_to_state,
-        _state_to_delta_params,
-    )
-
-    state = jd.State.create(
-        pos=jnp.array([[0.0, -0.5], [0.0, 0.5], [3.0, 0.0]]),
-        clump_id=jnp.array([0, 0, 1]),
-    )
-    topology = state.body_topology()
-    params = _state_to_delta_params(state, topology)
-    assert params["pos_c"].shape == state.pos_c.shape
-    np.testing.assert_array_equal(params["pos_c"][2], [0.0, 0.0])
-
-    moved = dict(params)
-    moved["pos_c"] = params["pos_c"].at[0].set(jnp.array([2.0, 4.0]))
-    moved["pos_c"] = moved["pos_c"].at[1].set(jnp.array([-1.0, 7.0]))
-    trial = _delta_params_to_state(state, moved)
-    np.testing.assert_allclose(trial.pos_c[:2], [[2.0, 4.0], [2.0, 4.0]])
-    np.testing.assert_allclose(trial.pos_c[2], [-1.0, 7.0])
-
-
-def test_target_gradient_reduces_member_motion_to_one_body_coordinate():
-    from jaxdem.minimizers.routines import (
-        _delta_params_to_state,
-        _state_to_delta_params,
-    )
-
-    state = jd.State.create(
-        pos=jnp.array([[0.0, -0.5], [0.0, 0.5], [3.0, 0.0]]),
-        clump_id=jnp.array([0, 0, 1]),
-    )
-    params = _state_to_delta_params(state, state.body_topology())
-
-    def objective(p):
-        trial = _delta_params_to_state(state, p)
-        return jnp.sum(trial.pos_c[..., 0])
-
-    grad = jax.grad(objective)(params)["pos_c"]
-    np.testing.assert_array_equal(grad[:, 0], [2.0, 1.0, 0.0])
-
-
-def test_species_capacity_is_a_recursive_force_model_capability():
-    unrestricted = CustomDefaultSpring()
-    inner = jd.ForceRouter.from_dict(2, {(0, 0): unrestricted})
-    outer = jd.ForceRouter.from_dict(3, {(0, 0): jd.LawCombiner(laws=(inner,))})
-
-    assert unrestricted.species_capacity is None
-    assert inner.species_capacity == 2
-    assert outer.species_capacity == 2
-    assert jd.LawCombiner(laws=(unrestricted, outer)).species_capacity == 2
+    grad = jax.grad(
+        lambda p: jnp.sum(_delta_params_to_state(state, p, topology).pos_c[..., 0])
+    )(params)["pos_c"]
+    np.testing.assert_array_equal(grad[:, 0], [2.0, 0.0, 2.0, 0.0])

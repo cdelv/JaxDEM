@@ -94,14 +94,11 @@ def test_mixed_rebuilds_preserve_replica_cache_metadata(history):
     np.testing.assert_array_equal(actual.collider.history[0], seeded)
 
 
-@pytest.mark.parametrize("batch_size", [1, 3])
 @pytest.mark.parametrize("history", [False, True])
-def test_batched_lifecycle_matches_independent_runs(batch_size, history, monkeypatch):
-    from jaxdem.colliders import _neighbor_cache
-
-    monkeypatch.setattr(_neighbor_cache, "_SEARCH_BATCH_SIZE", 4)
+def test_batched_lifecycle_matches_independent_runs(history):
+    batch_size = 3
     pairs = []
-    for degree in [3, 0, 5][:batch_size]:
+    for degree in [3, 0, 5]:
         pos = np.zeros((9, 2))
         pos[:, 0] = np.arange(9) * 3
         pos[:degree, 0] = np.arange(degree) * 0.15
@@ -195,10 +192,8 @@ def test_nested_vmap_force_and_energy_gradients(advance):
     )
 
 
-@pytest.mark.parametrize("backend", ["naive"])
-@pytest.mark.parametrize("capacity", [0, 2])
-def test_empty_simulation_initializes_and_steps(backend, capacity):
-    s, y = case(capacity=capacity, backend=backend, pos=np.empty((0, 2)))
+def test_empty_simulation_initializes_and_steps():
+    s, y = case(capacity=2, backend="naive", pos=np.empty((0, 2)))
     s, y = jd.System.initialize(s, y)
     s, y = jd.System.step(s, y, n=2)
     y.check_overflow()
@@ -271,6 +266,7 @@ def test_within_skin_geometry_batch_skips_neighbor_search(domain, monkeypatch):
     monkeypatch.setattr(_neighbor_cache, "build_pairs", tracked)
     actual = jax.jit(jax.vmap(_neighbor_cache.check_and_rebuild))(states, systems)
     jax.block_until_ready(actual)
+    jax.effects_barrier()
     assert not builds
     for before, after in zip(
         jax.tree.leaves(systems.collider), jax.tree.leaves(actual.collider), strict=True

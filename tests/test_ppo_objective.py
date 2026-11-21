@@ -1,15 +1,16 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Production PPO loss and derivatives against scalar probability calculus."""
-
-import jax
-import jax.numpy as jnp
+"""Production PPO loss, targets, latent ratios, and derivatives."""
 
 import distrax
-from flax import nnx
+import jax
+import jax.numpy as jnp
 import numpy as np
 import pytest
+from flax import nnx
 
+from jaxdem.rl.action_spaces import BoxSpace, MaxNormSpace, Transformed
+from jaxdem.rl.env_wrappers import vectorise_env
 from jaxdem.rl.models import Model
 from jaxdem.rl.trainers import Trainer, TrajectoryData
 from jaxdem.rl.trainers.ppo_trainer import PPOTrainer
@@ -28,6 +29,52 @@ class GaussianPolicy(Model):
             jnp.broadcast_to(jnp.exp(self.log_scale[...]), shape),
         )
         return policy, jnp.broadcast_to(self.value[...], shape)
+
+
+class ConstantPolicyCritic(Model):
+    """Isolate critic updates from policy learning and action sampling."""
+
+    def __init__(self, value=0.0):
+        self.bias = nnx.Param(jnp.asarray([value]))
+
+    def __call__(self, x, sequence=False, **kwargs):
+        shape = (*x.shape[:-1], 1)
+        policy = distrax.MultivariateNormalDiag(jnp.zeros(shape), jnp.ones(shape))
+        return policy, jnp.broadcast_to(self.bias[...], shape)
+
+
+def _trajectory():
+    zeros = jnp.zeros((2, 1))
+    done = jnp.array([[False], [True]])
+    # pi_current(0) / pi_behavior(0) = 1/2. Stale ratio field is ignored.
+    behavior_log_prob = jnp.full((2, 1), -0.5 * jnp.log(2 * jnp.pi) + jnp.log(2))
+    return TrajectoryData(
+        obs=jnp.zeros((2, 1, 1)),
+        action=jnp.zeros((2, 1, 1)),
+        value=zeros,
+        log_prob=behavior_log_prob,
+        ratio=jnp.full((2, 1), 99.0),
+        reward=jnp.array([[1.0], [2.0]]),
+        done=done,
+        terminated=done,
+        truncated=jnp.zeros_like(done),
+        agent_mask=jnp.ones_like(done),
+        bootstrap_value=zeros,
+    )
+
+
+def _loss_args(vtrace=False, clip=10.0):
+    return dict(
+        ppo_clip_eps=jnp.asarray(clip),
+        ppo_value_coeff=jnp.asarray(1.0),
+        ppo_entropy_coeff=jnp.asarray(0.0),
+        advantage_gamma=jnp.asarray(1.0),
+        advantage_lambda=jnp.asarray(1.0),
+        advantage_rho_clip=jnp.asarray(1.0),
+        advantage_c_clip=jnp.asarray(1.0),
+        last_value=jnp.zeros(1),
+        vtrace=jnp.asarray(vtrace),
+    )
 
 
 def transition(reward, ratio):
@@ -189,3 +236,166 @@ def test_nontrivial_advantage_trace(importance):
     np.testing.assert_allclose(
         returns[:, 0], np.array(expected) + [0.5, 0.75, 1.25], rtol=2e-6
     )
+
+
+@pytest.mark.parametrize(
+    "vtrace, expected_advantage, expected_returns, expected_gradient",
+    [
+        (False, [2.4, 1.4], [3.0, 2.0], -1.9),
+        (True, [0.85, 0.7], [1.45, 1.3], -0.775),
+    ],
+)
+def test_current_targets_raw_advantages_and_detachment(
+    vtrace, expected_advantage, expected_returns, expected_gradient
+):
+    model = ConstantPolicyCritic(0.6)
+    td = _trajectory()
+    original = jax.tree.map(lambda x: x.copy(), td)
+    (_, aux), gradient = nnx.value_and_grad(PPOTrainer.loss_fn, has_aux=True)(
+        model, td, **_loss_args(vtrace)
+    )
+
+    assert jnp.allclose(aux["ratio"], 0.5)
+    assert jnp.allclose(aux["advantages"][:, 0], jnp.array(expected_advantage))
+    assert jnp.allclose(aux["target_values"][:, 0], jnp.array(expected_returns))
+    assert jnp.allclose(
+        aux["actor_loss"], -0.5 * jnp.mean(jnp.array(expected_advantage))
+    )
+    assert jnp.allclose(gradient.bias[...], expected_gradient)
+    assert all(
+        jnp.array_equal(before, after)
+        for before, after in zip(jax.tree.leaves(original), jax.tree.leaves(td))
+    )
+
+
+def test_gae_ignores_vtrace_caps_when_vtrace_is_disabled():
+    kwargs = _loss_args(False)
+    kwargs.update(advantage_rho_clip=jnp.array(0.2), advantage_c_clip=jnp.array(0.1))
+    _, aux = PPOTrainer.loss_fn(ConstantPolicyCritic(0.6), _trajectory(), **kwargs)
+    assert jnp.allclose(aux["target_values"][:, 0], jnp.array([3.0, 2.0]))
+
+
+def test_loss_selection_preserves_future_gae_context():
+    td = _trajectory()
+    model = ConstantPolicyCritic(0.6)
+    mask = jnp.array([[True], [False]])
+    (_, aux), gradient = nnx.value_and_grad(PPOTrainer.loss_fn, has_aux=True)(
+        model, td, **_loss_args(), loss_mask=mask
+    )
+    # The unselected terminal reward is still needed for the first return.
+    assert jnp.allclose(aux["target_values"][:, 0], jnp.array([3.0, 2.0]))
+    assert jnp.allclose(aux["actor_loss"], -0.5 * 2.4)
+    assert jnp.allclose(aux["value_loss"], 0.5 * 2.4**2)
+    assert jnp.allclose(gradient.bias[...], -2.4)
+
+
+@pytest.mark.parametrize("model_name", ["lstm", "mingru"])
+def test_selected_recurrent_loss_keeps_prefix_gradients(model_name):
+    if model_name == "lstm":
+        from jaxdem.rl.models.lstm import LSTMActorCritic
+
+        model = LSTMActorCritic(
+            1,
+            1,
+            nnx.Rngs(17),
+            hidden_features=4,
+            lstm_features=4,
+            carry_leading_shape=(1,),
+        )
+    else:
+        from jaxdem.rl.models.mingru import MinGRUActorCritic
+
+        model = MinGRUActorCritic(
+            1,
+            1,
+            nnx.Rngs(17),
+            hidden_features=4,
+            gru_features=4,
+            num_layers=2,
+            carry_leading_shape=(1,),
+        )
+    td = _trajectory()
+    td.obs = jnp.array([[[0.4]], [[0.8]]])
+    initial_carry = model.carry
+    kwargs = dict(_loss_args(), initial_carry=initial_carry)
+    (actual, aux), grads = nnx.value_and_grad(PPOTrainer.loss_fn, has_aux=True)(
+        model, td, **kwargs, loss_mask=jnp.array([[False], [True]])
+    )
+
+    def reference_loss(current_model):
+        pi, values = current_model(
+            td.obs, sequence=True, initial_carry=initial_carry, done=td.done
+        )
+        ratio = jnp.exp(pi.log_prob(td.action) - td.log_prob)[-1, 0]
+        return (
+            -aux["advantages"][-1, 0] * ratio
+            + 0.5 * (values[-1, 0, 0] - aux["target_values"][-1, 0]) ** 2
+        )
+
+    expected, expected_grads = nnx.value_and_grad(reference_loss)(model)
+    assert jnp.allclose(actual, expected, atol=1e-6)
+    for actual_grad, expected_grad in zip(
+        jax.tree.leaves(grads), jax.tree.leaves(expected_grads), strict=True
+    ):
+        assert jnp.allclose(actual_grad, expected_grad, atol=1e-6)
+
+
+class SaturatedPolicy(Model):
+    def __init__(self, space, dtype):
+        self.mean = nnx.Param(jnp.asarray([30.0], dtype=dtype))
+        self.bij = nnx.data(
+            space if isinstance(space, MaxNormSpace) else distrax.Block(space, 1)
+        )
+
+    def __call__(self, obs, sequence=False, **kwargs):
+        shape = (*obs.shape[:-1], 1)
+        return Transformed(
+            distrax.MultivariateNormalDiag(
+                jnp.broadcast_to(self.mean[...], shape),
+                jnp.full(shape, 0.1, dtype=self.mean[...].dtype),
+            ),
+            self.bij,
+        ), jnp.zeros(shape)
+
+
+@pytest.mark.parametrize(
+    "space,use_x64",
+    [(BoxSpace(-1.0, 1.0), False), (BoxSpace(-1.0, 1.0), True), (MaxNormSpace(), False)],
+)
+def test_saturated_actions_use_exact_latent_ratios_and_gradients(space, use_x64):
+    from tests.test_ppo_math import CheckpointCounter
+
+    with jax.enable_x64(use_x64):
+        dtype = jnp.float64 if use_x64 else jnp.float32
+        env = vectorise_env(CheckpointCounter.Create(), n=1)
+        model = SaturatedPolicy(space, dtype)
+        graphdef, graphstate = nnx.split((model,))
+        _, _, _, td = Trainer.trajectory_rollout(
+            env, graphdef, graphstate, jax.random.key(7), num_steps_epoch=2
+        )
+        td = jax.tree.map(lambda x: x[:, 0], td)
+        assert td.latent_action.dtype == dtype
+        args = _loss_args()
+        (_, aux), grads = nnx.value_and_grad(PPOTrainer.loss_fn, has_aux=True)(
+            model, td, **args
+        )
+        np.testing.assert_allclose(aux["ratio"], 1.0, rtol=2e-6, atol=2e-6)
+        assert all(jnp.all(jnp.isfinite(x)) for x in jax.tree.leaves(grads))
+        model.mean[...] += 0.02
+        (_, aux), grads = nnx.value_and_grad(PPOTrainer.loss_fn, has_aux=True)(
+            model, td, **args
+        )
+        expected_ratio = jnp.exp(
+            distrax.MultivariateNormalDiag(
+                model.mean[...], jnp.array([0.1], dtype=dtype)
+            ).log_prob(td.latent_action)
+            - td.latent_log_prob
+        )
+        np.testing.assert_allclose(aux["ratio"], expected_ratio, rtol=2e-5)
+        expected_grad = -jnp.mean(
+            aux["advantages"]
+            * expected_ratio
+            * (td.latent_action[..., 0] - model.mean[0])
+            / 0.1**2
+        )
+        np.testing.assert_allclose(grads.mean[0], expected_grad, rtol=2e-4, atol=2e-4)

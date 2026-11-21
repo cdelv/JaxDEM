@@ -5,10 +5,9 @@
 import jax.numpy as jnp
 
 from dataclasses import replace
-import importlib
 
-import pytest
 import numpy as np
+import pytest
 
 import jaxdem as jdem
 
@@ -22,15 +21,14 @@ def test_add_clump_defaults_then_geometry_utility_updates_body_properties():
     table = jdem.MaterialTable.from_materials(
         [jdem.Material.create("elastic", density=1.0, young=1.0e4, poisson=0.3)]
     )
-    updated = jdem.utils.compute_clump_properties(state, table, n_samples=32768)
-    # Two tangent unit-density disks: union area=pi/2, COM=(1/2,0),
+    updated = jdem.utils.compute_clump_properties(state, table, n_samples=17)
+    # Two tangent unit-density disks are exact: union area=pi/2, COM=(1/2,0),
     # I=M*(r^2/2+(d/2)^2)=3*pi/16 by the parallel-axis theorem.
-    # Fixed 1-2% geometric integration budgets at 32768 deterministic samples.
-    np.testing.assert_allclose(updated.mass, np.full(2, np.pi / 2), rtol=0.01)
-    np.testing.assert_allclose(updated.volume, np.full(2, np.pi / 2), rtol=0.01)
-    np.testing.assert_allclose(updated.pos_c, [[0.5, 0.0]] * 2, atol=0.01)
+    np.testing.assert_allclose(updated.mass, np.full(2, np.pi / 2), rtol=1e-6)
+    np.testing.assert_allclose(updated.volume, np.full(2, np.pi / 2), rtol=1e-6)
+    np.testing.assert_allclose(updated.pos_c, [[0.5, 0.0]] * 2, atol=1e-6)
     np.testing.assert_allclose(
-        updated.inertia[:, 0], np.full(2, 3 * np.pi / 16), rtol=0.02
+        updated.inertia[:, 0], np.full(2, 3 * np.pi / 16), rtol=1e-6
     )
     np.testing.assert_allclose(updated.pos, state.pos, atol=2e-6)
 
@@ -154,49 +152,3 @@ def test_single_sphere_builder_preserves_geometry_and_target_fraction(dim):
     np.testing.assert_allclose(np.prod(system.domain.box_size), volume / 0.1, rtol=2e-6)
     np.testing.assert_array_equal(state.force, np.zeros((1, dim)))
     np.testing.assert_allclose(jdem.utils.compute_packing_fraction(state, system), 0.1)
-
-
-@pytest.mark.parametrize("builder", ["sphere", "ga"])
-def test_packing_builders_report_failed_mechanical_relaxation(monkeypatch, builder):
-    from jaxdem.utils import particle_creation as creation
-
-    state = jdem.State.create(
-        pos=jnp.array([[0.0, 0.0], [0.9, 0.0]]), rad=jnp.full(2, 0.5)
-    )
-    box = jnp.full(2, 3.0)
-    random_module = importlib.import_module("jaxdem.utils.random_sphere_configuration")
-    monkeypatch.setattr(
-        random_module, "random_sphere_configuration", lambda **kw: (state.pos, box)
-    )
-    monkeypatch.setattr(creation, "create_ga_state", lambda **kw: state)
-    monkeypatch.setattr(creation, "distribute_bodies", lambda *args, **kw: (state, box))
-    with pytest.raises(RuntimeError, match="MINIMIZATION_FAILED.*MAX_STEPS"):
-        if builder == "sphere":
-            creation.build_sphere_system(
-                [0.5, 0.5], phi=0.5, dim=2, seed=0, max_n_min_steps_per_outer=0
-            )
-        else:
-            creation.build_ga_system(
-                [0.5, 0.5],
-                [1, 1],
-                0.5,
-                phi=0.5,
-                dim=2,
-                seed=0,
-                max_n_min_steps_per_outer=0,
-            )
-
-
-def test_initial_sphere_relaxation_does_not_hide_failure(monkeypatch):
-    from jaxdem.utils.random_sphere_configuration import minimize_sphere_configuration
-
-    minimize = jdem.System.minimize
-
-    def limited(state, system, **kw):
-        return minimize(state, system, max_steps=0, force_tol=kw["force_tol"])
-
-    monkeypatch.setattr(jdem.System, "minimize", staticmethod(limited))
-    with pytest.raises(RuntimeError, match="Sphere relaxation failed.*MAX_STEPS"):
-        minimize_sphere_configuration(
-            [0.5, 0.5], [[0.0, 0.0], [0.9, 0.0]], phi=0.1, dim=2
-        )

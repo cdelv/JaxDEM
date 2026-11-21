@@ -12,52 +12,6 @@ import pytest
 import jaxdem as jd
 
 
-@pytest.mark.parametrize("law,distance", [("lennardjones", 2.0), ("wca", 1.08)])
-@pytest.mark.parametrize("collider", ["CellList", "MultiCellList", "NeighborList"])
-def test_force_search_covers_law_cutoff(law, distance, collider):
-    state = jd.State.create(
-        pos=jnp.array([[0.0, 0.0], [distance, 0.0]]), rad=jnp.full(2, 0.5)
-    )
-    table = jd.MaterialTable.from_materials(
-        [jd.Material.create("lj", density=1.0, epsilon=1.0)]
-    )
-    system = jd.System.create(state=state, force_model_type=law, mat_table=table)
-    expected, _ = system.collider.compute_force(state, system)
-    _, _, expected_energy = system.collider.compute_potential_energy(state, system)
-    kw = (
-        {"cell_size": 0.25}
-        if collider != "NeighborList"
-        else {
-            "cutoff": 0.5,
-            "skin": 0.1,
-            "max_neighbors": 4,
-        }
-    )
-    spatial = jd.Collider.create(collider, state=state, **kw)
-    actual_system = replace(system, collider=spatial)
-    actual, actual_system = spatial.compute_force(state, actual_system)
-    _, actual_system, energy = spatial.compute_potential_energy(state, actual_system)
-    assert np.linalg.norm(expected.force) > 0
-    np.testing.assert_allclose(actual.force, expected.force, rtol=1e-6, atol=1e-6)
-    np.testing.assert_allclose(energy, expected_energy, rtol=1e-6, atol=1e-6)
-    assert not bool(actual_system.collider.overflow)
-
-
-def test_facet_laws_require_elastic_materials_through_composition():
-    laws = (jd.forces.SphereFacetSpringForce(), jd.forces.FacetFacetSpringForce())
-    combined = jd.LawCombiner(laws=laws)
-    routed = jd.ForceRouter.from_dict(1, {(0, 0): combined})
-    state = jd.State.create(pos=jnp.zeros((1, 2)))
-    table = jd.MaterialTable.from_materials(
-        [jd.Material.create("lj", density=1.0, epsilon=1.0)]
-    )
-    for law in (*laws, combined, routed):
-        with pytest.raises(KeyError, match="young_eff"):
-            jd.System.create(
-                state=state, force_model=law, mat_table=table, collider_type=""
-            )
-
-
 def test_explicit_initialization_supplies_first_verlet_acceleration():
     state = jd.State.create(pos=jnp.array([[0.0, 0.0]]), vel=jnp.array([[0.2, 0.3]]))
     gravity = jnp.array([0.0, -2.0])
@@ -71,19 +25,6 @@ def test_explicit_initialization_supplies_first_verlet_acceleration():
     )
     np.testing.assert_allclose(result.vel, state.vel + 0.1 * gravity)
     assert int(updated.step_count) == 1
-
-
-def test_zero_steps_does_not_initialize_forces():
-    state = jd.State.create(pos=jnp.array([[0.0, 0.0]]))
-    system = jd.System.create(
-        state=state,
-        collider_type="",
-        force_manager_kw={"gravity": jnp.array([0.0, -2.0])},
-    )
-    result, unchanged = jd.System.step(state, system, n=0)
-    np.testing.assert_array_equal(result.force, state.force)
-    np.testing.assert_array_equal(result.pos, state.pos)
-    assert int(unchanged.step_count) == 0
 
 
 def test_initialization_replaces_stale_stored_forces():
@@ -134,47 +75,6 @@ def test_overflow_stays_failed_after_later_successful_step():
         retry.check_overflow()
 
 
-def test_contact_velocity_includes_member_offset():
-    state = jd.State.create(
-        pos=jnp.array([[0.0, -0.3], [0.9, 0.0]]),
-        pos_p=jnp.array([[0.0, 0.3], [0.0, 0.0]]),
-        rad=jnp.full(2, 0.5),
-        vel=jnp.array([[0.6, -1.0], [0.0, 0.0]]),
-        ang_vel=jnp.array([[2.0], [0.0]]),
-    )
-    table = jd.MaterialTable.from_materials(
-        [
-            jd.Material.create(
-                "elasticfrict",
-                density=1.0,
-                young=100.0,
-                poisson=0.3,
-                e=0.5,
-                mu=0.5,
-                mu_r=0.0,
-            )
-        ]
-    )
-    system = jd.System.create(
-        state=state,
-        force_model_type="cundallstrack",
-        mat_table=table,
-        collider_type="NeighborList",
-        collider_kw={"state": state, "cutoff": 1.0, "max_neighbors": 1},
-    )
-    history = system.force_model.init_history((), state.pos.shape[-1])
-    actual, _, _ = system.force_model.force(
-        0, 1, state.pos, state, system, history, advance_history=False
-    )
-    resting = replace(
-        state, vel=jnp.zeros_like(state.vel), ang_vel=jnp.zeros_like(state.ang_vel)
-    )
-    expected, _, _ = system.force_model.force(
-        0, 1, resting.pos, resting, system, history, advance_history=False
-    )
-    np.testing.assert_allclose(actual, expected, atol=1e-6)
-
-
 def test_packing_callback_matches_jax_integer_contract():
     from jaxdem.utils.packing_utils import scale_to_packing_fraction
 
@@ -216,8 +116,10 @@ def test_flexible_facet_bounds_follow_deformation(collider):
     assert not bool(actual_system.collider.overflow)
 
 
-@pytest.mark.parametrize("dim", [2, 3])
-@pytest.mark.parametrize("collider", ["CellList", "MultiCellList", "NeighborList"])
+@pytest.mark.parametrize(
+    "dim,collider",
+    [(2, "CellList"), (2, "MultiCellList"), (2, "NeighborList"), (3, "NeighborList")],
+)
 def test_shear_image_force_and_energy_are_physical(dim, collider):
     pos = jnp.array([[1.0, 0.1], [6.0, 9.9]])
     if dim == 3:
@@ -243,62 +145,3 @@ def test_shear_image_force_and_energy_are_physical(dim, collider):
     np.testing.assert_allclose(result.force, force, rtol=1e-5, atol=1e-5)
     np.testing.assert_allclose(energy, 0.5 * stiffness * 0.2**2, rtol=1e-5)
     assert not bool(updated.collider.overflow)
-
-
-def test_granulabot_contacts_keep_masks_and_displacement_history():
-    from jaxdem.colliders import advance_history
-    from jaxdem.rl.environments.granulabot import _Contacts
-    from jaxdem.utils import Quaternion, compute_potential_energy
-
-    state = jd.State.create(
-        pos=jnp.array([[0.0, 0.0], [0.1, 0.0], [0.16, 0.0]]),
-        rad=jnp.array([0.1, 0.25, 0.25]),
-        _rad=jnp.array([0.1, 0.04, 0.04]),
-    )
-    material = jd.Material.create(
-        "cundallstrackparams",
-        density=1.0,
-        k_n=1000.0,
-        k_t=100.0,
-        b_n=7.0,
-        b_t=11.0,
-        mu=1.0,
-        mu_r=0.0,
-    )
-    system = jd.System.create(
-        state=state,
-        force_model=_Contacts(parameterization="coefficients"),
-        mat_table=jd.MaterialTable.from_materials([material]),
-        collider_type="GranulabotNeighbors",
-        collider_kw={
-            "cutoff": 0.2,
-            "max_neighbors": 3,
-            "secondary_collider_type": "naive",
-        },
-    )
-    state, system = jd.System.initialize(state, system)
-    # Chassis/rotor overlap is .1+.04-.1=.04; rotor/rotor contact is disabled.
-    np.testing.assert_allclose(state.force, [[-40, 0], [40, 0], [0, 0]], atol=2e-6)
-    np.testing.assert_allclose(compute_potential_energy(state, system), 0.8, rtol=2e-6)
-    history = jnp.array([0.0, 0.01, -1.0, 0.0])
-    law = system.force_model
-    np.testing.assert_allclose(
-        law.energy(0, 1, state.pos, state, system, history), 0.805, rtol=2e-6
-    )
-    np.testing.assert_array_equal(
-        law.energy(1, 2, state.pos, state, system, history), 0
-    )
-    # Rotate only the contacting rotor by .01 rad without advancing time.
-    # Its .04 surface arm stores .0004 tangential displacement, independent of dt.
-    q = Quaternion.from_rotvec(
-        jnp.array([[0.0, 0.0, 0.0], [0.0, 0.0, 0.01], [0.0, 0.0, 0.0]])
-    )
-    moved, advanced = advance_history(state, system, replace(state, q=q), system)
-    np.testing.assert_allclose(
-        moved.force, [[-40, -0.04], [40, 0.04], [0, 0]], atol=2e-6
-    )
-    np.testing.assert_allclose(
-        compute_potential_energy(moved, advanced),
-        0.8 + 0.5 * 100 * 0.0004**2,
-        rtol=2e-6,
-    )

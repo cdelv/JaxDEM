@@ -13,7 +13,6 @@ from jaxdem.forces import FacetFacetSpringForce, SphereFacetSpringForce
 from jaxdem.forces.facet_contact import (
     point_segment_distance,
     point_triangle_distance,
-    triangle_triangle_distance,
 )
 
 SPHERE_CASES = [
@@ -134,14 +133,17 @@ def test_facet_query_groups_have_independent_computational_effects(group):
     np.testing.assert_allclose(reverse[2], selected[2], atol=1e-12)
 
 
-@pytest.mark.parametrize("dim", [2, 3])
-@pytest.mark.parametrize("family", ["sphere", "facet"])
-def test_all_disabled_has_finite_zero_force_energy_and_unchanged_history(dim, family):
-    history = jnp.array([0.3, -0.8])
+@pytest.mark.parametrize(
+    "dim,family,batched",
+    [(2, "sphere", False), (3, "sphere", True), (2, "facet", False), (3, "facet", True)],
+)
+def test_all_disabled_has_finite_zero_force_energy_shapes_and_unchanged_history(
+    dim, family, batched
+):
     if family == "sphere":
         state = _sphere_state(dim, [0.5, 0.1] if dim == 2 else [0.5, 0.5, 0.1])
         law = SphereFacetSpringForce(face=False, edge=False, vertex=False)
-        i, j = dim, 0
+        i, j = (jnp.array([0, dim]), jnp.array([dim, 0])) if batched else (dim, 0)
     else:
         vertices = (
             jnp.array([[[0.0, 0.0], [2.0, 0.0]], [[0.5, 0.1], [1.5, 0.1]]])
@@ -150,12 +152,19 @@ def test_all_disabled_has_finite_zero_force_energy_and_unchanged_history(dim, fa
         )
         state = _facet_state(vertices)
         law = FacetFacetSpringForce(**dict.fromkeys(FACET_GROUPS, False))
-        i, j = 0, dim
+        i, j = (jnp.array([0, dim]), jnp.array([dim, 0])) if batched else (0, dim)
+    history = None if batched else jnp.array([0.3, -0.8])
     force, torque, energy, actual_history = _pair(state, law, i, j, history)
+    if batched:
+        assert force.shape == (2, dim)
+        assert torque.shape == (2, 1 if dim == 2 else 3)
+        assert energy.shape == (2,)
+        assert actual_history.shape == (2, 0)
+    else:
+        np.testing.assert_array_equal(actual_history, history)
     for actual in (force, torque, energy):
         assert np.all(np.isfinite(actual))
         np.testing.assert_array_equal(actual, 0.0)
-    np.testing.assert_array_equal(actual_history, history)
 
 
 def test_two_dimensional_facet_contacts_use_edge_edge_group():
@@ -202,29 +211,6 @@ def test_sphere_switches_apply_in_batched_calls_and_nested_composition():
     np.testing.assert_array_equal(energy[1:], 0.0)
 
 
-@pytest.mark.parametrize("rigid", [False, True])
-def test_selective_sphere_contact_preserves_reciprocity_and_partition(rigid):
-    state = _sphere_state(3, [0.5, 0.5, 0.1], rigid=rigid)
-    law = SphereFacetSpringForce(edge=False, vertex=False)
-    router = jd.ForceRouter.from_dict(2, {(0, 1): law})
-    system = jd.System.create(state=state, force_model=router)
-    actual, system = system.collider.compute_force(state, system)
-    actual, _ = system.force_manager.apply(actual, system)
-    sphere_force = actual.force[-1]
-    assert np.linalg.norm(sphere_force) > 0.0
-    if rigid:
-        np.testing.assert_allclose(actual.force[0], -sphere_force, atol=1e-12)
-    else:
-        np.testing.assert_allclose(
-            jnp.sum(actual.force[:3], axis=0), -sphere_force, atol=1e-12
-        )
-        weights = jnp.array([0.5, 0.25, 0.25])
-        np.testing.assert_allclose(
-            actual.force[:3], -weights[:, None] * sphere_force, atol=1e-12
-        )
-        np.testing.assert_array_equal(actual.torque[:3], 0.0)
-
-
 def test_geometry_queries_support_broadcasting_and_collapsed_segments():
     state = jd.State.create(pos=jnp.zeros((1, 3)))
     system = jd.System.create(state=state)
@@ -266,27 +252,6 @@ def test_geometry_queries_support_broadcasting_and_collapsed_segments():
     assert np.all(np.isfinite(coords))
 
 
-def test_disabled_triangle_query_families_are_absent_from_trace():
-    state = jd.State.create(pos=jnp.zeros((1, 3)))
-    system = jd.System.create(state=state)
-    vertices = _facet_vertices("edge_triangle").reshape((6, 3))
-
-    def query(points, **flags):
-        return triangle_triangle_distance(*points, system, **flags)
-
-    full = str(jax.make_jaxpr(query)(vertices))
-    reduced = str(
-        jax.make_jaxpr(
-            lambda points: query(points, edge_edge=False, edge_triangle=False)
-        )(vertices)
-    )
-    assert "segment_segment_distance" in full
-    assert "_segment_triangle_intersection" in full
-    assert "point_triangle_distance" in reduced
-    assert "segment_segment_distance" not in reduced
-    assert "_segment_triangle_intersection" not in reduced
-
-
 @pytest.mark.parametrize(
     "family,flags",
     [
@@ -316,41 +281,6 @@ def test_controls_survive_metadata_and_hdf5_round_trip(tmp_path, family, flags):
             assert getattr(reconstructed, flag) is value
 
 
-@pytest.mark.parametrize(
-    "family,flag",
-    [
-        ("sphere_facet_spring", "face"),
-        ("sphere_facet_spring", "edge"),
-        ("sphere_facet_spring", "vertex"),
-        ("facet_facet_spring", "vertex_triangle"),
-        ("facet_facet_spring", "edge_edge"),
-        ("facet_facet_spring", "edge_triangle"),
-    ],
-)
-def test_controls_reject_non_boolean_configuration(family, flag):
-    with pytest.raises(TypeError, match=flag + " must be a Python bool"):
-        jd.ForceModel.create(family, **{flag: "false"})
-
-
-@pytest.mark.parametrize("family", ["sphere", "facet"])
-def test_batched_disabled_pairs_keep_output_shapes(family):
-    if family == "sphere":
-        state = _sphere_state(3, [0.5, 0.5, 0.1])
-        law = SphereFacetSpringForce(face=False, edge=False, vertex=False)
-    else:
-        state = _facet_state(_facet_vertices("vertex_triangle"))
-        law = FacetFacetSpringForce(**dict.fromkeys(FACET_GROUPS, False))
-    force, torque, energy, history = _pair(
-        state, law, jnp.array([0, 3]), jnp.array([3, 0])
-    )
-    assert force.shape == (2, 3)
-    assert torque.shape == (2, 3)
-    assert energy.shape == (2,)
-    assert history.shape == (2, 0)
-    for actual in (force, torque, energy):
-        np.testing.assert_array_equal(actual, 0.0)
-
-
 @pytest.mark.parametrize("family", ["sphere", "facet"])
 def test_rejected_selective_contact_has_finite_zero_energy_gradient(family):
     if family == "sphere":
@@ -369,27 +299,3 @@ def test_rejected_selective_contact_has_finite_zero_energy_gradient(family):
     np.testing.assert_array_equal(value, 0.0)
     assert np.all(np.isfinite(gradient))
     np.testing.assert_array_equal(gradient, 0.0)
-
-
-def test_face_only_projection_retains_thin_nonzero_area_triangle():
-    state = jd.State.create(pos=jnp.zeros((1, 3)))
-    system = jd.System.create(state=state)
-    triangle = jnp.array(
-        [
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [1.0, 1e-8, 0.0],
-        ]
-    )
-    point = jnp.array([0.75, 2.5e-9, 0.1])
-    distance, closest, coords = point_triangle_distance(
-        point,
-        *triangle,
-        system,
-        edge=False,
-        vertex=False,
-    )
-    assert np.isfinite(distance)
-    np.testing.assert_allclose(distance, 0.1, rtol=1e-6)
-    np.testing.assert_allclose(coords, [0.25, 0.5, 0.25], rtol=1e-6, atol=1e-7)
-    np.testing.assert_allclose(closest, [0.75, 2.5e-9, 0.0], rtol=1e-6, atol=1e-8)

@@ -1,38 +1,30 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Checkpoint round-trip tests.
-
-Exact dynamic arrays, static configuration, continued dynamics, checkpoint
-selection, retention, and errors are checked with portable importable fixtures.
-"""
+"""Checkpoint options, custom-force serialization, and raw H5 bonded reattachment."""
 
 from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
 
-import os
-import tempfile
-from dataclasses import fields, is_dataclass
 from collections.abc import Mapping
+from dataclasses import fields, is_dataclass
+import json
+from pathlib import Path
+import warnings
 
-import pytest
 import numpy as np
+import pytest
 
 import jaxdem as jdem
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Helpers (also imported by other serialization test modules)
 # ---------------------------------------------------------------------------
 
 
 def dummy_target_fn(state, system):
     return jnp.sum(state.pos**2)
-
-
-def _tmpdir() -> str:
-    """Return a new temporary checkpoint directory path."""
-    return os.path.join(tempfile.mkdtemp(), "ckpt")
 
 
 def _assert_leaves_equal(
@@ -104,682 +96,20 @@ def _assert_leaves_equal(
 
 
 def _round_trip(
-    state: jdem.State, system: jdem.System
+    tmp_path: Path, state: jdem.State, system: jdem.System
 ) -> tuple[jdem.State, jdem.System]:
     """Save then load a checkpoint and return the restored pair."""
-    d = _tmpdir()
-    with jdem.CheckpointWriter(d) as w:
+    ckpt = tmp_path / "ckpt"
+    with jdem.CheckpointWriter(ckpt) as w:
         w.save(state, system)
-    with jdem.CheckpointLoader(d) as loader:
+    with jdem.CheckpointLoader(ckpt) as loader:
         return loader.load()
-
-
-def _save_step_check(state: jdem.State, system: jdem.System, n: int = 1) -> None:
-    """Run *n* steps, then save and load a checkpoint. Assert that the restored leaves match."""
-    state, system = system.step(state, system, n=n)
-    state_r, system_r = _round_trip(state, system)
-    _assert_leaves_equal(state, state_r, "state")
-    _assert_leaves_equal(system, system_r, "system")
-
-
-# ===================================================================
-# Force-model tests
-# ===================================================================
-
-
-class TestForceModels:
-    """Representative force-model round trips; the component matrix covers all classes."""
-
-    def test_law_combiner_spring_wca(self):
-        """LawCombiner compositing spring + WCA."""
-        mat = jdem.Material.create("elastic", density=1.0, young=1e4, poisson=0.3)
-        mat_lj = jdem.Material.create("lj", density=1.0, epsilon=1.0)
-        mat_table = jdem.MaterialTable.from_materials([mat, mat_lj])
-
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-            mat_id=jnp.array([0, 1]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            force_model_type="lawcombiner",
-            force_model_kw={
-                "laws": (
-                    jdem.ForceModel.create("spring"),
-                    jdem.ForceModel.create("wca"),
-                )
-            },
-            mat_table=mat_table,
-        )
-        state, system = system.step(state, system)
-        state_r, system_r = _round_trip(state, system)
-
-        _assert_leaves_equal(state, state_r, "state")
-        _assert_leaves_equal(system, system_r, "system")
-
-        # Verify law types survived round-trip
-        assert isinstance(system_r.force_model, jdem.LawCombiner)
-        assert len(system_r.force_model.laws) == 2
-
-    def test_force_router(self):
-        """ForceRouter with mixed species interactions."""
-        mat = jdem.Material.create("elastic", density=1.0, young=1e4, poisson=0.3)
-        mat_lj = jdem.Material.create("lj", density=1.0, epsilon=1.0)
-
-        router = jdem.ForceRouter.from_dict(
-            S=2,
-            mapping={
-                (0, 0): jdem.ForceModel.create("spring"),
-                (1, 1): jdem.ForceModel.create("wca"),
-                (0, 1): jdem.LawCombiner(
-                    laws=(
-                        jdem.ForceModel.create("spring"),
-                        jdem.ForceModel.create("wca"),
-                    )
-                ),
-            },
-        )
-
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0], [3.0, 0.0]]),
-            rad=jnp.array([1.0, 1.0, 1.0]),
-            species_id=jnp.array([0, 0, 1]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            force_model_type="forcerouter",
-            force_model_kw={"table": router.table},
-            mat_table=jdem.MaterialTable.from_materials([mat, mat_lj]),
-        )
-
-        state, system = system.step(state, system)
-        state_r, system_r = _round_trip(state, system)
-
-        _assert_leaves_equal(state, state_r, "state")
-        _assert_leaves_equal(system, system_r, "system")
-
-        # Structural checks
-        assert isinstance(system_r.force_model, jdem.ForceRouter)
-        assert len(system_r.force_model.table) == 2
-        assert len(system_r.force_model.table[0]) == 2
-
-    def test_force_router_single_species(self):
-        """ForceRouter with a single species (1×1 table)."""
-        router = jdem.ForceRouter.from_dict(
-            S=1,
-            mapping={(0, 0): jdem.ForceModel.create("spring")},
-        )
-
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0, 0.0], [1.5, 0.0, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-            species_id=jnp.array([0, 0]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            force_model_type="forcerouter",
-            force_model_kw={"table": router.table},
-        )
-
-        _save_step_check(state, system)
-
-    def test_law_combiner_empty_laws(self):
-        """LawCombiner with no laws (zero-force default)."""
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            force_model_type="lawcombiner",
-        )
-        _save_step_check(state, system)
-
-
-# ===================================================================
-# Domain tests
-# ===================================================================
-
-
-class TestDomains:
-    """Checkpoint round-trips for every domain type."""
-
-    def test_periodic_domain(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.1, 0.1], [9.9, 9.9]]),
-            rad=jnp.array([0.5, 0.5]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            domain_type="periodic",
-            domain_kw={"box_size": 10.0 * jnp.ones(2), "anchor": jnp.zeros(2)},
-        )
-        state, system = system.step(state, system)
-        state_r, system_r = _round_trip(state, system)
-        _assert_leaves_equal(state, state_r, "state")
-        _assert_leaves_equal(system, system_r, "system")
-        assert jnp.allclose(system.domain.box_size, system_r.domain.box_size)
-
-    def test_reflect_domain(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.5, 0.5]]),
-            vel=jnp.array([[-1.0, 0.0]]),
-            rad=jnp.array([0.4]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            domain_type="reflect",
-            domain_kw={
-                "box_size": 10.0 * jnp.ones(2),
-                "anchor": jnp.zeros(2),
-                "restitution_coefficient": 1.0,
-            },
-        )
-        _save_step_check(state, system)
-
-    def test_reflect_sphere_domain(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.5, 0.5]]),
-            vel=jnp.array([[-1.0, 0.0]]),
-            rad=jnp.array([0.4]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            domain_type="reflectsphere",
-            domain_kw={"box_size": 10.0 * jnp.ones(2), "anchor": jnp.zeros(2)},
-        )
-        _save_step_check(state, system)
-
-
-# ===================================================================
-# Integrator / minimizer tests
-# ===================================================================
-
-
-class TestIntegrators:
-    """Checkpoint round-trips for integrator and minimizer types."""
-
-    def test_velocity_verlet_3d_with_rotation(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0, 0.0], [1.5, 0.0, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            linear_integrator_type="verlet",
-            rotation_integrator_type="verletspiral",
-        )
-        state, system = system.step(state, system)
-        state_r, system_r = _round_trip(state, system)
-        _assert_leaves_equal(state, state_r, "state")
-        _assert_leaves_equal(system, system_r, "system")
-        # Quaternion round-trip
-        assert jnp.allclose(state.q.w, state_r.q.w)
-        assert jnp.allclose(state.q.xyz, state_r.q.xyz)
-
-    def test_euler_integrator(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            linear_integrator_type="euler",
-            rotation_integrator_type="",
-        )
-        _save_step_check(state, system)
-
-    def test_minimizer_object_fire(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        # Pass the custom fire optimizer directly as a callable and kw dict
-        system = jdem.System.create(
-            state.shape,
-            linear_integrator_type="verlet",
-            rotation_integrator_type="",
-            minimizer=jdem.fire,
-            minimizer_kw={"dt": 1e-4},
-        )
-        state, system, _, _ = system.minimize(state, system, max_steps=5)
-        _save_step_check(state, system)
-
-    def test_minimizer_object_adam(self):
-        import optax
-
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        # Pass optax.adam as the minimizer function and minimizer_kw for configuration
-        system = jdem.System.create(
-            state.shape,
-            linear_integrator_type="verlet",
-            rotation_integrator_type="",
-            minimizer=optax.adam,
-            minimizer_kw={"learning_rate": 0.1},
-        )
-        state, system, _, _ = system.minimize(state, system, max_steps=5)
-        _save_step_check(state, system)
-
-    def test_target_fn_round_trip(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            linear_integrator_type="verlet",
-            rotation_integrator_type="",
-            target_fn=dummy_target_fn,
-        )
-        # Verify round-trip preserves target_fn
-        state_r, system_r = _round_trip(state, system)
-        assert system_r.target_fn is not None
-        assert system_r.target_fn(state, system) == dummy_target_fn(state, system)
-
-    def test_noop_integrators(self):
-        """Deactivated integrators (empty-string keys)."""
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            linear_integrator_type="",
-            rotation_integrator_type="",
-        )
-        _save_step_check(state, system)
-
-
-# ===================================================================
-# Collider tests
-# ===================================================================
-
-
-class TestColliders:
-    """Checkpoint round-trips for collider types."""
-
-    def test_noop_collider(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(state.shape, collider_type="")
-        _save_step_check(state, system)
-
-    def test_cell_list(self):
-        state = jdem.State.create(
-            pos=jnp.array([[1.0, 1.0], [3.0, 3.0], [5.0, 5.0]]),
-            rad=jnp.array([0.5, 0.5, 0.5]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            collider_type="CellList",
-            collider_kw={"state": state},
-        )
-        _save_step_check(state, system)
-
-    def test_neighbor_list(self):
-        state = jdem.State.create(
-            pos=jnp.array([[1.0, 1.0], [3.0, 3.0], [5.0, 5.0]]),
-            rad=jnp.array([0.5, 0.5, 0.5]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            collider_type="NeighborList",
-            collider_kw={
-                "state": state,
-                "cutoff": 2.0,
-                "skin": 0.1,
-                "secondary_collider_type": "MultiCellList",
-                "secondary_collider_kw": {"state": state},
-                "max_neighbors": 8,
-            },
-        )
-        _save_step_check(state, system)
-
-
-# ===================================================================
-# Material / MaterialTable tests
-# ===================================================================
-
-
-class TestMaterials:
-    """Checkpoint round-trips with different material configurations."""
-
-    def test_default_elastic(self):
-        """Default single elastic material."""
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(state.shape)
-        state, system = system.step(state, system)
-        state_r, system_r = _round_trip(state, system)
-        _assert_leaves_equal(state, state_r, "state")
-        _assert_leaves_equal(system, system_r, "system")
-        assert sorted(system.mat_table.props.keys()) == sorted(
-            system_r.mat_table.props.keys()
-        )
-
-    def test_lj_material(self):
-        lj_mat = jdem.MaterialTable.from_materials(
-            [jdem.Material.create("lj", density=1.0, epsilon=1.0)]
-        )
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(
-            state.shape, force_model_type="wca", mat_table=lj_mat
-        )
-        state, system = system.step(state, system)
-        state_r, system_r = _round_trip(state, system)
-        _assert_leaves_equal(state, state_r, "state")
-        _assert_leaves_equal(system, system_r, "system")
-        assert "epsilon" in system_r.mat_table.props
-        assert "epsilon_eff" in system_r.mat_table.pair
-
-    def test_multi_material_elastic(self):
-        """Two elastic materials with harmonic matchmaker."""
-        elastic = jdem.Material.create(
-            "elastic", density=2500.0, young=2.0e5, poisson=0.25
-        )
-        frictional = jdem.Material.create(
-            "elasticfrict", density=1200.0, young=8.0e4, poisson=0.35, mu=0.6, e=1.0
-        )
-        harmonic_matcher = jdem.MaterialMatchmaker.create("harmonic")
-        mat_table = jdem.MaterialTable.from_materials(
-            [elastic, frictional], matcher=harmonic_matcher, fill=0.0
-        )
-
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-            mat_id=jnp.array([0, 1]),
-        )
-        system = jdem.System.create(
-            state.shape, force_model_type="spring", mat_table=mat_table
-        )
-        state, system = system.step(state, system)
-        state_r, system_r = _round_trip(state, system)
-        _assert_leaves_equal(state, state_r, "state")
-        _assert_leaves_equal(system, system_r, "system")
-
-        assert "mu" in system_r.mat_table.props
-        assert jnp.allclose(
-            system.mat_table.pair["young_eff"],
-            system_r.mat_table.pair["young_eff"],
-        )
-
-    def test_linear_matchmaker(self):
-        """Two elastic materials with linear matchmaker."""
-        elastic = jdem.Material.create(
-            "elastic", density=2500.0, young=2.0e5, poisson=0.25
-        )
-        frictional = jdem.Material.create(
-            "elasticfrict", density=1200.0, young=8.0e4, poisson=0.35, mu=0.6, e=1.0
-        )
-        linear_matcher = jdem.MaterialMatchmaker.create("linear")
-        mat_table = jdem.MaterialTable.from_materials(
-            [elastic, frictional], matcher=linear_matcher, fill=0.0
-        )
-
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-            mat_id=jnp.array([0, 1]),
-        )
-        system = jdem.System.create(
-            state.shape, force_model_type="spring", mat_table=mat_table
-        )
-        _save_step_check(state, system)
-
-    def test_mixed_elastic_lj(self):
-        """Mixed elastic + LJ materials (requires both young_eff and epsilon_eff)."""
-        mat = jdem.Material.create("elastic", density=1.0, young=1e4, poisson=0.3)
-        mat_lj = jdem.Material.create("lj", density=1.0, epsilon=1.0)
-        mat_table = jdem.MaterialTable.from_materials([mat, mat_lj])
-
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-            mat_id=jnp.array([0, 1]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            force_model_type="lawcombiner",
-            force_model_kw={
-                "laws": (
-                    jdem.ForceModel.create("spring"),
-                    jdem.ForceModel.create("wca"),
-                )
-            },
-            mat_table=mat_table,
-        )
-        state, system = system.step(state, system)
-        state_r, system_r = _round_trip(state, system)
-        _assert_leaves_equal(state, state_r, "state")
-        _assert_leaves_equal(system, system_r, "system")
-
-        assert "young" in system_r.mat_table.props
-        assert "epsilon" in system_r.mat_table.props
-        assert "young_eff" in system_r.mat_table.pair
-        assert "epsilon_eff" in system_r.mat_table.pair
-
-
-# ===================================================================
-# State-feature tests
-# ===================================================================
-
-
-class TestStateFeatures:
-    """Checkpoint round-trips for various State features."""
-
-    def test_fixed_particles(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-            fixed=jnp.array([True, False]),
-        )
-        system = jdem.System.create(state.shape)
-        state, system = system.step(state, system)
-        state_r, _ = _round_trip(state, system)
-        assert jnp.array_equal(state.fixed, state_r.fixed)
-
-    def test_bond_id(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0], [3.0, 0.0]]),
-            rad=jnp.array([1.0, 1.0, 1.0]),
-            bond_id=[0, 1, [0, 1]],
-        )
-        system = jdem.System.create(state.shape, interact_same_bond_id=False)
-        state, system = system.step(state, system)
-        state_r, system_r = _round_trip(state, system)
-        assert jnp.array_equal(state.bond_id, state_r.bond_id)
-        assert not bool(system_r.interact_same_bond_id)
-
-    def test_species_id(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-            species_id=jnp.array([0, 1]),
-        )
-        system = jdem.System.create(state.shape)
-        state, system = system.step(state, system)
-        state_r, _ = _round_trip(state, system)
-        assert jnp.array_equal(state.species_id, state_r.species_id)
-
-    def test_mat_id(self):
-        mat_a = jdem.Material.create("lj", density=1.0, epsilon=1.0)
-        mat_b = jdem.Material.create("lj", density=1.0, epsilon=2.0)
-        mat_table = jdem.MaterialTable.from_materials([mat_a, mat_b])
-
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-            mat_id=jnp.array([0, 1]),
-        )
-        system = jdem.System.create(
-            state.shape, force_model_type="wca", mat_table=mat_table
-        )
-        state, system = system.step(state, system)
-        state_r, _ = _round_trip(state, system)
-        assert jnp.array_equal(state.mat_id, state_r.mat_id)
-
-    def test_velocity_and_force(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            vel=jnp.array([[0.5, 0.0], [-0.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(state.shape)
-        state, system = system.step(state, system)
-        state_r, _ = _round_trip(state, system)
-        _assert_leaves_equal(state, state_r, "state")
-
-    def test_single_particle(self):
-        """Edge case: one particle."""
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0]]),
-            rad=jnp.array([1.0]),
-        )
-        system = jdem.System.create(state.shape)
-        _save_step_check(state, system)
-
-
-# ===================================================================
-# Clump (rigid body) tests
-# ===================================================================
-
-
-class TestClumps:
-    """Checkpoint round-trips involving rigid-body clumps."""
-
-    def test_clump_basic(self):
-        """Dumbbell clump + free sphere."""
-        mat = jdem.Material.create("elastic", density=2.0, young=1e4, poisson=0.3)
-        mat_table = jdem.MaterialTable.from_materials([mat])
-
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0]]),
-            rad=jnp.array([1.0]),
-            mat_table=mat_table,
-        )
-        state.fixed = jnp.array([True])
-        state = jdem.State.add_clump(
-            state,
-            pos=jnp.array([[0.0, 4.0], [0.0, 4.0]]),
-            pos_p=jnp.array([[-0.4, 0.0], [0.4, 0.0]]),
-            rad=jnp.array([0.4, 0.4]),
-            volume=jnp.ones(2),
-            inertia=jnp.ones((2, 1)),
-        )
-        state = jdem.utils.compute_clump_properties(state, mat_table)
-
-        system = jdem.System.create(
-            state.shape,
-            dt=1e-4,
-            force_model_type="spring",
-            mat_table=mat_table,
-            force_manager_kw={"gravity": jnp.array([0.0, -9.81])},
-        )
-
-        state, system = system.step(state, system)
-        state_r, system_r = _round_trip(state, system)
-        _assert_leaves_equal(state, state_r, "state")
-        _assert_leaves_equal(system, system_r, "system")
-        assert jnp.array_equal(state.clump_id, state_r.clump_id)
-        assert jnp.array_equal(state.fixed, state_r.fixed)
-
-    def test_add_clump_utility(self):
-        """Check COM calculation, COM sharing, and per-particle fields of State.add_clump."""
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0]]),
-            rad=jnp.array([1.0]),
-        )
-
-        # Test Case 1: pos_p is None (absolute coordinates passed)
-        state = jdem.State.add_clump(
-            state,
-            pos=jnp.array([[-0.3, 4.0], [0.3, 4.0]]),
-            rad=jnp.array([0.3, 0.3]),
-            volume=jnp.ones(2),
-            inertia=jnp.ones((2, 1)),
-            mat_id=jnp.array([1, 2]),
-            species_id=jnp.array([3, 4]),
-            bond_id=[[1], [0]],
-        )
-
-        # Original sphere is at index 0. Added spheres are at index 1 and 2.
-        # Check COM is shared by both added spheres
-        assert jnp.allclose(state.pos_c[1], state.pos_c[2])
-        assert jnp.allclose(state.pos_c[1], jnp.array([0.0, 4.0]))
-
-        # Check offsets (pos_p) are relative to COM
-        assert jnp.allclose(state.pos_p[1], jnp.array([-0.3, 0.0]))
-        assert jnp.allclose(state.pos_p[2], jnp.array([0.3, 0.0]))
-
-        # Check that ID fields vary correctly
-        assert jnp.array_equal(state.mat_id[1:], jnp.array([1, 2]))
-        assert jnp.array_equal(state.species_id[1:], jnp.array([3, 4]))
-
-        # Check bond_id connection. The new particles unique IDs are 1 and 2.
-        # Symmetrized connection: particle 1 connects to 2, particle 2 connects to 1.
-        # Thus, state.bond_id for index 1 should contain 2, index 2 should contain 1.
-        assert jnp.any(state.bond_id[1] == 2)
-        assert jnp.any(state.bond_id[2] == 1)
-
-
-# ===================================================================
-# Bonded force model tests
-# ===================================================================
-
-
-class TestBondedForceModel:
-    """Checkpoint round-trips for bonded force models (deformable particles)."""
-
-    def test_deformable_particle_2d(self):
-        """2D deformable particle."""
-
-        vertices = jnp.array(
-            [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]], dtype=float
-        )
-        elements = jnp.array([[0, 1], [1, 2], [2, 3], [3, 0]], dtype=int)
-        adjacency = jnp.array([[0, 1], [1, 2], [2, 3], [3, 0]], dtype=int)
-
-        dp = jdem.BondedForceModel.create(
-            "deformableparticlemodel",
-            vertices=vertices,
-            elements=elements,
-            edges=elements,
-            element_adjacency=adjacency,
-            em=1.0,
-            eb=0.5,
-            el=0.3,
-            gamma=0.1,
-        )
-        state = jdem.State.create(pos=vertices)
-        system = jdem.System.create(
-            state.shape, bonded_force_model=dp, interact_same_bond_id=False
-        )
-        # Give non-trivial velocities
-        state.vel = jnp.array([[0.1, 0.0], [0.0, 0.1], [-0.1, 0.0], [0.0, -0.1]])
-
-        state_r, system_r = _round_trip(state, system)
-        _assert_leaves_equal(state, state_r, "state")
-        _assert_leaves_equal(system, system_r, "system")
-        assert system_r.bonded_force_model is not None
-        assert type(system_r.bonded_force_model).__name__ == "DeformableParticleModel"
 
 
 class TestH5Load:
     """Regression tests for raw HDF5 save/load helpers."""
 
-    def test_h5_load_reattaches_bonded_force(self):
+    def test_h5_load_reattaches_bonded_force(self, tmp_path):
         vertices = jnp.array(
             [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]], dtype=float
         )
@@ -803,9 +133,8 @@ class TestH5Load:
 
         expected_pe = jdem.utils.thermal.compute_potential_energy(state, system)
 
-        tmpdir = tempfile.mkdtemp()
-        state_path = os.path.join(tmpdir, "state.h5")
-        system_path = os.path.join(tmpdir, "system.h5")
+        state_path = str(tmp_path / "state.h5")
+        system_path = str(tmp_path / "system.h5")
         jdem.utils.h5.save(state, state_path)
         jdem.utils.h5.save(system, system_path)
 
@@ -820,116 +149,11 @@ class TestH5Load:
         assert jnp.allclose(expected_pe, restored_pe)
 
 
-# ===================================================================
-# ForceManager / gravity tests
-# ===================================================================
-
-
-class TestForceManager:
-    """Checkpoint round-trips for force manager configurations."""
-
-    def test_gravity(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            force_manager_kw={"gravity": jnp.array([0.0, -9.81])},
-        )
-        state, system = system.step(state, system)
-        state_r, system_r = _round_trip(state, system)
-        _assert_leaves_equal(state, state_r, "state")
-        assert jnp.allclose(
-            system.force_manager.gravity, system_r.force_manager.gravity
-        )
-
-
-# ===================================================================
-# Custom force function tests
-# ===================================================================
-
-
 class TestCustomForceFunctions:
-    """Checkpoint round-trips for user-supplied force/energy functions."""
+    """Checkpoint round-trips for user-supplied force/energy functions and ragged bond_id."""
 
-    def test_single_force_with_energy(self):
-        """Force function + energy function, both restored."""
-        from tests.custom_forces import harmonic_trap, harmonic_trap_energy
-
-        state = jdem.State.create(pos=jnp.array([[2.0, 0.0]]))
-        system = jdem.System.create(
-            state.shape,
-            force_manager_kw={
-                "force_functions": [(harmonic_trap, harmonic_trap_energy)],
-            },
-            dt=0.01,
-        )
-        state, system = system.step(state, system)
-        state_r, system_r = _round_trip(state, system)
-
-        _assert_leaves_equal(state, state_r, "state")
-        _assert_leaves_equal(system, system_r, "system")
-
-        fm = system_r.force_manager
-        assert len(fm.force_functions) == 1
-        assert fm.force_functions[0].__name__ == "harmonic_trap"
-        assert fm.energy_functions[0].__name__ == "harmonic_trap_energy"
-
-    def test_force_without_energy(self):
-        """Force function with no energy companion."""
-        from tests.custom_forces import constant_push
-
-        state = jdem.State.create(pos=jnp.array([[0.0, 0.0]]))
-        system = jdem.System.create(
-            state.shape,
-            force_manager_kw={
-                "force_functions": [(constant_push,)],
-            },
-            dt=0.01,
-        )
-        state, system = system.step(state, system)
-        state_r, system_r = _round_trip(state, system)
-
-        _assert_leaves_equal(state, state_r, "state")
-        fm = system_r.force_manager
-        assert len(fm.force_functions) == 1
-        assert fm.force_functions[0].__name__ == "constant_push"
-
-    def test_missing_energy_function_is_strict(self):
-        from jaxdem.writers.checkpoints import _deserialize_force_functions
-
-        data = [
-            {
-                "force": "tests.custom_forces.harmonic_trap",
-                "energy": "tests.custom_forces.missing_energy",
-                "is_com": False,
-            }
-        ]
-        with pytest.raises(RuntimeError, match="Could not restore energy function"):
-            _deserialize_force_functions(data, strict=True)
-
-    def test_is_com_flag(self):
-        """Checkpoint round-trip keeps the COM flag."""
-        from tests.custom_forces import constant_push
-
-        state = jdem.State.create(pos=jnp.array([[0.0, 0.0]]))
-        system = jdem.System.create(
-            state.shape,
-            force_manager_kw={
-                "force_functions": [(constant_push, None, True)],
-            },
-            dt=0.01,
-        )
-        state, system = system.step(state, system)
-        _state_r, system_r = _round_trip(state, system)
-
-        fm = system_r.force_manager
-        assert fm.is_com_force == (True,)
-        assert fm.force_functions[0].__name__ == "constant_push"
-
-    def test_multiple_force_functions(self):
-        """Multiple force functions, mixed energy and COM flags."""
+    def test_multiple_force_functions_and_continuation(self, tmp_path):
+        """Mixed energy/COM flags and bond_id survive round-trip and continue identically."""
         from tests.custom_forces import (
             constant_push,
             harmonic_trap,
@@ -937,23 +161,26 @@ class TestCustomForceFunctions:
         )
 
         state = jdem.State.create(
-            pos=jnp.array([[2.0, 0.0], [3.0, 0.0]]),
+            pos=jnp.array([[2.0, 0.0], [2.5, 0.0]]),
             rad=jnp.array([0.5, 0.5]),
+            bond_id=jnp.array([[1, -1], [0, -1]]),
         )
         system = jdem.System.create(
             state.shape,
+            interact_same_bond_id=False,
             force_manager_kw={
                 "force_functions": [
                     (harmonic_trap, harmonic_trap_energy, False),
                     (constant_push, None, True),
                 ],
             },
-            dt=0.01,
+            dt=0.05,
         )
         state, system = system.step(state, system)
-        state_r, system_r = _round_trip(state, system)
+        state_r, system_r = _round_trip(tmp_path, state, system)
 
         _assert_leaves_equal(state, state_r, "state")
+        _assert_leaves_equal(system, system_r, "system")
         fm = system_r.force_manager
         assert len(fm.force_functions) == 2
         assert fm.force_functions[0].__name__ == "harmonic_trap"
@@ -961,12 +188,16 @@ class TestCustomForceFunctions:
         assert fm.energy_functions[0].__name__ == "harmonic_trap_energy"
         assert fm.is_com_force == (False, True)
 
-    def test_custom_force_with_bonded_model(self):
-        """Custom force function + bonded model: the checkpoint stores only the user functions."""
+        state_a, _ = system.step(state, system)
+        state_b, _ = system_r.step(state_r, system_r)
+        _assert_leaves_equal(state_a, state_b, "post-restore step")
+
+    def test_custom_force_with_bonded_model(self, tmp_path):
+        """Custom force + bonded model restores both callbacks without double-counting."""
         from tests.custom_forces import harmonic_trap, harmonic_trap_energy
 
         vertices = jnp.array(
-            [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]], dtype=float
+            [[0.0, 0.0], [1.2, 0.0], [1.0, 1.0], [0.0, 1.0]], dtype=float
         )
         elements = jnp.array([[0, 1], [1, 2], [2, 3], [3, 0]], dtype=int)
         adjacency = jnp.array([[0, 1], [1, 2], [2, 3], [3, 0]], dtype=int)
@@ -992,45 +223,25 @@ class TestCustomForceFunctions:
                 "force_functions": [(harmonic_trap, harmonic_trap_energy)],
             },
         )
-
-        # 2 total: 1 user + 1 bonded
         assert len(system.force_manager.force_functions) == 2
 
-        state_r, system_r = _round_trip(state, system)
+        state_r, system_r = _round_trip(tmp_path, state, system)
         _assert_leaves_equal(state, state_r, "state")
 
-        # Should still have 2 after round-trip (user fn + bonded re-added)
         fm = system_r.force_manager
         assert len(fm.force_functions) == 2
         assert fm.force_functions[0].__name__ == "harmonic_trap"
-
-    def test_restored_force_produces_same_result(self):
-        """Check that the restored force function works after loading."""
-        from tests.custom_forces import harmonic_trap, harmonic_trap_energy
-
-        state = jdem.State.create(pos=jnp.array([[2.0, 0.0]]))
-        system = jdem.System.create(
-            state.shape,
-            force_manager_kw={
-                "force_functions": [(harmonic_trap, harmonic_trap_energy)],
-            },
-            dt=0.1,
+        np.testing.assert_allclose(
+            jdem.utils.thermal.compute_potential_energy(state_r, system_r),
+            jdem.utils.thermal.compute_potential_energy(state, system),
         )
-
-        # Step the original
-        state, system = system.step(state, system)
-        # Save/load
-        state_r, system_r = _round_trip(state, system)
-        # Step both from the same state
         state_a, _ = system.step(state, system)
         state_b, _ = system_r.step(state_r, system_r)
+        _assert_leaves_equal(state_a, state_b, "bonded+custom step")
 
-        _assert_leaves_equal(state_a, state_b, "post-restore step")
-
-    def test_nonimportable_function_rejected_on_save(self):
+    def test_nonimportable_function_rejected_on_save(self, tmp_path):
         """Saving a non-importable function fails before checkpoint I/O."""
 
-        # Create a function that looks like it's from __main__
         def _dummy_force(pos, state, system):
             return pos * 0, jnp.zeros_like(state.torque)
 
@@ -1044,13 +255,12 @@ class TestCustomForceFunctions:
         )
         state, system = system.step(state, system)
 
-        d = _tmpdir()
         with pytest.raises(TypeError, match="not importable|module-level"):
-            with jdem.CheckpointWriter(d) as w:
+            with jdem.CheckpointWriter(tmp_path / "ckpt") as w:
                 w.save(state, system)
 
-    def test_unresolvable_force_skipped_on_load(self):
-        """Unresolvable force functions raise by default. With ``strict=False``, the loader skips them with a warning."""
+    def test_unresolvable_force_or_energy_handling_on_load(self, tmp_path):
+        """Unresolvable force/energy functions raise under strict=True and skip under strict=False."""
         from tests.custom_forces import harmonic_trap, harmonic_trap_energy
 
         state = jdem.State.create(pos=jnp.array([[2.0, 0.0]]))
@@ -1063,445 +273,120 @@ class TestCustomForceFunctions:
         )
         state, system = system.step(state, system)
 
-        d = _tmpdir()
-        with jdem.CheckpointWriter(d) as w:
+        ckpt = tmp_path / "ckpt"
+        with jdem.CheckpointWriter(ckpt) as w:
             w.save(state, system)
 
-        # Tamper with the saved metadata to make the function unresolvable
-        import json
-        from pathlib import Path
+        meta_file = next(iter(ckpt.rglob("system_metadata/metadata")))
+        original_meta = json.loads(meta_file.read_bytes())
 
-        meta_file = next(iter(Path(d).rglob("system_metadata/metadata")))
-        meta = json.loads(meta_file.read_bytes())
-        meta["force_function_metadata"][0]["force"] = "nonexistent_module.fake_force"
-        meta_file.write_text(json.dumps(meta))
+        # Missing energy function fails loudly under strict=True.
+        bad_energy = json.loads(json.dumps(original_meta))
+        bad_energy["force_function_metadata"][0][
+            "energy"
+        ] = "tests.custom_forces.missing_energy"
+        meta_file.write_text(json.dumps(bad_energy))
+        with jdem.CheckpointLoader(ckpt) as loader:
+            with pytest.raises(RuntimeError, match="Could not restore energy function"):
+                loader.load()
 
-        import warnings
+        # Missing force function raises under strict=True, skips with warning under strict=False.
+        bad_force = json.loads(json.dumps(original_meta))
+        bad_force["force_function_metadata"][0][
+            "force"
+        ] = "nonexistent_module.fake_force"
+        meta_file.write_text(json.dumps(bad_force))
+        with jdem.CheckpointLoader(ckpt) as loader:
+            with pytest.raises(RuntimeError, match="Could not restore"):
+                loader.load()
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                _state_r, system_r = loader.load(strict=False)
 
-        # Default (strict=True): loading must fail loudly rather than
-        # silently restore different physics.
-        with pytest.raises(RuntimeError, match="Could not restore"):
-            jdem.CheckpointLoader(d).load()
-
-        # strict=False: the unresolvable entry is skipped with a warning.
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            _state_r, system_r = jdem.CheckpointLoader(d).load(strict=False)
-
-        skip_warns = [w for w in caught if "Could not restore" in str(w.message)]
-        assert len(skip_warns) >= 1, "Expected warning about skipped function"
-        # The force function should have been dropped
+        assert any("Could not restore" in str(w.message) for w in caught)
         assert len(system_r.force_manager.force_functions) == 0
-
-
-# ===================================================================
-# System metadata / misc tests
-# ===================================================================
-
-
-class TestSystemMeta:
-    """Checkpoint round-trips for system-level metadata."""
-
-    def test_custom_dt(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(state.shape, dt=0.001)
-        state, system = system.step(state, system)
-        _, system_r = _round_trip(state, system)
-        assert jnp.allclose(system.dt, system_r.dt)
-
-    def test_step_count_preserved(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(state.shape)
-        state, system = system.step(state, system, n=5)
-        _, system_r = _round_trip(state, system)
-        assert int(system.step_count) == int(system_r.step_count)
-
-    def test_time_preserved(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(state.shape, dt=0.01)
-        state, system = system.step(state, system, n=10)
-        _, system_r = _round_trip(state, system)
-        assert jnp.allclose(system.time, system_r.time)
-
-    def test_lees_edwards_axes_and_callbacks_continue_identically(self):
-        from tests.custom_forces import advance_shear_before_step, mark_after_step
-
-        state = jdem.State.create(pos=jnp.array([[1.0, 2.0, 3.0]]))
-        system = jdem.System.create(
-            state=state,
-            domain_type="leesedwards",
-            domain_kw={
-                "box_size": jnp.array([7.0, 8.0, 9.0]),
-                "anchor": jnp.array([-1.0, -2.0, -3.0]),
-                "gamma": 0.375,
-                "gamma_dot": 0.125,
-                "alpha": 2,
-                "beta": 0,
-            },
-            user_pre_step_actions=advance_shear_before_step,
-            user_post_step_actions=mark_after_step,
-        )
-        state_r, system_r = _round_trip(state, system)
-
-        assert system_r.domain.alpha == 2
-        assert system_r.domain.beta == 0
-        assert jnp.array_equal(system_r.domain.gamma_dot, system.domain.gamma_dot)
-        assert system_r.user_pre_step_actions is advance_shear_before_step
-        assert system_r.user_post_step_actions is mark_after_step
-        state_a, system_a = system.step(state, system)
-        state_b, system_b = system_r.step(state_r, system_r)
-        _assert_leaves_equal(state_a, state_b, "continued state")
-        _assert_leaves_equal(system_a, system_b, "continued system")
-
-    def test_seed_and_key(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(state.shape, seed=42)
-        state, system = system.step(state, system)
-        _, system_r = _round_trip(state, system)
-        assert jnp.array_equal(system.key, system_r.key)
-
-
-# ===================================================================
-# Dimension tests
-# ===================================================================
-
-
-class TestDimensions:
-    """Checkpoint round-trips for 2D and 3D systems."""
-
-    def test_3d(self):
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0, 0.0], [1.5, 0.0, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(state.shape)
-        state, system = system.step(state, system)
-        state_r, system_r = _round_trip(state, system)
-        _assert_leaves_equal(state, state_r, "state")
-        assert int(system_r.dim) == 3
-
-
-# ===================================================================
-# Complex / combined scenarios
-# ===================================================================
-
-
-class TestComplexScenarios:
-    """Checkpoint round-trips for multi-feature configurations."""
-
-    def test_periodic_multi_material_verlet(self):
-        """Periodic domain + multi-material + velocity verlet."""
-        elastic = jdem.Material.create(
-            "elastic", density=2500.0, young=2.0e5, poisson=0.25
-        )
-        frictional = jdem.Material.create(
-            "elasticfrict", density=1200.0, young=8.0e4, poisson=0.35, mu=0.6, e=1.0
-        )
-        mat_table = jdem.MaterialTable.from_materials(
-            [elastic, frictional],
-            matcher=jdem.MaterialMatchmaker.create("harmonic"),
-            fill=0.0,
-        )
-
-        state = jdem.State.create(
-            pos=jnp.array([[1.0, 1.0], [3.0, 3.0], [5.0, 5.0], [7.0, 7.0]]),
-            rad=jnp.array([0.5, 0.5, 0.5, 0.5]),
-            mat_id=jnp.array([0, 0, 1, 1]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            dt=0.001,
-            domain_type="periodic",
-            domain_kw={"box_size": 10.0 * jnp.ones(2), "anchor": jnp.zeros(2)},
-            force_model_type="spring",
-            mat_table=mat_table,
-            force_manager_kw={"gravity": jnp.array([0.0, -9.81])},
-        )
-        _save_step_check(state, system)
-
-    def test_reflect_euler_gravity(self):
-        """Reflect domain + Euler integrator + gravity."""
-        state = jdem.State.create(
-            pos=jnp.array([[5.0, 8.0]]),
-            vel=jnp.array([[1.0, 0.0]]),
-            rad=jnp.array([0.5]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            linear_integrator_type="euler",
-            rotation_integrator_type="",
-            domain_type="reflect",
-            domain_kw={
-                "box_size": 10.0 * jnp.ones(2),
-                "anchor": jnp.zeros(2),
-                "restitution_coefficient": 0.8,
-            },
-            force_manager_kw={"gravity": jnp.array([0.0, -9.81])},
-        )
-        _save_step_check(state, system)
-
-    def test_force_router_periodic_3d(self):
-        """ForceRouter + periodic domain + 3D."""
-        mat = jdem.Material.create("elastic", density=1.0, young=1e4, poisson=0.3)
-        mat_lj = jdem.Material.create("lj", density=1.0, epsilon=1.0)
-
-        router = jdem.ForceRouter.from_dict(
-            S=2,
-            mapping={
-                (0, 0): jdem.ForceModel.create("spring"),
-                (1, 1): jdem.ForceModel.create("wca"),
-                (0, 1): jdem.ForceModel.create("spring"),
-            },
-        )
-
-        state = jdem.State.create(
-            pos=jnp.array([[1.0, 1.0, 1.0], [3.0, 1.0, 1.0], [5.0, 1.0, 1.0]]),
-            rad=jnp.array([1.0, 1.0, 1.0]),
-            species_id=jnp.array([0, 0, 1]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            force_model_type="forcerouter",
-            force_model_kw={"table": router.table},
-            domain_type="periodic",
-            domain_kw={"box_size": 10.0 * jnp.ones(3), "anchor": jnp.zeros(3)},
-            mat_table=jdem.MaterialTable.from_materials([mat, mat_lj]),
-        )
-
-        state, system = system.step(state, system)
-        state_r, system_r = _round_trip(state, system)
-        _assert_leaves_equal(state, state_r, "state")
-        _assert_leaves_equal(system, system_r, "system")
-        assert isinstance(system_r.force_model, jdem.ForceRouter)
-
-    def test_clump_gravity_reflect(self):
-        """Clump + gravity + reflect domain."""
-        mat = jdem.Material.create("elastic", density=2.0, young=1e4, poisson=0.3)
-        mat_table = jdem.MaterialTable.from_materials([mat])
-
-        state = jdem.State.create(
-            pos=jnp.array([[5.0, 1.0]]),
-            rad=jnp.array([1.0]),
-            mat_table=mat_table,
-        )
-        state.fixed = jnp.array([True])
-        state = jdem.State.add_clump(
-            state,
-            pos=jnp.array([[5.0, 6.0], [5.0, 6.0]]),
-            pos_p=jnp.array([[-0.3, 0.0], [0.3, 0.0]]),
-            rad=jnp.array([0.3, 0.3]),
-            volume=jnp.ones(2),
-            inertia=jnp.ones((2, 1)),
-        )
-        state = jdem.utils.compute_clump_properties(state, mat_table)
-
-        system = jdem.System.create(
-            state.shape,
-            dt=1e-4,
-            force_model_type="spring",
-            mat_table=mat_table,
-            domain_type="reflect",
-            domain_kw={
-                "box_size": 10.0 * jnp.ones(2),
-                "anchor": jnp.zeros(2),
-                "restitution_coefficient": 1.0,
-            },
-            force_manager_kw={"gravity": jnp.array([0.0, -9.81])},
-        )
-
-        state, system = system.step(state, system)
-        state_r, system_r = _round_trip(state, system)
-        _assert_leaves_equal(state, state_r, "state")
-        _assert_leaves_equal(system, system_r, "system")
-
-    def test_bidisperse_periodic_gd(self):
-        """Bidisperse particles + periodic + gradient descent."""
-        N = 10
-        rad = jnp.concatenate([0.5 * jnp.ones(N // 2), 0.7 * jnp.ones(N // 2)])
-        key = jax.random.PRNGKey(0)
-        pos = jax.random.uniform(key, (N, 2), minval=0.0, maxval=5.0)
-
-        mat_table = jdem.MaterialTable.from_materials(
-            [jdem.Material.create("elastic", young=1.0, poisson=0.5, density=1.0)],
-            matcher=jdem.MaterialMatchmaker.create("harmonic"),
-        )
-
-        state = jdem.State.create(pos=pos, rad=rad)
-        system = jdem.System.create(
-            state.shape,
-            dt=0.01,
-            linear_integrator_type="verlet",
-            rotation_integrator_type="",
-            minimizer=jdem.damped_newtonian,
-            minimizer_kw={"dt": 1e-3, "gamma": 0.5},
-            domain_type="periodic",
-            domain_kw={"box_size": 5.0 * jnp.ones(2), "anchor": jnp.zeros(2)},
-            mat_table=mat_table,
-        )
-        state, system, _, _ = system.minimize(state, system, max_steps=5)
-        _save_step_check(state, system)
-
-    def test_fixed_mixed_species_gravity(self):
-        """Fixed + species_id + mat_id + gravity."""
-        mat = jdem.Material.create("elastic", density=1.0, young=1e4, poisson=0.3)
-        mat_lj = jdem.Material.create("lj", density=1.0, epsilon=1.0)
-        mat_table = jdem.MaterialTable.from_materials([mat, mat_lj])
-
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [0.0, 3.0], [2.0, 5.0]]),
-            rad=jnp.array([1.0, 0.5, 0.5]),
-            fixed=jnp.array([True, False, False]),
-            mat_id=jnp.array([0, 0, 1]),
-            species_id=jnp.array([0, 0, 1]),
-        )
-        system = jdem.System.create(
-            state.shape,
-            force_model_type="lawcombiner",
-            force_model_kw={
-                "laws": (
-                    jdem.ForceModel.create("spring"),
-                    jdem.ForceModel.create("wca"),
-                )
-            },
-            mat_table=mat_table,
-            force_manager_kw={"gravity": jnp.array([0.0, -9.81])},
-        )
-
-        state, system = system.step(state, system)
-        state_r, system_r = _round_trip(state, system)
-        _assert_leaves_equal(state, state_r, "state")
-        _assert_leaves_equal(system, system_r, "system")
-        assert jnp.array_equal(state.fixed, state_r.fixed)
-        assert jnp.array_equal(state.species_id, state_r.species_id)
-        assert jnp.array_equal(state.mat_id, state_r.mat_id)
-
-
-# ===================================================================
-# Writer options tests
-# ===================================================================
 
 
 class TestWriterOptions:
     """Tests for CheckpointWriter configuration options."""
 
-    def test_multiple_saves(self):
-        """Save multiple steps, load latest."""
+    def test_multiple_saves_load_latest_and_specific_step(self, tmp_path):
         state = jdem.State.create(
             pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
             rad=jnp.array([1.0, 1.0]),
         )
         system = jdem.System.create(state.shape)
 
-        d = _tmpdir()
-        with jdem.CheckpointWriter(d) as w:
-            for _ in range(3):
-                state, system = system.step(state, system)
-                w.save(state, system)
-
-        state_r, system_r = jdem.CheckpointLoader(d).load()
-        _assert_leaves_equal(state, state_r, "state")
-        assert int(system.step_count) == int(system_r.step_count)
-
-    def test_load_specific_step(self):
-        """Save multiple steps, load a specific one."""
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-            rad=jnp.array([1.0, 1.0]),
-        )
-        system = jdem.System.create(state.shape)
-
-        d = _tmpdir()
+        ckpt = tmp_path / "ckpt"
         step_counts = []
-        with jdem.CheckpointWriter(d) as w:
+        with jdem.CheckpointWriter(ckpt) as w:
             for _ in range(3):
                 state, system = system.step(state, system)
                 step_counts.append(int(system.step_count))
                 w.save(state, system)
 
-        # Load the first saved step
-        loader = jdem.CheckpointLoader(d)
-        _state_r, system_r = loader.load(step=step_counts[0])
-        assert int(system_r.step_count) == step_counts[0]
+        with jdem.CheckpointLoader(ckpt) as loader:
+            state_latest, system_latest = loader.load()
+            _assert_leaves_equal(state, state_latest, "latest state")
+            assert int(system_latest.step_count) == step_counts[-1]
 
-    def test_load_missing_step_raises(self):
-        """Loading a non-existent step raises FileNotFoundError."""
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0]]),
-            rad=jnp.array([1.0]),
-        )
+            _state_first, system_first = loader.load(step=step_counts[0])
+            assert int(system_first.step_count) == step_counts[0]
+
+    def test_load_missing_step_raises(self, tmp_path):
+        state = jdem.State.create(pos=jnp.array([[0.0, 0.0]]), rad=jnp.array([1.0]))
         system = jdem.System.create(state.shape)
         state, system = system.step(state, system)
 
-        d = _tmpdir()
-        with jdem.CheckpointWriter(d) as w:
+        ckpt = tmp_path / "ckpt"
+        with jdem.CheckpointWriter(ckpt) as w:
             w.save(state, system)
 
-        with pytest.raises(FileNotFoundError):
-            jdem.CheckpointLoader(d).load(step=9999)
+        with jdem.CheckpointLoader(ckpt) as loader:
+            with pytest.raises(FileNotFoundError):
+                loader.load(step=9999)
 
-    def test_load_empty_dir_raises(self):
-        """Loading from an empty directory raises FileNotFoundError."""
-        d = _tmpdir()
-        os.makedirs(d, exist_ok=True)
-        with pytest.raises(FileNotFoundError):
-            jdem.CheckpointLoader(d).load()
+    def test_load_empty_dir_raises(self, tmp_path):
+        with jdem.CheckpointLoader(tmp_path) as loader:
+            with pytest.raises(FileNotFoundError):
+                loader.load()
 
-    def test_save_every(self):
-        """Test the save_every interval logic."""
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0]]),
-            rad=jnp.array([1.0]),
-        )
+    def test_save_every(self, tmp_path):
+        state = jdem.State.create(pos=jnp.array([[0.0, 0.0]]), rad=jnp.array([1.0]))
         system = jdem.System.create(state.shape)
-        d = _tmpdir()
-        with jdem.CheckpointWriter(d, save_every=2) as w:
+        ckpt = tmp_path / "ckpt"
+        with jdem.CheckpointWriter(ckpt, save_every=2) as w:
             for step in [2, 3, 4]:
                 system.step_count = jnp.array(step, dtype=int)
                 w.save(state, system)
                 w.block_until_ready()
 
-        loader = jdem.CheckpointLoader(d)
-        assert loader.checkpointer.all_steps() == [2, 4]
+        with jdem.CheckpointLoader(ckpt) as loader:
+            assert loader.checkpointer.all_steps() == [2, 4]
 
-    def test_max_to_keep(self):
-        """Test the max_to_keep preservation logic."""
-        state = jdem.State.create(
-            pos=jnp.array([[0.0, 0.0]]),
-            rad=jnp.array([1.0]),
-        )
+    def test_max_to_keep(self, tmp_path):
+        state = jdem.State.create(pos=jnp.array([[0.0, 0.0]]), rad=jnp.array([1.0]))
         system = jdem.System.create(state.shape)
-        d = _tmpdir()
-        with jdem.CheckpointWriter(d, max_to_keep=2) as w:
+        ckpt = tmp_path / "ckpt"
+        with jdem.CheckpointWriter(ckpt, max_to_keep=2) as w:
             for step in [1, 2, 3]:
                 system.step_count = jnp.array(step, dtype=int)
                 w.save(state, system)
                 w.block_until_ready()
 
-        loader = jdem.CheckpointLoader(d)
-        assert loader.checkpointer.all_steps() == [2, 3]
+        with jdem.CheckpointLoader(ckpt) as loader:
+            assert loader.checkpointer.all_steps() == [2, 3]
 
 
 class TestModelCheckpoints:
     """Tests for CheckpointModelWriter and CheckpointModelLoader."""
 
-    def test_model_load_specific_step(self):
+    def test_model_load_specific_step(self, tmp_path):
         from flax import nnx
         import jaxdem.rl as rl
         from jaxdem.writers.checkpoints import (
-            CheckpointModelWriter,
             CheckpointModelLoader,
+            CheckpointModelWriter,
         )
 
         model1 = rl.Model.create(
@@ -1519,40 +404,45 @@ class TestModelCheckpoints:
         model1.actor_mu.bias[...] = jnp.array([1.25, -0.75])
         model2.actor_mu.bias[...] = jnp.array([-2.0, 3.5])
 
-        d = _tmpdir()
-        with CheckpointModelWriter(d, clean=False) as w:
+        ckpt = tmp_path / "ckpt"
+        with CheckpointModelWriter(ckpt, clean=False) as w:
             w.save(model1, step=10)
             w.save(model2, step=20)
 
-        loader = CheckpointModelLoader(d)
+        with CheckpointModelLoader(ckpt) as loader:
+            model_latest = loader.load()
+            _, state_orig2 = nnx.split(model2)
+            _, state_loaded_latest = nnx.split(model_latest)
+            for expected, actual in zip(
+                jax.tree.leaves(state_orig2),
+                jax.tree.leaves(state_loaded_latest),
+                strict=True,
+            ):
+                np.testing.assert_array_equal(actual, expected)
 
-        # Load latest (should be step 20)
-        model_latest = loader.load()
-        _, state_orig2 = nnx.split(model2)
-        _, state_loaded_latest = nnx.split(model_latest)
-        for expected, actual in zip(
-            jax.tree.leaves(state_orig2),
-            jax.tree.leaves(state_loaded_latest),
-            strict=True,
-        ):
-            np.testing.assert_array_equal(actual, expected)
+            model_10 = loader.load(step=10)
+            _, state_orig1 = nnx.split(model1)
+            _, state_loaded_10 = nnx.split(model_10)
+            for expected, actual in zip(
+                jax.tree.leaves(state_orig1),
+                jax.tree.leaves(state_loaded_10),
+                strict=True,
+            ):
+                np.testing.assert_array_equal(actual, expected)
 
-        # Load specific step 10
-        model_10 = loader.load(step=10)
-        _, state_orig1 = nnx.split(model1)
-        _, state_loaded_10 = nnx.split(model_10)
-        for expected, actual in zip(
-            jax.tree.leaves(state_orig1), jax.tree.leaves(state_loaded_10), strict=True
-        ):
-            np.testing.assert_array_equal(actual, expected)
-
-    def test_model_load_missing_step_raises(self):
+    def test_model_load_missing_step_and_empty_dir_raise(self, tmp_path):
         from flax import nnx
         import jaxdem.rl as rl
         from jaxdem.writers.checkpoints import (
-            CheckpointModelWriter,
             CheckpointModelLoader,
+            CheckpointModelWriter,
         )
+
+        empty = tmp_path / "empty"
+        empty.mkdir()
+        with CheckpointModelLoader(empty) as loader:
+            with pytest.raises(FileNotFoundError):
+                loader.load()
 
         model = rl.Model.create(
             "SharedActorCritic",
@@ -1560,29 +450,20 @@ class TestModelCheckpoints:
             action_space_size=2,
             key=nnx.Rngs(42),
         )
-        d = _tmpdir()
-        with CheckpointModelWriter(d) as w:
+        ckpt = tmp_path / "ckpt"
+        with CheckpointModelWriter(ckpt) as w:
             w.save(model, step=10)
 
-        loader = CheckpointModelLoader(d)
-        with pytest.raises(FileNotFoundError):
-            loader.load(step=9999)
+        with CheckpointModelLoader(ckpt) as loader:
+            with pytest.raises(FileNotFoundError):
+                loader.load(step=9999)
 
-    def test_model_load_empty_dir_raises(self):
-        from jaxdem.writers.checkpoints import CheckpointModelLoader
-
-        d = _tmpdir()
-        os.makedirs(d, exist_ok=True)
-        loader = CheckpointModelLoader(d)
-        with pytest.raises(FileNotFoundError):
-            loader.load()
-
-    def test_model_save_every(self):
+    def test_model_clean_option(self, tmp_path):
         from flax import nnx
         import jaxdem.rl as rl
         from jaxdem.writers.checkpoints import (
-            CheckpointModelWriter,
             CheckpointModelLoader,
+            CheckpointModelWriter,
         )
 
         model = rl.Model.create(
@@ -1591,75 +472,22 @@ class TestModelCheckpoints:
             action_space_size=2,
             key=nnx.Rngs(42),
         )
-        d = _tmpdir()
-        with CheckpointModelWriter(d, save_every=2) as w:
-            for step in [2, 3, 4]:
-                w.save(model, step=step)
-                w.block_until_ready()
+        ckpt = tmp_path / "ckpt"
 
-        loader = CheckpointModelLoader(d)
-        assert loader.checkpointer.all_steps() == [2, 4]
-
-    def test_model_max_to_keep(self):
-        from flax import nnx
-        import jaxdem.rl as rl
-        from jaxdem.writers.checkpoints import (
-            CheckpointModelWriter,
-            CheckpointModelLoader,
-        )
-
-        model = rl.Model.create(
-            "SharedActorCritic",
-            observation_space_size=8,
-            action_space_size=2,
-            key=nnx.Rngs(42),
-        )
-        d = _tmpdir()
-        with CheckpointModelWriter(d, max_to_keep=2) as w:
-            for step in [1, 2, 3]:
-                w.save(model, step=step)
-                w.block_until_ready()
-
-        loader = CheckpointModelLoader(d)
-        assert loader.checkpointer.all_steps() == [2, 3]
-
-    def test_model_clean_option(self):
-        from flax import nnx
-        import jaxdem.rl as rl
-        from jaxdem.writers.checkpoints import (
-            CheckpointModelWriter,
-            CheckpointModelLoader,
-        )
-
-        model = rl.Model.create(
-            "SharedActorCritic",
-            observation_space_size=8,
-            action_space_size=2,
-            key=nnx.Rngs(42),
-        )
-        d = _tmpdir()
-
-        # Write first checkpoint with clean=True
-        with CheckpointModelWriter(d, clean=True) as w:
+        with CheckpointModelWriter(ckpt, clean=True) as w:
             w.save(model, step=10)
             w.block_until_ready()
+        with CheckpointModelLoader(ckpt) as loader:
+            assert loader.checkpointer.all_steps() == [10]
 
-        # Checkpoint exists
-        loader = CheckpointModelLoader(d)
-        assert loader.checkpointer.all_steps() == [10]
-
-        # Write second checkpoint with clean=False (preserves first)
-        with CheckpointModelWriter(d, clean=False) as w:
+        with CheckpointModelWriter(ckpt, clean=False) as w:
             w.save(model, step=20)
             w.block_until_ready()
+        with CheckpointModelLoader(ckpt) as loader:
+            assert loader.checkpointer.all_steps() == [10, 20]
 
-        loader = CheckpointModelLoader(d)
-        assert loader.checkpointer.all_steps() == [10, 20]
-
-        # Write third checkpoint with clean=True (erases previous checkpoints)
-        with CheckpointModelWriter(d, clean=True) as w:
+        with CheckpointModelWriter(ckpt, clean=True) as w:
             w.save(model, step=30)
             w.block_until_ready()
-
-        loader = CheckpointModelLoader(d)
-        assert loader.checkpointer.all_steps() == [30]
+        with CheckpointModelLoader(ckpt) as loader:
+            assert loader.checkpointer.all_steps() == [30]

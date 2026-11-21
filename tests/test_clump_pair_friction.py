@@ -58,31 +58,6 @@ def _build_system(
     )
 
 
-def test_radial_contact_gives_zero_friction() -> None:
-    """Two single-sphere clumps aligned: contact is purely radial so mu = 0."""
-    # Two spheres in 2D, each its own clump.
-    pos = jnp.array([[0.0, 0.0], [0.8, 0.0]])
-    rad = jnp.array([0.5, 0.5])
-    state = jd.State.create(
-        pos=pos, rad=rad, mass=jnp.ones(2), clump_id=jnp.array([0, 1])
-    )
-    system = _build_system(state, box_size=10.0)
-
-    state, system, contacts = get_group_contacts(state, system)
-    np.testing.assert_array_equal(contacts.pair_ids, [[0, 1], [1, 0]])
-
-    # Pair forces are antisymmetric and repulsive along -x.
-    F_01 = np.asarray(contacts.forces[0])
-    F_10 = np.asarray(contacts.forces[1])
-    np.testing.assert_allclose(F_01, -F_10, atol=1e-14)
-    # Force on clump 0 from clump 1 should push 0 toward -x (away from 1).
-    assert F_01[0] < 0.0
-    np.testing.assert_allclose(F_01[1], 0.0, atol=1e-14)
-
-    # mu == 0, and symmetric.
-    np.testing.assert_array_equal(contacts.friction, [0.0, 0.0])
-
-
 def test_offset_contact_gives_analytical_friction() -> None:
     """Two-sphere clump contacting a single-sphere clump off-axis.
 
@@ -166,6 +141,7 @@ def test_periodic_radial_contact_uses_minimum_image_axis() -> None:
         contacts.forces[0],
         [-0.3071067811865475, -0.3071067811865475],
     )
+    np.testing.assert_allclose(contacts.forces[0], -contacts.forces[1], atol=1e-14)
     np.testing.assert_allclose(contacts.friction, 0.0, atol=1e-12)
 
 
@@ -196,8 +172,11 @@ def test_friction_builds_an_uninitialized_force_cache() -> None:
     assert int(system.collider.n_build_times) == 1
 
 
-def test_sphere_rattlers_include_particles_disconnected_by_removal() -> None:
-    """A particle that loses its last contact during pruning is still a rattler."""
+@pytest.mark.parametrize(
+    "rattler_fn", [get_sphere_rattler_ids, get_clump_rattler_ids]
+)
+def test_rattlers_include_bodies_disconnected_by_removal(rattler_fn) -> None:
+    """A sphere or clump that loses its last contact during pruning is still a rattler."""
     pos = jnp.array([[0.0, 0.0], [0.8, 0.0], [1.6, 0.0]])
     state = jd.State.create(
         pos=pos,
@@ -208,9 +187,7 @@ def test_sphere_rattlers_include_particles_disconnected_by_removal() -> None:
     system = _build_system(state, box_size=10.0)
 
     with pytest.warns(UserWarning, match="No valid particles remain"):
-        state, system, rattler_ids, non_rattler_ids = get_sphere_rattler_ids(
-            state, system, zc=2
-        )
+        state, system, rattler_ids, non_rattler_ids = rattler_fn(state, system, zc=2)
 
     np.testing.assert_array_equal(np.asarray(rattler_ids), [0, 1, 2])
     assert non_rattler_ids.size == 0
@@ -237,26 +214,6 @@ def test_sphere_rattlers_optionally_remove_rank_deficient_particles() -> None:
         state, system, zc=1, check_contact_rank=True
     )
     np.testing.assert_array_equal(np.asarray(rattler_ids), [0, 1])
-    assert non_rattler_ids.size == 0
-
-
-def test_clump_rattlers_include_clumps_disconnected_by_removal() -> None:
-    """A clump that loses all contacts during pruning is still a rattler."""
-    pos = jnp.array([[0.0, 0.0], [0.8, 0.0], [1.6, 0.0]])
-    state = jd.State.create(
-        pos=pos,
-        rad=jnp.full((3,), 0.5),
-        mass=jnp.ones(3),
-        clump_id=jnp.arange(3),
-    )
-    system = _build_system(state, box_size=10.0)
-
-    with pytest.warns(UserWarning, match="No valid particles remain"):
-        state, system, rattler_ids, non_rattler_ids = get_clump_rattler_ids(
-            state, system, zc=2
-        )
-
-    np.testing.assert_array_equal(np.asarray(rattler_ids), [0, 1, 2])
     assert non_rattler_ids.size == 0
 
 

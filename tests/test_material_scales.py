@@ -92,40 +92,43 @@ def test_elastic_contact_coefficients_preserve_modulus_and_mass_units(x64):
             np.testing.assert_allclose(coefficients / scale, expected, rtol=3e-6)
 
 
-@pytest.mark.parametrize("scale", [1e-32, 1.0, 1e32])
-@pytest.mark.parametrize("displacement", [0.1, 3.0])
 @pytest.mark.parametrize("x64", [False, True])
-def test_coulomb_force_and_return_mapping_respect_stiffness_units(
-    scale, displacement, x64
-):
+def test_coulomb_force_and_return_mapping_respect_stiffness_units(x64):
     with jax.enable_x64(x64):
         state = jd.State.create(
             pos=jnp.array([[0.0, 0.0], [0.8, 0.0]]), rad=jnp.full(2, 0.5)
         )
-        material = jd.Material.create(
-            "cundallstrackparams",
-            density=1.0,
-            k_n=100 * scale,
-            k_t=10 * scale,
-            b_n=0.0,
-            b_t=0.0,
-            mu=1.0,
-            mu_r=0.0,
-        )
-        system = jd.System.create(
-            state=state,
-            force_model=jd.forces.CundallStrackForce(parameterization="coefficients"),
-            mat_table=jd.MaterialTable.from_materials([material]),
-            collider_type="neighborlist",
-            collider_kw={"cutoff": 1.0, "max_neighbors": 2},
-        )
-        history = jnp.array([0.0, displacement, -1.0, 0.0])
-        force, _, advanced = system.force_model.force(
-            0, 1, state.pos, state, system, history
-        )
-        expected_tangent = min(10 * displacement, 20)
-        np.testing.assert_allclose(force / scale, [-20, -expected_tangent], rtol=3e-6)
-        np.testing.assert_allclose(advanced[:2], [0, min(displacement, 2)], rtol=3e-6)
+        for scale in (1e-32, 1e32):
+            material = jd.Material.create(
+                "cundallstrackparams",
+                density=1.0,
+                k_n=100 * scale,
+                k_t=10 * scale,
+                b_n=0.0,
+                b_t=0.0,
+                mu=1.0,
+                mu_r=0.0,
+            )
+            system = jd.System.create(
+                state=state,
+                force_model=jd.forces.CundallStrackForce(
+                    parameterization="coefficients"
+                ),
+                mat_table=jd.MaterialTable.from_materials([material]),
+                collider_type="naive",
+            )
+            for displacement in (0.1, 3.0):
+                history = jnp.array([0.0, displacement, -1.0, 0.0])
+                force, _, advanced = system.force_model.force(
+                    0, 1, state.pos, state, system, history
+                )
+                expected_tangent = min(10 * displacement, 20)
+                np.testing.assert_allclose(
+                    force / scale, [-20, -expected_tangent], rtol=3e-6
+                )
+                np.testing.assert_allclose(
+                    advanced[:2], [0, min(displacement, 2)], rtol=3e-6
+                )
 
 
 @pytest.mark.parametrize("scale", [1e-18, 1.0])

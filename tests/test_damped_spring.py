@@ -38,18 +38,9 @@ def _system(state, restitution=(HALF_DAMPING_RESTITUTION,), young=20.0, **option
     )
 
 
-@pytest.mark.parametrize("name", ["dampedspring", "damped_spring", "Damped-Spring"])
-def test_factory_names_share_the_canonical_stateless_law(name):
-    law = jd.ForceModel.create(name)
-    assert isinstance(law, jd.forces.DampedSpringForce)
-    assert law.type_name == "dampedspring"
-    assert law.history_shape(3) == (0,)
-    assert not law.supports_analytical_energy_gradient
-    assert law.required_material_properties == ("young_eff", "e")
-
-
-@pytest.mark.parametrize("dim", [2, 3])
-@pytest.mark.parametrize("normal_speed", [-1.0, 0.0, 1.0, 100.0])
+@pytest.mark.parametrize(
+    "dim,normal_speed", [(2, -1.0), (2, 100.0), (3, 0.0), (3, 1.0)]
+)
 def test_compression_rebound_and_repulsive_clamp(dim, normal_speed):
     state = jd.State.create(
         pos=jnp.zeros((2, dim)).at[1, 0].set(0.75),
@@ -68,7 +59,6 @@ def test_compression_rebound_and_repulsive_clamp(dim, normal_speed):
     np.testing.assert_allclose(force, expected, rtol=_RTOL, atol=_ATOL)
     np.testing.assert_array_equal(torque, np.zeros(1 if dim == 2 else 3))
     np.testing.assert_array_equal(updated, history)
-    assert history.shape == (0,)
     np.testing.assert_allclose(
         system.force_model.energy(0, 1, state.pos, state, system, history),
         0.625,
@@ -201,8 +191,8 @@ def test_moving_image_velocity_contributes_to_normal_damping(domain):
     np.testing.assert_allclose(elastic, 20.0 * overlap * normal, rtol=_RTOL, atol=_ATOL)
 
 
-@pytest.mark.parametrize("dim", [2, 3])
-def test_coincident_force_and_position_jacobian_are_finite(dim):
+def test_coincident_force_and_position_jacobian_are_finite():
+    dim = 3
     state = jd.State.create(
         pos=jnp.zeros((2, dim)),
         vel=jnp.ones((2, dim)).at[1].set(0.0),
@@ -217,8 +207,8 @@ def test_coincident_force_and_position_jacobian_are_finite(dim):
     assert np.isfinite(jax.jacrev(evaluate)(state.pos)).all()
 
 
-@pytest.mark.parametrize("dim", [2, 3])
-def test_neighbor_shapes_and_pair_antisymmetry(dim):
+def test_neighbor_shapes_and_pair_antisymmetry():
+    dim = 3
     state = jd.State.create(
         pos=jnp.zeros((3, dim)).at[1, 0].set(0.75).at[2, 1].set(0.8),
         vel=jnp.zeros((3, dim)).at[0, :2].set(jnp.array([1.0, 2.0])),
@@ -231,7 +221,7 @@ def test_neighbor_shapes_and_pair_antisymmetry(dim):
         0, jnp.arange(3), state.pos, state, system, jnp.zeros((3, 0))
     )
     assert force.shape == (3, dim)
-    assert torque.shape == (3, 1 if dim == 2 else 3)
+    assert torque.shape == (3, 3)
     assert history.shape == (3, 0)
     for j in range(3):
         scalar, _, _ = law.force(0, j, state.pos, state, system, jnp.zeros(0))

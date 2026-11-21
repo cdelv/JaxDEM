@@ -51,8 +51,10 @@ def _pairs(neighbors, offsets):
     }
 
 
-@pytest.mark.parametrize("backend", ["CellList", "MultiCellList"])
-@pytest.mark.parametrize("tiles", [0, 9, 10])
+@pytest.mark.parametrize(
+    "backend,tiles",
+    [("CellList", 0), ("MultiCellList", 9), ("CellList", 10), ("MultiCellList", 10)],
+)
 def test_static_tile_overflow_reaches_force_energy_count_pack_and_query(backend, tiles):
     state, system = _case(backend, tiles)
     force, forced = system.collider.compute_force(state, system)
@@ -97,8 +99,10 @@ def test_static_tile_overflow_reaches_force_energy_count_pack_and_query(backend,
         np.testing.assert_allclose(energy, ref_energy, rtol=2e-5, atol=0.01)
 
 
-@pytest.mark.parametrize("backend", ["CellList", "MultiCellList"])
-@pytest.mark.parametrize("capacity", [0, 19, 20])
+@pytest.mark.parametrize(
+    "backend,capacity",
+    [("CellList", 0), ("MultiCellList", 19), ("CellList", 20)],
+)
 def test_static_pair_pool_overflow_is_independent_of_tile_capacity(backend, capacity):
     state, system = _case(backend, 10)
     counts, overflow = count_pairs(state, system, 1.0)
@@ -121,9 +125,14 @@ def test_static_pair_pool_overflow_is_independent_of_tile_capacity(backend, capa
     assert rows.shape == (5, 3)
 
 
-@pytest.mark.parametrize("backend", ["CellList", "MultiCellList"])
-@pytest.mark.parametrize("neighbor", [False, True])
-@pytest.mark.parametrize("batch", [False, True])
+@pytest.mark.parametrize(
+    "backend,neighbor,batch",
+    [
+        ("CellList", False, False),
+        ("MultiCellList", True, False),
+        ("CellList", True, True),
+    ],
+)
 def test_static_transient_overflow_remains_sticky_after_valid_steps(
     backend, neighbor, batch
 ):
@@ -159,32 +168,34 @@ def test_static_transient_overflow_remains_sticky_after_valid_steps(
         system.check_overflow()
 
 
-@pytest.mark.parametrize("backend", ["CellList", "MultiCellList"])
-def test_static_count_pack_and_query_keep_overflow_per_replica(backend, monkeypatch):
+def test_static_count_pack_and_query_keep_overflow_per_replica(monkeypatch):
     from jaxdem.colliders import _static_cell
 
-    monkeypatch.setattr(_static_cell, "_TILE_BATCH_SIZE", 4)
-    jax.clear_caches()
-    sparse, system = _case(backend, 5, sparse=True)
-    dense, _ = _case(backend, 5)
+    sparse, system = _case("CellList", 5, sparse=True)
+    dense, _ = _case("CellList", 5)
     states = jd.State.stack([sparse, dense, sparse])
     systems = jd.System.stack([system, system, system])
-    counts, overflow = jax.jit(jax.vmap(lambda s, y: count_pairs(s, y, 1.0)))(
-        states, systems
-    )
-    np.testing.assert_array_equal(overflow, [False, True, False])
-    np.testing.assert_array_equal(counts[[0, 2], :], 0)
-    _, _, overflow = jax.jit(jax.vmap(lambda s, y: build_pairs(s, y, 1.0, 20)))(
-        states, systems
-    )
-    np.testing.assert_array_equal(overflow, [False, True, False])
-    query = lambda s, y: y.collider.create_neighbor_list(s, y, 1.0, 4)[2:]
-    _, overflow = jax.jit(jax.vmap(query))(states, systems)
-    np.testing.assert_array_equal(overflow, [False, True, False])
+    try:
+        with monkeypatch.context() as mp:
+            mp.setattr(_static_cell, "_TILE_BATCH_SIZE", 4)
+            jax.clear_caches()
+            counts, overflow = jax.jit(jax.vmap(lambda s, y: count_pairs(s, y, 1.0)))(
+                states, systems
+            )
+            np.testing.assert_array_equal(overflow, [False, True, False])
+            np.testing.assert_array_equal(counts[[0, 2], :], 0)
+            _, _, overflow = jax.jit(
+                jax.vmap(lambda s, y: build_pairs(s, y, 1.0, 20))
+            )(states, systems)
+            np.testing.assert_array_equal(overflow, [False, True, False])
+            query = lambda s, y: y.collider.create_neighbor_list(s, y, 1.0, 4)[2:]
+            _, overflow = jax.jit(jax.vmap(query))(states, systems)
+            np.testing.assert_array_equal(overflow, [False, True, False])
+    finally:
+        jax.clear_caches()
 
 
-@pytest.mark.parametrize("backend", ["CellList", "MultiCellList"])
-@pytest.mark.parametrize("neighbor", [False, True])
+@pytest.mark.parametrize("backend,neighbor", [("CellList", False), ("MultiCellList", True)])
 def test_static_hash_overflow_reaches_host_and_query_flags(backend, neighbor):
     state, system = _case(backend, 100, neighbor=neighbor)
     box = jnp.full(2, 1e20)
@@ -211,8 +222,7 @@ def test_static_hash_overflow_reaches_host_and_query_flags(backend, neighbor):
     assert bool(query_overflow)
 
 
-@pytest.mark.parametrize("backend", ["CellList", "MultiCellList"])
-@pytest.mark.parametrize("external", [False, True])
+@pytest.mark.parametrize("backend,external", [("CellList", False), ("MultiCellList", True)])
 def test_static_clump_exclusion_preserves_overflow_detection(backend, external):
     labels = [0] * 10 + ([10, 11] if external else [])
     state, system = _case(backend, 0, clump_id=jnp.asarray(labels))

@@ -4,8 +4,6 @@
 
 import jax.numpy as jnp
 
-import dataclasses
-
 import numpy as np
 import pytest
 
@@ -14,29 +12,21 @@ import jaxdem as jdem
 
 @pytest.mark.parametrize("dim", [2, 3])
 def test_facet_rigid_vs_deformable(dim):
-    # 1. Set up a single facet and a sphere
     state = jdem.State.create()
-
-    # Define vertices for a segment (2D) or triangle (3D)
     if dim == 2:
         vertices = jnp.array([[0.0, 0.0], [2.0, 0.0]])
-        sphere_pos = jnp.array(
-            [[1.5, 0.1]]
-        )  # Overlapping the segment at barycentric coords [0.25, 0.75]
+        sphere_pos = jnp.array([[1.5, 0.1]])  # barycentric [0.25, 0.75]
+        nearest = np.array([1.5, 0.0])
+        expected_weights = jnp.array([0.25, 0.75])
     else:
         vertices = jnp.array([[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [0.0, 2.0, 0.0]])
-        # Overlapping the triangle at barycentric coords [0.25, 0.25, 0.5]
-        sphere_pos = jnp.array([[0.5, 1.0, 0.1]])
+        sphere_pos = jnp.array([[0.5, 1.0, 0.1]])  # barycentric [0.25, 0.25, 0.5]
+        nearest = np.array([0.5, 1.0, 0.0])
+        expected_weights = jnp.array([0.25, 0.25, 0.5])
 
-    # Add the facet
     state = jdem.State.add_facet(
-        state,
-        vertices,
-        thickness=0.1,
-        species_id=jnp.array([1]),
+        state, vertices, thickness=0.1, species_id=jnp.array([1])
     )
-
-    # Add the sphere
     sphere_state = jdem.State.create(
         pos=sphere_pos,
         rad=jnp.array([0.2]),
@@ -45,10 +35,8 @@ def test_facet_rigid_vs_deformable(dim):
     )
     state = jdem.State.merge(state, sphere_state)
 
-    # Set up material table and force router
     mat = jdem.Material.create("elastic", young=1e4, poisson=0.3, density=1.0)
     mat_table = jdem.MaterialTable.from_materials([mat])
-
     router = jdem.ForceRouter.from_dict(
         S=2,
         mapping={
@@ -57,8 +45,6 @@ def test_facet_rigid_vs_deformable(dim):
             (1, 1): jdem.ForceModel.create("facet_facet_spring"),
         },
     )
-
-    # Create the system with naive collider (CPU friendly)
     system = jdem.System.create(
         state.shape,
         domain_type="free",
@@ -68,100 +54,87 @@ def test_facet_rigid_vs_deformable(dim):
         force_model_type="forcerouter",
         force_model_kw={"table": router.table},
     )
+    tol = 1e-11 if state.pos.dtype == jnp.float64 else 1e-4
 
-    # -------------------------------------------------------------------------
-    # TEST CASE 1: RIGID SINGLE FACET
-    # -------------------------------------------------------------------------
-    # By default, vertices of the facet share the same clump_id
+    # Analytical overlap = (rad + thickness) - dist = (0.2 + 0.1) - 0.1 = 0.2
+    stiffness = float(system.mat_table.young_eff[0, 0])
+    expected_sphere_force = np.zeros(dim)
+    expected_sphere_force[-1] = stiffness * 0.2
+    expected_energy = 0.5 * stiffness * 0.2**2
+
+    # Rigid single facet: force and analytical torque broadcast to all vertices.
     state_rigid, _ = system.collider.compute_force(state, system)
     state_rigid, _ = system.force_manager.apply(state_rigid, system)
-
-    # Sphere is the last particle
     f_sphere_rigid = state_rigid.force[-1]
-    # Vertices are the first dim particles
-    f_vertices_rigid = state_rigid.force[:dim]
+    np.testing.assert_allclose(f_sphere_rigid, expected_sphere_force, rtol=1e-6, atol=tol)
+    np.testing.assert_allclose(
+        state_rigid.force[:dim],
+        np.tile(-expected_sphere_force, (dim, 1)),
+        rtol=1e-6,
+        atol=tol,
+    )
+    lever = nearest - np.mean(np.asarray(vertices), axis=0)
+    if dim == 2:
+        expected_torque = np.array(
+            [lever[0] * (-expected_sphere_force[1]) - lever[1] * (-expected_sphere_force[0])]
+        )
+    else:
+        expected_torque = np.cross(lever, -expected_sphere_force)
+    np.testing.assert_allclose(
+        state_rigid.torque[:dim],
+        np.tile(expected_torque, (dim, 1)),
+        rtol=1e-6,
+        atol=tol,
+    )
 
-    # Verify Newton's third law for total force on the rigid body
-    total_rigid_facet_force = f_vertices_rigid[0]
-    np.testing.assert_allclose(total_rigid_facet_force, -f_sphere_rigid, atol=1e-12)
-
-    # -------------------------------------------------------------------------
-    # TEST CASE 3: DEFORMABLE FACET
-    # -------------------------------------------------------------------------
-    # Create the deformable facet using the new rigid=False parameter
-    state_deformable = jdem.State.create()
+    # Deformable facet: barycentric distribution and zero nodal torque.
     state_deformable = jdem.State.add_facet(
-        state_deformable,
+        jdem.State.create(),
         vertices,
         thickness=0.1,
         species_id=jnp.array([1]),
         rigid=False,
     )
     state_deformable = jdem.State.merge(state_deformable, sphere_state)
-
     state_deformable, _ = system.collider.compute_force(state_deformable, system)
     state_deformable, _ = system.force_manager.apply(state_deformable, system)
 
     f_sphere_def = state_deformable.force[-1]
     f_vertices_def = state_deformable.force[:dim]
+    np.testing.assert_allclose(f_sphere_def, f_sphere_rigid, rtol=1e-6, atol=tol)
+    np.testing.assert_allclose(
+        jnp.sum(f_vertices_def, axis=0), -f_sphere_def, rtol=1e-6, atol=tol
+    )
+    np.testing.assert_allclose(
+        f_vertices_def, -expected_weights[:, None] * f_sphere_def, rtol=1e-6, atol=tol
+    )
+    np.testing.assert_allclose(state_deformable.torque[:dim], 0.0, atol=tol)
 
-    # Sphere force should be exactly the same in both cases (due to partition of unity)
-    np.testing.assert_allclose(f_sphere_def, f_sphere_rigid, atol=1e-11)
-
-    # Sum of forces on deformable vertices must equal the sphere force (equal and opposite)
-    total_def_facet_force = jnp.sum(f_vertices_def, axis=0)
-    np.testing.assert_allclose(total_def_facet_force, -f_sphere_def, atol=1e-12)
-
-    # Verify barycentric distribution of forces
-    # Vertices: 0 is A, 1 is B, 2 is C
-    if dim == 2:
-        expected_weights = jnp.array([0.25, 0.75])
-    else:
-        expected_weights = jnp.array([0.25, 0.25, 0.5])
-
-    for idx in range(dim):
-        weight = expected_weights[idx]
-        np.testing.assert_allclose(
-            f_vertices_def[idx], -f_sphere_def * weight, atol=1e-12
-        )
-
-    # Verify that torques on all vertices of deformable facet are zero
-    np.testing.assert_allclose(state_deformable.torque[:dim], 0.0, atol=1e-12)
-
-    # Verify energy partition
     _, _, energy_rigid = system.collider.compute_potential_energy(state, system)
     _, _, energy_deformable = system.collider.compute_potential_energy(
         state_deformable, system
     )
-    np.testing.assert_allclose(energy_deformable, energy_rigid, atol=1e-12)
+    np.testing.assert_allclose(energy_rigid, expected_energy, rtol=1e-6, atol=tol)
+    np.testing.assert_allclose(energy_deformable, energy_rigid, rtol=1e-6, atol=tol)
 
 
 def test_clump_of_rigid_facets():
-    # TEST CASE 2: CLUMPS OF RIGID TRIANGLES
-    # Create two facets that share the same clump_id (forming a single arbitrary shaped rigid body)
-    state = jdem.State.create()
-
-    # Add facet 1
-    state = jdem.State.add_facet(
-        state,
-        jnp.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]),
-        thickness=0.1,
-        species_id=jnp.array([1]),
+    # Two coplanar triangles forming a welded rigid unit square with valid shared COM.
+    vertices = jnp.array(
+        [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 1.0, 0.0]]
     )
-
-    # Add facet 2 (welded to the first one)
-    state = jdem.State.add_facet(
-        state,
-        jnp.array([[0.0, 1.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0]]),
+    faces = jnp.array([[0, 1, 2], [2, 1, 3]])
+    state = jdem.State.add_mesh(
+        jdem.State.create(dim=3),
+        vertices,
+        faces,
         thickness=0.1,
-        species_id=jnp.array([1]),
+        rigid=True,
+        filled=False,
+        mass=6.0,
+        species_id=1,
     )
-
-    # Weld them by setting their clump_id to 0
-    welded_clump_id = jnp.zeros(state.N, dtype=int)
-    state = dataclasses.replace(state, clump_id=welded_clump_id)
-
-    # Add a sphere overlapping facet 1
+    # Sphere overlapping only the first triangle at nearest point (0.2, 0.2, 0.0).
     sphere_state = jdem.State.create(
         pos=jnp.array([[0.2, 0.2, 0.1]]),
         rad=jnp.array([0.2]),
@@ -172,7 +145,6 @@ def test_clump_of_rigid_facets():
 
     mat = jdem.Material.create("elastic", young=1e4, poisson=0.3, density=1.0)
     mat_table = jdem.MaterialTable.from_materials([mat])
-
     router = jdem.ForceRouter.from_dict(
         S=2,
         mapping={
@@ -181,7 +153,6 @@ def test_clump_of_rigid_facets():
             (1, 1): jdem.ForceModel.create("facet_facet_spring"),
         },
     )
-
     system = jdem.System.create(
         state.shape,
         domain_type="free",
@@ -195,139 +166,35 @@ def test_clump_of_rigid_facets():
     state, _ = system.collider.compute_force(state, system)
     state, _ = system.force_manager.apply(state, system)
 
-    # All welded vertices should have the same total force and torque broadcasted from the clump COM
-    f_vertices = state.force[:6]
-    t_vertices = state.torque[:6]
-
-    for idx in range(1, 6):
-        np.testing.assert_allclose(f_vertices[idx], f_vertices[0], atol=1e-12)
-        np.testing.assert_allclose(t_vertices[idx], t_vertices[0], atol=1e-12)
-
-
-def test_facet_multicell_list_invariance():
-    # Set up a facet and a sphere
-    state = jdem.State.create()
-
-    # We will use 3D
-    vertices = jnp.array([[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [0.0, 2.0, 0.0]])
-    sphere_pos = jnp.array([[0.5, 1.0, 0.1]])
-
-    state = jdem.State.add_facet(
-        state,
-        vertices,
-        thickness=0.1,
-        species_id=jnp.array([1]),
-        safety_factor=1.2,
+    stiffness = float(system.mat_table.young_eff[0, 0])
+    expected_sphere_force = np.array([0.0, 0.0, stiffness * 0.2])
+    expected_com = np.array([0.5, 0.5, 0.0])
+    expected_torque = np.cross(
+        np.array([0.2, 0.2, 0.0]) - expected_com, -expected_sphere_force
     )
 
-    sphere_state = jdem.State.create(
-        pos=sphere_pos,
-        rad=jnp.array([0.2]),
-        mass=jnp.array([1.0]),
-        species_id=jnp.array([0]),
-    )
-    state = jdem.State.merge(state, sphere_state)
-
-    mat = jdem.Material.create("elastic", young=1e4, poisson=0.3, density=1.0)
-    mat_table = jdem.MaterialTable.from_materials([mat])
-
-    router = jdem.ForceRouter.from_dict(
-        S=2,
-        mapping={
-            (0, 0): jdem.ForceModel.create("spring"),
-            (1, 0): jdem.ForceModel.create("sphere_facet_spring"),
-            (1, 1): jdem.ForceModel.create("facet_facet_spring"),
-        },
-    )
-
-    # System with Naive collider
-    system_naive = jdem.System.create(
-        state.shape,
-        domain_type="free",
-        collider_type="Naive",
-        dt=0.001,
-        mat_table=mat_table,
-        force_model_type="forcerouter",
-        force_model_kw={"table": router.table},
-    )
-
-    # System with MultiCellList collider
-    system_mcl = jdem.System.create(
-        state.shape,
-        domain_type="free",
-        collider_type="MultiCellList",
-        collider_kw={"state": state, "cell_size": 1.0},
-        dt=0.001,
-        mat_table=mat_table,
-        force_model_type="forcerouter",
-        force_model_kw={"table": router.table},
-    )
-
-    # System with CellList collider
-    system_cl = jdem.System.create(
-        state.shape,
-        domain_type="free",
-        collider_type="CellList",
-        collider_kw={"state": state, "cell_size": 1.0},
-        dt=0.001,
-        mat_table=mat_table,
-        force_model_type="forcerouter",
-        force_model_kw={"table": router.table},
-    )
-
-    # Apply domain to all systems first
-    state_naive, system_naive = system_naive.domain.apply(state, system_naive)
-    state_mcl, system_mcl = system_mcl.domain.apply(state, system_mcl)
-    state_cl, system_cl = system_cl.domain.apply(state, system_cl)
-
-    # Compute forces
-    state_naive_res, _ = system_naive.collider.compute_force(state_naive, system_naive)
-    state_mcl_res, _ = system_mcl.collider.compute_force(state_mcl, system_mcl)
-    state_cl_res, _ = system_cl.collider.compute_force(state_cl, system_cl)
-
-    state_naive_sorted = state_naive_res
-    state_mcl_sorted = state_mcl_res
-    state_cl_sorted = state_cl_res
-
+    np.testing.assert_allclose(state.force[-1], expected_sphere_force, rtol=1e-6)
     np.testing.assert_allclose(
-        state_mcl_sorted.force, state_naive_sorted.force, atol=1e-12
+        state.force[:6], np.tile(-expected_sphere_force, (6, 1)), rtol=1e-6, atol=1e-5
     )
     np.testing.assert_allclose(
-        state_mcl_sorted.torque, state_naive_sorted.torque, atol=1e-12
+        state.torque[:6], np.tile(expected_torque, (6, 1)), rtol=1e-6, atol=1e-5
     )
-    np.testing.assert_allclose(
-        state_cl_sorted.force, state_naive_sorted.force, atol=1e-12
-    )
-    np.testing.assert_allclose(
-        state_cl_sorted.torque, state_naive_sorted.torque, atol=1e-12
-    )
-
-    # Verify potential energy
-    _, _, pe_naive = system_naive.collider.compute_potential_energy(
-        state_naive, system_naive
-    )
-    _, _, pe_mcl = system_mcl.collider.compute_potential_energy(state_mcl, system_mcl)
-    _, _, pe_cl = system_cl.collider.compute_potential_energy(state_cl, system_cl)
-    np.testing.assert_allclose(pe_mcl, pe_naive, atol=1e-12)
-    np.testing.assert_allclose(pe_cl, pe_naive, atol=1e-12)
 
 
 def test_reflect_domain_with_facets():
-    # 1. Set up a state with one moving rigid facet and one fixed rigid facet crossing the boundary
     state = jdem.State.create()
-
-    # Moveable rigid facet (species 0)
-    vertices_mov = jnp.array([[0.05, 0.5, 0.5], [0.9, 0.5, 0.5], [0.5, 0.9, 0.5]])
+    # Moving rigid facet penetrating x=0 wall by 0.005 (< |v*dt| = 0.01) at vertex 0 (rad=0.1).
+    vertices_mov = jnp.array([[0.095, 0.5, 0.5], [0.9, 0.5, 0.5], [0.5, 0.9, 0.5]])
     state = jdem.State.add_facet(
         state,
         vertices_mov,
         thickness=0.1,
-        vel=jnp.array([-10.0, 0.0, 0.0]),  # moving towards x = 0 wall
+        vel=jnp.array([-10.0, 0.0, 0.0]),
         fixed=False,
         species_id=0,
     )
-
-    # Fixed rigid facet (species 1) placed near/crossing the x = 0 wall
+    # Fixed rigid facet crossing the x=0 wall must remain untouched.
     vertices_fix = jnp.array([[-0.1, 1.5, 1.5], [0.5, 1.5, 1.5], [0.2, 1.9, 1.5]])
     state = jdem.State.add_facet(
         state,
@@ -338,32 +205,29 @@ def test_reflect_domain_with_facets():
         species_id=1,
     )
 
-    # Set up reflect system
     mat = jdem.Material.create("elastic", young=1e4, poisson=0.3, density=1.0)
-    mat_table = jdem.MaterialTable.from_materials([mat])
-
     system = jdem.System.create(
         state.shape,
         domain_type="reflect",
-        domain_kw={
-            "box_size": (2.0, 2.0, 2.0),
-            "anchor": (0.0, 0.0, 0.0),
-        },
+        domain_kw={"box_size": (2.0, 2.0, 2.0), "anchor": (0.0, 0.0, 0.0)},
         collider_type="Naive",
         dt=0.001,
-        mat_table=mat_table,
+        mat_table=jdem.MaterialTable.from_materials([mat]),
     )
+    state_new, _ = system.domain.apply(state, system)
 
-    # Apply reflect domain
-    state_new, system = system.domain.apply(state, system)
-
-    # Assertions:
-    # 1. The moving facet vertices have been pushed back and their velocity is reversed (since vel_x was negative, it should be positive now).
-    # Vertices of moving facet are 0, 1, 2.
-    assert np.all(state_new.vel[0:3, 0] > 0.0)
-    assert np.all(state_new.pos_c[0:3, 0] > 0.0)
-
-    # 2. The fixed facet vertices (indices 3, 4, 5) must NOT have moved (positions and velocities remain unchanged)
+    # Moving rigid facet reflects out of the wall, preserves rigid vertex distances, and gains +x velocity.
+    assert np.all(state_new.vel[:3, 0] > 0.0)
+    assert np.all(state_new.pos[:3, 0] >= 0.1 - 1e-6)
+    np.testing.assert_allclose(
+        state_new.pos_c[:3], np.broadcast_to(state_new.pos_c[0], (3, 3)), atol=1e-12
+    )
+    np.testing.assert_allclose(
+        np.linalg.norm(state_new.pos[:3] - state_new.pos_c[:3], axis=-1),
+        np.linalg.norm(state.pos[:3] - state.pos_c[:3], axis=-1),
+        rtol=1e-6,
+    )
+    # Fixed facet remains completely unchanged.
     np.testing.assert_allclose(state_new.pos_c[3:6], state.pos_c[3:6])
     np.testing.assert_allclose(state_new.vel[3:6], 0.0)
 
@@ -432,8 +296,6 @@ def test_intersecting_facets_follow_the_reciprocal_normal_convention():
         state=state, mat_table=table, force_model_type="facet_facet_spring"
     )
     actual, system = jdem.System.evaluate_forces(state, system)
-    # At zero distance the first segment's +y normal defines the force.
-    # This is an explicit reciprocal convention at a nondifferentiable energy.
     np.testing.assert_allclose(
         actual.force, [[0, 3], [0, 3], [0, -3], [0, -3]], atol=2e-6
     )

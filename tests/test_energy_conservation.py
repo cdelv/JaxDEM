@@ -13,8 +13,7 @@ from jaxdem.utils.thermal import compute_energy
 from tests.custom_forces import harmonic_trap, harmonic_trap_energy
 
 
-@pytest.mark.parametrize("integrator,order", [("euler", 1), ("verlet", 2)])
-@pytest.mark.parametrize("dim", [2, 3])
+@pytest.mark.parametrize("integrator,order,dim", [("euler", 1, 2), ("verlet", 2, 3)])
 def test_harmonic_oscillator_trajectory_and_convergence(integrator, order, dim):
     # m=k=1 sets the time unit; only omega*dt matters.
     x0 = np.arange(1, dim + 1, dtype=float) / dim

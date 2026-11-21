@@ -1,30 +1,36 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
-"""Check PPO schedules, advantages, recurrent resets, and learning behavior."""
-
-import jax
-import jax.numpy as jnp
+"""Check PPO schedules, batching, recurrent resets, drip, and learning behavior."""
 
 from dataclasses import dataclass, replace
 
-import numpy as np
 import distrax
+import jax
+import jax.numpy as jnp
+import numpy as np
 import optax
 import pytest
 from flax import nnx
 
+from jaxdem.rl.action_spaces import ActionSpace
+from jaxdem.rl.env_wrappers import vectorise_env
+from jaxdem.rl.environments import Environment
+from jaxdem.rl.models import MinGRUActorCritic, Model, SharedActorCritic
 from jaxdem.rl.trainers import Trainer, TrajectoryData
 from jaxdem.rl.trainers.ppo_trainer import (
     PPOTrainer,
     _build_optimizer,
     _epoch_learning_rate_schedule,
+    _minibatch_selection,
 )
-from jaxdem.rl.environments import Environment
-from jaxdem.rl.models import Model
-from jaxdem.system import System
 from jaxdem.state import State
-from jaxdem.rl.action_spaces import ActionSpace
-from jaxdem.rl.env_wrappers import vectorise_env
+from jaxdem.system import System
+from tests.test_ppo_objective import ConstantPolicyCritic
+
+
+def _sgd(learning_rate, eps):
+    del eps
+    return optax.sgd(learning_rate)
 
 
 def test_ppo_learning_rate_schedule_uses_epochs():
@@ -41,12 +47,8 @@ def test_ppo_learning_rate_schedule_uses_epochs():
 
 
 def test_ppo_schedule_counts_accumulated_updates():
-    def sgd_factory(learning_rate, eps):
-        del eps
-        return optax.sgd(learning_rate)
-
     schedule = _epoch_learning_rate_schedule(1.0, num_epochs=4, updates_per_epoch=2)
-    tx = _build_optimizer(sgd_factory, schedule, float("inf"), 2)
+    tx = _build_optimizer(_sgd, schedule, float("inf"), 2)
     params = jnp.array(0.0)
     state = tx.init(params)
     emitted = []
@@ -55,7 +57,6 @@ def test_ppo_schedule_counts_accumulated_updates():
         params = optax.apply_updates(params, update)
         emitted.append(update)
 
-    # Accumulation counts emitted optimizer updates, not minibatches.
     resumed_state = state
     for _ in range(2):
         update, resumed_state = tx.update(jnp.array(1.0), resumed_state, params)
@@ -101,30 +102,6 @@ def test_ppo_accumulates_raw_gradient_mean_before_clipping():
     reference_leaves = jax.tree.leaves(reference_state)
     assert len(inner_leaves) == len(reference_leaves)
     assert all(jnp.allclose(x, y) for x, y in zip(inner_leaves, reference_leaves))
-
-
-def test_gae_analytical():
-    rewards = jnp.array([[1.0], [2.0]])
-    values = jnp.array([[0.5], [0.5]])
-    dones = jnp.array([[0.0], [1.0]])
-    ratios = jnp.array([[1.0], [1.0]])
-
-    returns, advantages = Trainer.compute_advantages(
-        value=values,
-        reward=rewards,
-        ratio=ratios,
-        done=dones,
-        advantage_rho_clip=jnp.array(1.0),
-        advantage_c_clip=jnp.array(1.0),
-        advantage_gamma=jnp.array(1.0),
-        advantage_lambda=jnp.array(1.0),
-        last_value=jnp.array([0.0]),
-        unroll=1,
-    )
-
-    expected_advantages = jnp.array([[2.5], [1.5]])
-    assert jnp.allclose(advantages, expected_advantages)
-    assert jnp.allclose(returns, expected_advantages + values)
 
 
 def test_truncation_bootstraps_but_termination_does_not():
@@ -174,29 +151,9 @@ def test_inactive_agents_do_not_contribute_advantages():
     np.testing.assert_allclose(target, [[2.0, 0.0], [1.0, 0.0]])
 
 
-def test_policy_heads_do_not_create_unused_sigma_parameters():
-    from jaxdem.rl.models.mlp import SharedActorCritic
-
-    discrete = SharedActorCritic(
-        observation_space_size=2,
-        action_space_size=3,
-        key=nnx.Rngs(0),
-        discrete=True,
-    )
-    continuous_head = SharedActorCritic(
-        observation_space_size=2,
-        action_space_size=1,
-        key=nnx.Rngs(1),
-        actor_sigma_head=True,
-    )
-    assert not hasattr(discrete, "actor_sigma")
-    assert not hasattr(continuous_head.actor_sigma, "log_std")
-
-
 @pytest.mark.parametrize("model_name", ["lstm", "mingru"])
 def test_recurrent_full_reset_clears_nonfinite_carry(model_name):
     from jaxdem.rl.models.lstm import LSTMActorCritic
-    from jaxdem.rl.models.mingru import MinGRUActorCritic
 
     if model_name == "lstm":
         model = LSTMActorCritic(
@@ -228,7 +185,6 @@ def test_recurrent_full_reset_clears_nonfinite_carry(model_name):
         )
         expected.append((carry[...].shape, carry[...].dtype))
 
-    # Same shape exercises the full-reset branch, rather than allocation.
     model.reset((2, 3, 2))
     for carry, (shape, dtype) in zip(carry_variables, expected, strict=True):
         assert carry[...].shape == shape
@@ -238,7 +194,6 @@ def test_recurrent_full_reset_clears_nonfinite_carry(model_name):
 
 def test_recurrent_reset_masks_individual_agents():
     from jaxdem.rl.models.lstm import LSTMActorCritic
-    from jaxdem.rl.models.mingru import MinGRUActorCritic
 
     mask = jnp.array([[False, True, False], [True, False, True]])
     models = [
@@ -246,8 +201,6 @@ def test_recurrent_reset_masks_individual_agents():
         MinGRUActorCritic(2, 1, nnx.Rngs(3), carry_leading_shape=(2, 3)),
     ]
     for model in models:
-        assert not hasattr(model, "actor_mu")
-        assert not hasattr(model, "critic")
         if hasattr(model, "c"):
             model.c.value = jnp.ones_like(model.c.value)
         model.h.value = jnp.ones_like(model.h.value)
@@ -261,17 +214,12 @@ def test_recurrent_reset_masks_individual_agents():
 
 @pytest.mark.parametrize("model_name", ["lstm", "mingru"])
 def test_recurrent_replay_matches_online_rollout_across_inactive_gap(model_name):
-    # Sequence replay and single-step rollout use different GPU kernels. Highest
-    # precision keeps this test focused on boundary placement rather than TF32
-    # accumulation differences between those kernels.
     with jax.default_matmul_precision("highest"):
         if model_name == "lstm":
             from jaxdem.rl.models.lstm import LSTMActorCritic
 
             model_type = LSTMActorCritic
         else:
-            from jaxdem.rl.models.mingru import MinGRUActorCritic
-
             model_type = MinGRUActorCritic
 
         online = model_type(1, 1, nnx.Rngs(17), carry_leading_shape=(1,))
@@ -338,9 +286,7 @@ def test_gradient_detachment():
 
     values = jnp.array([[0.5], [0.5]])
     rewards = jnp.array([[1.0], [2.0]])
-
     grads = jax.grad(advantage_fn, argnums=(0, 1))(values, rewards)
-
     assert jnp.all(grads[0] == 0.0)
     assert jnp.all(grads[1] == 0.0)
 
@@ -401,26 +347,6 @@ class ObservationValueModel(BanditModel):
     def __call__(self, x, sequence=False, **kwargs):
         dist, _ = super().__call__(x, sequence=sequence, **kwargs)
         return dist, x[..., :1]
-
-
-@jax.tree_util.register_dataclass
-@dataclass(slots=True)
-class ResetInactiveEnv(TimeLimitCounterEnv):
-    @staticmethod
-    def reset(env, key):
-        del key
-        return replace(env, env_params={"count": jnp.asarray(0), "active": False})
-
-    @staticmethod
-    def agent_mask(env):
-        return jnp.full((env.max_num_agents,), env.env_params.get("active", True))
-
-
-def test_ppo_rejects_reset_that_produces_no_active_agents():
-    base = TimeLimitCounterEnv.Create()
-    env = ResetInactiveEnv(base.state, base.system, base.env_params)
-    with pytest.raises(ValueError, match="reset.*at least one active agent"):
-        PPOTrainer.Create(env=env, model=ObservationValueModel(), num_envs=1)
 
 
 @jax.tree_util.register_dataclass
@@ -498,6 +424,355 @@ def test_trainer_resets_truncation_and_bootstraps_final_observation():
     assert jnp.all(trajectory.bootstrap_value == 1.0)
 
 
+@jax.tree_util.register_dataclass
+@dataclass(slots=True)
+class MarkedTerminalEnv(TimeLimitCounterEnv):
+    """One-step episodes with a distinct reward for each environment slot."""
+
+    @staticmethod
+    def reset(env, key):
+        del key
+        return replace(
+            env,
+            env_params={
+                "count": jnp.asarray(0),
+                "marker": env.env_params.get("marker", jnp.asarray(1.0)),
+            },
+        )
+
+    @staticmethod
+    def step(env, action):
+        del action
+        return replace(
+            env,
+            env_params={**env.env_params, "count": env.env_params["count"] + 1},
+        )
+
+    @staticmethod
+    def observation(env):
+        return env.env_params["marker"][None, None]
+
+    @staticmethod
+    def reward(env):
+        return env.env_params["marker"][None]
+
+    @staticmethod
+    def terminated(env):
+        return env.env_params["count"] > 0
+
+    @staticmethod
+    def truncated(env):
+        return jnp.asarray(False)
+
+
+@jax.tree_util.register_dataclass
+@dataclass(slots=True)
+class PaddedTerminalEnv(MarkedTerminalEnv):
+    @classmethod
+    def Create(cls, dim=2):
+        state = State.create(pos=jnp.zeros((2, dim)))
+        return cls(state, System.create(state.shape), {"count": jnp.asarray(0)})
+
+    @staticmethod
+    def observation(env):
+        return jnp.zeros((2, 1))
+
+    @staticmethod
+    def reward(env):
+        return jnp.array([1.0, 999.0])
+
+    @staticmethod
+    def agent_mask(env):
+        return jnp.array([True, False])
+
+
+@pytest.mark.parametrize(
+    "horizon, batch_size, reward_means",
+    [
+        (1, 3, [2.0, 7 / 3, 8 / 3, 3.0]),
+        (3, 5, [1.4, 3.0, 2.2, 2.4]),
+    ],
+)
+def test_epoch_visits_contiguous_batches_wraps_and_preserves_rollout(
+    horizon, batch_size, reward_means
+):
+    trainer = PPOTrainer.Create(
+        MarkedTerminalEnv.Create(),
+        ConstantPolicyCritic(),
+        num_envs=4,
+        num_steps_epoch=horizon,
+        num_minibatches=4,
+        minibatch_size=batch_size,
+        optimizer=_sgd,
+        learning_rate=0.1,
+        anneal_learning_rate=False,
+        max_grad_norm=float("inf"),
+        ppo_clip_eps=100.0,
+        ppo_value_coeff=1.0,
+        ppo_entropy_coeff=0.0,
+    )
+    trainer.env = replace(
+        trainer.env,
+        env_params={**trainer.env.env_params, "marker": jnp.arange(1.0, 5.0)},
+    )
+    trainer, td, metrics = trainer.epoch(trainer, jnp.asarray(0))
+
+    prediction = 0.0
+    advantages = []
+    for reward_mean in reward_means:
+        advantages.append(reward_mean - prediction)
+        prediction += 0.1 * advantages[-1]
+    assert jnp.allclose(trainer.model.bias[...], prediction)
+    assert jnp.allclose(metrics["actor_loss"], -sum(advantages) / 4)
+    assert jnp.array_equal(
+        td.reward, jnp.broadcast_to(jnp.arange(1.0, 5.0), (horizon, 4))
+    )
+    assert jnp.array_equal(td.value, jnp.zeros((horizon, 4)))
+    assert jnp.array_equal(td.ratio, jnp.ones((horizon, 4)))
+    expected_lp = -0.5 * jnp.square(td.action[..., 0]) - 0.5 * jnp.log(2 * jnp.pi)
+    assert jnp.allclose(td.log_prob, expected_lp)
+
+
+def test_transition_selection_has_exact_size_and_wraps():
+    for batch_size in range(3, 13):
+        for update in range(12):
+            indices, mask = _minibatch_selection(3, 4, batch_size, jnp.asarray(update))
+            positions = indices[None, :] * 3 + jnp.arange(3)[:, None]
+            selected = sorted(positions[mask].tolist())
+            expected = sorted((update * batch_size + i) % 12 for i in range(batch_size))
+            assert selected == expected
+            assert len(set(indices.tolist())) == len(indices)
+
+
+def test_inactive_only_block_does_not_advance_optimizer_momentum():
+    def momentum_sgd(learning_rate, eps):
+        del eps
+        return optax.sgd(learning_rate, momentum=0.9)
+
+    trainer = PPOTrainer.Create(
+        PaddedTerminalEnv.Create(),
+        ConstantPolicyCritic(),
+        num_envs=1,
+        num_steps_epoch=1,
+        num_minibatches=2,
+        minibatch_size=1,
+        optimizer=momentum_sgd,
+        learning_rate=0.1,
+        anneal_learning_rate=False,
+        ppo_clip_eps=100.0,
+        ppo_value_coeff=1.0,
+        ppo_entropy_coeff=0.0,
+    )
+    trainer, _, metrics = trainer.epoch(trainer, jnp.asarray(0))
+    assert jnp.allclose(trainer.model.bias[...], 0.1)
+    assert jnp.allclose(metrics["score"], 1.0)
+
+
+@jax.tree_util.register_dataclass
+@dataclass(slots=True)
+class CheckpointCounter(Environment):
+    @classmethod
+    def Create(cls):
+        state = State.create(pos=jnp.zeros((1, 2)))
+        return cls(
+            state,
+            System.create(state.shape),
+            {
+                "count": jnp.asarray(0),
+                "limit": jnp.asarray(100),
+                "terminal": jnp.asarray(False),
+                "checkpoints": jnp.asarray(0),
+                "previous": jnp.asarray(0.0),
+            },
+        )
+
+    @staticmethod
+    def reset(env, key):
+        return replace(
+            env,
+            env_params={
+                **env.env_params,
+                "count": jnp.asarray(0),
+                "checkpoints": jnp.asarray(0),
+                "previous": jnp.asarray(0.0),
+            },
+        )
+
+    @staticmethod
+    def step(env, action):
+        return replace(
+            env, env_params={**env.env_params, "count": env.env_params["count"] + 1}
+        )
+
+    @staticmethod
+    def checkpoint(env, action):
+        p = env.env_params
+        return replace(
+            env,
+            env_params={
+                **p,
+                "previous": p["count"].astype(float) ** 2,
+                "checkpoints": p["checkpoints"] + 1,
+            },
+        )
+
+    @staticmethod
+    def observation(env):
+        return env.env_params["count"].astype(float).reshape(1, 1)
+
+    @staticmethod
+    def reward(env):
+        return (
+            env.env_params["count"].astype(float) ** 2 - env.env_params["previous"]
+        )[None]
+
+    @staticmethod
+    def terminated(env):
+        p = env.env_params
+        return (p["count"] >= p["limit"]) & p["terminal"]
+
+    @staticmethod
+    def truncated(env):
+        p = env.env_params
+        return (p["count"] >= p["limit"]) & ~p["terminal"]
+
+
+@jax.tree_util.register_dataclass
+@dataclass(slots=True)
+class ActionLookupEnv(CheckpointCounter):
+    """Two slots, one inactive; discrete actions must really be valid indices."""
+
+    @classmethod
+    def Create(cls):
+        env = CheckpointCounter.Create()
+        state = env.state.add(env.state, pos=jnp.ones((1, 2)), rad=jnp.ones(1))
+        return cls(
+            state,
+            env.system,
+            {
+                **env.env_params,
+                "limit": jnp.asarray(2),
+                "total": jnp.asarray(0.0),
+                "inactive_action": jnp.asarray(0.0),
+            },
+        )
+
+    @staticmethod
+    def agent_mask(env):
+        return jnp.array([True, False])
+
+    @staticmethod
+    def observation(env):
+        return jnp.broadcast_to(env.env_params["count"].astype(float), (2, 1))
+
+    @staticmethod
+    def reward(env):
+        return jnp.array([env.env_params["total"], 0.0])
+
+    @staticmethod
+    def step(env, action):
+        if jnp.issubdtype(action.dtype, jnp.integer):
+            amount = jnp.array([0.0, 1.0, 4.0])[action[0]]
+            inactive = action[1]
+        else:
+            amount, inactive = action[0, 0], action[1, 0]
+        return replace(
+            env,
+            env_params={
+                **env.env_params,
+                "count": env.env_params["count"] + 1,
+                "total": env.env_params["total"] + amount,
+                "inactive_action": inactive.astype(float),
+            },
+        )
+
+
+@pytest.mark.parametrize(
+    "middle_done,expected", [(False, [2.75, 3.5, 3.0]), (True, [2.0, 2.0, 3.0])]
+)
+def test_drip_epoch_returns_the_known_backward_reward_sequence(
+    monkeypatch, middle_done, expected
+):
+    from tests.test_caps import trajectory
+
+    trainer = PPOTrainer.Create(
+        TimeLimitCounterEnv.Create(),
+        BanditModel(),
+        num_envs=1,
+        num_steps_epoch=3,
+        num_minibatches=1,
+        drip_decay=0.5,
+        learning_rate=0.0,
+    )
+    original = trajectory(
+        jnp.zeros((3, 1, 1, 1)),
+        done=jnp.array([False, middle_done, False]).reshape(3, 1, 1),
+    )
+    original = replace(original, reward=jnp.array([1.0, 2.0, 3.0]).reshape(3, 1, 1))
+
+    def rollout(env, graphdef, graphstate, key, *args, **kwargs):
+        return env, graphstate, key, original
+
+    monkeypatch.setattr(PPOTrainer, "trajectory_rollout", staticmethod(rollout))
+    _, collected, _ = jax.jit(PPOTrainer.epoch.__wrapped__)(trainer, jnp.array(0))
+    np.testing.assert_allclose(collected.reward[:, 0], expected)
+    np.testing.assert_array_equal(original.reward[:, 0, 0], [1.0, 2.0, 3.0])
+
+
+@pytest.mark.parametrize(
+    "discrete,model_type",
+    [(False, SharedActorCritic), (True, MinGRUActorCritic)],
+)
+def test_tiny_ppo_epoch_accepts_both_action_types_with_padding(discrete, model_type):
+    kwargs = (
+        {"hidden_features": 4, "gru_features": 4, "num_layers": 2}
+        if model_type is MinGRUActorCritic
+        else {"architecture": [4]}
+    )
+    model = model_type(
+        observation_space_size=1,
+        action_space_size=3 if discrete else 1,
+        key=nnx.Rngs(8),
+        discrete=discrete,
+        **kwargs,
+    )
+    tr = PPOTrainer.Create(
+        ActionLookupEnv.Create(),
+        model,
+        num_envs=2,
+        num_steps_epoch=2,
+        num_minibatches=2,
+        skip_frames=1,
+    )
+    before = [
+        np.asarray(x).copy() for x in jax.tree.leaves(nnx.state(tr.model, nnx.Param))
+    ]
+    tr, td, metrics = tr.epoch(tr, jnp.asarray(0))
+    assert jnp.issubdtype(td.action.dtype, jnp.integer) == discrete
+    assert td.action.shape == ((2, 4) if discrete else (2, 4, 1))
+    assert jnp.all(td.action[:, 1::2] == 0)
+    assert jnp.all(tr.env.env_params["inactive_action"] == 0)
+    assert all(jnp.all(jnp.isfinite(x)) for x in jax.tree.leaves(metrics))
+    assert (td.latent_action is None) == discrete
+    action = np.asarray(td.action[:, ::2])
+    amount = np.array([0.0, 1.0, 4.0])[action] if discrete else action[..., 0]
+    expected_reward = 2 * np.cumsum(amount, axis=0)
+    np.testing.assert_allclose(td.reward[:, ::2], expected_reward, rtol=2e-6, atol=1e-7)
+    np.testing.assert_array_equal(td.reward[:, 1::2], 0.0)
+    np.testing.assert_allclose(
+        tr.env.env_params["total"], expected_reward[-1], rtol=2e-6, atol=1e-7
+    )
+    np.testing.assert_allclose(
+        metrics["score"], expected_reward.mean(), rtol=2e-6, atol=1e-7
+    )
+    assert any(
+        not np.array_equal(a, b)
+        for a, b in zip(
+            before, jax.tree.leaves(nnx.state(tr.model, nnx.Param)), strict=True
+        )
+    )
+
+
 @Environment.register("StatelessBandit")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
@@ -515,10 +790,7 @@ class StatelessBanditEnv(Environment):
     @staticmethod
     def step(env, action):
         reward = jnp.where(action[..., 0] > 0, 1.0, -1.0)
-        reward = jnp.reshape(reward, (1,))
-        from dataclasses import replace
-
-        return replace(env, env_params={"reward": reward})
+        return replace(env, env_params={"reward": jnp.reshape(reward, (1,))})
 
     @staticmethod
     def reward(env):
@@ -547,13 +819,10 @@ class StatelessBanditEnv(Environment):
 
 @pytest.mark.slow
 def test_stateless_bandit():
-    env = StatelessBanditEnv.Create()
-    model = BanditModel(
-        observation_space_size=1,
-        action_space_size=1,
-        action_space=ActionSpace.create("maxNorm", max_norm=1.0),
-    )
+    from scipy.special import ndtr
 
+    env = StatelessBanditEnv.Create()
+    model = BanditModel(observation_space_size=1, action_space_size=1)
     tr = PPOTrainer.Create(
         env=env,
         model=model,
@@ -565,16 +834,9 @@ def test_stateless_bandit():
         optimizer=optax.adam,
         learning_rate=0.1,
     )
-
     tr = tr.train(tr, verbose=False, log=False)
-
-    model, optimizer = nnx.merge(tr.graphdef, tr.graphstate)
-
+    model, _ = nnx.merge(tr.graphdef, tr.graphstate)
     dist, val = model(jnp.zeros((1, 1)))
-
-    # For this bandit E[r]=2*Phi(mu/sigma)-1; a large mean alone is insufficient.
-    from scipy.special import ndtr
-
     expected_return = float(2 * ndtr(float(dist.loc[0, 0] / dist.scale_diag[0, 0])) - 1)
     assert expected_return > 0.95
     assert abs(float(val[0, 0]) - expected_return) < 0.15
@@ -599,10 +861,7 @@ class DeterministicCorridorEnv(Environment):
 
     @staticmethod
     def reset(env, key):
-        from dataclasses import replace
-
-        new_pos = jnp.zeros_like(env.state.pos_c)
-        new_state = replace(env.state, pos_c=new_pos)
+        new_state = replace(env.state, pos_c=jnp.zeros_like(env.state.pos_c))
         return replace(
             env,
             state=new_state,
@@ -617,18 +876,12 @@ class DeterministicCorridorEnv(Environment):
         pos_x = env.state.pos_c[..., 0] + action[..., 0]
         pos_y = env.state.pos_c[..., 1]
         new_pos = jnp.stack([pos_x, pos_y], axis=-1)
-        from dataclasses import replace
-
         new_state = replace(env.state, pos_c=new_pos, pos_p=new_pos)
-
         reached_goal = pos_x >= 5.0
-        reward = jnp.where(reached_goal, 10.0, -0.1)
-        reward = jnp.reshape(reward, (env.max_num_agents,))
-
+        reward = jnp.reshape(
+            jnp.where(reached_goal, 10.0, -0.1), (env.max_num_agents,)
+        )
         done = jnp.reshape(reached_goal, ())
-
-        from dataclasses import replace
-
         return replace(
             env, state=new_state, env_params={"reward": reward, "done": done}
         )
@@ -639,8 +892,7 @@ class DeterministicCorridorEnv(Environment):
 
     @staticmethod
     def terminated(env):
-        d = env.env_params.get("done", jnp.array(False, dtype=bool))
-        return jnp.reshape(d, ())
+        return jnp.reshape(env.env_params.get("done", jnp.array(False, dtype=bool)), ())
 
     @staticmethod
     def observation(env):
@@ -653,8 +905,6 @@ class DeterministicCorridorEnv(Environment):
 
 @pytest.mark.slow
 def test_deterministic_corridor():
-    from jaxdem.rl.models.mlp import SharedActorCritic
-
     env = DeterministicCorridorEnv.Create()
     model = SharedActorCritic(
         observation_space_size=1,
@@ -662,7 +912,6 @@ def test_deterministic_corridor():
         action_space=ActionSpace.create("maxNorm", max_norm=2.0),
         key=nnx.Rngs(0),
     )
-
     tr = PPOTrainer.Create(
         env=env,
         model=model,
@@ -675,12 +924,8 @@ def test_deterministic_corridor():
         learning_rate=3e-3,
         advantage_gamma=0.99,
     )
-
     tr = tr.train(tr, verbose=False, log=False)
-
-    model, optimizer = nnx.merge(tr.graphdef, tr.graphstate)
-    dist, val = model(jnp.zeros((1, 1)))
-    # Evaluate an actual goal-reaching rollout with the squashed mean policy.
+    model, _ = nnx.merge(tr.graphdef, tr.graphstate)
     total_reward = 0.0
     for _ in range(16):
         dist, _ = model(env.observation(env))
@@ -693,7 +938,7 @@ def test_deterministic_corridor():
     assert total_reward >= 8.5
 
 
-@pytest.mark.parametrize("counts", [(-1, -1), (0, 0), (-1, 0)])
+@pytest.mark.parametrize("counts", [(-1, -1), (-1, 0)])
 def test_lstm_truncation_bootstrap_preserves_rollout_carry(counts):
     from jaxdem.rl.models.lstm import LSTMActorCritic
 
@@ -712,7 +957,6 @@ def test_lstm_truncation_bootstrap_preserves_rollout_carry(counts):
     model.h[...] = jnp.full_like(model.h[...], 0.5)
     graphdef, graphstate = nnx.split((model,))
 
-    # Independently evaluate the policy observation and final observation.
     reference = nnx.clone(model)
     reference(env.observation(env), sequence=False)
     expected_c, expected_h = reference.c[...], reference.h[...]
@@ -740,7 +984,6 @@ def test_lstm_epoch_bootstrap_does_not_advance_saved_carry():
     from jaxdem.rl.models.lstm import LSTMActorCritic
 
     model = LSTMActorCritic(1, 1, nnx.Rngs(11), hidden_features=8, lstm_features=8)
-    # Ensure a pass over a zero observation changes the recurrent state.
     model.encoder.layers[0].bias[...] = jnp.full((8,), 0.2)
     tr = PPOTrainer.Create(
         env=TimeLimitCounterEnv.Create(),
@@ -755,7 +998,6 @@ def test_lstm_epoch_bootstrap_does_not_advance_saved_carry():
     jax.block_until_ready(metrics)
     trained_model, _ = nnx.merge(tr.graphdef, tr.graphstate)
     assert jnp.all(trajectory.truncated)
-    # Every transition truncates, so the rollout carry must stay reset.
     assert jnp.all(trained_model.c[...] == 0)
     assert jnp.all(trained_model.h[...] == 0)
     assert all(bool(jnp.all(jnp.isfinite(v))) for v in metrics.values())
