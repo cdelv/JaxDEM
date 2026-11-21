@@ -172,10 +172,12 @@ def _warn_missing_example_api_reference(app, env, node, contnode):
 
 
 def setup(app):
+    from benchmarks.dashboard import make_sphinx_directive
     from tools.docs_media import SimulationImage
 
     app.add_config_value("jaxdem_visuals_enabled", False, "env")
     app.add_directive("simulation-image", SimulationImage)
+    app.add_directive("jaxdem-benchmarks", make_sphinx_directive())
     # Let other resolvers (including optional intersphinx) try first.
     app.connect("missing-reference", _warn_missing_example_api_reference, priority=999)
 

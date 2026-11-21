@@ -1,7 +1,53 @@
 Benchmarks
 ==========
 
-The repository stores historical kernel measurements in
-`benchmarks/results.json <https://github.com/cdelv/JaxDEM/blob/main/benchmarks/results.json>`_.
-These measurements describe the recorded commits and hardware. They do not
-represent current release performance.
+Throughput progression (million particle-steps per second) on the unified
+spheres-in-a-box benchmark (``rad = 1``, ``mass = 1``, ``k = 1000``,
+``dt = 0.01``, ``steps = 2000`` on GPU, ``only_spheres = False`` so performance
+matches the general clump path):
+
+* **4 fixed report regimes:** high/low initial speed (``v = 0.5`` vs. ``0.05``)
+  × high/low packing fraction (3D: ``φ = 0.60`` FCC vs. ``0.25`` SC;
+  2D: ``φ = 0.72`` hexagonal vs. ``0.30`` square, zero initial overlap).
+  External callers can pass any ``φ ∈ [0, 0.7]`` (3D) or ``[0, 0.8]`` (2D)
+  and ``v ∈ [0, 1]``.
+* **2D & 3D × 4 boundary conditions:** ``periodic``, ``leesedwards``,
+  ``reflect``, and ``reflectsphere``.
+* **All colliders + NeighborList combinations:** ``cell_list``,
+  ``cell_list_static``, ``multi_cell_list``, ``multi_cell_list_static``,
+  ``naive``, plus ``nl_cell_list``, ``nl_cell_list_static``,
+  ``nl_multi_cell_list``, ``nl_multi_cell_list_static``, and ``nl_naive``.
+* **Single & Batch modes:** ``single`` at ``N = 65,536`` (``5,000`` for
+  ``naive`` / ``nl_naive``) and ``batch`` with ``B = 8`` replicas at half the
+  spheres per replica (``8 × 32,768`` / ``8 × 2,500``).
+* **Stateless & history force laws:** ``spring`` across all 10 colliders and
+  ``cundallstrack`` (with pair history) across the 6 history-capable colliders.
+
+Each hardware target has its own section below, rendered dynamically at docs
+build time from the compact JSONL log in
+`benchmarks/history.jsonl <https://github.com/cdelv/JaxDEM/blob/main/benchmarks/history.jsonl>`_.
+
+.. jaxdem-benchmarks::
+
+Running Benchmarks Locally
+--------------------------
+
+.. code-block:: bash
+
+   # Run everything (warns if power/throttle policy is not high performance)
+   python -m benchmarks
+
+   # Run a single case or slice along any axis
+   python -m benchmarks --dim 3d --domain periodic --force spring --mode single --collider nl_cell_list --regime high_vel_high_phi
+   python -m benchmarks --dim 3d --domain leesedwards --force cundallstrack
+   python -m benchmarks -k nl_cell_list/high_vel_high_phi
+
+   # Custom packing fraction & velocity (external ad-hoc point; not recorded to report)
+   python -m benchmarks --dim 3d --domain periodic --collider cell_list --phi 0.55 --vel 0.3 --steps 200
+
+   # Record this commit into benchmarks/history.jsonl (merges partial runs cleanly)
+   python -m benchmarks --dim 3d --domain periodic --record
+
+   # Compare recorded commits or export standalone HTML
+   python -m benchmarks compare [REV_A] [REV_B]
+   python -m benchmarks report --out /tmp/jaxdem_benchmarks.html
