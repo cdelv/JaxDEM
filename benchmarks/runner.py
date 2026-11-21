@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import datetime
+import gc
 import shutil
 import subprocess
 import sys
@@ -31,8 +32,22 @@ def _block(tree: Any) -> None:
     jax.block_until_ready(tree)
 
 
+def _check_collider_overflow(collider: Any) -> None:
+    """Recursively verify zero overflow on a collider and any secondary collider."""
+    if collider is None:
+        return
+    overflow = getattr(collider, "overflow", None)
+    if overflow is not None and bool(np.any(np.asarray(overflow))):
+        raise RuntimeError(
+            f"benchmark collider ({type(collider).__name__}) reported overflow"
+        )
+    secondary = getattr(collider, "secondary_collider", None)
+    if secondary is not None:
+        _check_collider_overflow(secondary)
+
+
 def _validate(output: Any) -> None:
-    """Verify finiteness and zero collider overflow outside timed loops."""
+    """Verify finiteness and zero collider/search overflow outside timed loops."""
     for leaf in jax.tree.leaves(output):
         arr = np.asarray(leaf)
         if np.issubdtype(arr.dtype, np.number) and not np.all(np.isfinite(arr)):
@@ -46,9 +61,19 @@ def _validate(output: Any) -> None:
             continue
         if hasattr(item, "check_overflow"):
             item.check_overflow()
-        collider = getattr(item, "collider", None)
-        if collider is not None and bool(np.any(np.asarray(collider.overflow))):
-            raise RuntimeError("benchmark collider reported overflow")
+        search_overflow = getattr(item, "search_overflow", None)
+        if search_overflow is not None and bool(np.any(np.asarray(search_overflow))):
+            raise RuntimeError("benchmark system reported search_overflow")
+        _check_collider_overflow(getattr(item, "collider", None))
+
+
+def _get_nl_build_count(system: Any) -> np.ndarray | None:
+    """Return NeighborList.n_build_times as an int64 host array, or None."""
+    collider = getattr(system, "collider", None)
+    cnt = getattr(collider, "n_build_times", None)
+    if cnt is None:
+        return None
+    return np.asarray(cnt, dtype=np.int64)
 
 
 def check_throttle_policy() -> list[str]:
@@ -191,22 +216,44 @@ def _round_sig(val: float, sig: int = 4) -> float:
     return float(f"{val:.{sig}g}")
 
 
-def _time_built(built: tuple[Any, int, int], repeats: int) -> float:
-    fn, total_particles, actual_steps = built
-    out = fn()
-    _block(out)
-    _validate(out)
+def _run_and_time(
+    built: tuple[Any, Any, Any, int, int],
+) -> tuple[float, int, int, int | float | None]:
+    """Warm up for ``actual_steps``, sync, then measure one run from the mixed state."""
+    step_fn, state, system, total_particles, actual_steps = built
+    del built
 
-    samples_s: list[float] = []
-    for _ in range(repeats):
-        t0 = time.perf_counter()
-        out = fn()
-        _block(out)
-        samples_s.append(time.perf_counter() - t0)
+    # Ensure initial buffers are ready before launching warmup.
+    _block((state, system))
 
-    _validate(out)
-    med_s = float(np.median(np.asarray(samples_s, dtype=np.float64)))
-    return _round_sig((total_particles * actual_steps) / max(med_s, 1e-12) / 1e6)
+    # Warmup runs the same step count so JIT compiles and particles mix off the lattice.
+    state, system = step_fn(state, system)
+    _block((state, system))
+    _validate((state, system))
+    builds_before = _get_nl_build_count(system)
+
+    # Single timed measurement (no repeats) starting at step=actual_steps.
+    t0 = time.perf_counter()
+    state, system = step_fn(state, system)
+    _block((state, system))
+    elapsed_s = time.perf_counter() - t0
+
+    _validate((state, system))
+    builds_after = _get_nl_build_count(system)
+
+    nl_rebuilds: int | float | None = None
+    if builds_before is not None and builds_after is not None:
+        delta = builds_after - builds_before
+        if delta.ndim == 0:
+            nl_rebuilds = int(delta)
+        else:
+            mean_val = float(np.mean(delta))
+            nl_rebuilds = int(mean_val) if mean_val.is_integer() else round(mean_val, 1)
+
+    del step_fn, state, system
+    gc.collect()
+    mps = _round_sig((total_particles * actual_steps) / max(elapsed_s, 1e-12) / 1e6)
+    return mps, total_particles, actual_steps, nl_rebuilds
 
 
 def run_custom(
@@ -216,13 +263,14 @@ def run_custom(
     domain: str = "periodic",
     dim: str = "3d",
     mode: str = "single",
-    phi: float = 0.60,
-    vel: float = 0.5,
+    phi: float = 0.55,
+    vel: float = 0.6,
     n: int | None = None,
     n_naive: int | None = None,
+    n_naive_batch: int | None = None,
     batch_size: int | None = None,
     steps: int | None = None,
-    repeats: int | None = None,
+    steps_naive: int | None = None,
     profile: str | None = None,
     nl_skin: float = NL_SKIN,
     nl_max_neighbors: int = NL_MAX_NEIGHBORS,
@@ -234,28 +282,34 @@ def run_custom(
     preset = PROFILES[profile or default_profile()]
     run_n = n if n is not None else preset["n"]
     run_n_naive = n_naive if n_naive is not None else preset["n_naive"]
+    run_n_naive_batch = (
+        n_naive_batch if n_naive_batch is not None else preset["n_naive_batch"]
+    )
     run_batch = batch_size if batch_size is not None else preset["batch"]
     run_steps = steps if steps is not None else preset["steps"]
-    run_repeats = repeats if repeats is not None else preset["repeats"]
+    run_steps_naive = steps_naive if steps_naive is not None else preset["steps_naive"]
 
-    built = build_spheres_in_box(
-        collider=collider,
-        force=force,
-        domain=domain,
-        dim=dim,
-        mode=mode,
-        phi=phi,
-        vel=vel,
-        n=run_n,
-        n_naive=run_n_naive,
-        batch_size=run_batch,
-        steps=run_steps,
-        nl_skin=nl_skin,
-        nl_max_neighbors=nl_max_neighbors,
-        alpha=alpha,
-        only_spheres=only_spheres,
+    mps, total_particles, actual_steps, nl_rebuilds = _run_and_time(
+        build_spheres_in_box(
+            collider=collider,
+            force=force,
+            domain=domain,
+            dim=dim,
+            mode=mode,
+            phi=phi,
+            vel=vel,
+            n=run_n,
+            n_naive=run_n_naive,
+            n_naive_batch=run_n_naive_batch,
+            batch_size=run_batch,
+            steps=run_steps,
+            steps_naive=run_steps_naive,
+            nl_skin=nl_skin,
+            nl_max_neighbors=nl_max_neighbors,
+            alpha=alpha,
+            only_spheres=only_spheres,
+        )
     )
-    mps = _time_built(built, run_repeats)
     return {
         "dim": dim,
         "domain": domain,
@@ -265,9 +319,10 @@ def run_custom(
         "phi": phi,
         "vel": vel,
         "alpha": alpha,
-        "total_particles": built[1],
-        "steps": built[2],
+        "total_particles": total_particles,
+        "steps": actual_steps,
         "mps": mps,
+        "nl_rebuilds": nl_rebuilds,
         "hw": get_hardware_label(),
     }
 
@@ -283,6 +338,22 @@ def _put_nested(
     row[REGIME_ORDER.index(case.regime)] = mps
 
 
+def _put_rebuilds(
+    rebuilds: dict[str, Any],
+    dim: str,
+    domain: str,
+    force: str,
+    mode: str,
+    reg_idx: int,
+    value: int | float,
+) -> None:
+    d_dim = rebuilds.setdefault(dim, {})
+    d_dom = d_dim.setdefault(domain, {})
+    d_frc = d_dom.setdefault(force, {})
+    row = d_frc.setdefault(mode, [None] * len(REGIME_ORDER))
+    row[reg_idx] = value
+
+
 def run_suite(
     *,
     pattern: str | None = None,
@@ -295,9 +366,10 @@ def run_suite(
     profile: str | None = None,
     n: int | None = None,
     n_naive: int | None = None,
+    n_naive_batch: int | None = None,
     batch_size: int | None = None,
     steps: int | None = None,
-    repeats: int | None = None,
+    steps_naive: int | None = None,
     nl_skin: float = NL_SKIN,
     nl_max_neighbors: int = NL_MAX_NEIGHBORS,
     alpha: float = 1.0,
@@ -309,9 +381,12 @@ def run_suite(
     preset = PROFILES[prof_name]
     run_n = n if n is not None else preset["n"]
     run_n_naive = n_naive if n_naive is not None else preset["n_naive"]
+    run_n_naive_batch = (
+        n_naive_batch if n_naive_batch is not None else preset["n_naive_batch"]
+    )
     run_batch = batch_size if batch_size is not None else preset["batch"]
     run_steps = steps if steps is not None else preset["steps"]
-    run_repeats = repeats if repeats is not None else preset["repeats"]
+    run_steps_naive = steps_naive if steps_naive is not None else preset["steps_naive"]
 
     selected = select_cases(
         pattern=pattern,
@@ -333,35 +408,76 @@ def run_suite(
     if verbose:
         print(
             f"JaxDEM Spheres-in-Box | {hw} | profile={prof_name} "
-            f"(N={run_n}, naive={run_n_naive}, B={run_batch}, steps={run_steps}, "
-            f"alpha={alpha:g}, only_spheres={only_spheres}) | {dtype} | commit={commit}{'*' if dirty else ''}"
+            f"(N={run_n}, naive={run_n_naive}/{run_n_naive_batch}, B={run_batch}, "
+            f"steps={run_steps}, steps_naive={run_steps_naive}, alpha={alpha:g}, "
+            f"only_spheres={only_spheres}) | {dtype} | commit={commit}{'*' if dirty else ''}"
         )
 
     nested: dict[str, Any] = {}
+    nl_counts_spatial: dict[tuple[str, str, str, str, int], dict[str, int | float]] = {}
+    nl_counts_naive: dict[tuple[str, str, str, str, int], int | float] = {}
     t_suite = time.perf_counter()
     for i, case in enumerate(selected, 1):
         if verbose:
             print(f"  [{i:3d}/{len(selected):3d}] {case.name:<58s} ... ", end="", flush=True)
-        built = build_case(
-            case,
-            n=run_n,
-            n_naive=run_n_naive,
-            batch_size=run_batch,
-            steps=run_steps,
-            nl_skin=nl_skin,
-            nl_max_neighbors=nl_max_neighbors,
-            alpha=alpha,
-            only_spheres=only_spheres,
+        mps, _, _, nl_rb = _run_and_time(
+            build_case(
+                case,
+                n=run_n,
+                n_naive=run_n_naive,
+                n_naive_batch=run_n_naive_batch,
+                batch_size=run_batch,
+                steps=run_steps,
+                steps_naive=run_steps_naive,
+                nl_skin=nl_skin,
+                nl_max_neighbors=nl_max_neighbors,
+                alpha=alpha,
+                only_spheres=only_spheres,
+            )
         )
-        mps = _time_built(built, run_repeats)
         _put_nested(nested, case, mps)
+        if nl_rb is not None:
+            key = (case.dim, case.domain, case.force, case.mode, REGIME_ORDER.index(case.regime))
+            if case.collider == "nl_naive":
+                nl_counts_naive[key] = nl_rb
+            else:
+                nl_counts_spatial.setdefault(key, {})[case.collider] = nl_rb
         if verbose:
-            print(f"{mps:7.2f} M pstep/s")
+            rb_str = f" ({nl_rb} rebuilds)" if nl_rb is not None else ""
+            print(f"{mps:7.2f} M pstep/s{rb_str}")
+
+    nl_rebuilds: dict[str, Any] = {}
+    nl_naive_rebuilds: dict[str, Any] = {}
+    for key in sorted(nl_counts_spatial):
+        dim_k, dom_k, frc_k, mod_k, reg_idx = key
+        by_col = nl_counts_spatial[key]
+        vals = list(by_col.values())
+        lo, hi = min(vals), max(vals)
+        # Spatial NL colliders share identical N and initial conditions; flag any divergence
+        # beyond tiny float32 chaotic drift (±2 rebuilds or 5%).
+        tol = max(2.0, 0.05 * hi)
+        if (hi - lo) > tol:
+            details = ", ".join(f"{c}={v}" for c, v in by_col.items())
+            print(
+                f"WARNING: NL rebuild count mismatch for "
+                f"{dim_k}/{dom_k}/{frc_k}/{mod_k}/{REGIME_ORDER[reg_idx]}: {details}",
+                file=sys.stderr,
+            )
+        med = float(np.median(np.asarray(vals, dtype=np.float64)))
+        canon: int | float = (
+            int(round(med)) if all(isinstance(v, int) for v in vals) else round(med, 1)
+        )
+        _put_rebuilds(nl_rebuilds, dim_k, dom_k, frc_k, mod_k, reg_idx, canon)
+    for key in sorted(nl_counts_naive):
+        dim_k, dom_k, frc_k, mod_k, reg_idx = key
+        _put_rebuilds(
+            nl_naive_rebuilds, dim_k, dom_k, frc_k, mod_k, reg_idx, nl_counts_naive[key]
+        )
 
     if verbose:
         print(f"Finished {len(selected)} case(s) in {time.perf_counter() - t_suite:.1f}s.")
 
-    return {
+    record: dict[str, Any] = {
         "v": 3,
         "commit": commit,
         "date": date,
@@ -371,11 +487,18 @@ def run_suite(
         "dtype": dtype,
         "n": run_n,
         "n_naive": run_n_naive,
+        "n_naive_batch": run_n_naive_batch,
         "batch": run_batch,
         "steps": run_steps,
+        "steps_naive": run_steps_naive,
         "alpha": alpha,
         "only_spheres": only_spheres,
         "jax": jax.__version__,
         "throttled": bool(throttle_warnings),
         "data": nested,
     }
+    if nl_rebuilds:
+        record["nl_rebuilds"] = nl_rebuilds
+    if nl_naive_rebuilds:
+        record["nl_naive_rebuilds"] = nl_naive_rebuilds
+    return record

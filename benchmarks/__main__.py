@@ -96,11 +96,11 @@ def _cmd_run(args: argparse.Namespace) -> None:
     if args.x64:
         jax.config.update("jax_enable_x64", True)
 
-    # Custom (phi, vel) single-point mode for external benchmarking outside the 4 fixed regimes.
+    # Custom (phi, vel) single-point mode for external benchmarking outside the fixed regimes.
     if args.phi is not None or args.vel is not None:
         if args.record and not args.no_save:
             raise SystemExit(
-                "--record only stores the 4 fixed report regimes; omit --phi/--vel to record."
+                "--record only stores the fixed report regimes; omit --phi/--vel to record."
             )
         dim = args.dim or "3d"
         res = run_custom(
@@ -109,23 +109,25 @@ def _cmd_run(args: argparse.Namespace) -> None:
             domain=args.domain or "periodic",
             dim=dim,
             mode=args.mode or "single",
-            phi=args.phi if args.phi is not None else (0.60 if dim == "3d" else 0.72),
-            vel=args.vel if args.vel is not None else 0.5,
+            phi=args.phi if args.phi is not None else 0.55,
+            vel=args.vel if args.vel is not None else 0.6,
             n=args.n,
             n_naive=args.n_naive,
+            n_naive_batch=args.n_naive_batch,
             batch_size=args.batch_size,
             steps=args.steps,
-            repeats=args.repeats,
+            steps_naive=args.steps_naive,
             profile=args.profile,
             nl_skin=args.nl_skin,
             nl_max_neighbors=args.nl_max_neighbors,
             alpha=args.alpha,
             only_spheres=args.only_spheres,
         )
+        rb_str = f", nl_rebuilds={res['nl_rebuilds']}" if res.get("nl_rebuilds") is not None else ""
         print(
             f"{res['dim']}/{res['domain']}/{res['force']}/{res['mode']}/{res['collider']} "
             f"(phi={res['phi']}, vel={res['vel']}, alpha={res['alpha']:g}, "
-            f"B×N={res['total_particles']}, steps={res['steps']}): "
+            f"B×N={res['total_particles']}, steps={res['steps']}{rb_str}): "
             f"{res['mps']:.2f} M pstep/s [{res['hw']}]"
         )
         return
@@ -142,9 +144,10 @@ def _cmd_run(args: argparse.Namespace) -> None:
         profile=args.profile,
         n=args.n,
         n_naive=args.n_naive,
+        n_naive_batch=args.n_naive_batch,
         batch_size=args.batch_size,
         steps=args.steps,
-        repeats=args.repeats,
+        steps_naive=args.steps_naive,
         nl_skin=args.nl_skin,
         nl_max_neighbors=args.nl_max_neighbors,
         alpha=args.alpha,
@@ -200,10 +203,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--vel", type=float, help="Custom initial speed ([0, 1]).")
     p_run.add_argument("--profile", choices=tuple(PROFILES), help="Size preset (auto-detects gpu/cpu).")
     p_run.add_argument("-n", type=int, help="Override particle count N for spatial colliders.")
-    p_run.add_argument("--n-naive", type=int, help="Override particle count N for naive / nl_naive.")
-    p_run.add_argument("--batch-size", type=int, help="Override batch size B for batch mode (default: 8).")
-    p_run.add_argument("--steps", type=int, help="Override steps per timed chunk (default GPU: 2000).")
-    p_run.add_argument("--repeats", type=int, help="Override warm timing repeats.")
+    p_run.add_argument("--n-naive", type=int, help="Override single-mode particle count N for naive / nl_naive (default GPU: 3000).")
+    p_run.add_argument("--n-naive-batch", type=int, help="Override per-sim batch particle count N for naive / nl_naive (default GPU: 2000).")
+    p_run.add_argument("--batch-size", type=int, help="Override batch size B for batch mode (default: 6).")
+    p_run.add_argument("--steps", type=int, help="Override steps per timed chunk (default GPU: 1000).")
+    p_run.add_argument("--steps-naive", type=int, help="Override steps for the naive collider (default GPU: 100).")
     p_run.add_argument("--nl-skin", type=float, default=NL_SKIN, help=f"NeighborList skin distance (default: {NL_SKIN}).")
     p_run.add_argument("--nl-max-neighbors", type=int, default=NL_MAX_NEIGHBORS, help=f"NeighborList average slot budget per particle (default: {NL_MAX_NEIGHBORS}).")
     p_run.add_argument("--alpha", type=float, default=1.0, help="Target mean polydispersity E[max_rad/r] >= 1.0 for r ~ U[r_min, 1.0] (default: 1.0).")

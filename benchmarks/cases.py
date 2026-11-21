@@ -14,15 +14,15 @@ import numpy as np
 
 import jaxdem as jdem
 
-# (step_fn, total_particles_B_times_N, steps_per_call)
-BuiltCase = tuple[Callable[[], Any], int, int]
+# (step_fn(state, system), init_state, init_system, total_particles_B_times_N, steps_per_call)
+BuiltCase = tuple[Callable[[Any, Any], Any], Any, Any, int, int]
 
 # Physical defaults (matching the spheres-in-a-box benchmark).
 SPHERE_RAD = 1.0
 SPHERE_MASS = 1.0
 SPRING_K = 1000.0
 DT = 1e-2
-BATCH_SIZE = 8
+BATCH_SIZE = 6
 NL_SKIN = 0.4
 NL_MAX_NEIGHBORS = 64
 
@@ -65,32 +65,21 @@ FORCES: tuple[str, ...] = ("spring", "cundallstrack")
 
 MODES: tuple[str, ...] = ("single", "batch")
 
-# Fixed 4 report regimes: high/low velocity x high/low packing fraction.
-# High phi uses 0.60 in 3D (FCC) and 0.72 in 2D (hexagonal); low phi uses 0.25 / 0.30.
+# Fixed 2 report regimes at phi = 0.55: low velocity (0.15) vs high velocity (0.6).
+DEFAULT_PHI = 0.55
+
 REGIMES: dict[str, dict[str, Any]] = {
-    "high_vel_high_phi": {
-        "label": "High v, High φ",
-        "short": "Hi v / Hi φ",
-        "vel": 0.5,
-        "phi": {"3d": 0.60, "2d": 0.72},
+    "low_vel": {
+        "label": "Low v (0.15), φ=0.55",
+        "short": "v=0.15",
+        "vel": 0.15,
+        "phi": {"3d": DEFAULT_PHI, "2d": DEFAULT_PHI},
     },
-    "high_vel_low_phi": {
-        "label": "High v, Low φ",
-        "short": "Hi v / Lo φ",
-        "vel": 0.5,
-        "phi": {"3d": 0.25, "2d": 0.30},
-    },
-    "low_vel_high_phi": {
-        "label": "Low v, High φ",
-        "short": "Lo v / Hi φ",
-        "vel": 0.05,
-        "phi": {"3d": 0.60, "2d": 0.72},
-    },
-    "low_vel_low_phi": {
-        "label": "Low v, Low φ",
-        "short": "Lo v / Lo φ",
-        "vel": 0.05,
-        "phi": {"3d": 0.25, "2d": 0.30},
+    "high_vel": {
+        "label": "High v (0.6), φ=0.55",
+        "short": "v=0.60",
+        "vel": 0.6,
+        "phi": {"3d": DEFAULT_PHI, "2d": DEFAULT_PHI},
     },
 }
 
@@ -99,24 +88,27 @@ REGIME_ORDER: tuple[str, ...] = tuple(REGIMES.keys())
 PROFILES: dict[str, dict[str, int]] = {
     "gpu": {
         "n": 65_536,
-        "n_naive": 5_000,
+        "n_naive": 3_000,
+        "n_naive_batch": 2_000,
         "batch": BATCH_SIZE,
-        "steps": 2_000,
-        "repeats": 3,
+        "steps": 1_000,
+        "steps_naive": 100,
     },
     "cpu": {
         "n": 2_048,
         "n_naive": 512,
-        "batch": 4,
+        "n_naive_batch": 256,
+        "batch": BATCH_SIZE,
         "steps": 200,
-        "repeats": 2,
+        "steps_naive": 50,
     },
     "quick": {
         "n": 4_096,
         "n_naive": 1_024,
-        "batch": 4,
+        "n_naive_batch": 512,
+        "batch": BATCH_SIZE,
         "steps": 200,
-        "repeats": 2,
+        "steps_naive": 50,
     },
 }
 
@@ -449,12 +441,14 @@ def build_spheres_in_box(
     domain: str = "periodic",
     dim: str = "3d",
     mode: str = "single",
-    phi: float = 0.60,
-    vel: float = 0.5,
+    phi: float = 0.55,
+    vel: float = 0.6,
     n: int = 65_536,
-    n_naive: int = 5_000,
+    n_naive: int = 3_000,
+    n_naive_batch: int | None = None,
     batch_size: int = BATCH_SIZE,
-    steps: int = 2_000,
+    steps: int = 1_000,
+    steps_naive: int | None = None,
     nl_skin: float = NL_SKIN,
     nl_max_neighbors: int = NL_MAX_NEIGHBORS,
     alpha: float = 1.0,
@@ -472,9 +466,17 @@ def build_spheres_in_box(
         raise ValueError(f"Collider {collider!r} does not support pair history ({force!r}).")
 
     dim_int = 3 if dim == "3d" else 2
-    base_n = n_naive if collider in NAIVE_SIZED_COLLIDERS else n
     batched = mode == "batch"
-    n_per_sim = max(16, base_n // 2) if batched else base_n
+    if collider in NAIVE_SIZED_COLLIDERS:
+        if batched:
+            n_per_sim = max(
+                16,
+                n_naive_batch if n_naive_batch is not None else (n_naive // 2),
+            )
+        else:
+            n_per_sim = n_naive
+    else:
+        n_per_sim = max(16, n // 2) if batched else n
 
     rad_np = _sample_radii(n_per_sim, alpha, seed=0)
     pos_np, box_np = _lattice_positions(n_per_sim, dim, rad_np, phi, domain)
@@ -577,10 +579,19 @@ def build_spheres_in_box(
         state, system = jdem.System.initialize(state, system)
         total_particles = batch_size * n_per_sim
 
-    def step_fn() -> tuple[jdem.State, jdem.System]:
-        return jdem.System.step(state, system, n=steps)
+    # Naive is pure O(N^2) with identical per-step work and no neighbor-list rebuilds;
+    # run fewer steps (default 100 on GPU) while keeping nl_naive at full steps so
+    # periodic O(N^2) neighbor-list rebuilds are captured.
+    if collider == "naive":
+        cap = 100 if steps_naive is None else steps_naive
+        actual_steps = min(steps, cap)
+    else:
+        actual_steps = steps
 
-    return step_fn, int(total_particles), int(steps)
+    def step_fn(st: jdem.State, sys: jdem.System) -> tuple[jdem.State, jdem.System]:
+        return jdem.System.step(st, sys, n=actual_steps)
+
+    return step_fn, state, system, int(total_particles), int(actual_steps)
 
 
 def build_case(
@@ -588,8 +599,10 @@ def build_case(
     *,
     n: int,
     n_naive: int,
+    n_naive_batch: int | None = None,
     batch_size: int,
     steps: int,
+    steps_naive: int | None = None,
     nl_skin: float = NL_SKIN,
     nl_max_neighbors: int = NL_MAX_NEIGHBORS,
     alpha: float = 1.0,
@@ -606,8 +619,10 @@ def build_case(
         vel=case.vel,
         n=n,
         n_naive=n_naive,
+        n_naive_batch=n_naive_batch,
         batch_size=batch_size,
         steps=steps,
+        steps_naive=steps_naive,
         nl_skin=nl_skin,
         nl_max_neighbors=nl_max_neighbors,
         alpha=alpha,

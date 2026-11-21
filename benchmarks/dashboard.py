@@ -341,8 +341,8 @@ _DASHBOARD_JS = r"""
 
     const grpW = pw / REGIME_ORDER.length;
     const nBars = Math.max(visCols.length, 1);
-    const gap = 2;
-    const barW = Math.min(20, (grpW - 20) / nBars - gap);
+    const gap = 3;
+    const barW = Math.min(26, (grpW - 28) / nBars - gap);
 
     REGIME_ORDER.forEach((reg, ri) => {
       const gx = m.left + ri * grpW + (grpW - nBars * (barW + gap)) / 2;
@@ -387,6 +387,8 @@ _DASHBOARD_JS = r"""
       const prev = hwRuns.length >= 2 ? hwRuns[hwRuns.length - 2] : null;
       const slLatest = getSlice(latest, state.dim, state.domain, state.force, state.mode);
       const slPrev = prev ? getSlice(prev, state.dim, state.domain, state.force, state.mode) : {};
+      const rbLatest = latest?.nl_rebuilds?.[state.dim]?.[state.domain]?.[state.force]?.[state.mode] || [];
+      const rbNaiveLatest = latest?.nl_naive_rebuilds?.[state.dim]?.[state.domain]?.[state.force]?.[state.mode] || [];
       const cols = COLLIDERS.filter(c => slLatest[c] && slLatest[c].some(v => v != null));
 
       const allVals = [];
@@ -415,11 +417,17 @@ _DASHBOARD_JS = r"""
         xOfByReg[ri] = res.xOf;
         const phiVal = REGIMES[reg].phi[state.dim];
         const velVal = REGIMES[reg].vel;
+        const rbVal = rbLatest[ri];
+        const rbNaiveVal = rbNaiveLatest[ri];
+        const rbBits = [];
+        if (rbVal != null) rbBits.push(`${rbVal} NL rebuilds`);
+        if (rbNaiveVal != null) rbBits.push(`nl_naive: ${rbNaiveVal}`);
+        const rbTag = rbBits.length ? ` · ${rbBits.join(", ")}` : "";
         return `
           <div class="jb-card">
             <div class="jb-card-head">
               <div class="jb-card-title">${REGIMES[reg].label}</div>
-              <div class="jb-card-sub">v=${velVal}, φ=${phiVal} · M pstep/s</div>
+              <div class="jb-card-sub">v=${velVal}, φ=${phiVal}${rbTag} · M pstep/s</div>
             </div>
             <div class="jb-chart-wrap" data-wrap-reg="${ri}">
               ${res.svg}
@@ -430,8 +438,8 @@ _DASHBOARD_JS = r"""
 
       const latestBar = renderLatestBarSvg(latest, state, cols);
 
-      const nSpatial = state.mode === "batch" ? `${latest.batch || 8}×${((latest.n || 65536) / 2).toLocaleString()}` : (latest.n || 65536).toLocaleString();
-      const nNaive = state.mode === "batch" ? `${latest.batch || 8}×${((latest.n_naive || 5000) / 2).toLocaleString()}` : (latest.n_naive || 5000).toLocaleString();
+      const nSpatial = state.mode === "batch" ? `${latest.batch || 6}×${((latest.n || 65536) / 2).toLocaleString()}` : (latest.n || 65536).toLocaleString();
+      const nNaive = state.mode === "batch" ? `${latest.batch || 6}×${(latest.n_naive_batch || 2000).toLocaleString()}` : (latest.n_naive || 3000).toLocaleString();
 
       const rowsHtml = cols.map(c => {
         const isNaive = c === "naive" || c === "nl_naive";
@@ -460,6 +468,13 @@ _DASHBOARD_JS = r"""
         </tr>`;
       }).join("");
 
+      const rbSummaryParts = REGIME_ORDER.map((r, ri) => rbLatest[ri] != null ? `${REGIMES[r].short}: ${rbLatest[ri]}` : null).filter(Boolean);
+      const rbNaiveSummaryParts = REGIME_ORDER.map((r, ri) => rbNaiveLatest[ri] != null ? `${REGIMES[r].short}: ${rbNaiveLatest[ri]}` : null).filter(Boolean);
+      const rbAllBits = [];
+      if (rbSummaryParts.length) rbAllBits.push(`NL rebuilds (${rbSummaryParts.join(", ")})`);
+      if (rbNaiveSummaryParts.length) rbAllBits.push(`nl_naive (${rbNaiveSummaryParts.join(", ")})`);
+      const rbSummaryTag = rbAllBits.length ? ` · ${rbAllBits.join("; ")}` : "";
+
       const warnHtml = latest.throttled
         ? `<div class="jb-warn">⚠ Latest snapshot was recorded while system throttle policy was not high performance.</div>`
         : "";
@@ -467,7 +482,7 @@ _DASHBOARD_JS = r"""
       container.innerHTML = `
         <div class="jb-hw-head">
           <div class="jb-hw-title">${group.hw}</div>
-          <div class="jb-hw-meta">${group.profile} · ${group.dtype} · steps=${latest.steps || 2000} · α=${group.alpha} · only_spheres=${latest.only_spheres ? "True" : "False"} · ${hwRuns.length} commit(s)</div>
+          <div class="jb-hw-meta">${group.profile} · ${group.dtype} · steps=${latest.steps || 1000} · α=${group.alpha} · only_spheres=${latest.only_spheres ? "True" : "False"} · ${hwRuns.length} commit(s)</div>
         </div>
         ${warnHtml}
 
@@ -486,7 +501,7 @@ _DASHBOARD_JS = r"""
           </div>
           <div class="jb-ctl-block">
             <span class="jb-ctl-label">Mode</span>
-            ${MODES.map(m => `<button class="jb-pill ${state.mode === m ? "active" : ""}" data-mode="${m}">${m === "batch" ? `batch (B=${latest.batch || 8})` : "single"}</button>`).join("")}
+            ${MODES.map(m => `<button class="jb-pill ${state.mode === m ? "active" : ""}" data-mode="${m}">${m === "batch" ? `batch (B=${latest.batch || 6})` : "single"}</button>`).join("")}
           </div>
           <div class="jb-ctl-block">
             <button class="jb-pill ${state.scale === "log" ? "active" : ""}" data-scale="1">${state.scale === "log" ? "Log Y" : "Linear Y"}</button>
@@ -533,7 +548,7 @@ _DASHBOARD_JS = r"""
         <div class="jb-card">
           <div class="jb-card-head">
             <div class="jb-card-title">Latest Commit Matrix (${latest.commit})</div>
-            <div class="jb-card-sub">Throughput in M particle-steps/s</div>
+            <div class="jb-card-sub">Throughput in M particle-steps/s${rbSummaryTag}</div>
           </div>
           <div class="jb-table-wrap">
             <table class="jb-table">

@@ -61,6 +61,23 @@ def _merge_nested(dst: dict[str, Any], src: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _merge_rebuilds(dst: dict[str, Any], src: dict[str, Any]) -> dict[str, Any]:
+    out = copy.deepcopy(dst)
+    for dim, by_dom in src.items():
+        d_dim = out.setdefault(dim, {})
+        for dom, by_frc in by_dom.items():
+            d_dom = d_dim.setdefault(dom, {})
+            for frc, by_mod in by_frc.items():
+                d_frc = d_dom.setdefault(frc, {})
+                for mod, vals in by_mod.items():
+                    row = list(d_frc.get(mod, [None] * len(REGIME_ORDER)))
+                    for idx, v in enumerate(vals):
+                        if v is not None:
+                            row[idx] = v
+                    d_frc[mod] = row
+    return out
+
+
 def load_history(path: Path | str = DEFAULT_HISTORY_PATH) -> list[dict[str, Any]]:
     p = Path(path)
     if not p.exists():
@@ -99,6 +116,17 @@ def upsert_run(
             merged["data"] = _merge_nested(
                 existing.get("data", {}), record.get("data", {})
             )
+            rb_merged = _merge_rebuilds(
+                existing.get("nl_rebuilds", {}), record.get("nl_rebuilds", {})
+            )
+            if rb_merged:
+                merged["nl_rebuilds"] = rb_merged
+            rb_naive_merged = _merge_rebuilds(
+                existing.get("nl_naive_rebuilds", {}),
+                record.get("nl_naive_rebuilds", {}),
+            )
+            if rb_naive_merged:
+                merged["nl_naive_rebuilds"] = rb_naive_merged
             records[idx] = merged
             replaced = True
             break
@@ -151,7 +179,7 @@ def _fmt_delta(new_mps: float, old_mps: float | None) -> str:
 def format_run_table(
     record: dict[str, Any], baseline: dict[str, Any] | None = None
 ) -> str:
-    """Render Collider x 4-Regimes throughput matrices (M particle-steps/s)."""
+    """Render Collider x Regime throughput matrices (M particle-steps/s)."""
     data = record.get("data", {})
     base_flat = dict(iter_flat(baseline)) if baseline else {}
     base_label = baseline["commit"] if baseline else "prev"
@@ -166,8 +194,46 @@ def format_run_table(
                     by_col = data.get(dim, {}).get(dom, {}).get(frc, {}).get(mod, {})
                     if not by_col:
                         continue
+                    rb = (
+                        record.get("nl_rebuilds", {})
+                        .get(dim, {})
+                        .get(dom, {})
+                        .get(frc, {})
+                        .get(mod)
+                    )
+                    rb_naive = (
+                        record.get("nl_naive_rebuilds", {})
+                        .get(dim, {})
+                        .get(dom, {})
+                        .get(frc, {})
+                        .get(mod)
+                    )
+                    rb_parts = (
+                        [
+                            f"{REGIMES[r]['short']}: {v}"
+                            for r, v in zip(REGIME_ORDER, rb)
+                            if v is not None
+                        ]
+                        if rb
+                        else []
+                    )
+                    rb_naive_parts = (
+                        [
+                            f"{REGIMES[r]['short']}: {v}"
+                            for r, v in zip(REGIME_ORDER, rb_naive)
+                            if v is not None
+                        ]
+                        if rb_naive
+                        else []
+                    )
+                    rb_bits: list[str] = []
+                    if rb_parts:
+                        rb_bits.append(f"NL rebuilds: {', '.join(rb_parts)}")
+                    if rb_naive_parts:
+                        rb_bits.append(f"nl_naive rebuilds: {', '.join(rb_naive_parts)}")
+                    rb_suffix = f" | {'; '.join(rb_bits)}" if rb_bits else ""
                     out.append(
-                        f"\n[{dim} | {dom} | {frc} | {mod}] Throughput (M particle-steps/s)"
+                        f"\n[{dim} | {dom} | {frc} | {mod}] Throughput (M particle-steps/s){rb_suffix}"
                     )
                     header = (
                         f"{'Collider':<26}"
