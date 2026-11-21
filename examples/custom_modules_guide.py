@@ -1,80 +1,65 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""Custom Module Registration and System Usage
--------------------------------------------------
+-----------------------------------------------
 
-Factory registries create JaxDEM components. This makes it easy
-to add custom modules and use them with :py:meth:`~jaxdem.system.System.create`.
+Extend JaxDEM by subclassing any component base class
+(:py:class:`~jaxdem.forces.ForceModel`, :py:class:`~jaxdem.domains.Domain`,
+:py:class:`~jaxdem.colliders.Collider`,
+:py:class:`~jaxdem.integrators.LinearIntegrator`,
+:py:class:`~jaxdem.integrators.RotationIntegrator`), decorating it as a JAX
+pytree dataclass, and registering it with ``@<Base>.register("key")``.
 
-To register a new module, the pattern is always the same:
-
-1. Inherit from the corresponding base class
-   (:py:class:`~jaxdem.forces.ForceModel`,
-   :py:class:`~jaxdem.domains.Domain`,
-   :py:class:`~jaxdem.colliders.Collider`,
-   :py:class:`~jaxdem.integrators.LinearIntegrator`, etc.).
-2. Implement the required abstract/interface methods for that base class.
-3. Register the class with
-   :py:meth:`Factory.register <jaxdem.factory.Factory.register>`, using
-   ``@<Base>.register("your_key")``.
-
-This guide shows how to:
-
-- define and register custom modules,
-- instantiate them via ``*_type`` and ``*_kw`` arguments,
-- and pass pre-built module objects directly to a
-  :py:class:`~jaxdem.system.System`.
+Registered classes work seamlessly via ``*_type`` / ``*_kw`` in
+:py:meth:`~jaxdem.system.System.create`, or you can pass pre-built instances
+directly (see :doc:`../auto_examples/system_guide`).
 """
 
-# %%
-# Setup
-# ~~~~~
-# We create several custom modules:
-#
-# - a custom :py:class:`~jaxdem.forces.ForceModel`
-# - a custom :py:class:`~jaxdem.domains.Domain`
-# - a custom :py:class:`~jaxdem.colliders.Collider`
-# - custom :py:class:`~jaxdem.integrators.LinearIntegrator` and
-#   :py:class:`~jaxdem.integrators.RotationIntegrator` implementations
+from dataclasses import dataclass, field
 
 import jax
 import jax.numpy as jnp
 
-from dataclasses import dataclass
-from typing import cast
-
-import numpy as np
-
 import jaxdem as jdem
 
 # %%
-# Custom Force Model
-# ~~~~~~~~~~~~~~~~~~
-# This force law applies a simple linear attraction between particle pairs:
+# Custom Force Model (Finite Range, Static Fields, and ``Create``)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Every :py:class:`~jaxdem.forces.ForceModel` implements
+# :py:meth:`~jaxdem.forces.ForceModel.force` and
+# :py:meth:`~jaxdem.forces.ForceModel.energy`. Two extra patterns are useful
+# in real force laws:
 #
-# .. math::
-#
-#    \mathbf{F}_{ij} = -k\,(\mathbf{r}_i - \mathbf{r}_j)
-#
-# It does not require any material-table properties. Its range is infinite,
-# so it uses the naive all-pairs collider. A finite-range custom law must also
-# implement :py:meth:`~jaxdem.forces.ForceModel.search_radii` for accelerated colliders: nonzero
-# pair forces must fit within the sum of the two returned per-particle bounds.
-# The cutoff must agree in force and energy; a search bound alone must never
-# truncate an otherwise active interaction.
-#
-# Registration reminder:
-#
-# - inherit from :py:class:`~jaxdem.forces.ForceModel`
-# - implement :py:meth:`~jaxdem.forces.ForceModel.force` and
-#   :py:meth:`~jaxdem.forces.ForceModel.energy`
+# * **Finite-range search bounds:** Override
+#   :py:meth:`~jaxdem.forces.ForceModel.search_radii` so cell-list and
+#   neighbor-list colliders know the interaction reach (nonzero forces must
+#   fit inside ``search_radii[i] + search_radii[j]``).
+# * **Static vs dynamic fields & ``Create``:** Array/float leaves can vary
+#   without recompiling; mark compile-time options static with
+#   ``jax.tree.static()``. Define a ``Create`` static/classmethod to validate
+#   or preprocess keyword arguments passed via ``force_model_kw``.
 
 
-@jdem.ForceModel.register("pairattractor")
+# * **Vectorized neighbor indices:** Accelerated colliders may pass a 1-D array
+#   of neighbor indices ``j``, so always compute norms along ``axis=-1`` (or use
+#   :py:func:`~jaxdem.utils.linalg.norm`).
+
+
+@jdem.ForceModel.register("soft_cutoff_spring")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
-class PairAttractor(jdem.ForceModel):
-    k: float = 0.1
+class SoftCutoffSpring(jdem.ForceModel):
+    k: jax.Array = field(default_factory=lambda: jnp.asarray(1.0))
+    cutoff_scale: float = jax.tree.static(default=1.2)
+
+    @staticmethod
+    def Create(k: float = 1.0, cutoff_scale: float = 1.2) -> "SoftCutoffSpring":
+        if cutoff_scale <= 0.0:
+            raise ValueError("cutoff_scale must be positive.")
+        return SoftCutoffSpring(k=jnp.asarray(k, dtype=float), cutoff_scale=float(cutoff_scale))
+
+    def search_radii(self, state: jdem.State, system: jdem.System) -> jax.Array:
+        return jnp.maximum(state._rad, self.cutoff_scale * state.rad)
 
     @staticmethod
     @jax.jit(inline=True)
@@ -90,11 +75,12 @@ class PairAttractor(jdem.ForceModel):
         quasistatic: bool = False,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
         rij = system.domain.displacement(pos[i], pos[j], system)
-        mask = jnp.asarray(i != j, dtype=rij.dtype)[..., None]
-        model = cast(PairAttractor, system.force_model)
-        force = -model.k * rij * mask
-        torque = jnp.zeros_like(state.torque[j])
-        return force, torque, history
+        r = jnp.linalg.norm(rij, axis=-1)
+        safe_r = jnp.where(r == 0.0, 1.0, r)
+        rc = system.force_model.cutoff_scale * (state.rad[i] + state.rad[j])
+        delta = jnp.maximum(0.0, rc - r) * (i != j)
+        f = (system.force_model.k * delta / safe_r)[..., None] * rij
+        return f, jnp.zeros_like(state.torque[j]), history
 
     @staticmethod
     @jax.jit(inline=True)
@@ -107,45 +93,30 @@ class PairAttractor(jdem.ForceModel):
         history: jax.Array,
     ) -> jax.Array:
         rij = system.domain.displacement(pos[i], pos[j], system)
-        model = cast(PairAttractor, system.force_model)
-        return 0.5 * model.k * jnp.sum(rij * rij, axis=-1) * (i != j)
+        r = jnp.linalg.norm(rij, axis=-1)
+        rc = system.force_model.cutoff_scale * (state.rad[i] + state.rad[j])
+        delta = jnp.maximum(0.0, rc - r) * (i != j)
+        return 0.5 * system.force_model.k * delta * delta
 
 
-print(
-    "ForceModel registry contains pairattractor:",
-    "pairattractor" in jdem.ForceModel._registry,
-)
-# (the empty key ``""`` is a registered no-op; we filter it out here and below)
-print("Registered ForceModels:", sorted(k for k in jdem.ForceModel._registry if k))
-
-state = jdem.State.create(
-    pos=jnp.array([[0.0, 0.0], [2.0, 0.0]]),
-    rad=jnp.array([0.4, 0.4]),
-)
+state = jdem.State.create(pos=jnp.array([[0.0, 0.0], [1.1, 0.0]]), rad=jnp.full(2, 0.5))
 system = jdem.System.create(
-    state.shape,
-    force_model_type="pairattractor",
-    force_model_kw={"k": 0.2},
+    state=state,
+    force_model_type="soft_cutoff_spring",
+    force_model_kw={"k": 2.0, "cutoff_scale": 1.2},
+    collider_type="cell_list",
 )
 state, system = jdem.System.initialize(state, system)
-state, system = system.step(state, system, n=5)
-print("Custom force model:", type(system.force_model).__name__)
-print("Positions after 5 steps:\n", state.pos)
+state, system = jdem.System.evaluate_forces(state, system)
+print("Custom force model:", type(system.force_model).__name__, "| force[0]:", state.force[0])
 
 # %%
 # Custom Domain
 # ~~~~~~~~~~~~~
-# This domain subtracts the geometric mean of constituent positions whenever
-# :py:meth:`~jaxdem.domains.Domain.apply` is called. Other integration phases may move particles afterwards.
-# This is a coordinate-frame operation, not mass-weighted COM centering or a
-# physical wall. It reuses the default :py:meth:`~jaxdem.domains.Domain.Create`
-# for ``box_size`` and ``anchor``.
-#
-# Registration reminder:
-#
-# - inherit from :py:class:`~jaxdem.domains.Domain`
-# - implement the relevant interface methods (here:
-#   :py:meth:`~jaxdem.domains.Domain.apply`)
+# Subclass :py:class:`~jaxdem.domains.Domain` and override
+# :py:meth:`~jaxdem.domains.Domain.apply` (and/or ``displacement``, ``shift``).
+# This example shifts coordinates so their geometric mean sits at the origin
+# whenever :py:meth:`~jaxdem.domains.Domain.apply` runs:
 
 
 @jdem.Domain.register("centered")
@@ -155,47 +126,22 @@ class CenteredDomain(jdem.Domain):
     @staticmethod
     @jax.jit(inline=True)
     def apply(state: jdem.State, system: jdem.System) -> tuple[jdem.State, jdem.System]:
-        center = jnp.mean(state.pos, axis=-2)
-        state.pos_c -= center
+        state.pos_c -= jnp.mean(state.pos, axis=-2)
         return state, system
 
 
-print("Domain registry contains centered:", "centered" in jdem.Domain._registry)
-print("Registered Domains:", sorted(k for k in jdem.Domain._registry if k))
-
-state = jdem.State.create(
-    pos=jnp.array([[2.0, 0.0], [4.0, 0.0]]),
-    vel=jnp.array([[1.0, 0.0], [1.0, 0.0]]),
-)
-system = jdem.System.create(
-    state.shape,
-    domain_type="centered",
-    force_model_type="pairattractor",
-)
-state, system = jdem.System.initialize(state, system)
-state, system = system.step(state, system, n=3)
-print("Custom domain:", type(system.domain).__name__)
-print("Mean position after the complete step:", jnp.mean(state.pos, axis=0))
-# Inspect the domain operation itself, before another integrator update.
+state = jdem.State.create(pos=jnp.array([[2.0, 0.0], [4.0, 0.0]]))
+system = jdem.System.create(state.shape, domain_type="centered", force_model_type="soft_cutoff_spring")
 state, system = system.domain.apply(state, system)
-np.testing.assert_allclose(jnp.mean(state.pos, axis=0), 0.0, atol=1e-6)
-print("Mean immediately after Domain.apply:", jnp.mean(state.pos, axis=0))
-
+print("Mean position after CenteredDomain.apply:", jnp.mean(state.pos, axis=0))
 
 # %%
 # Custom Collider
 # ~~~~~~~~~~~~~~~
-# This collider disables all pair contacts by zeroing force and torque.
-# The effect is the same as passing no collider to the system, but it
-# shows the structure of a custom collider.
-#
-# Registration reminder:
-#
-# - inherit from :py:class:`~jaxdem.colliders.Collider`
-# - implement interface methods (at minimum
-#   :py:meth:`~jaxdem.colliders.Collider.compute_force`, and for full
-#   compatibility also :py:meth:`~jaxdem.colliders.Collider.compute_potential_energy`
-#   and :py:meth:`~jaxdem.colliders.Collider.create_neighbor_list`)
+# Subclass :py:class:`~jaxdem.colliders.Collider` and implement
+# :py:meth:`~jaxdem.colliders.Collider.compute_force`,
+# :py:meth:`~jaxdem.colliders.Collider.compute_potential_energy`, and
+# :py:meth:`~jaxdem.colliders.Collider.create_neighbor_list`:
 
 
 @jdem.Collider.register("nocontact")
@@ -225,55 +171,25 @@ class NoContactCollider(jdem.Collider):
     @staticmethod
     @jax.jit(static_argnames=("max_neighbors",))
     def create_neighbor_list(
-        state: jdem.State,
-        system: jdem.System,
-        cutoff: float,
-        max_neighbors: int,
+        state: jdem.State, system: jdem.System, cutoff: float, max_neighbors: int
     ) -> tuple[jdem.State, jdem.System, jax.Array, jax.Array]:
         del cutoff
-        nl = -jnp.ones((state.N, max_neighbors), dtype=int)
-        overflow = jnp.asarray(False)
-        return state, system, nl, overflow
+        return state, system, -jnp.ones((state.N, max_neighbors), dtype=int), jnp.asarray(False)
 
 
-print("Collider registry contains nocontact:", "nocontact" in jdem.Collider._registry)
-print("Registered Colliders:", sorted(k for k in jdem.Collider._registry if k))
-
-state = jdem.State.create(
-    pos=jnp.array([[0.0, 0.0], [1.0, 0.0]]),
-    vel=jnp.array([[0.5, 0.0], [-0.5, 0.0]]),
-    rad=jnp.array([0.6, 0.6]),
-)
-system = jdem.System.create(
-    state.shape,
-    collider_type="nocontact",
-    force_model_type="pairattractor",
-)
-state, system = jdem.System.initialize(state, system)
-state, system = system.step(state, system, n=2)
+system = jdem.System.create(state.shape, collider_type="nocontact")
 print("Custom collider:", type(system.collider).__name__)
-print("Forces with nocontact collider:\n", state.force)
-
 
 # %%
-# .. _custom-example-integrators:
-#
 # Custom Integrators
 # ~~~~~~~~~~~~~~~~~~
-# Here we register:
-#
-# - :ref:`DampedEuler <custom-example-integrators>` for linear motion,
-# - :ref:`FrozenRotation <custom-example-integrators>`, a no-op that holds orientation fixed.
-#
-# :ref:`DampedEuler <custom-example-integrators>` follows the built-in fixed-particle convention: fixed means
-# immune to force/torque updates, while a prescribed velocity still moves the
-# body. :ref:`FrozenRotation <custom-example-integrators>` deliberately disables orientation updates altogether.
-#
-# Registration reminder:
-#
-# - inherit from :py:class:`~jaxdem.integrators.LinearIntegrator` or :py:class:`~jaxdem.integrators.RotationIntegrator`
-# - implement the needed step methods (here:
-#   :py:meth:`~jaxdem.integrators.Integrator.step_after_force`)
+# Subclass :py:class:`~jaxdem.integrators.LinearIntegrator` or
+# :py:class:`~jaxdem.integrators.RotationIntegrator` and override
+# :py:meth:`~jaxdem.integrators.Integrator.step_before_force` and/or
+# :py:meth:`~jaxdem.integrators.Integrator.step_after_force` (see the full
+# per-step order in :doc:`../auto_examples/integrator_guide`). Respect
+# ``state.fixed`` so fixed particles keep their prescribed velocity while
+# ignoring forces:
 
 
 @jdem.LinearIntegrator.register("dampedeuler")
@@ -289,109 +205,38 @@ class DampedEuler(jdem.LinearIntegrator):
     ) -> tuple[jdem.State, jdem.System]:
         accel = state.force / state.mass[..., None]
         active = (~state.fixed)[..., None]
-        integrator = cast(DampedEuler, system.linear_integrator)
-        damp = 1.0 - system.dt * integrator.damping
-
-        # Fixed bodies retain prescribed velocities; only free bodies
-        # receive acceleration or damping. Both move with their live velocity.
+        damp = 1.0 - system.dt * system.linear_integrator.damping
         state.vel = jnp.where(active, damp * state.vel + system.dt * accel, state.vel)
         state.pos_c += system.dt * state.vel
         return state, system
 
 
-@jdem.RotationIntegrator.register("frozenrotation")
-@jax.tree_util.register_dataclass
-@dataclass(slots=True)
-class FrozenRotation(jdem.RotationIntegrator):
-    @staticmethod
-    @jax.jit(inline=True)
-    def step_after_force(
-        state: jdem.State, system: jdem.System
-    ) -> tuple[jdem.State, jdem.System]:
-        # Intentionally leave orientation and angular velocity untouched.
-        # This no-op ignores torque, just like disabling the rotation module.
-        return state, system
-
-
-print(
-    "LinearIntegrator registry contains dampedeuler:",
-    "dampedeuler" in jdem.LinearIntegrator._registry,
-)
-print(
-    "Registered LinearIntegrators:",
-    sorted(k for k in jdem.LinearIntegrator._registry if k),
-)
-print(
-    "RotationIntegrator registry contains frozenrotation:",
-    "frozenrotation" in jdem.RotationIntegrator._registry,
-)
-print(
-    "Registered RotationIntegrators:",
-    sorted(k for k in jdem.RotationIntegrator._registry if k),
-)
-
 state = jdem.State.create(
-    pos=jnp.array([[0.0, 0.0], [2.0, 0.0]]),
-    rad=jnp.array([0.4, 0.4]),
+    pos=jnp.array([[0.0, 0.0], [1.1, 0.0]]),
+    rad=jnp.full(2, 0.5),
     vel=jnp.array([[0.1, 0.0], [0.0, 0.0]]),
     fixed=jnp.array([True, False]),
 )
 system = jdem.System.create(
-    state.shape,
-    force_model_type="pairattractor",
+    state=state,
+    force_model_type="soft_cutoff_spring",
     linear_integrator_type="dampedeuler",
     linear_integrator_kw={"damping": 0.5},
-    rotation_integrator_type="frozenrotation",
+    rotation_integrator_type=None,
 )
-
 state, system = jdem.System.initialize(state, system)
-state, system = system.step(state, system, n=10)
-print("Custom linear integrator:", type(system.linear_integrator).__name__)
-print("Custom rotation integrator:", type(system.rotation_integrator).__name__)
-print("Velocity after damping:\n", state.vel)
-np.testing.assert_allclose(state.vel[0], [0.1, 0.0], atol=1e-7)
-np.testing.assert_allclose(state.pos[0, 0], 10 * float(system.dt) * 0.1, atol=1e-7)
-print("Fixed particle retained its prescribed motion.")
-
+state, system = jdem.System.step(state, system, n=10)
+print("DampedEuler velocities (particle 0 fixed):\n", state.vel)
 
 # %%
-# Besides the ``*_type`` / ``*_kw`` factory arguments,
-# :py:meth:`~jaxdem.system.System.create` accepts pre-built instances of your
-# custom classes for every component slot, exactly like the built-in ones
-# (e.g. ``force_model=PairAttractor(k=0.05)``,
-# ``linear_integrator=DampedEuler(damping=0.8)``).
-# See *Passing Module Objects Directly* in the system guide.
-
-
-# %%
-# Notes on Registration
-# ~~~~~~~~~~~~~~~~~~~~~
-# - The registry normalizes keys: it ignores case, underscores,
-#   spaces, and hyphens (``"PairAttractor"`` ==
-#   ``"pair_attractor"``).
-# - Re-registering the **same class** under the same key is idempotent, so
-#   repeated registration of that class object does not raise. Defining a
-#   new class object under an occupied key can still replace the registration.
-# - Registrations are process-local. Define and register your custom classes before
-#   calling :py:meth:`~jaxdem.system.System.create` with the corresponding ``*_type``.
-# - All custom modules should be JAX pytrees. Use
-#   `jax.tree_util.register_dataclass
-#   <https://docs.jax.dev/en/latest/_autosummary/jax.tree_util.register_dataclass.html>`_
-#   on dataclasses.
-# - The "proof" that registration worked is that the key appears in the relevant
-#   registry dictionary.
-
-print(
-    "Registered custom force model key exists:",
-    "pairattractor" in jdem.ForceModel._registry,
-)
-print("Registered custom domain key exists:", "centered" in jdem.Domain._registry)
-print("Registered custom collider key exists:", "nocontact" in jdem.Collider._registry)
-print(
-    "Registered custom linear integrator key exists:",
-    "dampedeuler" in jdem.LinearIntegrator._registry,
-)
-print(
-    "Registered custom rotation integrator key exists:",
-    "frozenrotation" in jdem.RotationIntegrator._registry,
-)
+# Registration and Checkpointing Notes
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# * **Key normalization:** Registry keys ignore case, underscores, spaces, and
+#   hyphens (``"SoftCutoffSpring"`` == ``"soft_cutoff_spring"``).
+# * **Direct instances:** You can also pass ``force_model=SoftCutoffSpring.Create(k=0.5)``
+#   directly to :py:meth:`~jaxdem.system.System.create` without using ``*_type``.
+# * **Checkpointing:** Registrations are process-local. To reload checkpoints
+#   that use a custom registered class, define it in an importable module and
+#   import that module before calling
+#   :py:meth:`~jaxdem.writers.checkpoints.CheckpointLoader.load` (see
+#   :doc:`../auto_examples/checkpoint_guide`).

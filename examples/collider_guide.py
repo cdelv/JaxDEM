@@ -1,47 +1,19 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 r"""Colliders
-----------------------------------------
+-------------
 
-A :py:class:`~jaxdem.colliders.Collider` is the component that detects
-interacting particle pairs and evaluates the
-:py:class:`~jaxdem.forces.ForceModel` for each pair. Different colliders
-implement different spatial-search strategies, trading generality for speed.
-
-This guide covers:
-
-- The available collider implementations and when to use each one.
-- How to configure a collider via ``collider_type`` / ``collider_kw``.
-- How the collider interacts with force models and the force manager.
-- Computing potential energy through the collider.
-- Neighbor-list creation for diagnostics and caching.
+A :py:class:`~jaxdem.colliders.Collider` detects interacting particle pairs and
+evaluates the :py:class:`~jaxdem.forces.ForceModel` on each pair. Pass
+``collider_type=None`` to disable non-bonded contacts altogether (e.g. for
+bonded-only or external-force-only systems).
 """
 
 # %%
-# Selecting a Collider
-# ~~~~~~~~~~~~~~~~~~~~~~
-# You choose the collider via ``collider_type`` when creating a
-# :py:class:`~jaxdem.system.System`. The default is ``"naive"``.
-
-import jax.numpy as jnp
-
-import numpy as np
-
-import jaxdem as jdem
-
-state = jdem.State.create(
-    pos=jnp.array([[0.0, 0.0], [1.5, 0.0], [3.0, 0.0]]),
-    rad=jnp.array([1.0, 1.0, 1.0]),
-)
-system = jdem.System.create(state.shape, collider_type="naive")
-print("Collider:", type(system.collider).__name__)
-
-
-# %%
-# Available Colliders
-# ~~~~~~~~~~~~~~~~~~~~~
-# JaxDEM provides several collider implementations registered in the
-# :py:class:`~jaxdem.colliders.Collider` factory:
+# Comparing Built-in Colliders
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Registry names are case- and separator-insensitive (``"cell_list"`` and
+# ``"CellList"`` select the same class):
 #
 # .. list-table::
 #    :header-rows: 1
@@ -49,102 +21,90 @@ print("Collider:", type(system.collider).__name__)
 #    * - ``collider_type``
 #      - Class
 #      - Complexity
+#      - Pair history
+#      - Reverse AD
 #      - Best for
 #    * - ``"naive"``
 #      - :py:class:`~jaxdem.colliders.naive.NaiveSimulator`
 #      - :math:`O(N^2)`
-#      - Small systems; benchmark the hardware-dependent crossover
+#      - Yes
+#      - Yes
+#      - Small systems, exact Hessians, dense history
 #    * - ``"cell_list"``
 #      - :py:class:`~jaxdem.colliders.cell_list.DynamicCellList`
 #      - :math:`O(N \log N)`
-#      - Low to moderate polydispersity systems and clumps
+#      - No
+#      - With ``static=True``
+#      - Low-to-moderate polydispersity and clumps
 #    * - ``"multi_cell_list"``
 #      - :py:class:`~jaxdem.colliders.multi_cell_list.DynamicMultiCellList`
 #      - :math:`O(N \log N)`
-#      - Highly polydisperse systems (wide size distributions)
+#      - No
+#      - With ``static=True``
+#      - Wide size distributions (high polydispersity)
 #    * - ``"neighbor_list"``
 #      - :py:class:`~jaxdem.colliders.neighbor_list.NeighborList`
-#      - :math:`O(N K)` between rebuilds, with K cached neighbors
-#      - Large systems with infrequent neighbor-list rebuilds
-#
-# The registry normalizes keys: lookups ignore case, underscores, spaces,
-# and hyphens, so ``"cell_list"``, ``"CellList"``, and
-# ``"celllist"`` all select the same class.
-#
-# The registered colliders are (the empty key ``""`` is a registered no-op,
-# and we filter it out):
-print("Colliders:", sorted(k for k in jdem.Collider._registry if k))
+#      - :math:`O(NK)` between rebuilds
+#      - Yes
+#      - Yes
+#      - Large systems and frictional/history simulations
+
+import jax.numpy as jnp
+
+import jaxdem as jdem
+from jaxdem.utils.neighbor_list_sizing import (
+    estimate_neighbor_capacity,
+    measure_neighbor_candidates,
+)
+
+state = jdem.State.create(
+    pos=jnp.array([[0.0, 0.0], [1.5, 0.0], [3.0, 0.0]]),
+    rad=jnp.ones(3),
+)
 
 # %%
-# The Naive Collider
-# ~~~~~~~~~~~~~~~~~~~~
-# The :py:class:`~jaxdem.colliders.naive.NaiveSimulator` evaluates the
-# force model for **every** pair :math:`(i, j)`, giving :math:`O(N^2)`
-# complexity. It requires no configuration and is the default.
-# Its lack of search overhead often makes it competitive for small systems.
-# The crossover depends on hardware, density, shapes, and force-law cost.
-# Measure steady-state work after compilation and synchronize device results
-# before stopping a timer. The pair count grows quadratically with :math:`N`.
+# Naive Collider
+# ~~~~~~~~~~~~~~
+# :py:class:`~jaxdem.colliders.naive.NaiveSimulator` (default) checks every
+# pair :math:`(i, j)` with zero spatial-search setup or overflow risk. It is
+# fast for small :math:`N` and stores pair history densely as ``history[i, j]``:
 
 system_naive = jdem.System.create(state.shape, collider_type="naive")
 state, system_naive = jdem.System.initialize(state, system_naive)
-state_out, system_out = system_naive.step(state, system_naive)
-print("Forces after one step:\n", state_out.force)
-
+state_out, system_out = jdem.System.step(state, system_naive)
+print("Naive forces:\n", state_out.force)
 
 # %%
-# The Cell List Collider
-# ~~~~~~~~~~~~~~~~~~~~~~~~
-# :py:class:`~jaxdem.colliders.cell_list.DynamicCellList` (registered as ``"cell_list"``)
-# partitions space into a regular grid. Only particles in the same or
-# neighboring cells interact. It uses an implicit infinite grid for supported
-# free, reflective, periodic, and shear-periodic domain geometries. Custom
-# domains declare their compatible geometry through
-# :py:attr:`~jaxdem.domains.Domain.search_geometry`.
+# Cell List and Multi-Cell List
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Pass ``state=`` to :py:meth:`~jaxdem.system.System.create` so spatial
+# colliders automatically infer defaults like ``cell_size`` from particle radii.
 #
-# By default, it probes each cell with a `jax.lax.while_loop <https://docs.jax.dev/en/latest/_autosummary/jax.lax.while_loop.html>`_, so it handles high or
-# variable cell occupancy. This suits polydisperse systems and clumps.
-#
-# Key parameters (all have automatic defaults):
-#
-# - ``cell_size`` — edge length of each grid cell.
-# - ``box_size`` — domain size (optional; needed only when the box size is
-#   small compared with the cell size, to size the periodic wrap stencil
-#   correctly).
-#
-#
-# Colliders whose factory constructor needs a reference state (cell lists,
-# neighbor lists) receive it automatically when you pass ``state=`` to
-# :py:meth:`~jaxdem.system.System.create`.
+# * :py:class:`~jaxdem.colliders.cell_list.DynamicCellList` (``"cell_list"``)
+#   bins particles into a uniform implicit grid and probes neighboring cells.
+# * :py:class:`~jaxdem.colliders.multi_cell_list.DynamicMultiCellList`
+#   (``"multi_cell_list"``) attaches an expandable bounding box to each cell so
+#   a few large particles do not force a huge cell size on small ones.
 
 state_p = jdem.State.create(
     pos=jnp.array([[1.0, 1.0], [2.5, 1.0], [5.0, 5.0]]),
-    rad=jnp.array([0.5, 0.5, 0.5]),
+    rad=jnp.full(3, 0.5),
 )
-system_cl = jdem.System.create(
-    state=state_p,
-    collider_type="cell_list",
-)
-print("Cell size:", getattr(system_cl.collider, "cell_size", "n/a"))
-
+system_cl = jdem.System.create(state=state_p, collider_type="cell_list")
+system_mcl = jdem.System.create(state=state_p, collider_type="multi_cell_list")
+print("CellList cell_size:", system_cl.collider.cell_size)
+print("MultiCellList cell_size:", system_mcl.collider.cell_size)
 
 # %%
-# Fixed-Capacity Cell Traversal
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# For either ``CellList`` or ``MultiCellList``, ``static=False`` is the default.
-# Set ``static=True`` to use fixed tile traversal for forces and neighbor
-# queries. Without ``tile_capacity``, construction estimates a global budget
-# from the reference state. It uses the ``NeighborList`` density and packing
-# criteria. Cells share this budget. Each tile holds up to four candidates.
-#
-# A supplied ``tile_capacity`` selects static traversal and overrides the
-# estimate. For example, ``collider_kw={"tile_capacity": 32 * state_p.N}``
-# supplies an explicit budget. The estimate can overflow after clustering
-# or geometry changes. Check overflow after initialization and each completed
-# simulation chunk. Increase ``tile_capacity`` and restart from a valid state
-# if the budget overflows.
+# Fixed-Capacity (Static) Cell Traversal
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# By default ``static=False`` uses dynamic ``while_loop`` traversal (no tile
+# capacity limit, forward-mode AD only). Set ``static=True`` (or pass an
+# explicit ``tile_capacity`` budget) for fixed-tile traversal that supports
+# reverse-mode AD and avoids dynamic loops; always check
+# :py:meth:`~jaxdem.system.System.check_overflow` afterward:
 
-for collider_type in ("CellList", "MultiCellList"):
+for collider_type in ("cell_list", "multi_cell_list"):
     system_static = jdem.System.create(
         state=state_p,
         collider_type=collider_type,
@@ -152,117 +112,45 @@ for collider_type in ("CellList", "MultiCellList"):
     )
     _, system_static = jdem.System.initialize(state_p, system_static)
     system_static.check_overflow()
-    print(
-        collider_type, "estimated tile capacity:", system_static.collider.tile_capacity
-    )
-
+    print(collider_type, "tile_capacity:", system_static.collider.tile_capacity)
 
 # %%
-# The Multi-Cell List Collider
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# :py:class:`~jaxdem.colliders.multi_cell_list.DynamicMultiCellList` (registered as ``"multi_cell_list"``)
-# partitions space into a regular grid of cells of edge length ``cell_size``
-# and bins each particle into exactly one cell by its center. Unlike a
-# standard cell list, each cell also carries an expandable bounding box that
-# covers its members, so the collider can skip whole cells during the search.
-#
-# This suits systems with extreme polydispersity. A few large particles no
-# longer force a large cell size on all the small particles.
-#
-# Key parameters (all have automatic defaults):
-#
-# - ``cell_size`` — edge length of each grid cell. If None, it defaults to the
-#   largest particle diameter.
+# Explicit Neighbor Queries
+# ~~~~~~~~~~~~~~~~~~~~~~~~~
+# Every collider exposes
+# :py:meth:`~jaxdem.colliders.Collider.create_neighbor_list`, returning
+# ``(state, system, neighbor_list, overflow)`` where ``neighbor_list`` has
+# shape ``(N, max_neighbors)`` padded with ``-1``. Always check ``overflow``
+# (if ``True``, increase ``max_neighbors``). Use
+# :py:meth:`~jaxdem.colliders.Collider.create_cross_neighbor_list` when
+# querying neighbors between two distinct particle sets:
 
-
-system_mcl = jdem.System.create(
-    state=state_p,
-    collider_type="multi_cell_list",
-)
-print("Multi-Cell List cell size:", getattr(system_mcl.collider, "cell_size", "n/a"))
-
-
-# %%
-# Neighbor-list creation for all colliders
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Every collider implements
-# :py:meth:`~jaxdem.colliders.Collider.create_neighbor_list`. This is useful
-# both for diagnostics and for algorithms that need explicit neighbors.
-#
-# The API returns:
-#
-# - Updated ``state`` and ``system`` carrying any search-cache changes.
-# - ``neighbor_list`` with shape ``(N, max_neighbors)`` padded with ``-1``.
-# - ``overflow`` flag, which is ``True`` if any particle had more than
-#   ``max_neighbors`` neighbors within the requested cutoff.
-#
-# .. note::
-#    **Verifying Neighbor List Capacity with the Overflow Flag**
-#
-#    ``max_neighbors`` is a static buffer size that JAX needs at compile time.
-#    Check the returned ``overflow`` flag to verify the buffer is large enough.
-#    If ``overflow`` is ``True``, some particles have more neighbors than
-#    ``max_neighbors``, and some interactions are dropped. In that case,
-#    increase ``max_neighbors``.
-#
-# Example with a regular collider (here: Cell List). The first two centers
-# are 1.5 apart: inside this diagnostic cutoff of 2, but outside contact at
-# radius sum 1. A neighbor query need not describe only force-bearing contacts:
 state_p, system_cl, nl_cl, overflow_cl = system_cl.collider.create_neighbor_list(
     state_p, system_cl, cutoff=2.0, max_neighbors=8
 )
-print("Cell-list neighbor list shape:", nl_cl.shape)
-print("Diagnostic neighbors:\n", nl_cl)
-assert 1 in np.asarray(nl_cl[0]) and 0 in np.asarray(nl_cl[1])
-print("Cell-list overflow:", bool(overflow_cl))
-assert not bool(overflow_cl)
-system_cl.check_overflow()
+print("Neighbor list (cutoff=2.0):\n", nl_cl)
+print("Overflow:", bool(overflow_cl))
 
 # %%
-# The Neighbor List collider
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# :py:class:`~jaxdem.colliders.neighbor_list.NeighborList` caches a
-# per-particle list of neighbors built with a secondary collider
-# (by default, the cell list). The collider rebuilds the list only when
-# some particle has moved more than ``skin / 2``, or relevant geometry changes.
-# Between rebuilds the work is proportional to the number of cached pairs;
-# it is linear in N only when the mean neighbor count stays bounded.
-#
-# .. warning::
-#    Under `jax.vmap <https://docs.jax.dev/en/latest/_autosummary/jax.vmap.html>`_,
-#    per-simulation rebuild branches can execute even for valid caches.
-#    With pair history, a shared guard skips rebuilding when every cache
-#    in the batch remains valid. Benchmark the collider and force law with
-#    your batch size and rebuild frequency.
+# Neighbor List Collider
+# ~~~~~~~~~~~~~~~~~~~~~~
+# :py:class:`~jaxdem.colliders.neighbor_list.NeighborList` caches candidate
+# pairs built by a ``secondary_collider_type`` (default ``"cell_list"``; never
+# another ``"neighbor_list"``) and rebuilds only when any particle moves more
+# than ``skin / 2`` or domain geometry changes.
 #
 # Key parameters:
 #
-# - ``cutoff`` — requested interaction reach. The cache also covers the force
-#   law's declared search radii; reducing this value cannot truncate the law.
-# - ``skin`` — **absolute** buffer distance added to the cutoff (the same
-#   quantity the stored ``skin`` field holds). Must be > 0 for performance.
-# - ``skin_fraction`` — alternative way to specify the skin as a fraction
-#   of the cutoff (defaults to ``0.05`` when neither ``skin`` nor
-#   ``skin_fraction`` is given). Passing both raises an error.
-# - ``max_neighbors`` — average capacity budget per particle (auto-estimated if
-#   omitted). The cache shares ``N * max_neighbors`` slots: individual particles
-#   may exceed this budget. An exactly full pool is valid; overflow means the
-#   total directed-pair count exceeds the pool (or spatial hashing overflows).
-# - ``secondary_collider_type`` — any registered collider except another ``"neighbor_list"``.
+# * ``cutoff`` — search reach (automatically expanded if the force law needs more).
+# * ``skin`` or ``skin_fraction`` (default ``0.05``) — buffer distance before
+#   triggering a rebuild (pass at most one).
+# * ``max_neighbors`` — average slot budget per particle (all ``N * max_neighbors``
+#   slots are shared in one pool, so individual particles may exceed the average).
 #
-# For small systems with a history-dependent force law, use the naive collider
-# instead. It stores pair history densely as ``history[i, j]`` and needs no
-# cache or rebuild.
-#
-# This design works because every collider exposes
-# :py:meth:`~jaxdem.colliders.Collider.create_neighbor_list`.
-# Do not wrap a :py:class:`~jaxdem.colliders.neighbor_list.NeighborList`
-# in another :py:class:`~jaxdem.colliders.neighbor_list.NeighborList`.
-#
-# When you pass ``state=`` to :py:meth:`~jaxdem.system.System.create`, it
-# forwards the reference state to the neighbor list and to its secondary
-# collider. Do not repeat it inside ``collider_kw`` or
-# ``secondary_collider_kw``.
+# .. warning::
+#    Under ``jax.vmap``, per-replica rebuild branches can execute across the
+#    batch unless caches stay synchronized; benchmark rebuild frequency for
+#    your batch size.
 
 system_nl = jdem.System.create(
     state=state_p,
@@ -274,73 +162,108 @@ system_nl = jdem.System.create(
         "max_neighbors": 8,
     },
 )
-print("Neighbor list collider:", type(system_nl.collider).__name__)
-print("Cutoff:", float(getattr(system_nl.collider, "cutoff", jnp.nan)))
-print("Skin:", float(getattr(system_nl.collider, "skin", jnp.nan)))
-print("Max neighbors:", getattr(system_nl.collider, "max_neighbors", "n/a"))
-print("Number of builds:", getattr(system_nl.collider, "n_build_times", "n/a"))
-print("Last build overflow:", bool(getattr(system_nl.collider, "overflow", False)))
+_, system_nl = jdem.System.initialize(state_p, system_nl)
 system_nl.check_overflow()
+print(
+    f"NeighborList: cutoff={float(system_nl.collider.cutoff)}, "
+    f"skin={float(system_nl.collider.skin)}, "
+    f"max_neighbors={system_nl.collider.max_neighbors}, "
+    f"builds={int(system_nl.collider.n_build_times)}"
+)
 
 # %%
-# If you edit the state by hand after creating the system, the cached
-# neighbor list may become stale. Edits include moving particles, changing
-# radii, or adding particles. Use :py:func:`jaxdem.colliders.refresh_collider`
-# to rebuild a stateful collider from the edited state:
+# Automatic Neighbor-List Capacity Sizing
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Rather than guessing ``max_neighbors`` by trial and error—especially for
+# dense, polydisperse, or multi-sphere clump packings—use the host-side sizing
+# helpers in :py:mod:`jaxdem.utils.neighbor_list_sizing` before launching a
+# compiled run:
+#
+# * :py:func:`~jaxdem.utils.neighbor_list_sizing.measure_neighbor_candidates`
+#   counts exact candidate degrees on the current snapshot without allocating a
+#   neighbor buffer.
+# * :py:func:`~jaxdem.utils.neighbor_list_sizing.estimate_neighbor_capacity`
+#   scales and relaxes periodic bounding spheres to a target
+#   ``packing_fraction`` (sampling clump orientations when needed) and returns
+#   rounded capacities for both pooled :py:class:`~jaxdem.colliders.neighbor_list.NeighborList`
+#   (``max_neighbors``) and dense :py:meth:`~jaxdem.colliders.Collider.create_neighbor_list`
+#   queries (``query_max_neighbors``).
+
+state_dense = jdem.utils.grid_state(n_per_axis=(4, 4), spacing=2.0)
+state_dense.rad = jnp.where(jnp.arange(state_dense.N) % 2 == 0, 0.4, 0.6)
+sys_probe = jdem.System.create(
+    state=state_dense,
+    domain_type="periodic",
+    domain_kw={"box_size": jnp.array([8.0, 8.0])},
+)
+
+stats = measure_neighbor_candidates(state_dense, sys_probe, skin_fraction=0.1)
+print(
+    f"Current snapshot: mean_deg={stats.mean_degree:.2f}, "
+    f"max_deg={stats.max_degree}, list_cutoff={stats.list_cutoff:.2f}"
+)
+
+est = estimate_neighbor_capacity(
+    state_dense,
+    sys_probe,
+    packing_fraction=0.75,
+    skin_fraction=0.1,
+    safety_factor=1.25,
+    extra_neighbors=2,
+)
+print(
+    f"Recommended at phi=0.75: max_neighbors={est.max_neighbors} (pooled), "
+    f"query_max_neighbors={est.query_max_neighbors} (dense)"
+)
+
+sys_sized = jdem.System.create(
+    state=state_dense,
+    domain_type="periodic",
+    domain_kw={"box_size": jnp.array([8.0, 8.0])},
+    collider_type="neighbor_list",
+    collider_kw={
+        "cutoff": est.cutoff,
+        "skin": est.skin,
+        "max_neighbors": est.max_neighbors,
+    },
+)
+_, sys_sized = jdem.System.initialize(state_dense, sys_sized)
+sys_sized.check_overflow()
+
+# %%
+# Overflow Checks and Editing State
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Neighbor lists and static cell lists use fixed-size buffers. Call
+# :py:meth:`~jaxdem.system.System.check_overflow` after initialization and
+# simulation chunks to raise an error if any buffer overflowed.
+#
+# If you edit positions, radii, or particle counts manually on host:
+#
+# * Use :py:func:`jaxdem.colliders.invalidate_collider` when ``N`` and buffer
+#   capacities are unchanged (forces a cache rebuild on the next query).
+# * Use :py:func:`jaxdem.colliders.refresh_collider` when ``N`` or capacities
+#   changed (pass ``reset_history=True`` only if pair identities changed).
 #
 # .. code-block:: python
 #
 #    system_nl.collider = jdem.colliders.refresh_collider(edited_state, system_nl.collider)
 
-
 # %%
-# Computing Potential Energy
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# The collider exposes
-# :py:meth:`~jaxdem.colliders.Collider.compute_potential_energy`, which
-# sums all pairwise interaction energies as defined by the force model,
-# and returns a tuple ``(state, system, potential_energy)``, where
-# ``potential_energy`` is the **total** potential energy of the system.
-#
-# Keep the returned :py:class:`~jaxdem.state.State` and
-# :py:class:`~jaxdem.system.System`, which include search-cache updates.
-# Neighbor lists report pair or hash overflow. Static cell traversal also
-# reports tile overflow. Check
-# :py:meth:`~jaxdem.system.System.check_overflow` before you use spatial-search results.
-#
-# Naive, neighbor-list, and static cell force/energy queries support forward
-# and reverse differentiation. Dynamic cell traversals support forward mode.
-# Their occupancy-dependent loops cannot be transposed for reverse mode.
-# Use static cell traversal, naive, or neighbor-list colliders for gradients
-# and Hessians that need reverse differentiation.
+# Computing Pairwise Potential Energy
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# :py:meth:`~jaxdem.colliders.Collider.compute_potential_energy` returns
+# ``(state, system, potential_energy)`` so any cache rebuilds are preserved:
 
 state_pe = jdem.State.create(
-    pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
-    rad=jnp.array([1.0, 1.0]),
+    pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]), rad=jnp.ones(2)
 )
 system_pe = jdem.System.create(state_pe.shape, force_model_type="spring")
-
 state_pe, system_pe, pe = system_pe.collider.compute_potential_energy(
     state_pe, system_pe
 )
-print("Total potential energy:", pe)
-# The sole unique pair has overlap 0.5 and spring energy k * overlap**2 / 2.
-stiffness = system_pe.mat_table.young_eff[0, 0]
-np.testing.assert_allclose(pe, 0.5 * stiffness * 0.5**2, rtol=2e-6)
-
+print("Total pairwise potential energy:", float(pe))
 
 # %%
-# How the Collider Fits in the Step Pipeline
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# During each integration step, the pipeline is:
-#
-# 1. **Domain** — applies boundary conditions.
-# 2. **Integrator** (before force) — advances positions a half-step.
-# 3. **Collider** — evaluates pairwise forces and writes :py:attr:`~jaxdem.state.State.force`
-#    / :py:attr:`~jaxdem.state.State.torque`.
-# 4. **Force manager** — adds gravity, external forces, custom force
-#    functions, and aggregates rigid-body forces.
-# 5. **Integrator** (after force) — advances velocities.
-#
-# The collider only writes the *pairwise contact* contributions and
-# resets forces. The force manager then adds everything else on top.
+# For how the collider fits into the full per-step force and integration
+# pipeline, see :doc:`../auto_examples/integrator_guide` and
+# :doc:`../auto_examples/force_manager_guide`.

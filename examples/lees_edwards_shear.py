@@ -1,0 +1,218 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+r"""Lees--Edwards shear: dynamic flow and athermal quasistatic (AQS) loading
+============================================================================
+
+Demonstrate both ways to shear a 2D bidisperse disk packing with
+:class:`~jaxdem.domains.lees_edwards.LeesEdwardsDomain` starting from a single
+jammed reference packing:
+
+1. **Dynamic shear (below jamming, :math:`\phi_J - 0.02`):** set ``gamma_dot``,
+   advance ``domain.gamma`` inside ``user_pre_step_actions``, run
+   :meth:`~jaxdem.system.System.trajectory_rollout`, and measure peculiar
+   kinetic energy (velocity minus streaming profile) and contact shear stress
+   :math:`\sigma^c_{xy}`.
+2. **Athermal quasistatic (AQS) shear (above jamming, :math:`\phi_J + 0.02`):**
+   alternate :meth:`~jaxdem.domains.lees_edwards.LeesEdwardsDomain.shear` with
+   :meth:`~jaxdem.system.System.minimize` and compare contact virial stress
+   against :math:`-\frac{1}{A}\frac{\Delta U_{\min}}{\Delta\gamma}`.
+
+For Hessian soft-mode tracking across a plastic rearrangement during AQS shear,
+see :doc:`soft_mode_rearrangement`.
+"""
+
+from dataclasses import replace
+
+import jax
+
+jax.config.update("jax_enable_x64", True)
+
+import jax.numpy as jnp
+import matplotlib.pyplot as plt
+import numpy as np
+
+import jaxdem as jdem
+from jaxdem.utils.contacts import compute_contact_stress_tensor
+from jaxdem.utils.packing_utils import scale_to_packing_fraction
+from jaxdem.utils.thermal import compute_potential_energy
+
+# %%
+# 1) Prepare One Jammed Bidisperse Disk Packing
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+N = 12
+rad = jnp.concatenate([jnp.full(N // 2, 0.5), jnp.full(N // 2, 0.7)])
+volume = jnp.pi * rad**2
+L0 = jnp.sqrt(jnp.sum(volume) / 0.65)
+
+state0 = jdem.State.create(
+    pos=jax.random.uniform(jax.random.key(0), (N, 2), minval=0.0, maxval=L0),
+    rad=rad,
+    mass=jnp.ones(N),
+    volume=volume,
+)
+sys0 = jdem.System.create(
+    state=state0,
+    dt=0.01,
+    rotation_integrator_type=None,
+    minimizer=jdem.minimizers.fire,
+    minimizer_kw={"dt": 0.05},
+    domain_type="periodic",
+    domain_kw={"box_size": jnp.full(2, L0)},
+    mat_table=jdem.MaterialTable.from_materials(
+        [jdem.Material.create("elastic", young=1.0, poisson=0.3, density=1.0)]
+    ),
+)
+
+jam = jdem.utils.jamming.bisection_jam(
+    state0,
+    sys0,
+    pe_tol=1e-8,
+    pe_band_factor=4.0,
+    packing_fraction_increment=0.04,
+    packing_fraction_tolerance=1e-4,
+    n_jamming_steps=80,
+    verbose=False,
+    minimizer_kwargs={"max_steps": 5_000, "force_tol": 1e-7, "torque_tol": 1e-7},
+)
+if not bool(jam.converged):
+    raise RuntimeError(f"Jamming failed: {jam.reason}")
+
+phi_J = float(jam.packing_fraction)
+print(f"Jammed reference packing fraction: phi_J = {phi_J:.5f}")
+
+# %%
+# 2) Dynamic Lees--Edwards Shear (Below Jamming)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Lees--Edwards boundaries read ``domain.gamma`` and ``domain.gamma_dot`` for
+# image displacements/velocities, while a ``user_pre_step_actions`` callback
+# advances ``gamma``. (Note: for steady-state damped shear, thermostat the
+# *peculiar* velocity rather than total velocity so the streaming profile is
+# not removed.)
+
+shear_rate = 0.1
+dyn_state, dyn_sys = scale_to_packing_fraction(
+    jam.jammed_state, jam.jammed_system, phi_J - 0.02
+)
+
+
+def advance_shear(st: jdem.State, sys: jdem.System) -> tuple[jdem.State, jdem.System]:
+    dom = replace(sys.domain, gamma=sys.domain.gamma_dot * sys.time)
+    return st, replace(sys, domain=dom)
+
+
+dyn_sys = replace(
+    dyn_sys,
+    domain=jdem.Domain.create(
+        "leesedwards",
+        dim=2,
+        box_size=dyn_sys.domain.box_size,
+        anchor=dyn_sys.domain.anchor,
+        gamma_dot=shear_rate,
+    ),
+    user_pre_step_actions=advance_shear,
+)
+y0 = dyn_state.pos_c[:, 1]
+dyn_state = replace(
+    dyn_state,
+    vel=jnp.zeros_like(dyn_state.vel).at[:, 0].set(shear_rate * (y0 - jnp.mean(y0))),
+)
+dyn_state, dyn_sys = jdem.System.initialize(dyn_state, dyn_sys)
+
+dyn_state, dyn_sys, (dyn_traj_s, dyn_traj_sys) = jdem.System.trajectory_rollout(
+    dyn_state, dyn_sys, n=25, stride=20
+)
+dyn_sys.check_overflow()
+
+
+def dyn_observables(st: jdem.State, sys: jdem.System):
+    st, sys, stress = compute_contact_stress_tensor(st, sys)
+    ke = 0.5 * jnp.sum(st.mass[:, None] * st.vel**2) / N
+    stream = jnp.zeros_like(st.vel).at[:, 0].set(shear_rate * (st.pos_c[:, 1] - jnp.mean(st.pos_c[:, 1])))
+    pec_ke = 0.5 * jnp.sum(st.mass[:, None] * (st.vel - stream) ** 2) / N
+    return sys.domain.gamma, ke, pec_ke, stress[0, 1]
+
+
+dyn_gamma, dyn_ke, dyn_pec_ke, dyn_sxy = [
+    np.asarray(a) for a in jax.vmap(dyn_observables)(dyn_traj_s, dyn_traj_sys)
+]
+print(f"Dynamic shear reached gamma={dyn_gamma[-1]:.2f}, final peculiar KE/N={dyn_pec_ke[-1]:.3e}")
+
+# %%
+# 3) Athermal Quasistatic (AQS) Shear (Above Jamming)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Compress to :math:`\phi_J + 0.02`, switch to ``"leesedwards"``, and alternate
+# ``domain.shear(..., dgamma)`` with ``System.minimize``. On a smooth elastic
+# branch, the compression-positive virial stress matches
+# :math:`\sigma^c_{xy} = -\frac{1}{A}\frac{dU_{\min}}{d\gamma}`:
+
+aqs_state, aqs_sys = scale_to_packing_fraction(
+    jam.jammed_state, jam.jammed_system, phi_J + 0.02
+)
+aqs_sys = replace(
+    aqs_sys,
+    domain=jdem.Domain.create(
+        "leesedwards",
+        dim=2,
+        box_size=aqs_sys.domain.box_size,
+        anchor=aqs_sys.domain.anchor,
+    ),
+)
+area = float(jnp.prod(aqs_sys.domain.box_size))
+
+dgamma = 0.002
+aqs_states, aqs_systems = [], []
+aqs_gamma, aqs_energy, aqs_sxy = [], [], []
+
+for step in range(15):
+    if step > 0:
+        aqs_state, aqs_sys = aqs_sys.domain.shear(aqs_state, aqs_sys, dgamma)
+    res = jdem.System.minimize(
+        aqs_state, aqs_sys, max_steps=5_000, force_tol=1e-7, torque_tol=1e-7
+    )
+    if not bool(res.converged):
+        raise RuntimeError(f"AQS relaxation failed at step {step}")
+    aqs_state, aqs_sys = res.state, res.system
+    aqs_state, aqs_sys, stress = compute_contact_stress_tensor(aqs_state, aqs_sys)
+    u_tot = float(compute_potential_energy(aqs_state, aqs_sys))
+    aqs_states.append(aqs_state)
+    aqs_systems.append(aqs_sys)
+    aqs_gamma.append(float(aqs_sys.domain.gamma))
+    aqs_energy.append(u_tot)
+    aqs_sxy.append(float(stress[0, 1]))
+
+aqs_gamma_arr = np.asarray(aqs_gamma)
+aqs_energy_arr = np.asarray(aqs_energy)
+aqs_sxy_arr = np.asarray(aqs_sxy)
+# Compare virial shear stress with finite-difference -(1/A) dU/dgamma at midpoints:
+fd_sxy = -np.diff(aqs_energy_arr) / (area * dgamma)
+mid_gamma = 0.5 * (aqs_gamma_arr[:-1] + aqs_gamma_arr[1:])
+print(
+    f"AQS shear (gamma up to {aqs_gamma_arr[-1]:.3f}): "
+    f"max |sigma_xy - (-1/A dU/dgamma)| = {np.max(np.abs(0.5 * (aqs_sxy_arr[:-1] + aqs_sxy_arr[1:]) - fd_sxy)):.2e}"
+)
+
+scene_states = {"Dynamic shear": dyn_traj_s, "AQS shear": aqs_states}
+scene_systems = {"Dynamic shear": dyn_traj_sys, "AQS shear": aqs_systems}
+
+# %%
+# Compare Dynamic and Quasistatic Shear Responses
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+fig, axes = plt.subplots(1, 3, figsize=(11, 3.4), layout="constrained")
+axes[0].plot(dyn_gamma, dyn_ke, label="Total KE / N")
+axes[0].plot(dyn_gamma, dyn_pec_ke, "--", label="Peculiar KE / N")
+axes[0].set(xlabel=r"Strain $\gamma$", ylabel="Kinetic energy / N", title="Dynamic shear (unjammed)")
+axes[0].legend(fontsize="small")
+
+axes[1].plot(dyn_gamma, dyn_sxy, color="tab:orange")
+axes[1].set(xlabel=r"Strain $\gamma$", ylabel=r"Contact $\sigma^c_{xy}$", title="Dynamic shear stress")
+
+axes[2].plot(aqs_gamma_arr, aqs_sxy_arr, "o-", ms=3, label=r"Virial $\sigma^c_{xy}$")
+axes[2].plot(mid_gamma, fd_sxy, "x--", ms=4, label=r"$-\frac{1}{A}\frac{\Delta U}{\Delta\gamma}$")
+axes[2].set(xlabel=r"Strain $\gamma$", ylabel=r"Shear stress $\sigma^c_{xy}$", title="AQS shear (jammed)")
+axes[2].legend(fontsize="small")
+
+for ax in axes:
+    ax.grid(alpha=0.2)
+plt.show()

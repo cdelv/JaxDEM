@@ -22,19 +22,16 @@ Construction & packing pipelines
 .. toctree::
    :maxdepth: 1
 
-   ../auto_examples/sphere_construction
-   ../auto_examples/general_particle_construction
+   ../auto_examples/particle_construction
    ../auto_examples/clump_construction_pipeline
    ../auto_examples/dp_construction_pipeline
-   ../auto_examples/minimize_spheres
-   ../auto_examples/jam_spheres
+   ../auto_examples/minimize_and_jam_spheres
    ../auto_examples/sphere_jamming_rattlers_dynamical_matrix
    ../auto_examples/clump_jamming_dynamical_matrix_and_friction
    ../auto_examples/packing_analysis
    ../auto_examples/packing_fraction_protocol
    ../auto_examples/pseudo_log_rollout
-   ../auto_examples/sasa_calculation
-   ../auto_examples/particle_level_friction_calculation
+   ../auto_examples/clump_surface_properties
 
 Dynamics & active matter
 ------------------------
@@ -44,8 +41,7 @@ Dynamics & active matter
 
    ../auto_examples/rotating_drum
    ../auto_examples/temperature_density_control
-   ../auto_examples/shear_flow_disks
-   ../auto_examples/shear_jammed_disks
+   ../auto_examples/lees_edwards_shear
    ../auto_examples/vicsek_model
 
 Inference, deformation & ensembles
@@ -66,12 +62,12 @@ and quantifying preparation dependence across independent simulations.
 Reinforcement learning
 ----------------------
 
-Start with the :doc:`training tutorial <../auto_examples/intro_to_rl>` for
-the optional, experimental reinforcement-learning subsystem.
+Start with the :doc:`training tutorial <../auto_examples/intro_to_rl>` and the
+other RL guides in the :doc:`../user_guide/index` for the optional,
+experimental reinforcement-learning subsystem.
 
 .. toctree::
    :maxdepth: 1
 
-   ../auto_examples/training_metrics_guide
    ../auto_examples/environment_custom_policy
    ../auto_examples/data/index

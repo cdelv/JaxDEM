@@ -41,6 +41,7 @@ _DIAGNOSTICS_ONLY = {
     "pseudo_log_rollout",
     "state_guide",
     "system_guide",
+    "training_metrics_guide",
 }
 _INTERACTIVE = {
     "clump_construction_pipeline",
@@ -55,7 +56,7 @@ _EXISTING_WRITERS = {
     "introduction",
     "vtk_writer_guide",
 }
-_AQS = {"soft_mode_rearrangement", "shear_jammed_disks"}
+_AQS = {"soft_mode_rearrangement", "lees_edwards_shear"}
 _KINDS = {
     "spheres": "particles",
     "facets": "surface",
@@ -201,7 +202,7 @@ def _groups(slug: str, namespace: dict[str, Any]) -> list[dict[str, Any]]:
                 "Named rollout State/System axes do not describe a supported trajectory"
             )
 
-    if slug in {"particle_level_friction_calculation", "sasa_calculation"}:
+    if slug == "clump_surface_properties":
         # These examples construct a geometric body, without a dynamics System.
         # A free export-only System supplies VTKWriter's configuration interface;
         # it neither evolves the body nor fabricates a historical state.
@@ -899,7 +900,7 @@ def export_example(
         series.extend(_packing_edges(namespace, directory / "contacts"))
     if namespace.get("scene_targets") is not None:
         series.extend(_goal_overlays(namespace, groups, directory / "targets"))
-    if slug == "sasa_calculation":
+    if slug == "clump_surface_properties":
         central = namespace["central"]
         points = (
             np.asarray(central.pos_c)[0]

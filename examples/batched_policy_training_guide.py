@@ -1,33 +1,17 @@
 # SPDX-License-Identifier: BSD-3-Clause
 # Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
 """Batch train eight policies
-==========================
+=============================
 
-Train eight independent policies, then compare them from identical initial
-conditions. Every batch uses ``jax.vmap``. Each policy has separate parameters,
-optimizer state, training environments, and random keys.
+Train eight independent PPO policies in parallel with ``jax.vmap`` (each with
+its own parameters, optimizer state, environments, and PRNG key), then compare
+them from identical initial conditions.
 
-Run from the repository root:
-
-.. code-block:: bash
-
-   python -m pip install -e '.[rl]' matplotlib
-   python examples/batched_policy_training_guide.py
-
-See :doc:`intro_to_rl` for the environment and Proximal Policy Optimization
-(PPO) algorithm. This guide uses the same small navigation task.
+See :doc:`intro_to_rl` for the navigation task and PPO configuration. Install
+``JaxDEM[rl]`` and ``matplotlib``.
 """
 
-# %%
-# 1. Configure one trainer
-# ----------------------------------------
-# Each policy trains with 32 environments. All eight policies use the same
-# architecture and optimizer settings. One action spans 50 physics steps.
-# The template prepares the static configuration outside ``vmap``.
-
 from dataclasses import replace
-from pathlib import Path
-import tempfile
 
 import jax
 import jax.numpy as jnp
@@ -38,7 +22,15 @@ from flax import nnx
 
 import jaxdem.rl as rl
 from jaxdem import utils
-from jaxdem.rl.trainers.ppo_trainer import PPOTrainer
+from jaxdem.rl.trainers import PPOTrainer
+
+# %%
+# Configure One Template Trainer
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Build a single ``template`` trainer outside ``vmap``. Keeping the static
+# ``graphdef`` and Optax transform ``tx`` on ``template`` lets ``vmap`` batch
+# only the per-policy dynamic leaves (``graphstate``, ``env``, ``key``, and any
+# swept scalar hyperparameters such as ``ppo_entropy_coeff``):
 
 num_policies = 8
 num_envs = 32
@@ -87,20 +79,19 @@ template = rl.Trainer.create(
 _, template_optimizer = nnx.merge(template.graphdef, template.graphstate)
 
 # %%
-# 2. Initialize and train eight policies
-# ----------------------------------------
-# Share only the static graph and optimizer functions. ``vmap`` creates fresh
-# model parameters, optimizer state, environment resets, and keys per policy.
-# The training observation shape is ``(8, 32, 1, 6)``:
-# policies, environments, agents, and features.
+# Initialize and Train Eight Policies via ``jax.vmap``
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Each policy gets independent model weights, optimizer state, reset
+# environments, and PRNG keys (observation shape ``(8, 32, 1, 6)``). To sweep a
+# dynamic hyperparameter such as entropy regularization across the batch, pass
+# an array into ``vmap`` and include ``ppo_entropy_coeff=coeff`` in ``replace``:
 
 
 def initialize_policy(key):
     model_key, reset_key, training_key = jax.random.split(key, 3)
     model = make_model(model_key)
     optimizer = nnx.Optimizer(model, template_optimizer.tx, wrt=nnx.Param)
-    graphdef, graphstate = nnx.split((model, optimizer))
-    assert graphdef == template.graphdef
+    _graphdef, graphstate = nnx.split((model, optimizer))
     training_env = template.env.reset(
         template.env, jax.random.split(reset_key, num_envs)
     )
@@ -115,40 +106,32 @@ batch = jax.jit(jax.vmap(initialize_policy))(keys)
 
 @jax.jit
 def train_epoch(current, epoch):
-    updated, _trajectory, metrics = jax.vmap(
-        PPOTrainer.epoch, in_axes=(0, None)
-    )(current, epoch)
+    updated, _trajectory, metrics = jax.vmap(PPOTrainer.epoch, in_axes=(0, None))(
+        current, epoch
+    )
     return updated, metrics
 
 
-# The Python loop advances time. ``vmap`` batches the independent policies.
-# Each loss has shape ``(8,)``. Log only a few epochs to reduce synchronization.
 for epoch in range(num_epochs):
     batch, metrics = train_epoch(batch, jnp.asarray(epoch))
     if epoch == 0 or (epoch + 1) % 16 == 0:
         losses = np.asarray(metrics["loss"])
-        assert losses.shape == (num_policies,) and np.isfinite(losses).all()
-        print(f"Epoch {epoch + 1}: eight finite losses, mean={losses.mean():.5f}")
-assert not bool(jnp.any(batch.env.system.collider.overflow))
+        print(f"Epoch {epoch + 1:2d}: mean loss={losses.mean():.5f}")
+
+batch.env.system.check_overflow()
 
 # %%
-# 3. Run one environment per policy
-# ----------------------------------------
-# Reset one evaluation environment, then copy its complete state with ``vmap``.
-# Positions, velocities, target, domain, and simulation time start equal.
-# Check every dynamic array, rather than only the initial distances.
+# Evaluate All Eight Policies from an Identical Start
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Reset one environment, broadcast it to ``num_policies`` copies, and roll out
+# every policy deterministically with ``jax.vmap``:
 
 common_start = env.reset(env, jax.random.key(202))
-evaluation_envs = jax.vmap(lambda _: common_start)(jnp.arange(num_policies))
-for leaf in jax.tree.leaves(evaluation_envs):
-    np.testing.assert_array_equal(leaf, np.broadcast_to(leaf[0], leaf.shape))
+eval_envs = jax.vmap(lambda _: common_start)(jnp.arange(num_policies))
 
 
-# Each policy uses its deterministic action in its own environment.
-# ``scan`` advances time without resetting the episode. ``vmap`` pairs policy
-# i with environment i. Thus differences come from the trained policies.
 def evaluate_policy(trainer, start):
-    model, _optimizer = nnx.merge(trainer.graphdef, trainer.graphstate, copy=True)
+    model = trainer.model
     model.eval()
 
     def distance(current):
@@ -157,35 +140,25 @@ def evaluate_policy(trainer, start):
         )
 
     def step(current, _):
-        pi, _value = model(current.observation(current))
+        pi, _val = model(current.observation(current), sequence=False)
         action = model.policy_output(pi)
         current, _terminated, _truncated = utils.advance_action(
             current, action, skip_frames=skip_frames
         )
         return current, distance(current)
 
-    final, distances = jax.lax.scan(step, start, None, length=evaluation_steps)
-    return jnp.concatenate((distance(start)[None], distances)), final
+    final, dists = jax.lax.scan(step, start, None, length=evaluation_steps)
+    return jnp.concatenate((distance(start)[None], dists)), final
 
 
-distances, final_envs = jax.jit(jax.vmap(evaluate_policy))(batch, evaluation_envs)
+distances, _final_envs = jax.jit(jax.vmap(evaluate_policy))(batch, eval_envs)
 distances = np.asarray(distances)
-assert distances.shape == (num_policies, evaluation_steps + 1)
-assert np.isfinite(distances).all()
-assert np.all(
-    np.asarray(final_envs.system.step_count) == evaluation_steps * (1 + skip_frames)
-)
-np.testing.assert_array_equal(distances[:, 0], np.repeat(distances[0, 0], num_policies))
-print("Initial distance for all eight policies:", distances[0, 0])
+print(f"Initial distance: {distances[0, 0]:.4f}")
 print("Final distances:", np.round(distances[:, -1], 4))
 
 # %%
-# 4. Plot the eight trajectories
-# ----------------------------------------
-# Thin lines show individual trajectories. The dark line shows their mean.
-# The bands show the full range and middle 50% across the eight trajectories
-# at each time. These are descriptive bands, not confidence intervals.
-# All curves include the common starting point at time zero.
+# Plot the Eight Trajectories
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 decision_interval = float(common_start.system.dt) * (1 + skip_frames)
 time = np.arange(evaluation_steps + 1) * decision_interval
@@ -199,14 +172,8 @@ axis.plot(time, distances.mean(axis=0), color="#173f62", linewidth=2.5, label="M
 axis.set(
     xlabel="Physical time",
     ylabel="Distance to target",
-    title="Eight trained policies, identical initial conditions",
+    title="Eight trained policies from identical initial conditions",
 )
 axis.grid(alpha=0.2)
 axis.legend()
-
-output_dir = Path(tempfile.mkdtemp(prefix="jaxdem-eight-policies-"))
-plot_path = output_dir / "distance_to_target.png"
-fig.savefig(plot_path, dpi=180)
-np.savez(output_dir / "trajectories.npz", time=time, distances=distances)
-print("Plot:", plot_path)
 plt.show()

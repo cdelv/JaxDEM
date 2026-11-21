@@ -3,176 +3,147 @@
 r"""Materials, Matchmakers, and Material Tables
 ------------------------------------------------
 
-JaxDEM separates material definitions from force laws:
+JaxDEM separates material properties from force laws:
 
 - :py:class:`~jaxdem.materials.Material` stores per-material scalar properties.
-- :py:class:`~jaxdem.material_matchmakers.MaterialMatchmaker` defines how to mix
-  two material properties into an effective pair property.
+- :py:class:`~jaxdem.material_matchmakers.MaterialMatchmaker` mixes two
+  materials into an effective pair property.
 - :py:class:`~jaxdem.materials.material_table.MaterialTable` stores both scalar
-  properties and precomputed pair tables used by force models.
+  arrays ``(M,)`` and precomputed pair tables ``(M, M)`` consumed by force laws.
 
-This guide shows how to create materials, choose a matchmaker, and pass a
-material table into :py:class:`~jaxdem.system.System`. For how force models
-consume these properties, see :doc:`../auto_examples/force_model_guide`.
+For how force models read these properties, see
+:doc:`../auto_examples/force_model_guide`.
 """
 
 # %%
-# Creating Materials
-# ~~~~~~~~~~~~~~~~~~
-# You create materials through
-# :py:meth:`Material.create <jaxdem.factory.Factory.create>`.
-# Each registered material type defines its own required fields.
+# Built-in and Custom Materials
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Create built-in materials with
+# :py:meth:`Material.create <jaxdem.factory.Factory.create>`:
+#
+# * ``"elastic"`` — ``density``, ``young``, ``poisson``
+# * ``"elasticfrict"`` — ``density``, ``young``, ``poisson``, ``mu``, ``e``
+#   (and optional rolling friction ``mu_r``, default ``0.0``)
+# * ``"cundallstrackparams"`` — direct Cundall--Strack stiffness/damping
+#   coefficients (``density``, ``k_n``, ``k_t``, ``gamma_n``, ``gamma_t``, ``mu``, ``mu_r``)
+# * ``"lj"`` — ``density``, ``epsilon``
+
+from dataclasses import dataclass
 
 import jax.numpy as jnp
 
-import numpy as np
-
 import jaxdem as jdem
 
-elastic = jdem.Material.create(
-    "elastic",
-    density=2500.0,
-    young=2.0e5,
-    poisson=0.25,
-)
-
+elastic = jdem.Material.create("elastic", density=2500.0, young=2.0e5, poisson=0.25)
 frictional = jdem.Material.create(
     "elasticfrict",
     density=1200.0,
     young=8.0e4,
     poisson=0.35,
     mu=0.6,
-    e=1.0,
+    e=0.9,
+    mu_r=0.1,
 )
-
-lj = jdem.Material.create(
-    "lj",
-    density=1.0,
-    epsilon=1.5,
-)
-
-print("elastic type:", elastic.type_name)
-print("frictional type:", frictional.type_name)
-print("lj type:", lj.type_name)
-
+lj = jdem.Material.create("lj", density=1.0, epsilon=1.5)
+print("Created materials:", elastic.type_name, frictional.type_name, lj.type_name)
 
 # %%
-# You can inspect available material types in the
-# :py:class:`~jaxdem.factory.Factory` registry (the private ``Material._registry`` dictionary):
+# You can also define a custom :py:class:`~jaxdem.materials.Material` subclass
+# whenever a combined or custom force law needs a custom set of scalar fields
+# (no factory registration is required if you pass instances directly):
 
-print("Registered materials:", list(jdem.Material._registry.keys()))
 
+@dataclass
+class ElasticLJ(jdem.Material):
+    young: float
+    poisson: float
+    epsilon: float
+
+
+hybrid = ElasticLJ(density=1.0, young=10.0, poisson=0.3, epsilon=0.5)
+print("Custom material fields:", hybrid)
 
 # %%
-# Creating a Material Table
-# ~~~~~~~~~~~~~~~~~~~~~~~~~
-# :py:meth:`~jaxdem.materials.material_table.MaterialTable.from_materials` converts a list of material objects
-# into a
-# Structure-of-Arrays representation and computes effective pair properties.
+# Creating a Material Table and Choosing a Matchmaker
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# :py:meth:`~jaxdem.materials.material_table.MaterialTable.from_materials`
+# packs a list of materials into Structure-of-Arrays form and computes effective
+# pair arrays (``<prop>_eff``) using a
+# :py:class:`~jaxdem.material_matchmakers.MaterialMatchmaker`.
 #
-# When a material does not define a property, ``fill`` supplies the value.
-# With harmonic mixing, a zero-filled property makes the mixed pair value
-# zero. Merely storing a property name does not make that interaction active.
-
-harmonic_matcher = jdem.MaterialMatchmaker.create("harmonic")
-mat_table = jdem.MaterialTable.from_materials(
-    [elastic, frictional],
-    matcher=harmonic_matcher,
-    fill=0.0,
-)
-
-print("Number of materials:", len(mat_table))
-print("Stored scalar keys:", sorted(mat_table.props.keys()))
-print("Stored pair keys:", sorted(mat_table.pair.keys()))
-
-# Scalar per-material arrays (shape: (M,))
-print("young:", mat_table.young)
-print("mu (elastic filled with 0.0):", mat_table.mu)
-
-# Effective pair arrays (shape: (M, M))
-print("young_eff:\n", mat_table.young_eff)
-print("poisson_eff:\n", mat_table.poisson_eff)
-print("mu_eff:\n", mat_table.mu_eff)
-
-
-# %%
-# Matchmakers
-# ~~~~~~~~~~~
-# A :py:class:`~jaxdem.material_matchmakers.MaterialMatchmaker` controls how
-# the material table computes effective pair properties.
-# For a positive scalar material property P, the two built-in averages are
+# Built-in matchmakers for positive scalar properties :math:`P_i, P_j`:
 #
 # .. math::
 #
-#    P_{ij}^{\mathrm{harmonic}}=\frac{2P_iP_j}{P_i+P_j},\qquad
-#    P_{ij}^{\mathrm{linear}}=\frac{P_i+P_j}{2}.
+#    P_{ij}^{\mathrm{harmonic}} = \frac{2 P_i P_j}{P_i + P_j}, \qquad
+#    P_{ij}^{\mathrm{linear}} = \frac{P_i + P_j}{2}.
 #
-# Both return P for two identical materials. The harmonic mean is dominated
-# by the smaller value and becomes zero when either value is zero, which is
-# why missing properties and their fill values affect mixed interactions.
-# These are the table's mixing rules; a force model with its own constitutive
-# reduction, such as Hertz's effective modulus, can read the per-material
-# properties directly instead. Choose a registered mixing rule with
-# :py:meth:`MaterialMatchmaker.create <jaxdem.factory.Factory.create>`.
+# When one material omits a property defined by another, ``fill`` (default
+# ``0.0``) supplies the missing value. With harmonic mixing, a ``0.0`` fill
+# produces a zero effective pair value. Force models with their own
+# constitutive reduction (such as Hertz's effective modulus) read the scalar
+# arrays directly instead.
 
-linear_matcher = jdem.MaterialMatchmaker.create("linear")
+mat_table = jdem.MaterialTable.from_materials(
+    [elastic, frictional],
+    matcher=jdem.MaterialMatchmaker.create("harmonic"),
+    fill=0.0,
+)
 mat_table_linear = jdem.MaterialTable.from_materials(
     [elastic, frictional],
-    matcher=linear_matcher,
+    matcher=jdem.MaterialMatchmaker.create("linear"),
 )
 
-print("Registered matchmakers:", list(jdem.MaterialMatchmaker._registry.keys()))
-print("harmonic young_eff[0,1] =", mat_table.young_eff[0, 1])
-print("linear   young_eff[0,1] =", mat_table_linear.young_eff[0, 1])
+print("Scalar keys:", sorted(mat_table.props.keys()))
+print("Pair keys  :", sorted(mat_table.pair.keys()))
+print("young (per material):", mat_table.young)
+print("harmonic young_eff[0, 1] =", float(mat_table.young_eff[0, 1]))
+print("linear   young_eff[0, 1] =", float(mat_table_linear.young_eff[0, 1]))
 
 # %%
 # Using Material IDs in a Simulation
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Particles select their material via :py:attr:`state.mat_id <jaxdem.state.State.mat_id>`.
-# Force models then query pair values from :py:attr:`system.mat_table <jaxdem.system.System.mat_table>`.
-# Pass the table to :py:meth:`State.create <jaxdem.state.State.create>` too if density should determine mass
-# and
-# inertia. Passing it only to :py:meth:`System.create <jaxdem.system.System.create>` does not update existing
-# masses.
-# In this 2D demonstration, volume is disk area, so density is interpreted as
-# mass per area (or a three-dimensional density with unit out-of-plane depth).
-# Use consistent units; the :py:class:`spring law <jaxdem.forces.spring.SpringForce>` reads ``young_eff`` as a
-# force/length
-# stiffness coefficient rather than converting a bulk modulus automatically.
+# Assign per-particle material indices with :py:attr:`state.mat_id <jaxdem.state.State.mat_id>`.
+# Pass ``mat_table`` to **both** :py:meth:`~jaxdem.state.State.create` (if you
+# want mass and inertia computed automatically from ``density * volume``) and
+# :py:meth:`~jaxdem.system.System.create`.
+#
+# .. note::
+#    When ``mat_table`` is passed to :py:meth:`~jaxdem.state.State.create`, it
+#    computes ``mass`` from ``density * volume`` and ignores any explicit
+#    ``mass=`` argument. In 2D, ``volume`` is disk area.
+#
+# Every force model exposes ``required_material_properties`` so you can check
+# exactly which keys must exist in ``mat_table``:
 
 state = jdem.State.create(
     pos=jnp.array([[0.0, 0.0], [1.5, 0.0]]),
     rad=jnp.array([1.0, 1.0]),
-    mat_id=jnp.array([0, 1]),  # particle 0 uses elastic, particle 1 uses frictional
+    mat_id=jnp.array([0, 1]),  # particle 0 -> elastic, particle 1 -> frictional
     mat_table=mat_table,
 )
-
 system = jdem.System.create(
     state.shape,
     force_model_type="spring",
     mat_table=mat_table,
 )
-
-np.testing.assert_allclose(state.mass, mat_table.density[state.mat_id] * state.volume)
-print("Masses from density times area:", state.mass)
-
-print(
-    "Required properties for spring:", system.force_model.required_material_properties
-)
-print("Effective stiffness used by pair (0,1):", system.mat_table.young_eff[0, 1])
+print("Masses from density * area:", state.mass)
+print("Required properties for spring:", system.force_model.required_material_properties)
+print("Pair (0, 1) effective stiffness:", float(system.mat_table.young_eff[0, 1]))
 
 state, system = jdem.System.initialize(state, system)
-state, system = system.step(state, system)
+state, system = jdem.System.step(state, system)
 print("Resulting forces:\n", state.force)
 
-
 # %%
-# Default Material Table in System Creation
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# If you omit ``mat_table``, :py:meth:`~jaxdem.system.System.create`
-# builds a default single-material table.
+# Default Material Table
+# ~~~~~~~~~~~~~~~~~~~~~~
+# Omitting ``mat_table`` in :py:meth:`~jaxdem.system.System.create` builds a
+# default single-material elastic table:
 
 default_system = jdem.System.create(state.shape, force_model_type="spring")
-print("Default number of materials:", len(default_system.mat_table))
-print("Default matcher:", default_system.mat_table.matcher.type_name)
-print("Default scalar keys:", sorted(default_system.mat_table.props.keys()))
+print(
+    f"Default table: {len(default_system.mat_table)} material, "
+    f"matcher={default_system.mat_table.matcher.type_name}, "
+    f"keys={sorted(default_system.mat_table.props.keys())}"
+)

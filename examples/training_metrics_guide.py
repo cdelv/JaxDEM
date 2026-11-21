@@ -3,9 +3,11 @@
 """Log a custom training metric
 ===============================
 
-This example trains a MinGRU policy in MultiNavigator and adds an accuracy
-metric to PPO reports. It then measures accuracy on fresh episodes.
-See :doc:`intro_to_rl` for the environment, model, and trainer APIs.
+Train a recurrent :py:class:`~jaxdem.rl.models.mingru.MinGRUActorCritic`
+policy in :py:class:`~jaxdem.rl.environments.multi_navigator.MultiNavigator`,
+attach a custom ``metrics_fn`` to
+:py:meth:`~jaxdem.rl.trainers.ppo_trainer.PPOTrainer.train`, and evaluate on
+fresh episodes. See :doc:`intro_to_rl` for core RL concepts.
 """
 
 import tempfile
@@ -18,28 +20,27 @@ import jaxdem as jdem
 import jaxdem.rl as rl
 
 # %%
-# Create the environment and policy
-# ---------------------------------
+# Create the Environment, Recurrent Policy, and Trainer
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Keep sizes compact for a quick local run; scale ``N``, ``num_envs``, and
+# ``epochs`` up for full multi-agent training:
+
 seed = 6
-horizon = 160
-phi = 0.62
-box = jnp.sqrt(64 * jnp.pi / phi)
-skip_frames = 49
-num_envs = 64
-num_steps_epoch = 64
-num_minibatches = 8
-learning_rate = 1e-3
-epochs = 64
+n_agents = 8
+phi = 0.45
+box = jnp.sqrt(n_agents * jnp.pi / phi)
+skip_frames = 19
+num_envs = 8
+num_steps_epoch = 16
+epochs = 8
 
 env = rl.Environment.create(
     "MultiNavigator",
-    N=64,
+    N=n_agents,
     min_box_size=box,
     max_box_size=box,
+    max_steps=800,
     friction=2.0,
-)
-env.env_params["max_steps"] = jnp.asarray(
-    round(horizon / float(env.system.dt)), dtype=int
 )
 model_key, trainer_key = jax.random.split(jax.random.key(seed))
 policy = rl.Model.create(
@@ -49,15 +50,11 @@ policy = rl.Model.create(
     action_space_size=env.action_space_size,
     action_space=rl.ActionSpace.create("maxNorm", max_norm=2.0),
     actor_sigma_head=False,
-    hidden_features=64,
-    gru_features=64,
-    num_layers=4,
+    hidden_features=32,
+    gru_features=32,
+    num_layers=2,
     activation=nnx.identity,
 )
-
-# %%
-# Create the PPO trainer
-# -----------------------
 trainer = rl.Trainer.create(
     "PPO",
     env=env,
@@ -66,33 +63,38 @@ trainer = rl.Trainer.create(
     num_envs=num_envs,
     num_steps_epoch=num_steps_epoch,
     skip_frames=skip_frames,
-    num_minibatches=num_minibatches,
-    learning_rate=learning_rate,
+    num_minibatches=4,
+    learning_rate=1e-3,
     num_epochs=epochs,
-    stop_at_epoch=epochs,
 )
 
-
 # %%
-# Define the metric and train
-# ---------------------------
-# Accuracy is the fraction of agents within one radius of their target.
-# The metric function reduces the environment batch to one JAX scalar.
-# It measures the current training state, which can include automatic resets.
-def measure_accuracy(env, cutoff_radii=1.0):
-    distance = jnp.linalg.norm(env.state.pos_c - env.env_params["objective"], axis=-1)
-    return (distance <= cutoff_radii * env.state.rad).mean(axis=-1)
+# Define ``metrics_fn`` and Train
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ``metrics_fn(trainer, trajectory)`` runs **inside JIT** at the end of every
+# epoch and must return a ``dict[str, jax.Array]`` of scalar values. Its keys
+# are merged with built-in PPO metrics (such as ``loss``, ``score``,
+# ``entropy``, ``steps_per_sec``), written to TensorBoard under ``directory``
+# when ``log=True``, and formatted in the progress bar via ``progress_metrics``:
 
 
-def training_metrics(current, trajectory):
-    return {"accuracy": jax.vmap(measure_accuracy)(current.env).mean()}
+def measure_accuracy(current_env, cutoff_radii: float = 1.0) -> jax.Array:
+    """Fraction of agents within ``cutoff_radii`` radii of their target."""
+    dist = jnp.linalg.norm(
+        current_env.state.pos_c - current_env.env_params["objective"], axis=-1
+    )
+    return (dist <= cutoff_radii * current_env.state.rad).mean(axis=-1)
 
 
-# The progress mapping selects fields and their Python number formats.
-with tempfile.TemporaryDirectory(prefix="jaxdem-rl-metrics-") as log_directory:
+def training_metrics(current_trainer, trajectory) -> dict[str, jax.Array]:
+    del trajectory
+    return {"accuracy": jax.vmap(measure_accuracy)(current_trainer.env).mean()}
+
+
+with tempfile.TemporaryDirectory(prefix="jaxdem-rl-metrics-") as log_dir:
     trainer = trainer.train(
         trainer,
-        directory=log_directory,
+        directory=log_dir,
         metrics_fn=training_metrics,
         progress_metrics={
             "accuracy": ".1%",
@@ -103,42 +105,41 @@ with tempfile.TemporaryDirectory(prefix="jaxdem-rl-metrics-") as log_directory:
         log=True,
     )
 
-
 # %%
-# Evaluate on fresh episodes
-# --------------------------
-# The evaluation resets each environment and the model's recurrent state.
-# It measures accuracy at episode endpoints, without automatic resets.
+# Evaluate the Recurrent Policy on Fresh Episodes
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Recurrent models carry hidden state that must be reset to match the
+# evaluation batch shape ``(num_envs, max_num_agents, 1)`` before rolling out:
+
+
 @jax.jit
 def policy_model(obs, key, graphstate, graphdef):
-    model, *rest = nnx.merge(graphdef, graphstate)
-    pi, _value = model(obs, sequence=False)
-    action = pi.sample(seed=key)
-    _, new_graphstate = nnx.split((model, *rest))
+    m = nnx.merge(graphdef, graphstate)
+    pi, _val = m(obs, sequence=False)
+    action = m.policy_output(pi)
+    _, new_graphstate = nnx.split(m)
     return action, new_graphstate
 
 
-model, *rest = nnx.merge(trainer.graphdef, trainer.graphstate)
-model.reset(shape=(num_envs, trainer.env.max_num_agents, 1), mask=None)
-trainer.graphdef, trainer.graphstate = nnx.split((model, *rest))
-trainer.key, subkey = jax.random.split(trainer.key)
-subkeys = jax.random.split(subkey, num_envs)
-trainer.env = trainer.env.reset(trainer.env, subkeys)
+eval_model = trainer.model
+eval_model.eval()
+eval_model.reset(shape=(num_envs, trainer.env.max_num_agents, 1), mask=None)
+graphdef, graphstate = nnx.split(eval_model)
 
-physics_steps_per_action = 1 + skip_frames
-episode_actions = (
-    int(env.env_params["max_steps"]) + physics_steps_per_action - 1
-) // physics_steps_per_action
-trainer.env, trainer.key, trainer.graphstate = jdem.utils.env_step(
-    trainer.env,
+eval_key, reset_key = jax.random.split(trainer.key)
+eval_env = trainer.env.reset(trainer.env, jax.random.split(reset_key, num_envs))
+
+steps_per_action = 1 + skip_frames
+episode_actions = (int(env.env_params["max_steps"]) + steps_per_action - 1) // steps_per_action
+eval_env, eval_key, graphstate = jdem.utils.env_step(
+    eval_env,
     policy_model,
-    trainer.key,
-    trainer.graphstate,
-    graphdef=trainer.graphdef,
+    eval_key,
+    graphstate,
+    graphdef=graphdef,
     n=episode_actions,
     skip_frames=skip_frames,
 )
 
-# Report the mean and standard deviation across environments.
-accuracy = measure_accuracy(trainer.env)
-print(f"Accuracy: {accuracy.mean():.1%} +/- {accuracy.std():.1%}")
+accuracy = jax.vmap(measure_accuracy)(eval_env)
+print(f"Evaluation accuracy: {float(accuracy.mean()):.1%} +/- {float(accuracy.std()):.1%}")
