@@ -83,18 +83,12 @@ def _lookup_cell_starts(
             table = jnp.full_like(
                 prototype, n_items, shape=(capacity,), dtype=jnp.int32
             )
-        stored_in_range = hashes < hash_capacity
-        stored_indices = jnp.where(stored_in_range, hashes, hash_capacity).astype(
-            jnp.int32
-        )
+        stored_indices = jnp.minimum(hashes, hash_capacity)
         table = table.at[stored_indices].min(
             jax.lax.iota(jnp.int32, n_items), mode="drop"
         )
 
-        query_in_range = queries < hash_capacity
-        query_indices = jnp.where(query_in_range, queries, hash_capacity).astype(
-            jnp.int32
-        )
+        query_indices = jnp.minimum(queries, hash_capacity)
         return table.at[query_indices].get(mode="fill", fill_value=n_items)
 
     def sparse_lookup(

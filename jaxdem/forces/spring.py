@@ -29,6 +29,14 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
+def _spring_force_coeff(n2: jax.Array, R: jax.Array, k: jax.Array) -> jax.Array:
+    """Scalar multiplier ``c`` such that ``F_ij = c * r_ij`` for a linear spring."""
+    zero = n2 == 0.0
+    safe_n2 = jnp.where(zero, 1.0, n2)
+    inv_r = jnp.where(zero, 0.0, jax.lax.rsqrt(safe_n2))
+    return k * jnp.maximum(0.0, R * inv_r - 1.0)
+
+
 @ForceModel.register("spring")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
@@ -69,6 +77,16 @@ class SpringForce(ForceModel):
     where :math:`k_{eff,\; ij}` is the effective Young's modulus for the particle pair.
 
     """
+
+    @property
+    def has_pair_torque(self) -> bool:
+        """Central spring forces produce no torque about a sphere center."""
+        return False
+
+    @property
+    def supports_sorted_order(self) -> bool:
+        """Spring force reads only per-particle fields indexed by ``i`` and ``j``."""
+        return True
 
     def search_radii(self, state: State, system: System) -> jax.Array:
         """Conservative search extent for this law's finite interaction range."""
@@ -119,21 +137,18 @@ class SpringForce(ForceModel):
         R = state.rad[i] + state.rad[j]
         rij = system.domain._displacement(pos[i], pos[j], system)
         n2 = norm2(rij)
-        zero = n2 == 0.0
-        safe_n2 = jnp.where(zero, 1.0, n2)
-        inv = jnp.where(zero, 0.0, jax.lax.rsqrt(safe_n2))
-        r = jnp.where(zero, 0.0, jnp.sqrt(safe_n2))
-
-        mi, mj = state.mat_id[i], state.mat_id[j]
-        k = system.mat_table.young_eff[mi, mj]
-        delta = jnp.maximum(0.0, R - r) * (i != j)
-        coefficient = (k * delta) * inv
-        t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
-        return (
-            coefficient[..., None] * rij,
-            jnp.zeros(t_shape, dtype=state.torque.dtype),
-            history,
+        young_eff = system.mat_table.young_eff
+        if young_eff.shape == (1, 1):
+            k = young_eff[0, 0]
+        else:
+            mi, mj = state.mat_id[i], state.mat_id[j]
+            k = young_eff[mi, mj]
+        coeff = _spring_force_coeff(n2, R, k) * (i != j)
+        force = coeff[..., None] * rij
+        torque = jnp.zeros(
+            (*force.shape[:-1], state.torque.shape[-1]), dtype=state.torque.dtype
         )
+        return force, torque, history
 
     @staticmethod
     @jax.jit(inline=True)
@@ -172,10 +187,16 @@ class SpringForce(ForceModel):
         """
         R = state.rad[i] + state.rad[j]
         rij = system.domain._displacement(pos[i], pos[j], system)
-        r = norm(rij)
+        n2 = norm2(rij)
+        zero = n2 == 0.0
+        r = jnp.where(zero, 0.0, jnp.sqrt(jnp.where(zero, 1.0, n2)))
 
-        mi, mj = state.mat_id[i], state.mat_id[j]
-        k = system.mat_table.young_eff[mi, mj]
+        young_eff = system.mat_table.young_eff
+        if young_eff.shape == (1, 1):
+            k = young_eff[0, 0]
+        else:
+            mi, mj = state.mat_id[i], state.mat_id[j]
+            k = young_eff[mi, mj]
         s = jnp.maximum(0.0, R - r) * (i != j)
         return 0.5 * k * s * s
 

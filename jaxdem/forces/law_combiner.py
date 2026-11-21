@@ -55,6 +55,14 @@ class LawCombiner(ForceModel):
         return all(law.supports_analytical_energy_gradient for law in self.laws)
 
     @property
+    def has_pair_torque(self) -> bool:
+        return any(law.has_pair_torque for law in self.laws)
+
+    @property
+    def supports_sorted_order(self) -> bool:
+        return all(law.supports_sorted_order for law in self.laws)
+
+    @property
     def species_capacity(self) -> int | None:
         """Smallest router capacity reachable through the contained laws."""
         capacities = [
@@ -87,7 +95,7 @@ class LawCombiner(ForceModel):
         return radii
 
     @staticmethod
-    @jax.jit(static_argnames=("advance_history", "quasistatic"))
+    @jax.jit(static_argnames=("advance_history", "quasistatic"), inline=True)
     @partial(jax.named_call, name="LawCombiner.force")
     def force(
         i: int,
@@ -100,12 +108,19 @@ class LawCombiner(ForceModel):
         advance_history: bool = True,
         quasistatic: bool = False,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
-        f_shape = jnp.shape(j) + jnp.shape(state.force[i])
-        t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
-        force = jnp.zeros(f_shape, dtype=state.force.dtype)
-        torque = jnp.zeros(t_shape, dtype=state.torque.dtype)
         combiner = cast(LawCombiner, system.force_model)
-        new_histories = []
+        if not combiner.laws:
+            f_shape = jnp.shape(j) + jnp.shape(state.force[i])
+            t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
+            return (
+                jnp.zeros(f_shape, dtype=state.force.dtype),
+                jnp.zeros(t_shape, dtype=state.torque.dtype),
+                history,
+            )
+        has_history = history.shape[-1] > 0
+        force: jax.Array | None = None
+        torque: jax.Array | None = None
+        new_histories: list[jax.Array] = []
         offset = 0
         for law in combiner.laws:
             child_shape = law.history_shape(pos.shape[-1])
@@ -124,15 +139,19 @@ class LawCombiner(ForceModel):
                 advance_history=advance_history,
                 quasistatic=quasistatic,
             )
-            force += f
-            torque += t
-            new_histories.append(nh.reshape((*history.shape[:-1], width)))
+            force = f if force is None else force + f
+            torque = t if torque is None else torque + t
+            if has_history and width > 0:
+                new_histories.append(nh.reshape((*history.shape[:-1], width)))
             offset += width
-        return (
-            force,
-            torque,
-            jnp.concatenate(new_histories, axis=-1) if new_histories else history,
-        )
+        assert force is not None and torque is not None
+        if not has_history:
+            new_history = history
+        elif len(new_histories) == 1:
+            new_history = new_histories[0]
+        else:
+            new_history = jnp.concatenate(new_histories, axis=-1)
+        return force, torque, new_history
 
     @property
     def required_material_properties(self) -> tuple[str, ...]:
@@ -147,7 +166,7 @@ class LawCombiner(ForceModel):
         )
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="LawCombiner.energy")
     def energy(
         i: int,

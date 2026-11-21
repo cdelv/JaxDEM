@@ -59,6 +59,22 @@ class ForceRouter(ForceModel):
         )
 
     @property
+    def has_pair_torque(self) -> bool:
+        return any(
+            law.has_pair_torque
+            for a, row in enumerate(self.table)
+            for law in row[a:]
+        )
+
+    @property
+    def supports_sorted_order(self) -> bool:
+        return all(
+            law.supports_sorted_order
+            for a, row in enumerate(self.table)
+            for law in row[a:]
+        )
+
+    @property
     def species_capacity(self) -> int | None:
         """Smallest capacity imposed by this table or a nested router."""
         capacities = [len(self.table)]
@@ -101,7 +117,7 @@ class ForceRouter(ForceModel):
         return radii
 
     @staticmethod
-    @jax.jit(static_argnames=("advance_history", "quasistatic"))
+    @jax.jit(static_argnames=("advance_history", "quasistatic"), inline=True)
     @partial(jax.named_call, name="ForceRouter.force")
     def force(
         i: int,
@@ -119,10 +135,13 @@ class ForceRouter(ForceModel):
 
         si = state.species_id[i]
         sj = state.species_id[j]
+        lo, hi = jnp.minimum(si, sj), jnp.maximum(si, sj)
+        idx = lo * (2 * S - 1 - lo) // 2 + hi
 
-        f_map = {}
-        t_map = {}
-        history_parts = []
+        f_results: list[jax.Array] = []
+        t_results: list[jax.Array] = []
+        history_parts: list[jax.Array] = []
+        has_history = history.shape[-1] > 0
         offset = 0
 
         for a in range(S):
@@ -130,9 +149,8 @@ class ForceRouter(ForceModel):
                 law = router.table[a][b]
                 child_shape = law.history_shape(pos.shape[-1])
                 width = math.prod(child_shape)
-                h_ab = history[..., offset : offset + width].reshape(
-                    (*history.shape[:-1], *child_shape)
-                )
+                h_flat = history[..., offset : offset + width]
+                h_ab = h_flat.reshape((*history.shape[:-1], *child_shape))
                 sys_law = dataclasses.replace(system, force_model=law)
                 f, t, nh = law.force(
                     i,
@@ -145,30 +163,14 @@ class ForceRouter(ForceModel):
                     quasistatic=quasistatic,
                 )
 
-                f_map[(a, b)] = jnp.asarray(f, dtype=float)
-                t_map[(a, b)] = jnp.asarray(t, dtype=float)
+                f_results.append(jnp.asarray(f, dtype=float))
+                t_results.append(jnp.asarray(t, dtype=float))
 
-                mask = ((si == a) * (sj == b)) | ((si == b) * (sj == a))
-                selected = jnp.where(
-                    mask.reshape((*mask.shape, *((1,) * len(child_shape)))), nh, h_ab
-                )
-                history_parts.append(selected.reshape((*history.shape[:-1], width)))
+                if has_history and width > 0:
+                    mask = (lo == a) & (hi == b)
+                    nh_flat = nh.reshape((*history.shape[:-1], width))
+                    history_parts.append(jnp.where(mask[..., None], nh_flat, h_flat))
                 offset += width
-
-                if a != b:
-                    f_map[(b, a)] = f_map[(a, b)]
-                    t_map[(b, a)] = t_map[(a, b)]
-
-        pair_to_law = [[0] * S for _ in range(S)]
-        law_idx = 0
-        for a in range(S):
-            for b in range(a, S):
-                pair_to_law[a][b] = law_idx
-                pair_to_law[b][a] = law_idx
-                law_idx += 1
-        idx = jnp.asarray(pair_to_law, dtype=si.dtype)[si, sj]
-        f_results = [f_map[(a, b)] for a in range(S) for b in range(a, S)]
-        t_results = [t_map[(a, b)] for a in range(S) for b in range(a, S)]
 
         idx_f = idx
         if jnp.ndim(idx) > 0:
@@ -185,9 +187,12 @@ class ForceRouter(ForceModel):
         f_final = jax.lax.select_n(idx_f, *f_results)
         t_final = jax.lax.select_n(idx_t, *t_results)
 
-        new_history = (
-            jnp.concatenate(history_parts, axis=-1) if history_parts else history
-        )
+        if not has_history:
+            new_history = history
+        elif len(history_parts) == 1:
+            new_history = history_parts[0]
+        else:
+            new_history = jnp.concatenate(history_parts, axis=-1)
         return f_final, t_final, new_history
 
     @property
@@ -239,7 +244,7 @@ class ForceRouter(ForceModel):
         return ForceRouter(table=tuple(tuple(r) for r in m))
 
     @staticmethod
-    @jax.jit
+    @jax.jit(inline=True)
     @partial(jax.named_call, name="ForceRouter.energy")
     def energy(
         i: int,

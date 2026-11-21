@@ -348,7 +348,11 @@ class Collider(Factory, ABC):
             overflow_flag = num_neighbors > max_neighbors
             candidates = jnp.where(valid, iota_b, -1)
             k_eff = min(max_neighbors, n_b)
-            topk = jax.lax.top_k(candidates, k_eff)[0]
+            topk = (
+                jax.lax.top_k(candidates, k_eff)[0]
+                if k_eff > 0
+                else jnp.empty((0,), dtype=int)
+            )
             if k_eff < max_neighbors:
                 topk = jnp.concatenate(
                     [topk, jnp.full((max_neighbors - k_eff,), -1, dtype=topk.dtype)]
@@ -381,8 +385,10 @@ def valid_interaction_mask(
     ``interact_same_bond_id`` is ``True`` (see
     :attr:`jaxdem.System.interact_same_bond_id <jaxdem.system.System.interact_same_bond_id>`).
     """
-    is_bonded = jnp.any(bond_id_i == index_j[..., None], axis=-1)
-    eligible = (clump_i != clump_j) & (~is_bonded | interact_same_bond_id)
+    eligible = clump_i != clump_j
+    if bond_id_i.shape[-1] > 0:
+        is_bonded = jnp.any(bond_id_i == index_j[..., None], axis=-1)
+        eligible = eligible & (~is_bonded | interact_same_bond_id)
     return eligible.astype(int)
 
 
@@ -474,6 +480,11 @@ def advance_history(
     return state, system
 
 
+from ._pallas import (  # noqa: E402
+    is_pallas_enabled,
+    pallas_enabled,
+    set_pallas_enabled,
+)
 from .cell_list import DynamicCellList  # noqa: E402
 from .multi_cell_list import DynamicMultiCellList  # noqa: E402
 from .naive import NaiveSimulator  # noqa: E402
@@ -487,6 +498,9 @@ __all__ = [
     "NeighborList",
     "advance_history",
     "invalidate_collider",
+    "is_pallas_enabled",
+    "pallas_enabled",
     "refresh_collider",
+    "set_pallas_enabled",
     "valid_interaction_mask",
 ]

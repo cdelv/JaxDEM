@@ -10,15 +10,11 @@ import jax.numpy as jnp
 import math
 from dataclasses import dataclass, field, replace
 from functools import partial
-from typing import TYPE_CHECKING, Any, cast
-
-try:
-    from typing import Self
-except ImportError:
-    from typing_extensions import Self
+from typing import TYPE_CHECKING, Any, Self, cast
 
 from . import Collider
 from ._cell_options import estimate_neighbor_capacity
+from ._partition import _index_limit
 
 if TYPE_CHECKING:
     from ..domains import Domain
@@ -270,15 +266,27 @@ class NeighborList(Collider):
     ) -> jax.Array:
         """Remap pooled history from ``previous``'s layout into this pool's layout."""
         from ._neighbor_cache import pair_sources, remap_history
+        from ._pallas import pallas_remap_csr_history
 
         previous = cast(NeighborList, previous)
-        return remap_history(
+        initialized = system.force_model.init_history(
+            self.neighbor_list.shape, state.dim
+        )
+        return pallas_remap_csr_history(
             history,
-            pair_sources(previous),
+            previous.row_offsets,
             previous.neighbor_list,
-            pair_sources(self),
+            self.row_offsets,
             self.neighbor_list,
-            system.force_model.init_history(self.neighbor_list.shape, state.dim),
+            initialized,
+            lambda: remap_history(
+                history,
+                pair_sources(previous),
+                previous.neighbor_list,
+                pair_sources(self),
+                self.neighbor_list,
+                initialized,
+            ),
         )
 
     def validate_domain(self, domain: Domain) -> None:
@@ -453,8 +461,7 @@ class NeighborList(Collider):
             )
 
         cl = Collider.create(secondary_collider_type, **secondary_collider_kw)
-        max_index = (1 << (63 if jax.config.jax_enable_x64 else 31)) - 1
-        if state.N * max_neighbors >= max_index:
+        if state.N * max_neighbors >= _index_limit():
             raise ValueError("Pool capacity exceeds the particle-index integer range")
         from .cell_list import DynamicCellList
         from .multi_cell_list import DynamicMultiCellList
@@ -532,15 +539,11 @@ class NeighborList(Collider):
             raise ValueError("max_neighbors must be non-negative")
         collider = cast(NeighborList, system.collider)
         inner_system = replace(system, collider=collider.secondary_collider)
-        query_width = max_neighbors if max_neighbors > 0 else 1
         state_out, inner_system, nl, overflow = (
             collider.secondary_collider.create_neighbor_list(
-                state, inner_system, cutoff, query_width
+                state, inner_system, cutoff, max_neighbors
             )
         )
-        if max_neighbors == 0:
-            overflow = overflow | jnp.any(nl != -1)
-            nl = jnp.empty((state.N, 0), dtype=nl.dtype)
         return state_out, replace(inner_system, collider=collider), nl, overflow
 
     @staticmethod
@@ -578,8 +581,14 @@ class NeighborList(Collider):
             and the updated ``System`` object (with refreshed collider cache).
 
         """
-        from ._neighbor_cache import check_and_rebuild, forces
+        from ._neighbor_cache import check_and_rebuild, forces, rebuild_and_forces
 
+        col = cast(NeighborList, system.collider)
+        if col.history.size == 0 and state.N > 0 and col.neighbor_list.size > 0:
+            system, state.force, state.torque = rebuild_and_forces(
+                state, system, quasistatic
+            )
+            return state, system
         system = check_and_rebuild(state, system)
         state.force, state.torque, history = forces(
             state,

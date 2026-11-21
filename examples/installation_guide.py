@@ -78,6 +78,30 @@ Select hardware support (CPU, CUDA, TPU) through JAX's own extras.
 #    python -c "import jax, jaxdem; print(jax.__version__, jax.devices())"
 
 # %%
+# GPU Acceleration with Pallas
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#
+# On CUDA (and supported ROCm) GPU backends, JaxDEM automatically accelerates
+# spatial colliders and built-in pair force laws using fused Pallas Triton
+# kernels dispatched via ``jax.lax.platform_dependent``. All other backends
+# (CPU, TPU, and Metal)—as well as custom user-defined force laws, custom
+# domains, ``shard_map`` sharding, and automatic differentiation—automatically
+# fall back to the Pure-JAX implementation with no code changes required.
+#
+# To disable Pallas kernels and force the Pure-JAX path on a GPU backend, set
+# the ``JAXDEM_DISABLE_PALLAS=1`` environment variable before running Python,
+# or toggle them at runtime from Python:
+#
+# .. code-block:: python
+#
+#    import jaxdem as jdem
+#
+#    jdem.set_pallas_enabled(False)  # force Pure JAX (re-enable with True or None)
+#
+#    with jdem.pallas_enabled(False):
+#        ...  # temporarily run Pure JAX inside this block
+#
+# %%
 # Next Steps
 # ~~~~~~~~~~
 #

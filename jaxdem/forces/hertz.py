@@ -11,19 +11,41 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING
 
-from ..utils.linalg import norm, unit_and_norm
-from . import ForceModel
+from ..utils.linalg import harmonic_mean, norm2
+from . import ForceModel, _safe_sqrt
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
 
 
-def _contact_root(value: jax.Array) -> jax.Array:
-    """Square root with a finite zero convention for contact derivatives."""
-    zero = value == 0.0
-    safe_value = jnp.where(zero, 1.0, value)
-    return jnp.where(zero, 0.0, jnp.sqrt(safe_value))
+def _hertz_force_coeff(
+    n2: jax.Array, R_i: jax.Array, R_j: jax.Array, four_thirds_E_star: jax.Array
+) -> jax.Array:
+    """Scalar multiplier ``c`` such that ``F_ij = c * r_ij`` for Hertzian contact."""
+    zero = n2 == 0.0
+    safe_n2 = jnp.where(zero, 1.0, n2)
+    inv_r = jnp.where(zero, 0.0, jax.lax.rsqrt(safe_n2))
+    r = n2 * inv_r
+    delta = jnp.maximum(0.0, R_i + R_j - r)
+    R_star = 0.5 * harmonic_mean(R_i, R_j)
+    mag = four_thirds_E_star * delta * _safe_sqrt(R_star * delta)
+    return mag * inv_r
+
+
+def _hertz_stiffness(
+    i: int, j: int, state: State, system: System
+) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+    """Return ``(R_i, R_j, R_star, E_star)`` for a Hertzian sphere pair."""
+    mi, mj = state.mat_id[i], state.mat_id[j]
+    E_i = system.mat_table.young[mi]
+    E_j = system.mat_table.young[mj]
+    nu_i = system.mat_table.poisson[mi]
+    nu_j = system.mat_table.poisson[mj]
+    R_i, R_j = state.rad[i], state.rad[j]
+    R_star = 0.5 * harmonic_mean(R_i, R_j)
+    E_star = 1.0 / ((1.0 - nu_i * nu_i) / E_i + (1.0 - nu_j * nu_j) / E_j)
+    return R_i, R_j, R_star, E_star
 
 
 @ForceModel.register("hertz")
@@ -72,6 +94,15 @@ class HertzianForce(ForceModel):
 
     """
 
+    @property
+    def has_pair_torque(self) -> bool:
+        """Central Hertzian contact forces produce no pair torque."""
+        return False
+
+    @property
+    def supports_sorted_order(self) -> bool:
+        return True
+
     def search_radii(self, state: State, system: System) -> jax.Array:
         """Conservative search extent for this law's finite interaction range."""
         return jnp.maximum(state._rad, (1.0) * state.rad)
@@ -114,22 +145,12 @@ class HertzianForce(ForceModel):
             ``(ang_dim,)``; ``history`` is returned unchanged.
 
         """
-        mi, mj = state.mat_id[i], state.mat_id[j]
-        E_i = system.mat_table.young[mi]
-        E_j = system.mat_table.young[mj]
-        nu_i = system.mat_table.poisson[mi]
-        nu_j = system.mat_table.poisson[mj]
-        R_i, R_j = state.rad[i], state.rad[j]
-
-        R_star = (R_i * R_j) / jnp.where(R_i + R_j > 0, R_i + R_j, 1.0)
-        E_star = 1.0 / ((1.0 - nu_i * nu_i) / E_i + (1.0 - nu_j * nu_j) / E_j)
+        R_i, R_j, _R_star, E_star = _hertz_stiffness(i, j, state, system)
 
         rij = system.domain._displacement(pos[i], pos[j], system)
-        n, r = unit_and_norm(rij)
-        delta = jnp.maximum(0.0, R_i + R_j - r) * (i != j)
-
-        mag = (4.0 / 3.0) * E_star * delta * _contact_root(R_star * delta)
-        F = mag[..., None] * n
+        n2 = norm2(rij)
+        coeff = _hertz_force_coeff(n2, R_i, R_j, (4.0 / 3.0) * E_star) * (i != j)
+        F = coeff[..., None] * rij
 
         t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
         return F, jnp.zeros(t_shape, dtype=state.torque.dtype), history
@@ -178,12 +199,11 @@ class HertzianForce(ForceModel):
         E_star = 1.0 / ((1.0 - nu_i * nu_i) / E_i + (1.0 - nu_j * nu_j) / E_j)
 
         rij = system.domain._displacement(pos[i], pos[j], system)
-        r = norm(rij)
-        delta = R_i + R_j - r
-        delta *= (delta > 0) * (i != j)
-        return (
-            0.4 * (4.0 / 3.0) * E_star * delta * delta * _contact_root(R_star * delta)
-        )
+        n2 = norm2(rij)
+        zero = n2 == 0.0
+        r = jnp.where(zero, 0.0, jnp.sqrt(jnp.where(zero, 1.0, n2)))
+        delta = jnp.maximum(0.0, R_i + R_j - r) * (i != j)
+        return 0.4 * (4.0 / 3.0) * E_star * delta * delta * _safe_sqrt(R_star * delta)
 
     @property
     def required_material_properties(self) -> tuple[str, ...]:

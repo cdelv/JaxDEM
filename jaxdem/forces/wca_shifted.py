@@ -12,11 +12,30 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 from . import ForceModel
-from ..utils.linalg import norm, unit_and_norm
+from ..utils.linalg import norm2
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
+
+
+def _wca_shifted_force_coeff(
+    n2: jax.Array, sig: jax.Array, eps: jax.Array
+) -> jax.Array:
+    """Scalar multiplier ``c`` such that ``F_ij = c * r_ij`` for force-shifted WCA."""
+    zero = n2 == 0.0
+    safe_n2 = jnp.where(zero, 1.0, n2)
+    inv_r = jnp.where(zero, 0.0, jax.lax.rsqrt(safe_n2))
+    safe_inv_r = jnp.where(zero, 1.0, inv_r)
+    safe_r = safe_n2 * safe_inv_r
+
+    sr2 = (sig * sig) * (safe_inv_r * safe_inv_r)
+    sr6 = sr2 * sr2 * sr2
+    sr12 = sr6 * sr6
+
+    fmag = 24.0 * eps * safe_inv_r * (2.0 * sr12 - sr6)
+    fmag_rc = 24.0 * eps / jnp.where(sig > 0.0, sig, 1.0)
+    return jnp.where(safe_r < sig, (fmag - fmag_rc) * inv_r, 0.0)
 
 
 @ForceModel.register("wca_shifted")
@@ -33,6 +52,14 @@ class WCAShifted(ForceModel):
 
     The model reads the material-pair parameter ``epsilon_eff[mi, mj]``.
     """
+
+    @property
+    def has_pair_torque(self) -> bool:
+        return False
+
+    @property
+    def supports_sorted_order(self) -> bool:
+        return True
 
     def search_radii(self, state: State, system: System) -> jax.Array:
         """Conservative search extent for this law's finite interaction range."""
@@ -52,34 +79,22 @@ class WCAShifted(ForceModel):
         advance_history: bool = True,
         quasistatic: bool = False,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
-        mi, mj = state.mat_id[i], state.mat_id[j]
-        eps = system.mat_table.epsilon_eff[mi, mj]
+        eps_table = system.mat_table.epsilon_eff
+        if eps_table.shape == (1, 1):
+            eps = eps_table[0, 0]
+        else:
+            mi, mj = state.mat_id[i], state.mat_id[j]
+            eps = eps_table[mi, mj]
         sig = state.rad[i] + state.rad[j]
 
         rij = system.domain._displacement(pos[i], pos[j], system)
-        rhat, r = unit_and_norm(rij)
-        safe_r = jnp.where(r == 0.0, 1.0, r)
-
-        inv_r = 1.0 / safe_r
-        sr = sig * inv_r
-        sr2 = sr * sr
-        sr6 = sr2 * sr2 * sr2
-        sr12 = sr6 * sr6
-
-        # cutoff at contact: r_c = sigma
-        active = safe_r < sig
-        not_self = j != i
-        mask = active & not_self
-
-        # LJ force magnitude along rhat: F(r) = 24 eps (2 sr12 - sr6) / r
-        fmag = 24.0 * eps * inv_r * (2.0 * sr12 - sr6)
-        # Force-shift so that F(rc) = 0. At rc = sigma: sr6=sr12=1 => F(rc) = 24 eps / sigma
-        fmag_rc = 24.0 * eps / sig
-        fmag_fs = fmag - fmag_rc
-
-        f = (fmag_fs * mask)[..., None] * rhat
-        t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
-        return f, jnp.zeros(t_shape, dtype=state.torque.dtype), history
+        n2 = norm2(rij)
+        coeff = _wca_shifted_force_coeff(n2, sig, eps) * (j != i)
+        f = coeff[..., None] * rij
+        torque = jnp.zeros(
+            (*f.shape[:-1], state.torque.shape[-1]), dtype=state.torque.dtype
+        )
+        return f, torque, history
 
     @staticmethod
     @jax.jit(inline=True)
@@ -92,17 +107,22 @@ class WCAShifted(ForceModel):
         system: System,
         history: jax.Array,
     ) -> jax.Array:
-        mi, mj = state.mat_id[i], state.mat_id[j]
-        eps = system.mat_table.epsilon_eff[mi, mj]
+        eps_table = system.mat_table.epsilon_eff
+        if eps_table.shape == (1, 1):
+            eps = eps_table[0, 0]
+        else:
+            mi, mj = state.mat_id[i], state.mat_id[j]
+            eps = eps_table[mi, mj]
         sig = state.rad[i] + state.rad[j]
 
         rij = system.domain._displacement(pos[i], pos[j], system)
-        r = norm(rij)
-        safe_r = jnp.where(r == 0.0, 1.0, r)
+        n2 = norm2(rij)
+        zero = n2 == 0.0
+        safe_n2 = jnp.where(zero, 1.0, n2)
+        safe_r = jnp.sqrt(safe_n2)
 
-        inv_r = 1.0 / safe_r
-        sr = sig * inv_r
-        sr2 = sr * sr
+        inv_r2 = 1.0 / safe_n2
+        sr2 = (sig * sig) * inv_r2
         sr6 = sr2 * sr2 * sr2
         sr12 = sr6 * sr6
 

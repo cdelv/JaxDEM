@@ -11,8 +11,11 @@ from dataclasses import dataclass, field, replace
 from functools import partial
 from typing import TYPE_CHECKING, Any, Self
 
+from jax.custom_batching import custom_vmap
+
 from ..utils.linalg import cross, norm2
 from . import Collider, valid_interaction_mask
+from ._partition import _vec_sum
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
@@ -222,47 +225,27 @@ class NaiveSimulator(Collider):
             raise ValueError("max_neighbors must be non-negative")
 
         # Preserve documented semantics: always return shape (N, max_neighbors),
-        # padded with -1. But `lax.top_k` requires k <= len(candidates), so we
-        # clamp internally when `max_neighbors` exceeds N.
-        if max_neighbors == 0:
-            empty = jnp.empty((state.N, 0), dtype=int)
-            iota = jax.lax.iota(dtype=int, size=state.N)
-            pos = state.pos
-            cutoff_sq = jnp.asarray(cutoff, dtype=pos.dtype) ** 2
-
-            def any_neighbor(i: jax.Array) -> jax.Array:
-                dr = system.domain._displacement(pos[i], pos, system)
-                valid = valid_interaction_mask(
-                    state.clump_id[i],
-                    state.clump_id,
-                    state.bond_id[i],
-                    iota,
-                    system.interact_same_bond_id,
-                ) * (norm2(dr) <= cutoff_sq)
-                return jnp.any(valid)
-
-            return state, system, empty, jnp.any(jax.vmap(any_neighbor)(iota))
-
+        # padded with -1. Clamp `lax.top_k` when `max_neighbors` exceeds N.
         iota = jax.lax.iota(dtype=int, size=state.N)
         pos = state.pos
         cutoff_sq = jnp.asarray(cutoff, dtype=pos.dtype) ** 2
 
         def per_particle(i: jax.Array) -> tuple[jax.Array, jax.Array]:
-            dr = system.domain._displacement(pos[i], pos, system)  # (N, dim)
-            dist_sq = norm2(dr)
+            dr = system.domain.displacement(pos[i], pos, system)  # (N, dim)
             valid = valid_interaction_mask(
                 state.clump_id[i],
                 state.clump_id,
                 state.bond_id[i],
                 iota,
                 system.interact_same_bond_id,
-            ) * (dist_sq <= cutoff_sq)
-            num_neighbors = jnp.sum(valid)
-            overflow_flag = num_neighbors > max_neighbors
-            candidates = jnp.where(valid, iota, -1)
-            k_eff = min(max_neighbors, candidates.shape[0])
-            topk = jax.lax.top_k(candidates, k_eff)[0]
-            # If max_neighbors > N, pad back to the requested buffer size.
+            ) * (norm2(dr) <= cutoff_sq)
+            overflow_flag = jnp.sum(valid) > max_neighbors
+            k_eff = min(max_neighbors, iota.shape[0])
+            topk = (
+                jax.lax.top_k(jnp.where(valid, iota, -1), k_eff)[0]
+                if k_eff > 0
+                else jnp.empty((0,), dtype=int)
+            )
             if k_eff < max_neighbors:
                 topk = jnp.concatenate(
                     [topk, jnp.full((max_neighbors - k_eff,), -1, dtype=topk.dtype)]
@@ -310,18 +293,28 @@ class NaiveSimulator(Collider):
         pos_p = state._pos_p_rot
         pos = state.pos
         collider = _naive_collider(system.collider)
-        allocated = _history_allocated(state, system, collider.history)
-        if (
-            advance_history
-            and not allocated
-            and system.force_model.history_shape(state.dim) != (0,)
-        ):
+        tail = system.force_model.history_shape(state.dim)
+        allocated = collider.history.shape == (state.N, state.N) + tail
+        if advance_history and not allocated and tail != (0,):
             raise ValueError(
                 "NaiveSimulator history is not allocated for this state. Build the "
                 "system with System.create or call refresh_collider."
             )
-        history = _dense_history(state, system, collider.history)
+        history = (
+            collider.history
+            if allocated
+            else system.force_model.init_history((state.N, state.N), state.dim)
+        )
         initialized = system.force_model.init_history(iota.shape, state.dim)
+
+        has_torque = system.force_model.has_pair_torque
+        # For stateless all-pairs systems, use variadic _vec_sum and tile large
+        # pair grids (accounting for explicit vmap batches) to stay in L2 cache.
+        if (not advance_history or tail == (0,)) and tail == (0,) and state.N > 0:
+            force, torque = _naive_stateless_force_entry(state, system, quasistatic)
+            state.force = force
+            state.torque = torque
+            return state, system
 
         def per_particle_i(
             i: jax.Array, pos_pi: jax.Array, row_history: jax.Array
@@ -344,14 +337,23 @@ class NaiveSimulator(Collider):
                 system.interact_same_bond_id,
             )
             res_f = jnp.where(mask[..., None] > 0, res_f, 0.0)
-            res_t = jnp.where(mask[..., None] > 0, res_t, 0.0)
+            f_i = jnp.sum(res_f, axis=0)
+            if has_torque:
+                res_t = jnp.where(mask[..., None] > 0, res_t, 0.0)
+                t_i = jnp.sum(res_t, axis=0) + (
+                    0.0 if state.only_spheres else cross(pos_pi, f_i)
+                )
+            else:
+                t_i = (
+                    jnp.zeros_like(state.torque[i])
+                    if state.only_spheres
+                    else cross(pos_pi, f_i)
+                )
             if advance_history:
                 keep = mask.reshape(mask.shape + (1,) * (new_history.ndim - 1))
                 new_history = jnp.where(keep > 0, new_history, initialized)
             else:
                 new_history = row_history
-            f_i = jnp.sum(res_f, axis=0)
-            t_i = jnp.sum(res_t, axis=0) + cross(pos_pi, f_i)
             return f_i, t_i, new_history
 
         state.force, state.torque, history = jax.vmap(per_particle_i)(
@@ -372,16 +374,202 @@ def _naive_collider(collider: Collider) -> NaiveSimulator:
     return collider
 
 
-def _history_allocated(state: State, system: System, history: jax.Array) -> bool:
-    """Whether ``history`` is the ``(N, N, H)`` buffer for this state and law."""
+def _naive_stateless_force(
+    state: State,
+    system: System,
+    quasistatic: bool,
+    row_tile: int,
+    col_tile: int,
+) -> tuple[jax.Array, jax.Array]:
+    """Stateless O(N^2) force reduction with variadic _vec_sum and L2 tiling."""
     n = state.N
-    tail = system.force_model.history_shape(state.dim)
-    return history.shape == (n, n) + tail
+    pos = state.pos
+    pos_p = state._pos_p_rot
+    has_torque = system.force_model.has_pair_torque
+
+    if row_tile >= n and col_tile >= n:
+        iota = jax.lax.iota(dtype=int, size=n)
+        row_hist = system.force_model.init_history((n,), state.dim)
+
+        def row_small(i: jax.Array) -> Any:
+            res_f, res_t, _ = system.force_model.force(
+                i,
+                iota,
+                pos,
+                state,
+                system,
+                row_hist,
+                advance_history=False,
+                quasistatic=quasistatic,
+            )
+            mask = valid_interaction_mask(
+                state.clump_id[i],
+                state.clump_id,
+                state.bond_id[i],
+                iota,
+                system.interact_same_bond_id,
+            ).astype(bool)
+            f_m = jnp.where(mask[..., None], res_f, 0.0)
+            if not has_torque:
+                return f_m
+            return f_m, jnp.where(mask[..., None], res_t, 0.0)
+
+        raw = jax.vmap(row_small)(iota)
+        if not has_torque:
+            force = _vec_sum(raw, 1)
+            torque = (
+                jnp.zeros_like(state.torque)
+                if state.only_spheres
+                else cross(pos_p, force)
+            )
+            return force, torque
+        force = _vec_sum(raw[0], 1)
+        torque = _vec_sum(raw[1], 1)
+        return force, (torque if state.only_spheres else torque + cross(pos_p, force))
+
+    row_tile = min(n, row_tile)
+    col_tile = min(n, col_tile)
+    exact_rows = (n % row_tile) == 0
+    exact_cols = (n % col_tile) == 0
+    padded_r = (n + row_tile - 1) // row_tile * row_tile
+    padded_c = (n + col_tile - 1) // col_tile * col_tile
+    row_blocks = jnp.arange(padded_r).reshape(-1, row_tile)
+    col_blocks = jnp.arange(padded_c).reshape(-1, col_tile)
+    tile_hist = system.force_model.init_history((col_tile,), state.dim)
+
+    def eval_row_block(rows: jax.Array) -> Any:
+        safe_rows = rows if exact_rows else jnp.minimum(rows, n - 1)
+
+        def eval_col_block(carry: Any, cols: jax.Array) -> tuple[Any, None]:
+            safe_cols = cols if exact_cols else jnp.minimum(cols, n - 1)
+            in_range = None if exact_cols else (cols < n)
+
+            def row_fn(i: jax.Array) -> Any:
+                res_f, res_t, _ = system.force_model.force(
+                    i,
+                    safe_cols,
+                    pos,
+                    state,
+                    system,
+                    tile_hist,
+                    advance_history=False,
+                    quasistatic=quasistatic,
+                )
+                mask = valid_interaction_mask(
+                    state.clump_id[i],
+                    state.clump_id[safe_cols],
+                    state.bond_id[i],
+                    safe_cols,
+                    system.interact_same_bond_id,
+                ).astype(bool)
+                if in_range is not None:
+                    mask = in_range & mask
+                f_masked = jnp.where(mask[..., None], res_f, 0.0)
+                if not has_torque:
+                    return f_masked
+                t_masked = jnp.where(mask[..., None], res_t, 0.0)
+                return f_masked, t_masked
+
+            raw = jax.vmap(row_fn)(safe_rows)
+            if not has_torque:
+                return carry + _vec_sum(raw, 1), None
+            return (
+                carry[0] + _vec_sum(raw[0], 1),
+                carry[1] + _vec_sum(raw[1], 1),
+            ), None
+
+        init_acc: Any = (
+            jnp.zeros((row_tile, state.force.shape[-1]), dtype=state.force.dtype)
+            if not has_torque
+            else (
+                jnp.zeros((row_tile, state.force.shape[-1]), dtype=state.force.dtype),
+                jnp.zeros((row_tile, state.torque.shape[-1]), dtype=state.torque.dtype),
+            )
+        )
+        acc, _ = jax.lax.scan(eval_col_block, init_acc, col_blocks)
+        return acc
+
+    if row_blocks.shape[0] == 1:
+        acc = eval_row_block(row_blocks[0])
+    else:
+        acc = jax.lax.map(eval_row_block, row_blocks)
+        acc = jax.tree.map(lambda a: a.reshape((-1,) + a.shape[2:])[:n], acc)
+    if not has_torque:
+        force = acc[:n]
+        torque = (
+            jnp.zeros_like(state.torque)
+            if state.only_spheres
+            else cross(pos_p, force)
+        )
+        return force, torque
+    force, torque = acc[0][:n], acc[1][:n]
+    return force, (torque if state.only_spheres else torque + cross(pos_p, force))
+
+
+def _naive_tile_sizes(n: int, batch_size: int) -> tuple[int, int]:
+    """Choose L2-friendly (row_tile, col_tile) sizes for ``batch_size * n * n`` pairs."""
+    if batch_size * n * n <= 4_194_304:
+        return n, n
+    if batch_size > 1:
+        return min(n, 256), min(n, 256)
+    return min(n, 4096), min(n, 1024)
+
+
+def _naive_stateless_force_dispatch(quasistatic: bool) -> Any:
+    """Select L2-friendly tile sizes accounting for an enclosing ``jax.vmap`` batch."""
+
+    @custom_vmap
+    def dispatch(state: State, system: System) -> tuple[jax.Array, jax.Array]:
+        row_tile, col_tile = _naive_tile_sizes(state.N, 1)
+        return _naive_stateless_force(state, system, quasistatic, row_tile, col_tile)
+
+    @dispatch.def_vmap
+    def mapped(
+        axis_size: int, in_batched: Any, state: State, system: System
+    ) -> tuple[tuple[jax.Array, jax.Array], tuple[bool, bool]]:
+        axes = jax.tree.map(lambda batched: 0 if batched else None, in_batched)
+        n = state.pos_c.shape[-2]
+        row_tile, col_tile = _naive_tile_sizes(n, axis_size)
+        out = jax.vmap(
+            lambda st, sy: _naive_stateless_force(
+                st, sy, quasistatic, row_tile, col_tile
+            ),
+            in_axes=tuple(axes),
+            axis_size=axis_size,
+        )(state, system)
+        return out, (True, True)
+
+    return dispatch
+
+
+@partial(jax.custom_jvp, nondiff_argnums=(2,))
+def _naive_stateless_force_entry(
+    state: State, system: System, quasistatic: bool
+) -> tuple[jax.Array, jax.Array]:
+    """Differentiable entry point for stateless all-pairs force evaluation."""
+    return _naive_stateless_force_dispatch(quasistatic)(state, system)
+
+
+@_naive_stateless_force_entry.defjvp
+def _naive_stateless_force_jvp(
+    quasistatic: bool, primals: Any, tangents: Any
+) -> Any:
+    def fixed_tiled(st: State, sy: System) -> tuple[jax.Array, jax.Array]:
+        n = st.N
+        row_tile = n if n <= 512 else min(n, 512)
+        col_tile = n if n <= 512 else min(n, 512)
+        return _naive_stateless_force(st, sy, quasistatic, row_tile, col_tile)
+
+    return _naive_stateless_force_entry(*primals, quasistatic), jax.jvp(
+        fixed_tiled, primals, tangents
+    )[1]
 
 
 def _dense_history(state: State, system: System, history: jax.Array) -> jax.Array:
     """Return the ``(N, N, H)`` history, or the law's initial history if unallocated."""
-    if _history_allocated(state, system, history):
+    if history.shape == (state.N, state.N) + system.force_model.history_shape(
+        state.dim
+    ):
         return history
     return system.force_model.init_history((state.N, state.N), state.dim)
 

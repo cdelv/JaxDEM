@@ -30,7 +30,12 @@ if not hasattr(jax.tree, "static"):
 # """
 from . import utils
 from .bonded_forces import BondedForceModel
-from .colliders import Collider
+from .colliders import (
+    Collider,
+    is_pallas_enabled,
+    pallas_enabled,
+    set_pallas_enabled,
+)
 from .domains import Domain
 from .factory import Factory
 from .forces import (
@@ -74,6 +79,9 @@ __all__ = [
     "Material",
     "MaterialMatchmaker",
     "MaterialTable",
+    "is_pallas_enabled",
+    "pallas_enabled",
+    "set_pallas_enabled",
     "minimize",
     "fire",
     "damped_newtonian",

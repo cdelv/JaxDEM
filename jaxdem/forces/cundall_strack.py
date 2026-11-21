@@ -136,7 +136,16 @@ def _transport_tangent(
         )
         # Antiparallel normals have no unique shortest rotation in 3D. Choose
         # a deterministic axis using the least-aligned Cartesian basis vector.
-        basis = jax.nn.one_hot(jnp.argmin(jnp.abs(old), axis=-1), 3, dtype=old.dtype)
+        ax_a = jnp.abs(old[..., 0])
+        ay_a = jnp.abs(old[..., 1])
+        az_a = jnp.abs(old[..., 2])
+        is_x = (ax_a <= ay_a) & (ax_a <= az_a)
+        is_y = (~is_x) & (ay_a <= az_a)
+        dtp = old.dtype
+        basis = jnp.stack(
+            (is_x.astype(dtp), is_y.astype(dtp), ((~is_x) & (~is_y)).astype(dtp)),
+            axis=-1,
+        )
         axis = unit(cross(old, basis))
         antiparallel = 2.0 * dot(axis, value)[..., None] * axis - value
         rotated = jnp.where((bisector_norm2 < 2e-6)[..., None], antiparallel, regular)
@@ -306,12 +315,16 @@ def _pair_stiffnesses(
 ) -> tuple[jax.Array, jax.Array]:
     """Return normal and tangential pair stiffnesses."""
     law = cast(CundallStrackForce, system.force_model)
-    mi, mj = state.mat_id[i], state.mat_id[j]
     table = system.mat_table
 
     if law.parameterization == "elastic":
-        E_i, E_j = table.young[mi], table.young[mj]
-        nu_i, nu_j = table.poisson[mi], table.poisson[mj]
+        if table.young.shape == (1,):
+            E_i = E_j = table.young[0]
+            nu_i = nu_j = table.poisson[0]
+        else:
+            mi, mj = state.mat_id[i], state.mat_id[j]
+            E_i, E_j = table.young[mi], table.young[mj]
+            nu_i, nu_j = table.poisson[mi], table.poisson[mj]
         R_i, R_j = state.rad[i], state.rad[j]
 
         ER_i = E_i * R_i
@@ -319,8 +332,13 @@ def _pair_stiffnesses(
         kn = _harmonic_mean(ER_i, ER_j)
         kt = _harmonic_mean(ER_i / (2.0 * (1.0 + nu_i)), ER_j / (2.0 * (1.0 + nu_j)))
     else:
-        kn = _harmonic_mean(table.k_n[mi], table.k_n[mj])
-        kt = _harmonic_mean(table.k_t[mi], table.k_t[mj])
+        if table.k_n.shape == (1,):
+            kn = table.k_n[0]
+            kt = table.k_t[0]
+        else:
+            mi, mj = state.mat_id[i], state.mat_id[j]
+            kn = _harmonic_mean(table.k_n[mi], table.k_n[mj])
+            kt = _harmonic_mean(table.k_t[mi], table.k_t[mj])
     return kn, kt
 
 
@@ -334,15 +352,22 @@ def _pair_coefficients(
 ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array, jax.Array, jax.Array]:
     """Return pair stiffness, damping, and friction coefficients."""
     law = cast(CundallStrackForce, system.force_model)
-    mi, mj = state.mat_id[i], state.mat_id[j]
     table = system.mat_table
+    single_mat = table.mu.shape == (1,)
     kn, kt = _pair_stiffnesses(i, j, state, system)
+    if single_mat:
+        mu_ij = jnp.asarray(
+            law.friction_mixing(table.mu[0], table.mu[0]), dtype=state.pos.dtype
+        )
+    else:
+        mi, mj = state.mat_id[i], state.mat_id[j]
+        mu_ij = jnp.asarray(
+            law.friction_mixing(table.mu[mi], table.mu[mj]), dtype=state.pos.dtype
+        )
 
     if law.parameterization == "elastic":
-        e_i, e_j = table.e[mi], table.e[mj]
-        m_i, m_j = state.mass[i], state.mass[j]
-        m_eff = 0.5 * _harmonic_mean(m_i, m_j)
-        e_eff = jnp.minimum(e_i, e_j)
+        m_eff = 0.5 * _harmonic_mean(state.mass[i], state.mass[j])
+        e_eff = table.e[0] if single_mat else jnp.minimum(table.e[mi], table.e[mj])
         e_safe = jnp.where(e_eff > 0.0, e_eff, 1.0)
         ln_e = jnp.log(e_safe)
         beta = jnp.where(
@@ -350,19 +375,27 @@ def _pair_coefficients(
             -ln_e / jnp.sqrt(jnp.pi * jnp.pi + ln_e * ln_e),
             1.0,
         )
-        gamma_n = 2.0 * beta * jnp.sqrt(kn) * jnp.sqrt(m_eff)
-        gamma_t = 2.0 * beta * jnp.sqrt(kt) * jnp.sqrt(m_eff)
+        m_root = jnp.sqrt(m_eff)
+        gamma_n = 2.0 * beta * jnp.sqrt(kn) * m_root
+        gamma_t = 2.0 * beta * jnp.sqrt(kt) * m_root
     else:
-        gamma_n = _harmonic_mean(table.b_n[mi], table.b_n[mj])
-        gamma_t = _harmonic_mean(table.b_t[mi], table.b_t[mj])
+        if single_mat:
+            gamma_n = table.b_n[0]
+            gamma_t = table.b_t[0]
+        else:
+            gamma_n = _harmonic_mean(table.b_n[mi], table.b_n[mj])
+            gamma_t = _harmonic_mean(table.b_t[mi], table.b_t[mj])
 
-    mu_ij = jnp.asarray(
-        law.friction_mixing(table.mu[mi], table.mu[mj]), dtype=state.pos.dtype
-    )
-    mu_r_ij = jnp.asarray(
-        law.rolling_friction_mixing(table.mu_r[mi], table.mu_r[mj]),
-        dtype=state.pos.dtype,
-    )
+    if single_mat:
+        mu_r_ij = jnp.asarray(
+            law.rolling_friction_mixing(table.mu_r[0], table.mu_r[0]),
+            dtype=state.pos.dtype,
+        )
+    else:
+        mu_r_ij = jnp.asarray(
+            law.rolling_friction_mixing(table.mu_r[mi], table.mu_r[mj]),
+            dtype=state.pos.dtype,
+        )
     return kn, kt, gamma_n, gamma_t, mu_ij, mu_r_ij
 
 
@@ -533,6 +566,10 @@ class CundallStrackForce(ForceModel):
     @property
     def supports_analytical_energy_gradient(self) -> bool:
         return False
+
+    @property
+    def supports_sorted_order(self) -> bool:
+        return True
 
     def history_shape(self, dim: int) -> tuple[int, ...]:
         """Store tangential displacement and the previous contact normal."""

@@ -21,9 +21,14 @@ if TYPE_CHECKING:
 
 
 def validate_cell_options(
-    tile_capacity: int | None, clump_aware: bool, static: bool = False
+    tile_capacity: int | None,
+    clump_aware: bool,
+    static: bool = False,
+    auto_capacity: bool = False,
 ) -> None:
     """Check the fixed tile budget and clump option."""
+    from ._partition import _index_limit
+
     if tile_capacity is not None:
         if (
             isinstance(tile_capacity, bool)
@@ -31,13 +36,14 @@ def validate_cell_options(
             or tile_capacity < 0
         ):
             raise ValueError("tile_capacity must be a non-negative Python integer")
-        index_limit = (1 << (63 if jax.config.jax_enable_x64 else 31)) - 1
-        if tile_capacity >= index_limit:
+        if tile_capacity >= _index_limit():
             raise ValueError("tile_capacity exceeds the particle-index integer range")
     if not isinstance(clump_aware, bool):
         raise ValueError("clump_aware must be a Python boolean")
     if not isinstance(static, bool):
         raise ValueError("static must be a Python boolean")
+    if not isinstance(auto_capacity, bool):
+        raise ValueError("_auto_capacity must be a Python boolean")
 
 
 def validate_cell_capacity_estimate(
@@ -74,23 +80,19 @@ def estimate_neighbor_capacity(
     pos_min = jnp.min(state.pos, axis=0)
     pos_max = jnp.max(state.pos, axis=0)
     box_size = jnp.maximum(pos_max - pos_min + 2.0 * max_rad, 1.0)
-    number_density_est = (state.N / jnp.prod(box_size)).item()
-    effective_density = jnp.maximum(number_density, number_density_est).item()
+    effective_density = jnp.maximum(number_density, state.N / jnp.prod(box_size))
     r_eff_mean = 0.9 * jnp.mean(state._rad)
-    packing_count = int(
-        jnp.where(
-            r_eff_mean > 0,
-            jnp.ceil(((cutoff + r_eff_mean) / r_eff_mean) ** state.dim),
-            state.N,
-        ).item()
+    packing_count = jnp.where(
+        r_eff_mean > 0,
+        jnp.ceil(((cutoff + r_eff_mean) / r_eff_mean) ** state.dim),
+        float(state.N),
     )
     search_volume = (
         jnp.pi * cutoff**state.dim * (1.0 if state.dim == 2 else (4.0 / 3.0))
     )
-    density_count = int(
-        jnp.ceil(safety_factor * search_volume * effective_density).item()
-    )
-    return min(max(density_count, packing_count, 0), state.N)
+    density_count = jnp.ceil(safety_factor * search_volume * effective_density)
+    estimate = jnp.clip(jnp.maximum(density_count, packing_count), 0.0, float(state.N))
+    return int(estimate.item())
 
 
 def resolve_cell_tile_capacity(
@@ -104,16 +106,14 @@ def resolve_cell_tile_capacity(
     if tile_capacity is not None or not static:
         return tile_capacity
     validate_cell_capacity_estimate(state, cell_size, tile_capacity, static)
-    from ._partition import PAIR_UNROLL
+    from ._partition import PAIR_UNROLL, _index_limit
 
     # A sphere with this radius contains one complete grid cell.
     cell_radius = jnp.sqrt(float(state.dim)) * cell_size / 2.0
     occupancy = estimate_neighbor_capacity(state, cell_radius)
     tiles_per_cell = (occupancy + PAIR_UNROLL - 1) // PAIR_UNROLL
-    capacity = state.N * stencil_size * tiles_per_cell
-    capacity = min(capacity, state.N * state.N)
-    index_limit = (1 << (63 if jax.config.jax_enable_x64 else 31)) - 1
-    if capacity >= index_limit:
+    capacity = min(state.N * stencil_size * tiles_per_cell, state.N * state.N)
+    if capacity >= _index_limit():
         # The full system measures the actual work before allocating a pool.
         capacity = state.N * min(stencil_size, state.N)
     validate_cell_options(capacity, False, static)
@@ -154,7 +154,7 @@ def configure_cell_capacity(state: State, system: System) -> System:
 
 def _measure_cell_capacity(state: State, system: System) -> int:
     """Add headroom to measured tiles, with room for occupied stencil cells."""
-    from ._partition import PAIR_UNROLL
+    from ._partition import _effective_cell_size
     from ._static_cell import _partition_tile_counts
 
     collider = system.collider
@@ -167,7 +167,6 @@ def _measure_cell_capacity(state: State, system: System) -> int:
         return 0
     radii = system.force_model.search_radii(state, system)
     radius = jnp.max(radii, initial=0.0)
-    stencil_reach = jnp.maximum(jnp.max(jnp.abs(backend.neighbor_mask)), 1)
     if hasattr(collider, "secondary_collider"):
         neighbor = cast("NeighborList", collider)
         reach = jnp.maximum(neighbor.cutoff, 2 * radius) + neighbor.skin
@@ -178,9 +177,9 @@ def _measure_cell_capacity(state: State, system: System) -> int:
         reach = 2 * radius
         member_radii, query_radii = radii, radii
         padding = radius
-    cell_size = jnp.maximum(backend.cell_size, reach / stencil_reach)
+    cell_size = _effective_cell_size(backend, reach)
     geometry = system.domain.update_bounds(state.pos, system, padding=padding)
-    perm, starts, ends, counts, overflow = _partition_tile_counts(
+    _, _, _, counts, overflow = _partition_tile_counts(
         state.pos,
         geometry,
         cell_size,
@@ -188,17 +187,12 @@ def _measure_cell_capacity(state: State, system: System) -> int:
         prune_cells=backend._prune_cells,
         member_radii=member_radii,
         query_radii=query_radii,
+        clump_id=state.clump_id if backend.clump_aware else None,
     )
     if bool(overflow):
         raise ValueError("Reference cell grid exceeds the supported hash range")
     stencil_size = backend.neighbor_mask.shape[0]
     if backend.clump_aware:
-        from ._clump_exclusions import build_clump_index, clump_exclusion_ranges
-
-        index = build_clump_index(perm, state.clump_id)
-        own_start, own_end = clump_exclusion_ranges(index, state.clump_id, starts, ends)
-        eligible = ends - starts - (own_end - own_start)
-        counts = eligible // PAIR_UNROLL + (eligible % PAIR_UNROLL != 0)
         _, inverse, sizes = np.unique(
             np.asarray(state.clump_id), return_inverse=True, return_counts=True
         )

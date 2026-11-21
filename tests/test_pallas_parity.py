@@ -1,0 +1,414 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+"""Drift-prevention, activation, and numerical parity tests for Pallas Triton kernels."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, replace
+
+import jax
+import jax.numpy as jnp
+import numpy as np
+import pytest
+
+import jaxdem as jdem
+from jaxdem.colliders._pallas import (
+    can_use_pallas_csr_forces,
+    extract_domain_spec,
+    extract_force_spec,
+    is_pallas_enabled,
+    pallas_enabled,
+    set_pallas_enabled,
+)
+from jaxdem.forces.cundall_strack import (
+    CundallStrackForce,
+    arithmetic_mean_friction,
+    geometric_mean_friction,
+    maximum_friction,
+    minimum_friction,
+)
+from jaxdem.forces.hertz import HertzianForce
+from jaxdem.forces.law_combiner import LawCombiner
+from jaxdem.forces.lennardjones import LennardJones
+from jaxdem.forces.router import ForceRouter
+from jaxdem.forces.spring import DampedSpringForce, SpringForce
+from jaxdem.forces.wca import WCA
+from jaxdem.forces.wca_shifted import WCAShifted
+
+
+@jax.tree_util.register_dataclass
+@dataclass(slots=True)
+class _AllPropsMaterial(jdem.Material):
+    young: float
+    poisson: float
+    e: float
+    mu: float
+    mu_r: float
+    k_n: float
+    k_t: float
+    b_n: float
+    b_t: float
+    epsilon: float
+
+
+def _make_materials(n_mat: int = 2) -> jdem.MaterialTable:
+    mats = [
+        _AllPropsMaterial(
+            density=1.0,
+            young=1.0 + 0.3 * m,
+            poisson=0.25 + 0.05 * m,
+            e=0.6 + 0.1 * m,
+            mu=0.3 + 0.1 * m,
+            mu_r=0.05 + 0.02 * m,
+            k_n=10.0 + 2.0 * m,
+            k_t=6.0 + 1.5 * m,
+            b_n=0.4 + 0.1 * m,
+            b_t=0.2 + 0.05 * m,
+            epsilon=0.5 + 0.2 * m,
+        )
+        for m in range(n_mat)
+    ]
+    return jdem.MaterialTable.from_materials(
+        mats,
+        matcher=jdem.MaterialMatchmaker.create("harmonic"),
+    )
+
+
+def _make_state(
+    dim: int,
+    n: int,
+    box_l: float,
+    *,
+    n_mat: int = 2,
+    n_species: int = 1,
+    clumps: bool = False,
+    seed: int = 0,
+) -> jdem.State:
+    rng = np.random.default_rng(seed)
+    side = int(np.ceil(n ** (1.0 / dim)))
+    spacing = box_l / side
+    axes = [np.linspace(0.5 * spacing, box_l - 0.5 * spacing, side) for _ in range(dim)]
+    grid = np.stack(np.meshgrid(*axes, indexing="ij"), axis=-1).reshape(-1, dim)
+    pos = grid[:n] + rng.uniform(-0.18 * spacing, 0.18 * spacing, size=(n, dim))
+    pos = np.clip(pos, 0.08 * box_l, 0.92 * box_l)
+    r_base = 0.56 * spacing
+    rad = rng.uniform(0.92 * r_base, 1.08 * r_base, size=(n,))
+    vel = rng.normal(0.0, 0.25, size=(n, dim))
+    ang_dim = 3 if dim == 3 else 1
+    ang_vel = rng.normal(0.0, 0.4, size=(n, ang_dim))
+    mat_id = rng.integers(0, n_mat, size=(n,))
+    species_id = rng.integers(0, n_species, size=(n,))
+    kw: dict[str, jax.Array] = dict(
+        pos=jnp.asarray(pos),
+        rad=jnp.asarray(rad),
+        vel=jnp.asarray(vel),
+        ang_vel=jnp.asarray(ang_vel),
+        mat_id=jnp.asarray(mat_id, dtype=int),
+        species_id=jnp.asarray(species_id, dtype=int),
+    )
+    if clumps:
+        kw["clump_id"] = jnp.asarray(np.arange(n) // 2, dtype=int)
+    return jdem.State.create(**kw)
+
+
+def _make_domain(kind: str, dim: int, box_l: float) -> jdem.Domain:
+    box = jnp.full((dim,), box_l)
+    if kind == "free":
+        return jdem.Domain.create("free", dim=dim, box_size=box)
+    if kind == "reflect":
+        return jdem.Domain.create("reflect", dim=dim, box_size=box)
+    if kind == "reflect_sphere":
+        return jdem.Domain.create("reflect_sphere", dim=dim, box_size=box)
+    if kind == "periodic":
+        return jdem.Domain.create(
+            "periodic", dim=dim, box_size=box, box_rate=jnp.full((dim,), 0.02)
+        )
+    if kind == "lees_edwards":
+        return jdem.Domain.create(
+            "leesedwards",
+            dim=dim,
+            box_size=box,
+            box_rate=jnp.full((dim,), 0.01),
+            gamma=0.27,
+            gamma_dot=0.15,
+        )
+    raise ValueError(kind)
+
+
+def _builtin_force_models() -> list[tuple[str, jdem.ForceModel, int]]:
+    cs_elastic = CundallStrackForce(
+        parameterization="elastic",
+        friction_mixing=minimum_friction,
+        rolling_friction_mixing=maximum_friction,
+    )
+    cs_coeff = CundallStrackForce(
+        parameterization="coefficients",
+        friction_mixing=arithmetic_mean_friction,
+        rolling_friction_mixing=geometric_mean_friction,
+    )
+    combiner_stateless = LawCombiner(laws=(SpringForce(), WCA()))
+    combiner_history = LawCombiner(laws=(cs_elastic, WCA()))
+    router_stateless = ForceRouter(
+        table=(
+            (SpringForce(), HertzianForce()),
+            (HertzianForce(), WCAShifted()),
+        )
+    )
+    router_history = ForceRouter(
+        table=(
+            (cs_elastic, combiner_history),
+            (combiner_history, cs_coeff),
+        )
+    )
+    return [
+        ("spring", SpringForce(), 1),
+        ("damped_spring", DampedSpringForce(), 1),
+        ("hertz", HertzianForce(), 1),
+        ("wca", WCA(), 1),
+        ("wca_shifted", WCAShifted(), 1),
+        ("lj", LennardJones.Create(cutoff_ratio=1.6), 1),
+        ("cundall_elastic", cs_elastic, 1),
+        ("cundall_coeff", cs_coeff, 1),
+        ("combiner_stateless", combiner_stateless, 1),
+        ("combiner_history", combiner_history, 1),
+        ("router_stateless", router_stateless, 2),
+        ("router_history", router_history, 2),
+    ]
+
+
+def _assert_close_pair(a: jax.Array, b: jax.Array, name: str) -> None:
+    is_f64 = a.dtype == jnp.float64
+    rtol = 1e-11 if is_f64 else 1e-3
+    atol = 1e-11 if is_f64 else 2e-4
+    np.testing.assert_allclose(
+        np.asarray(a), np.asarray(b), rtol=rtol, atol=atol, err_msg=name
+    )
+
+
+def test_schema_and_extractors_activate_for_all_builtins() -> None:
+    """Every built-in domain & force law must compile into Pallas specs (no silent fallback)."""
+    mat_table = _make_materials(2)
+    for dim in (2, 3):
+        for dom_kind in ("free", "reflect", "reflect_sphere", "periodic", "lees_edwards"):
+            dom = _make_domain(dom_kind, dim, 6.0)
+            assert extract_domain_spec(dom, dim, need_vel_rates=False) is not None
+            assert extract_domain_spec(dom, dim, need_vel_rates=True) is not None
+
+        for label, law, n_sp in _builtin_force_models():
+            st = _make_state(dim, 17, 4.0, n_mat=2, n_species=n_sp)
+            sy = jdem.System.create(
+                state_shape=st.shape,
+                dt=1e-3,
+                domain_type="periodic",
+                domain_kw={"box_size": jnp.full((dim,), 4.0)},
+                force_model=law,
+                mat_table=mat_table,
+                collider_type="NeighborList",
+                collider_kw={"state": st, "cutoff": 1.8, "skin": 0.3},
+            )
+            assert (
+                extract_force_spec(law, st, sy, advance_history=True, quasistatic=False)
+                is not None
+            ), f"Force spec failed for {label} {dim}D"
+            if is_pallas_enabled():
+                assert can_use_pallas_csr_forces(
+                    st, sy, advance_history=True, quasistatic=False
+                ), f"CSR activation failed for {label} {dim}D"
+
+
+def test_runtime_toggle_api() -> None:
+    """``set_pallas_enabled`` and ``pallas_enabled`` cleanly toggle on supported GPUs."""
+    initial = is_pallas_enabled()
+    with pallas_enabled(False, clear_caches=False):
+        assert is_pallas_enabled() is False
+    assert is_pallas_enabled() is initial
+    set_pallas_enabled(None, clear_caches=False)
+    assert is_pallas_enabled() is initial
+
+
+def test_pallas_vs_pure_jax_all_forces_neighbor_list() -> None:
+    """Multi-step trajectory parity for every built-in force law in 2D & 3D (non-pow2 N)."""
+    if not is_pallas_enabled():
+        pytest.skip("Pallas Triton GPU backend not active on this host")
+
+    mat = _make_materials(2)
+    cases: list[tuple[str, jdem.State, jdem.System]] = []
+    # Full 12-law sweep in 3D + 2D coverage of central, damped, history, combiner, router.
+    laws_2d = {
+        "spring",
+        "damped_spring",
+        "wca",
+        "cundall_elastic",
+        "cundall_coeff",
+        "combiner_history",
+        "router_history",
+    }
+    for dim in (3, 2):
+        box_l = 4.2 if dim == 3 else 5.2
+        for label, law, n_sp in _builtin_force_models():
+            if dim == 2 and label not in laws_2d:
+                continue
+            st = _make_state(dim, 43, box_l, n_mat=2, n_species=n_sp, seed=10 + dim)
+            sy = jdem.System.create(
+                state_shape=st.shape,
+                dt=2e-3,
+                domain_type="periodic",
+                domain_kw={"box_size": jnp.full((dim,), box_l)},
+                force_model=law,
+                mat_table=mat,
+                collider_type="NeighborList",
+                collider_kw={"state": st, "cutoff": 1.6, "skin": 0.15},
+            )
+            cases.append((f"{label}_{dim}D", st, sy))
+
+    # Run all Pallas cases together, then clear cache once and run all Pure-JAX cases.
+    with pallas_enabled(True):
+        pallas_out = {name: jdem.System.step(st, sy, n=8) for name, st, sy in cases}
+    with pallas_enabled(False):
+        pure_out = {name: jdem.System.step(st, sy, n=8) for name, st, sy in cases}
+
+    for name, _, _ in cases:
+        st_p, sy_p = pallas_out[name]
+        st_j, sy_j = pure_out[name]
+        _assert_close_pair(st_p.pos_c, st_j.pos_c, f"{name} pos_c")
+        _assert_close_pair(st_p.vel, st_j.vel, f"{name} vel")
+        _assert_close_pair(st_p.force, st_j.force, f"{name} force")
+        _assert_close_pair(st_p.torque, st_j.torque, f"{name} torque")
+        assert int(sy_p.collider.n_build_times) == int(sy_j.collider.n_build_times)
+
+
+def test_pallas_vs_pure_jax_all_domains_cell_and_nl() -> None:
+    """Parity across all 5 built-in domains (2D & 3D, clumps) for CellList, StaticCellList, NL."""
+    if not is_pallas_enabled():
+        pytest.skip("Pallas Triton GPU backend not active on this host")
+
+    mat = _make_materials(2)
+    cases: list[tuple[str, jdem.State, jdem.System]] = []
+    for dim in (3, 2):
+        box_l = 4.5 if dim == 3 else 5.5
+        st = _make_state(dim, 37, box_l, n_mat=2, clumps=True, seed=21 + dim)
+        for dom_kind in ("free", "reflect", "reflect_sphere", "periodic", "lees_edwards"):
+            dom = _make_domain(dom_kind, dim, box_l)
+            col_specs: list[tuple[str, str, dict[str, object]]] = [
+                ("cell", "CellList", {"state": st, "cell_size": 1.3}),
+                ("nl", "NeighborList", {"state": st, "cutoff": 1.3, "skin": 0.2}),
+            ]
+            if dom_kind in ("periodic", "reflect"):
+                col_specs.append(
+                    ("static_cell", "CellList", {"state": st, "cell_size": 1.3, "static": True})
+                )
+            for tag, col_type, col_kw in col_specs:
+                sy = jdem.System.create(
+                    state_shape=st.shape,
+                    dt=2e-3,
+                    domain=dom,
+                    force_model=DampedSpringForce(),
+                    mat_table=mat,
+                    collider_type=col_type,
+                    collider_kw=col_kw,
+                )
+                cases.append((f"{dom_kind}_{tag}_{dim}D", st, sy))
+
+    with pallas_enabled(True):
+        pallas_out = {name: jdem.System.step(st, sy, n=6) for name, st, sy in cases}
+    with pallas_enabled(False):
+        pure_out = {name: jdem.System.step(st, sy, n=6) for name, st, sy in cases}
+
+    for name, _, _ in cases:
+        st_p, _ = pallas_out[name]
+        st_j, _ = pure_out[name]
+        _assert_close_pair(st_p.pos_c, st_j.pos_c, f"{name} pos_c")
+        _assert_close_pair(st_p.force, st_j.force, f"{name} force")
+        _assert_close_pair(st_p.torque, st_j.torque, f"{name} torque")
+
+
+def test_pallas_vs_pure_jax_batched_vmap_and_ad() -> None:
+    """Verify 2D batched vmap (non-pow2 B & N) and reverse/forward AD parity."""
+    if not is_pallas_enabled():
+        pytest.skip("Pallas Triton GPU backend not active on this host")
+
+    B, N, dim = 7, 29, 3
+    box_l = 4.0
+    mat2 = _make_materials(2)
+    states = jax.tree.map(
+        lambda *xs: jnp.stack(xs),
+        *[_make_state(dim, N, box_l, n_mat=2, seed=100 + b) for b in range(B)],
+    )
+    sy0 = jdem.System.create(
+        state_shape=(N, dim),
+        dt=2e-3,
+        domain_type="periodic",
+        domain_kw={"box_size": jnp.full((dim,), box_l)},
+        force_model=CundallStrackForce(),
+        mat_table=mat2,
+        collider_type="NeighborList",
+        collider_kw={
+            "state": jax.tree.map(lambda x: x[0], states),
+            "cutoff": 1.3,
+            "skin": 0.15,
+        },
+    )
+    systems = jax.tree.map(lambda x: jnp.broadcast_to(x[None, ...], (B,) + x.shape), sy0)
+
+    st1 = _make_state(3, 25, 3.8, n_mat=1, seed=55)
+    mat1 = _make_materials(1)
+    ad_systems = {
+        "static_cell": jdem.System.create(
+            state_shape=st1.shape,
+            dt=1e-3,
+            domain_type="periodic",
+            domain_kw={"box_size": jnp.full((3,), 3.8)},
+            force_model=SpringForce(),
+            mat_table=mat1,
+            collider_type="CellList",
+            collider_kw={"state": st1, "cell_size": 1.3, "static": True},
+        ),
+        "nl": jdem.System.create(
+            state_shape=st1.shape,
+            dt=1e-3,
+            domain_type="periodic",
+            domain_kw={"box_size": jnp.full((3,), 3.8)},
+            force_model=SpringForce(),
+            mat_table=mat1,
+            collider_type="NeighborList",
+            collider_kw={"state": st1, "cutoff": 1.3, "skin": 0.2},
+        ),
+    }
+    sy_dyn = jdem.System.create(
+        state_shape=st1.shape,
+        dt=1e-3,
+        domain_type="periodic",
+        domain_kw={"box_size": jnp.full((3,), 3.8)},
+        force_model=SpringForce(),
+        mat_table=mat1,
+        collider_type="CellList",
+        collider_kw={"state": st1, "cell_size": 1.3},
+    )
+    tangent = jnp.ones_like(st1.pos_c) * 1e-2
+
+    def _run_suite() -> tuple[jdem.State, dict[str, jax.Array], jax.Array]:
+        step_b = jax.jit(jax.vmap(lambda s, sy: jdem.System.step(s, sy, n=8)))
+        st_b, _ = step_b(states, systems)
+        grads = {}
+        for k, sy1 in ad_systems.items():
+            grads[k] = jax.grad(
+                lambda pc: jnp.sum(jdem.System.step(replace(st1, pos_c=pc), sy1, n=3)[0].pos_c ** 2)
+            )(st1.pos_c)
+        _, jvp_out = jax.jvp(
+            lambda pc: jdem.System.step(replace(st1, pos_c=pc), sy_dyn, n=3)[0].pos_c,
+            (st1.pos_c,),
+            (tangent,),
+        )
+        return st_b, grads, jvp_out
+
+    with pallas_enabled(True):
+        st_p, g_p, jvp_p = _run_suite()
+    with pallas_enabled(False):
+        st_j, g_j, jvp_j = _run_suite()
+
+    _assert_close_pair(st_p.pos_c, st_j.pos_c, "batched NL+CS pos_c")
+    _assert_close_pair(st_p.force, st_j.force, "batched NL+CS force")
+    _assert_close_pair(st_p.torque, st_j.torque, "batched NL+CS torque")
+    for k in ad_systems:
+        _assert_close_pair(g_p[k], g_j[k], f"grad {k}")
+    _assert_close_pair(jvp_p, jvp_j, "jvp DynamicCellList")

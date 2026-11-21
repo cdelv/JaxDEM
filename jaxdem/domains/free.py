@@ -51,11 +51,21 @@ class FreeDomain(Domain):
         if pos.shape[0] == 0:
             return system
         pad = jnp.asarray(padding, dtype=pos.dtype)
-        if pad.ndim == pos.ndim - 1:
-            pad = pad[..., None]
-        p_min = jnp.min(pos - pad, axis=-2)
-        p_max = jnp.max(pos + pad, axis=-2)
-        scale = jnp.maximum(jnp.max(jnp.abs(pos)), jnp.asarray(1.0, pos.dtype))
+        if pad.ndim == 0:
+            raw_min = jnp.min(pos, axis=-2)
+            raw_max = jnp.max(pos, axis=-2)
+            p_min = raw_min - pad
+            p_max = raw_max + pad
+            scale = jnp.maximum(
+                jnp.max(jnp.maximum(jnp.abs(raw_min), jnp.abs(raw_max))),
+                jnp.asarray(1.0, pos.dtype),
+            )
+        else:
+            if pad.ndim == pos.ndim - 1:
+                pad = pad[..., None]
+            p_min = jnp.min(pos - pad, axis=-2)
+            p_max = jnp.max(pos + pad, axis=-2)
+            scale = jnp.maximum(jnp.max(jnp.abs(pos)), jnp.asarray(1.0, pos.dtype))
         eps = jnp.finfo(pos.dtype).eps * scale * 16  # type: ignore[no-untyped-call]
         box_size = jnp.maximum(p_max - p_min, eps)
         domain = replace(

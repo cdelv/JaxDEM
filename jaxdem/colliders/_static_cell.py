@@ -21,12 +21,25 @@ from . import valid_interaction_mask
 from ._cell_lookup import _static_cell_starts as _cell_starts
 from ._partition import (
     PAIR_UNROLL,
+    _can_use_sorted_order,
     _capacity_offsets,
+    _dedup_periodic_stencil,
     _dedup_stencil_hashes,
+    _effective_cell_size,
     _energy_pair_fn,
+    _force_only_pair_fn,
     _force_pair_fn,
     _get_spatial_partition,
+    _get_spatial_partition_grid,
+    _index_limit,
     _loose_cell_aabbs,
+    _neighbor_hashes_from_coords,
+    _permute_state,
+    _saturated_prefix_sum,
+    _shared_all,
+    _shared_max,
+    _sorted_cell_run_ends,
+    _vec_sum,
 )
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -70,20 +83,81 @@ class TileQueue(NamedTuple):
     run_starts: jax.Array | None = None
 
 
-def _saturated_prefix_sum(counts: jax.Array, limit: int) -> jax.Array:
-    """Return nonnegative prefix sums clipped to a signed index limit."""
-    if counts.size == 0:
-        return counts
-    unsigned_dtype = jnp.uint64 if counts.dtype == jnp.int64 else jnp.uint32
-    clipped = jnp.minimum(counts, limit).astype(unsigned_dtype)
-    totals = jnp.cumsum(clipped, dtype=unsigned_dtype)
-    # The first crossing cannot wrap: both operands are at most signed max.
-    # The maximum retains that crossing after later unsigned sums wrap.
-    totals = jax.lax.cummax(totals, axis=0)
-    return jnp.minimum(totals, jnp.asarray(limit, unsigned_dtype)).astype(counts.dtype)
+class _ClumpIndex(NamedTuple):
+    """Clump-grouped primary ranks, signed gaps, and N + 1 group offsets."""
+
+    ranks: jax.Array
+    gaps: jax.Array
+    offsets: jax.Array
 
 
-@partial(jax.jit, static_argnames=("return_run_ends", "prune_cells"))
+@jax.jit
+def _build_clump_index(perm: jax.Array, clump_id: jax.Array) -> _ClumpIndex:
+    """Group primary sorted ranks by clump, with stable order inside each group."""
+    n = perm.size
+    if n == 0:
+        empty = jnp.empty_like(perm)
+        return _ClumpIndex(empty, empty, jnp.zeros_like(perm, shape=(1,)))
+    labels = clump_id[perm]
+    _, ranks = jax.lax.sort(
+        (labels, jnp.arange(n, dtype=perm.dtype)), num_keys=1, is_stable=True
+    )
+    counts = jnp.zeros_like(perm).at[labels].add(1)
+    offsets = jnp.concatenate((jnp.zeros_like(perm, shape=(1,)), jnp.cumsum(counts)))
+    return _ClumpIndex(ranks, ranks - jnp.arange(n, dtype=ranks.dtype), offsets)
+
+
+@partial(jax.jit, static_argnames=("right",))
+def _bounded_search(
+    values: jax.Array,
+    target: jax.Array,
+    lo: jax.Array,
+    hi: jax.Array,
+    *,
+    right: bool,
+) -> jax.Array:
+    """Search sorted slices with fixed depth and broadcast bounds."""
+    target, lo, hi = jnp.broadcast_arrays(target, lo, hi)
+    n = values.size
+    if n == 0:
+        return lo
+
+    def step(
+        _: int, bounds: tuple[jax.Array, jax.Array]
+    ) -> tuple[jax.Array, jax.Array]:
+        lower, upper = bounds
+        mid = lower + (upper - lower) // 2
+        value = values[jnp.minimum(mid, n - 1)]
+        open_range = lower < upper
+        less = value <= target if right else value < target
+        return (
+            jnp.where(open_range & less, mid + 1, lower),
+            jnp.where(open_range & ~less, mid, upper),
+        )
+
+    bounds = step(0, (lo, hi))
+    return jax.lax.fori_loop(1, n.bit_length(), step, bounds)[0]
+
+
+@jax.jit
+def _clump_exclusion_ranges(
+    index: _ClumpIndex,
+    clump_id: jax.Array,
+    starts: jax.Array,
+    ends: jax.Array,
+) -> tuple[jax.Array, jax.Array]:
+    """Find each query clump's auxiliary slice inside each target cell."""
+    labels = jnp.broadcast_to(clump_id[..., None], starts.shape)
+    if index.ranks.size == 0:
+        empty = jnp.zeros_like(starts, dtype=index.offsets.dtype)
+        return empty, empty
+    lower, upper = index.offsets[labels], index.offsets[labels + 1]
+    a = _bounded_search(index.ranks, starts, lower, upper, right=False)
+    b = _bounded_search(index.ranks, ends, lower, upper, right=False)
+    return a, b
+
+
+@partial(jax.jit, static_argnames=("return_run_ends", "prune_cells", "sort_queries"))
 def _partition_tile_counts(
     pos: jax.Array,
     system: System,
@@ -95,6 +169,8 @@ def _partition_tile_counts(
     prune_cells: bool = False,
     member_radii: jax.Array | None = None,
     query_radii: Any = 0.0,
+    clump_id: jax.Array | None = None,
+    sort_queries: bool = False,
 ) -> tuple[jax.Array, ...]:
     """Return permutation, starts, ends, tile counts, and hash overflow.
 
@@ -114,22 +190,48 @@ def _partition_tile_counts(
         empty = jnp.zeros((n_query, neighbor_mask.shape[0]), dtype=int)
         result = jnp.empty((0,), dtype=int), empty, empty, empty, jnp.asarray(False)
         return result + (jnp.empty((0,), dtype=int),) if return_run_ends else result
-    perm, hashes, stencil, hash_overflow = _get_spatial_partition(
-        pos, system, cell_size, neighbor_mask, jnp.arange(n)
-    )
+    (
+        perm,
+        hashes,
+        p_coords,
+        grid_dims,
+        grid_strides,
+        eff_cell_size,
+        hash_overflow,
+    ) = _get_spatial_partition_grid(pos, system, cell_size, jnp.arange(n))
     if query_pos is not None:
-        _, _, stencil, query_overflow = _get_spatial_partition(
-            query_pos, system, cell_size, neighbor_mask, jnp.arange(query_pos.shape[0])
+        (
+            _,
+            _,
+            q_coords,
+            q_dims,
+            q_strides,
+            q_cell_size,
+            query_overflow,
+        ) = _get_spatial_partition_grid(
+            query_pos, system, cell_size, jnp.arange(query_pos.shape[0])
+        )
+        stencil = _neighbor_hashes_from_coords(
+            q_coords, q_dims, q_strides, q_cell_size, neighbor_mask, system.domain
         )
         hash_overflow |= query_overflow
-    if system.domain.periodic:
-        stencil = jax.vmap(_dedup_stencil_hashes)(stencil)
+        stencil = _dedup_periodic_stencil(stencil, q_dims, neighbor_mask, system.domain)
+    else:
+        coords_for_stencil = p_coords[perm] if sort_queries else p_coords
+        stencil = _neighbor_hashes_from_coords(
+            coords_for_stencil,
+            grid_dims,
+            grid_strides,
+            eff_cell_size,
+            neighbor_mask,
+            system.domain,
+        )
+        stencil = _dedup_periodic_stencil(
+            stencil, grid_dims, neighbor_mask, system.domain
+        )
     starts = _cell_starts(hashes, stencil)
 
-    # Every member of a sorted hash run obtains that run's exclusive end.
-    boundary = jnp.concatenate((hashes[:-1] != hashes[1:], jnp.ones((1,), bool)))
-    end_marks = jnp.where(boundary, jnp.arange(1, n + 1), n)
-    run_ends = jax.lax.cummin(end_marks, axis=0, reverse=True)
+    run_ends = _sorted_cell_run_ends(hashes)
     safe_starts = jnp.minimum(starts, n - 1)
     present = (starts < n) & (hashes[safe_starts] == stencil)
     ends = jnp.where(present, run_ends[safe_starts], starts)
@@ -141,12 +243,16 @@ def _partition_tile_counts(
             radii = member_radii[perm, None]
             member_min, member_max = members - radii, members + radii
         centers, half_extents = _loose_cell_aabbs(member_min, member_max, hashes)
-        queries = pos if query_pos is None else query_pos
+        queries = (
+            (members if sort_queries else pos) if query_pos is None else query_pos
+        )
         dr = system.domain.displacement(
             queries[:, None, :], centers[safe_starts], system
         )
         query_half = jnp.asarray(query_radii)
         if query_half.ndim > 0:
+            if sort_queries and query_pos is None:
+                query_half = query_half[perm]
             query_half = query_half[:, None, None]
         overlap = jnp.all(
             jnp.abs(dr) <= query_half + half_extents[safe_starts], axis=-1
@@ -154,12 +260,17 @@ def _partition_tile_counts(
         # Empty runs allocate no tiles, including after clump exclusion.
         ends = jnp.where(overlap, ends, starts)
     occupancy = ends - starts
-    counts = occupancy // PAIR_UNROLL + (occupancy % PAIR_UNROLL != 0)
+    if clump_id is not None:
+        index = _build_clump_index(perm, clump_id)
+        q_clump = clump_id[perm] if (sort_queries and query_pos is None) else clump_id
+        own_starts, own_ends = _clump_exclusion_ranges(index, q_clump, starts, ends)
+        occupancy = occupancy - (own_ends - own_starts)
+    counts = (occupancy + PAIR_UNROLL - 1) // PAIR_UNROLL
     result = perm, starts, ends, counts, hash_overflow
     return result + (run_ends,) if return_run_ends else result
 
 
-@partial(jax.jit, static_argnames=("tile_capacity", "prune_cells"))
+@partial(jax.jit, static_argnames=("tile_capacity", "prune_cells", "sort_queries"))
 def _build_tile_queue(
     pos: jax.Array,
     system: System,
@@ -172,6 +283,7 @@ def _build_tile_queue(
     prune_cells: bool = False,
     member_radii: jax.Array | None = None,
     query_radii: Any = 0.0,
+    sort_queries: bool = False,
 ) -> TileQueue:
     """Allocate globally pooled four-candidate tiles without occupancy loops."""
     n = pos.shape[0] if query_pos is None else query_pos.shape[0]
@@ -195,17 +307,16 @@ def _build_tile_queue(
         prune_cells=prune_cells,
         member_radii=member_radii,
         query_radii=query_radii,
+        sort_queries=sort_queries,
     )
     exclusion_starts = clump_ends = exclusion_gaps = run_starts = None
     if clump_id is not None:
-        from ._clump_exclusions import build_clump_index, clump_exclusion_ranges
-
         if query_pos is not None or clump_id.shape != (pos.shape[0],):
             raise ValueError("Clump exclusions require matching state particles")
-        index = build_clump_index(perm, clump_id)
-        own_starts, own_ends = clump_exclusion_ranges(index, clump_id, starts, ends)
+        index = _build_clump_index(perm, clump_id)
+        own_starts, own_ends = _clump_exclusion_ranges(index, clump_id, starts, ends)
         eligible = ends - starts - (own_ends - own_starts)
-        counts = eligible // PAIR_UNROLL + (eligible % PAIR_UNROLL != 0)
+        counts = (eligible + PAIR_UNROLL - 1) // PAIR_UNROLL
         clump_ends = index.offsets[clump_id + 1]
         exclusion_gaps = index.gaps
         members = jnp.arange(pos.shape[0])
@@ -281,18 +392,89 @@ def _tile_member_indices(
     assert queue.run_starts is not None
     assert queue.clump_ends is not None
     assert queue.exclusion_gaps is not None
-    from ._clump_exclusions import select_clump_complement
 
     n = queue.perm.size
     sources = jnp.minimum(queue.sources[slots], n - 1)
-    cell_starts = queue.run_starts[jnp.minimum(cursors, n - 1)]
-    return select_clump_complement(
+    cell_starts = queue.run_starts[jnp.minimum(cursors, n - 1)][:, None]
+    lo = queue.exclusion_starts[slots, None]
+    eligible_rank = indices - cell_starts
+    excluded_end = _bounded_search(
         queue.exclusion_gaps,
-        queue.exclusion_starts[slots, None],
+        cell_starts + eligible_rank - lo,
+        lo,
         queue.clump_ends[sources, None],
-        cell_starts[:, None],
-        indices - cell_starts[:, None],
+        right=True,
     )
+    return cell_starts + eligible_rank + excluded_end - lo
+
+
+def _decode_tile_batch(
+    queue: TileQueue,
+    slots: jax.Array,
+    n_query: int,
+    n_db: int,
+    *,
+    sorted_neighbors: bool = False,
+) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+    """Decode one batch of pooled tile slots into ``(sources, safe_sources, neighbors, in_cell)``."""
+    capacity = queue.sources.size
+    safe_slots = jnp.minimum(slots, capacity - 1)
+    sources = jnp.where(slots < capacity, queue.sources[safe_slots], n_query)
+    safe_sources = jnp.minimum(sources, n_query - 1)
+    cursors = queue.cursors[safe_slots]
+    ends = queue.run_ends[jnp.minimum(cursors, n_db - 1)]
+    indices = _tile_member_indices(
+        queue, safe_slots, cursors, cursors[:, None] + jnp.arange(PAIR_UNROLL)
+    )
+    safe_indices = jnp.minimum(indices, n_db - 1)
+    neighbors = safe_indices if sorted_neighbors else queue.perm[safe_indices]
+    # `ends` is always <= n_db, so `indices < ends[:, None]` implies `indices < n_db`.
+    in_cell = (sources[:, None] < n_query) & (indices < ends[:, None])
+    return sources, safe_sources, neighbors, in_cell
+
+
+def _scan_tile_batches(
+    body: Callable[..., Any],
+    initial: Any,
+    capacity: int,
+    required_tiles: jax.Array | None = None,
+) -> Any:
+    """Run ``body(carry, slots)`` over bounded batches of ``[0, capacity)``."""
+    batch_size = min(capacity, _TILE_BATCH_SIZE)
+    padded = (capacity + batch_size - 1) // batch_size * batch_size
+    batches = jnp.arange(padded).reshape(-1, batch_size)
+    num_batches = batches.shape[0]
+    if num_batches == 1:
+        return body(initial, batches[0])[0]
+    # Join manual-axis variance from inputs into the scan carry via a prototype step.
+    prototype = body(initial, batches[0])[0]
+    initial = jax.tree.map(
+        lambda old, new: old + jnp.zeros_like(new), initial, prototype
+    )
+    if required_tiles is None:
+        return jax.lax.scan(body, initial, batches)[0]
+
+    # Skip trailing empty tile batches via a differentiable power-of-2 prefix switch.
+    active_batches = _shared_max(
+        jnp.minimum((required_tiles + batch_size - 1) // batch_size, num_batches)
+    )
+    prefixes: list[int] = []
+    p = 1
+    while p < num_batches:
+        prefixes.append(p)
+        p = min(2 * p, num_batches)
+    prefixes.append(num_batches)
+    if len(prefixes) == 1:
+        return jax.lax.scan(body, initial, batches)[0]
+    branch_idx = sum((active_batches > prefix).astype(int) for prefix in prefixes[:-1])
+
+    def run_prefix(count: int, carry: Any) -> Any:
+        if count == 1:
+            return body(carry, batches[0])[0]
+        return jax.lax.scan(body, carry, batches[:count])[0]
+
+    branches = tuple(partial(run_prefix, count) for count in prefixes)
+    return jax.lax.switch(branch_idx, branches, initial)
 
 
 def _grouped_add(acc: jax.Array, values: jax.Array, sources: jax.Array) -> jax.Array:
@@ -326,6 +508,8 @@ def _traverse_tiles(
     queue: TileQueue,
     pair_fn: Callable[..., Any],
     initial: Any,
+    *,
+    sorted_order: bool = False,
 ) -> Any:
     """Evaluate fixed, bounded tile batches and accumulate directed results."""
     n, capacity = state.N, queue.sources.size
@@ -334,33 +518,37 @@ def _traverse_tiles(
     )
     if n == 0 or capacity == 0:
         return totals
-    batch_size = min(capacity, _TILE_BATCH_SIZE)
-    padded = (capacity + batch_size - 1) // batch_size * batch_size
-    batches = jnp.arange(padded).reshape(-1, batch_size)
-    lanes = jnp.arange(PAIR_UNROLL)
-    pos = state.pos
+    if sorted_order:
+        pos = state.pos[queue.perm]
+        eval_state: Any = _permute_state(state, queue.perm)
+    else:
+        pos = state.pos
+        eval_state = state
 
     def batch(acc: Any, slots: jax.Array) -> tuple[Any, None]:
-        safe_slots = jnp.minimum(slots, capacity - 1)
-        sources = jnp.where(slots < capacity, queue.sources[safe_slots], n)
-        safe_sources = jnp.minimum(sources, n - 1)
-        cursors = queue.cursors[safe_slots]
-        ends = queue.run_ends[jnp.minimum(cursors, n - 1)]
-        indices = cursors[:, None] + lanes
-        indices = _tile_member_indices(queue, safe_slots, cursors, indices)
-        neighbors = queue.perm[jnp.minimum(indices, n - 1)]
-        valid = (sources[:, None] < n) & (indices < ends[:, None]) & (indices < n)
-        valid = valid & valid_interaction_mask(
-            state.clump_id[neighbors],
-            state.clump_id[safe_sources, None],
-            state.bond_id[neighbors],
-            safe_sources[:, None],
-            system.interact_same_bond_id,
-        ).astype(bool)
-        values = jax.vmap(lambda i, j, mask: pair_fn(initial, i, j, pos, state, mask))(
-            safe_sources, neighbors, valid
+        sources, safe_sources, neighbors, in_cell = _decode_tile_batch(
+            queue, slots, n, n, sorted_neighbors=sorted_order
         )
-        values = jax.tree.map(lambda a: a.sum(axis=1), values)
+        if sorted_order:
+            valid = in_cell & valid_interaction_mask(
+                eval_state.clump_id[neighbors],
+                eval_state.clump_id[safe_sources, None],
+                eval_state.bond_id[neighbors],
+                eval_state.orig_id[safe_sources, None],
+                system.interact_same_bond_id,
+            ).astype(bool)
+        else:
+            valid = in_cell & valid_interaction_mask(
+                state.clump_id[neighbors],
+                state.clump_id[safe_sources, None],
+                state.bond_id[neighbors],
+                safe_sources[:, None],
+                system.interact_same_bond_id,
+            ).astype(bool)
+        values = jax.vmap(
+            lambda i, j, mask: pair_fn(initial, i, j, pos, eval_state, mask)
+        )(safe_sources, neighbors, valid)
+        values = jax.tree.map(lambda a: _vec_sum(a, 1), values)
         acc = jax.tree.map(
             lambda a, v: _grouped_add(a, v, sources),
             acc,
@@ -368,12 +556,13 @@ def _traverse_tiles(
         )
         return acc, None
 
-    if batches.shape[0] == 1:
-        return batch(totals, batches[0])[0]
-    # Only the prototype's types and manual-axis variance reach the carry.
-    prototype = batch(totals, batches[0])[0]
-    totals = jax.tree.map(lambda old, new: old + jnp.zeros_like(new), totals, prototype)
-    return jax.lax.scan(batch, totals, batches)[0]
+    result = _scan_tile_batches(batch, totals, capacity, queue.required_tiles)
+    if sorted_order:
+        result = jax.tree.map(
+            lambda a: jnp.empty_like(a).at[queue.perm].set(a, unique_indices=True),
+            result,
+        )
+    return result
 
 
 @partial(jax.jit, static_argnames=("capacity",))
@@ -409,125 +598,133 @@ def _search_neighbor_pairs(
         )
     collider = cast(_StaticCellCollider, system.collider)
     system = system.domain.update_bounds(pos, system, padding=cutoff)
-    reach = jnp.maximum(jnp.max(collider.neighbor_mask), 1)
-    cell_size = jnp.maximum(collider.cell_size, cutoff / reach)
-    queue = _build_tile_queue(
-        pos,
+    cell_size = _effective_cell_size(collider, cutoff)
+
+    def run_tile_queue() -> tuple[Any, ...]:
+        queue = _build_tile_queue(
+            pos,
+            system,
+            cell_size,
+            collider.neighbor_mask,
+            collider.tile_capacity,
+            clump_id=state.clump_id if collider.clump_aware else None,
+            prune_cells=collider._prune_cells,
+            query_radii=cutoff,
+        )
+        tile_capacity = queue.sources.size
+        if tile_capacity == 0:
+            if capacity is None:
+                return counts, queue.overflow
+            offsets, pair_overflow = _capacity_offsets(counts, capacity)
+            return (
+                jnp.full_like(pos, -1, shape=(capacity,), dtype=int),
+                offsets,
+                queue.overflow | pair_overflow,
+            )
+        cutoff_sq = cutoff**2
+
+        def candidates(slots: jax.Array) -> tuple[jax.Array, jax.Array, jax.Array]:
+            sources, safe_sources, neighbors, in_cell = _decode_tile_batch(
+                queue, slots, n, n
+            )
+            dr = system.domain.displacement(
+                pos[safe_sources, None, :], pos[neighbors], system
+            )
+            distance_sq = norm2(dr)
+            within_reach = distance_sq <= cutoff_sq
+            if search_radii is not None:
+                pair_reach = (
+                    search_radii[safe_sources, None] + search_radii[neighbors] + skin
+                )
+                within_reach = within_reach & (distance_sq <= pair_reach**2)
+            valid = (
+                in_cell
+                & within_reach
+                & valid_interaction_mask(
+                    state.clump_id[neighbors],
+                    state.clump_id[safe_sources, None],
+                    state.bond_id[neighbors],
+                    safe_sources[:, None],
+                    system.interact_same_bond_id,
+                ).astype(bool)
+            )
+            return sources, neighbors, valid
+
+        def count_batch(
+            cur_counts: jax.Array, slots: jax.Array
+        ) -> tuple[jax.Array, None]:
+            sources, _, valid = candidates(slots)
+            cur_counts = cur_counts.at[sources].add(
+                valid.sum(axis=1), mode="drop", indices_are_sorted=True
+            )
+            return cur_counts, None
+
+        if capacity is None or capacity == 0:
+            out_counts = _scan_tile_batches(
+                count_batch, counts, tile_capacity, queue.required_tiles
+            )
+            if capacity is None:
+                return out_counts, queue.overflow
+            offsets, pair_overflow = _capacity_offsets(out_counts, capacity)
+            return (
+                jnp.full_like(pos, -1, shape=(capacity,), dtype=int),
+                offsets,
+                queue.overflow | pair_overflow,
+            )
+
+        def fill_batch(carry: Any, slots: jax.Array) -> tuple[Any, None]:
+            cur_counts, neighbors, written = carry
+            sources, destinations, valid = candidates(slots)
+            cur_counts = cur_counts.at[sources].add(
+                valid.sum(axis=1), mode="drop", indices_are_sorted=True
+            )
+            flat_valid = valid.reshape(-1)
+            ranks = jnp.cumsum(flat_valid, dtype=cur_counts.dtype) - 1
+            remaining = capacity - written
+            writes = jnp.where(
+                flat_valid & (ranks < remaining),
+                written + jnp.minimum(ranks, remaining),
+                capacity,
+            )
+            neighbors = neighbors.at[writes].set(destinations.reshape(-1), mode="drop")
+            written = written + jnp.minimum(
+                flat_valid.sum(dtype=cur_counts.dtype), remaining
+            )
+            return (cur_counts, neighbors, written), None
+
+        out_counts, neighbors, _ = _scan_tile_batches(
+            fill_batch,
+            (
+                counts,
+                jnp.full_like(pos, -1, shape=(capacity,), dtype=int),
+                jnp.zeros_like(pos, shape=(), dtype=int),
+            ),
+            tile_capacity,
+            queue.required_tiles,
+        )
+        offsets, pair_overflow = _capacity_offsets(out_counts, capacity)
+        return neighbors, offsets, queue.overflow | pair_overflow
+
+    if collider.clump_aware:
+        return run_tile_queue()
+
+    # Fast dense sorted-grid compacted-stencil builder that preserves exact
+    # per-replica static tile-capacity overflow checks without allocating TileQueue.
+    from ._neighbor_cache import _dense_sorted_search_pairs
+
+    return _dense_sorted_search_pairs(
+        state,
         system,
         cell_size,
         collider.neighbor_mask,
-        collider.tile_capacity,
-        clump_id=state.clump_id if collider.clump_aware else None,
+        cutoff,
+        capacity,
+        search_radii,
+        skin,
         prune_cells=collider._prune_cells,
-        query_radii=cutoff,
+        tile_capacity=collider.tile_capacity,
+        fallback_fn=run_tile_queue,
     )
-    tile_capacity = queue.sources.size
-    if tile_capacity == 0:
-        if capacity is None:
-            return counts, queue.overflow
-        offsets, pair_overflow = _capacity_offsets(counts, capacity)
-        return (
-            jnp.full_like(pos, -1, shape=(capacity,), dtype=int),
-            offsets,
-            queue.overflow | pair_overflow,
-        )
-    batch_size = min(tile_capacity, _TILE_BATCH_SIZE)
-    padded = (tile_capacity + batch_size - 1) // batch_size * batch_size
-    batches = jnp.arange(padded).reshape(-1, batch_size)
-    lanes = jnp.arange(PAIR_UNROLL)
-    cutoff_sq = cutoff**2
-
-    def candidates(slots: jax.Array) -> tuple[jax.Array, jax.Array, jax.Array]:
-        safe_slots = jnp.minimum(slots, tile_capacity - 1)
-        sources = jnp.where(slots < tile_capacity, queue.sources[safe_slots], n)
-        safe_sources = jnp.minimum(sources, n - 1)
-        cursors = queue.cursors[safe_slots]
-        ends = queue.run_ends[jnp.minimum(cursors, n - 1)]
-        indices = cursors[:, None] + lanes
-        indices = _tile_member_indices(queue, safe_slots, cursors, indices)
-        neighbors = queue.perm[jnp.minimum(indices, n - 1)]
-        in_cell = (sources[:, None] < n) & (indices < ends[:, None]) & (indices < n)
-        dr = system.domain.displacement(
-            pos[safe_sources, None, :], pos[neighbors], system
-        )
-        distance_sq = norm2(dr)
-        within_reach = distance_sq <= cutoff_sq
-        if search_radii is not None:
-            pair_reach = (
-                search_radii[safe_sources, None] + search_radii[neighbors] + skin
-            )
-            within_reach = within_reach & (distance_sq <= pair_reach**2)
-        valid = (
-            in_cell
-            & within_reach
-            & valid_interaction_mask(
-                state.clump_id[neighbors],
-                state.clump_id[safe_sources, None],
-                state.bond_id[neighbors],
-                safe_sources[:, None],
-                system.interact_same_bond_id,
-            ).astype(bool)
-        )
-        return sources, neighbors, valid
-
-    def count_batch(counts: jax.Array, slots: jax.Array) -> tuple[jax.Array, None]:
-        sources, _, valid = candidates(slots)
-        counts = counts.at[sources].add(
-            valid.sum(axis=1), mode="drop", indices_are_sorted=True
-        )
-        return counts, None
-
-    def fold(body: Callable[..., Any], initial: Any) -> Any:
-        if batches.shape[0] == 1:
-            return body(initial, batches[0])[0]
-        # Retain the full fixed scan while joining independently varying inputs.
-        prototype = body(initial, batches[0])[0]
-        initial = jax.tree.map(
-            lambda old, new: old + jnp.zeros_like(new), initial, prototype
-        )
-        return jax.lax.scan(body, initial, batches)[0]
-
-    if capacity is None or capacity == 0:
-        counts = fold(count_batch, counts)
-        if capacity is None:
-            return counts, queue.overflow
-        offsets, pair_overflow = _capacity_offsets(counts, capacity)
-        return (
-            jnp.full_like(pos, -1, shape=(capacity,), dtype=int),
-            offsets,
-            queue.overflow | pair_overflow,
-        )
-
-    def fill_batch(carry: Any, slots: jax.Array) -> tuple[Any, None]:
-        counts, neighbors, written = carry
-        sources, destinations, valid = candidates(slots)
-        counts = counts.at[sources].add(
-            valid.sum(axis=1), mode="drop", indices_are_sorted=True
-        )
-        flat_valid = valid.reshape(-1)
-        # The rank stays bounded by four times the fixed tile batch width.
-        # Clip before adding the pool cursor so overflowing pools cannot wrap.
-        ranks = jnp.cumsum(flat_valid, dtype=counts.dtype) - 1
-        remaining = capacity - written
-        writes = jnp.where(
-            flat_valid & (ranks < remaining),
-            written + jnp.minimum(ranks, remaining),
-            capacity,
-        )
-        neighbors = neighbors.at[writes].set(destinations.reshape(-1), mode="drop")
-        written = written + jnp.minimum(flat_valid.sum(dtype=counts.dtype), remaining)
-        return (counts, neighbors, written), None
-
-    counts, neighbors, _ = fold(
-        fill_batch,
-        (
-            counts,
-            jnp.full_like(pos, -1, shape=(capacity,), dtype=int),
-            jnp.zeros_like(pos, shape=(), dtype=int),
-        ),
-    )
-    offsets, pair_overflow = _capacity_offsets(counts, capacity)
-    return neighbors, offsets, queue.overflow | pair_overflow
 
 
 def _query_tile_rows(
@@ -542,13 +739,11 @@ def _query_tile_rows(
     n_a, n_b = pos_a.shape[0], pos_b.shape[0]
     if n_a == 0 or n_b == 0:
         return jnp.full((n_a, max_neighbors), -1, dtype=int), jnp.asarray(False)
-    index_limit = (1 << (63 if jax.config.jax_enable_x64 else 31)) - 1
     output_capacity = n_a * max_neighbors
-    if output_capacity >= index_limit:
+    if output_capacity >= _index_limit():
         raise ValueError("neighbor output exceeds the particle-index integer range")
     collider = cast(_StaticCellCollider, system.collider)
-    reach = jnp.maximum(jnp.max(collider.neighbor_mask), 1)
-    cell_size = jnp.maximum(collider.cell_size, cutoff / reach)
+    cell_size = _effective_cell_size(collider, cutoff)
     queue = _build_tile_queue(
         pos_b,
         system,
@@ -563,41 +758,17 @@ def _query_tile_rows(
         query_radii=cutoff,
     )
     capacity = queue.sources.size
-    # Join the manual-axis variance of geometry, cutoff and interaction masks.
-    zero = (
-        jnp.zeros_like(queue.sources, shape=(), dtype=int)
-        + jnp.zeros_like(pos_a, shape=(), dtype=int)
-        + jnp.zeros_like(pos_b, shape=(), dtype=int)
-        + jnp.zeros_like(jnp.asarray(cutoff), shape=(), dtype=int)
-    )
-    if state is not None:
-        zero = (
-            zero
-            + jnp.zeros_like(state.clump_id, shape=(), dtype=int)
-            + jnp.zeros_like(state.bond_id, shape=(), dtype=int)
-            + jnp.zeros_like(system.interact_same_bond_id, shape=(), dtype=int)
-        )
-    counts = jnp.zeros((n_a,), dtype=int) + zero
-    neighbors = jnp.full((output_capacity,), -1, dtype=int) + zero
+    counts = jnp.zeros_like(pos_a, shape=(n_a,), dtype=int)
+    neighbors = jnp.full_like(pos_a, -1, shape=(output_capacity,), dtype=int)
     if capacity == 0:
         return neighbors.reshape(n_a, max_neighbors), queue.overflow
-    batch_size = min(capacity, _TILE_BATCH_SIZE)
-    padded = (capacity + batch_size - 1) // batch_size * batch_size
-    batches = jnp.arange(padded).reshape(-1, batch_size)
-    lanes = jnp.arange(PAIR_UNROLL)
     cutoff_sq = cutoff**2
 
     def batch(carry: Any, slots: jax.Array) -> tuple[Any, None]:
         counts, neighbors = carry
-        safe_slots = jnp.minimum(slots, capacity - 1)
-        sources = jnp.where(slots < capacity, queue.sources[safe_slots], n_a)
-        safe_sources = jnp.minimum(sources, n_a - 1)
-        cursors = queue.cursors[safe_slots]
-        ends = queue.run_ends[jnp.minimum(cursors, n_b - 1)]
-        indices = cursors[:, None] + lanes
-        indices = _tile_member_indices(queue, safe_slots, cursors, indices)
-        destinations = queue.perm[jnp.minimum(indices, n_b - 1)]
-        in_cell = (sources[:, None] < n_a) & (indices < ends[:, None]) & (indices < n_b)
+        sources, safe_sources, destinations, in_cell = _decode_tile_batch(
+            queue, slots, n_a, n_b
+        )
         dr = system.domain.displacement(
             pos_a[safe_sources, None, :], pos_b[destinations], system
         )
@@ -633,24 +804,21 @@ def _query_tile_rows(
         )
         return (counts, neighbors), None
 
-    initial = counts, neighbors
-    if batches.shape[0] == 1:
-        counts, neighbors = batch(initial, batches[0])[0]
-    else:
-        counts, neighbors = jax.lax.scan(batch, initial, batches)[0]
+    counts, neighbors = _scan_tile_batches(batch, (counts, neighbors), capacity)
     return neighbors.reshape(n_a, max_neighbors), queue.overflow | jnp.any(
         counts > max_neighbors
     )
 
 
-def _contact_tile_queue(state: State, system: System) -> tuple[System, TileQueue]:
+def _contact_tile_queue(
+    state: State, system: System, *, sort_queries: bool = False
+) -> tuple[System, TileQueue]:
     """Build the static tile queue for direct force or energy evaluation."""
     collider = cast(_StaticCellCollider, system.collider)
     search_radii = system.force_model.search_radii(state, system)
     search_radius = jnp.max(search_radii, initial=0.0)
     system = system.domain.update_bounds(state.pos, system, padding=search_radius)
-    reach = jnp.maximum(jnp.max(jnp.abs(collider.neighbor_mask)), 1)
-    cell_size = jnp.maximum(collider.cell_size, 2.0 * search_radius / reach)
+    cell_size = _effective_cell_size(collider, 2.0 * search_radius)
     queue = _build_tile_queue(
         state.pos,
         system,
@@ -661,6 +829,7 @@ def _contact_tile_queue(state: State, system: System) -> tuple[System, TileQueue
         prune_cells=collider._prune_cells,
         member_radii=search_radii,
         query_radii=search_radii,
+        sort_queries=sort_queries,
     )
     return system, queue
 
@@ -674,20 +843,103 @@ def _static_compute_force(
     quasistatic: bool = False,
 ) -> tuple[State, System]:
     """Evaluate directed contact forces over the fixed tile pool."""
-    system, queue = _contact_tile_queue(state, system)
-    force, torque = _traverse_tiles(
-        state,
-        system,
-        queue,
-        partial(_force_pair_fn, system=system, quasistatic=quasistatic),
-        (
-            jnp.zeros_like(state.force, shape=state.force.shape[1:]),
-            jnp.zeros_like(state.torque, shape=state.torque.shape[1:]),
-        ),
-    )
-    state.force = force
-    state.torque = torque + cross(state._pos_p_rot, force)
-    system.collider.overflow = queue.overflow
+    collider = cast(_StaticCellCollider, system.collider)
+    use_sorted = _can_use_sorted_order(state, system) and not collider.clump_aware
+    has_torque = system.force_model.has_pair_torque
+
+    def run_tile_path(st_cur: State, sys_cur: System) -> tuple[Any, jax.Array]:
+        sys_q, queue = _contact_tile_queue(st_cur, sys_cur, sort_queries=use_sorted)
+        if not has_torque:
+            out = _traverse_tiles(
+                st_cur,
+                sys_q,
+                queue,
+                partial(_force_only_pair_fn, system=sys_q, quasistatic=quasistatic),
+                jnp.zeros_like(st_cur.force, shape=st_cur.force.shape[1:]),
+                sorted_order=use_sorted,
+            )
+        else:
+            out = _traverse_tiles(
+                st_cur,
+                sys_q,
+                queue,
+                partial(_force_pair_fn, system=sys_q, quasistatic=quasistatic),
+                (
+                    jnp.zeros_like(st_cur.force, shape=st_cur.force.shape[1:]),
+                    jnp.zeros_like(st_cur.torque, shape=st_cur.torque.shape[1:]),
+                ),
+                sorted_order=use_sorted,
+            )
+        return out, queue.overflow
+
+    if use_sorted and state.N > 0:
+        from .cell_list import _dense_sorted_traverse
+
+        search_radii = system.force_model.search_radii(state, system)
+        search_radius = jnp.max(search_radii, initial=0.0)
+        system = system.domain.update_bounds(state.pos, system, padding=search_radius)
+        cell_size = _effective_cell_size(collider, 2.0 * search_radius)
+        if not has_torque:
+            pair_fn: Callable[..., Any] = partial(
+                _force_only_pair_fn, system=system, quasistatic=quasistatic
+            )
+            init_acc: Any = jnp.zeros_like(state.force, shape=state.force.shape[1:])
+        else:
+            pair_fn = partial(_force_pair_fn, system=system, quasistatic=quasistatic)
+            init_acc = (
+                jnp.zeros_like(state.force, shape=state.force.shape[1:]),
+                jnp.zeros_like(state.torque, shape=state.torque.shape[1:]),
+            )
+        out, overflow = _dense_sorted_traverse(
+            state,
+            system,
+            cell_size,
+            collider.neighbor_mask,
+            pair_fn,
+            init_acc,
+            prune_cells=collider._prune_cells,
+            tile_capacity=collider.tile_capacity,
+            fallback_fn=run_tile_path,
+        )
+    else:
+        system, queue = _contact_tile_queue(state, system, sort_queries=use_sorted)
+        if not has_torque:
+            out = _traverse_tiles(
+                state,
+                system,
+                queue,
+                partial(_force_only_pair_fn, system=system, quasistatic=quasistatic),
+                jnp.zeros_like(state.force, shape=state.force.shape[1:]),
+                sorted_order=use_sorted,
+            )
+        else:
+            out = _traverse_tiles(
+                state,
+                system,
+                queue,
+                partial(_force_pair_fn, system=system, quasistatic=quasistatic),
+                (
+                    jnp.zeros_like(state.force, shape=state.force.shape[1:]),
+                    jnp.zeros_like(state.torque, shape=state.torque.shape[1:]),
+                ),
+                sorted_order=use_sorted,
+            )
+        overflow = queue.overflow
+
+    if not has_torque:
+        state.force = out
+        state.torque = (
+            jnp.zeros_like(state.torque)
+            if state.only_spheres
+            else cross(state._pos_p_rot, out)
+        )
+    else:
+        force, torque = out
+        state.force = force
+        state.torque = (
+            torque if state.only_spheres else torque + cross(state._pos_p_rot, force)
+        )
+    system.collider.overflow = overflow
     return state, system
 
 
@@ -696,15 +948,51 @@ def _static_compute_potential_energy(
     state: State, system: System
 ) -> tuple[State, System, jax.Array]:
     """Evaluate half-weighted directed energies over the fixed tile pool."""
-    system, queue = _contact_tile_queue(state, system)
-    energy = _traverse_tiles(
-        state,
-        system,
-        queue,
-        partial(_energy_pair_fn, system=system),
-        jnp.zeros_like(state.pos_c, shape=(), dtype=float),
-    )
-    system.collider.overflow = queue.overflow
+    collider = cast(_StaticCellCollider, system.collider)
+    use_sorted = _can_use_sorted_order(state, system) and not collider.clump_aware
+
+    def run_tile_path(st_cur: State, sys_cur: System) -> tuple[jax.Array, jax.Array]:
+        sys_q, queue = _contact_tile_queue(st_cur, sys_cur, sort_queries=use_sorted)
+        e = _traverse_tiles(
+            st_cur,
+            sys_q,
+            queue,
+            partial(_energy_pair_fn, system=sys_q),
+            jnp.zeros_like(st_cur.pos_c, shape=(), dtype=float),
+            sorted_order=use_sorted,
+        )
+        return e, queue.overflow
+
+    if use_sorted and state.N > 0:
+        from .cell_list import _dense_sorted_traverse
+
+        search_radii = system.force_model.search_radii(state, system)
+        search_radius = jnp.max(search_radii, initial=0.0)
+        system = system.domain.update_bounds(state.pos, system, padding=search_radius)
+        cell_size = _effective_cell_size(collider, 2.0 * search_radius)
+        energy, overflow = _dense_sorted_traverse(
+            state,
+            system,
+            cell_size,
+            collider.neighbor_mask,
+            partial(_energy_pair_fn, system=system),
+            jnp.zeros_like(state.pos_c, shape=(), dtype=float),
+            prune_cells=collider._prune_cells,
+            tile_capacity=collider.tile_capacity,
+            fallback_fn=run_tile_path,
+        )
+    else:
+        system, queue = _contact_tile_queue(state, system, sort_queries=use_sorted)
+        energy = _traverse_tiles(
+            state,
+            system,
+            queue,
+            partial(_energy_pair_fn, system=system),
+            jnp.zeros_like(state.pos_c, shape=(), dtype=float),
+            sorted_order=use_sorted,
+        )
+        overflow = queue.overflow
+    system.collider.overflow = overflow
     return state, system, energy.sum()
 
 

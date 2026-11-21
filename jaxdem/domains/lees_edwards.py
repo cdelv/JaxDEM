@@ -286,6 +286,54 @@ class LeesEdwardsDomain(PeriodicDomain):
         return sheared_state, sheared_system
 
     @staticmethod
+    def _shear_image(
+        ri: jax.Array, rj: jax.Array, domain: LeesEdwardsDomain
+    ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
+        raw = ri - rj
+        inv_box = 1.0 / domain.box_size
+        beta_length = domain.box_size[domain.beta]
+        a, b = domain.alpha, domain.beta
+        shear_image = jnp.round(raw[..., b] * inv_box[b])
+        shift_alpha = -shear_image * (beta_length * domain.gamma)
+        dim = raw.shape[-1]
+        if dim == 3:
+            o = 3 - a - b
+            sa = raw[..., a] + shift_alpha
+            ia = jnp.round(sa * inv_box[a])
+            io = jnp.round(raw[..., o] * inv_box[o])
+            s_comps = [raw[..., 0], raw[..., 1], raw[..., 2]]
+            s_comps[a] = sa
+            i_comps = [ia, ia, ia]
+            i_comps[a] = ia
+            i_comps[b] = shear_image
+            i_comps[o] = io
+            return (
+                beta_length,
+                shear_image,
+                jnp.stack(s_comps, axis=-1),
+                jnp.stack(i_comps, axis=-1),
+            )
+        if dim == 2:
+            sa = raw[..., a] + shift_alpha
+            ia = jnp.round(sa * inv_box[a])
+            if a == 0:
+                return (
+                    beta_length,
+                    shear_image,
+                    jnp.stack((sa, raw[..., 1]), axis=-1),
+                    jnp.stack((ia, shear_image), axis=-1),
+                )
+            return (
+                beta_length,
+                shear_image,
+                jnp.stack((raw[..., 0], sa), axis=-1),
+                jnp.stack((shear_image, ia), axis=-1),
+            )
+        shifted = raw.at[..., a].add(shift_alpha)
+        image = jnp.round(shifted * inv_box)
+        return beta_length, shear_image, shifted, image
+
+    @staticmethod
     @jax.jit(inline=True)
     @partial(jax.named_call, name="LeesEdwardsDomain.displacement")
     def displacement(ri: jax.Array, rj: jax.Array, system: System) -> jax.Array:
@@ -323,12 +371,24 @@ class LeesEdwardsDomain(PeriodicDomain):
         """
         domain = cast("LeesEdwardsDomain", system.domain)
         raw = ri - rj
-        beta_length = domain.box_size[domain.beta]
-        shear_image = jnp.round(raw[..., domain.beta] / beta_length)
-        shifted = raw.at[..., domain.alpha].add(
-            -shear_image * beta_length * domain.gamma
-        )
-        image = jnp.round(shifted / domain.box_size)
+        dim = raw.shape[-1]
+        if dim in (2, 3):
+            box = domain.box_size
+            inv_box = 1.0 / box
+            a, b = domain.alpha, domain.beta
+            L_b = box[b]
+            sb = jnp.round(raw[..., b] * inv_box[b])
+            db = raw[..., b] - L_b * sb
+            sa = raw[..., a] - sb * (L_b * domain.gamma)
+            da = sa - box[a] * jnp.round(sa * inv_box[a])
+            if dim == 2:
+                return jnp.stack((da, db) if a == 0 else (db, da), axis=-1)
+            o = 3 - a - b
+            do = raw[..., o] - box[o] * jnp.round(raw[..., o] * inv_box[o])
+            comps = [da, db, do]
+            comps[a], comps[b], comps[o] = da, db, do
+            return jnp.stack(comps, axis=-1)
+        _, _, shifted, image = LeesEdwardsDomain._shear_image(ri, rj, domain)
         return shifted - domain.box_size * image
 
     @staticmethod
@@ -346,13 +406,9 @@ class LeesEdwardsDomain(PeriodicDomain):
         Include both box motion and the shear-offset rate.
         """
         domain = cast("LeesEdwardsDomain", system.domain)
-        raw = ri - rj
-        beta_length = domain.box_size[domain.beta]
-        shear_image = jnp.round(raw[..., domain.beta] / beta_length)
-        shifted = raw.at[..., domain.alpha].add(
-            -shear_image * beta_length * domain.gamma
+        beta_length, shear_image, _, image = LeesEdwardsDomain._shear_image(
+            ri, rj, domain
         )
-        image = jnp.round(shifted / domain.box_size)
         image_velocity = image * domain.box_rate
         image_velocity = image_velocity.at[..., domain.alpha].add(
             shear_image

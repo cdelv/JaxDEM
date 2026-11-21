@@ -19,6 +19,18 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
+def _wca_force_coeff(n2: jax.Array, sig: jax.Array, eps: jax.Array) -> jax.Array:
+    """Scalar multiplier ``c`` such that ``F_ij = c * r_ij`` for WCA repulsion."""
+    r2 = jnp.where(n2 == 0.0, 1.0, n2)
+    sig2 = sig * sig
+    inv_r2 = 1.0 / r2
+    sr2 = sig2 * inv_r2
+    sr6 = sr2 * sr2 * sr2
+    sr12 = sr6 * sr6
+    rc2 = (2.0 ** (1.0 / 3.0)) * sig2
+    return jnp.where(r2 < rc2, 24.0 * eps * inv_r2 * (2.0 * sr12 - sr6), 0.0)
+
+
 @ForceModel.register("wca")
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
@@ -42,6 +54,14 @@ class WCA(ForceModel):
       F_vec = 24 eps (2 (sigma/r)^12 - (sigma/r)^6) * (1/r^2) * r_ij
     """
 
+    @property
+    def has_pair_torque(self) -> bool:
+        return False
+
+    @property
+    def supports_sorted_order(self) -> bool:
+        return True
+
     def search_radii(self, state: State, system: System) -> jax.Array:
         """Conservative search extent for this law's finite interaction range."""
         return jnp.maximum(state._rad, (2.0 ** (1.0 / 6.0)) * state.rad)
@@ -60,28 +80,18 @@ class WCA(ForceModel):
         advance_history: bool = True,
         quasistatic: bool = False,
     ) -> tuple[jax.Array, jax.Array, jax.Array]:
-        mi, mj = state.mat_id[i], state.mat_id[j]
-        eps = system.mat_table.epsilon_eff[mi, mj]
+        eps_table = system.mat_table.epsilon_eff
+        if eps_table.shape == (1, 1):
+            eps = eps_table[0, 0]
+        else:
+            mi, mj = state.mat_id[i], state.mat_id[j]
+            eps = eps_table[mi, mj]
         sig = state.rad[i] + state.rad[j]
 
         rij = system.domain._displacement(pos[i], pos[j], system)
         r2 = norm2(rij)
-        r2 = jnp.where(r2 == 0, jnp.ones_like(r2), r2)
-
-        sig2 = sig * sig
-        inv_r2 = 1.0 / r2
-        sr2 = sig2 * inv_r2
-        sr6 = sr2 * sr2 * sr2
-        sr12 = sr6 * sr6
-
-        # cutoff: r_c = 2^(1/6) sigma  => r_c^2 = 2^(1/3) sigma^2
-        rc2 = (2.0 ** (1.0 / 3.0)) * sig2
-        active = r2 < rc2
-        not_self = j != i
-        mask = active & not_self
-
-        coeff = 24.0 * eps * inv_r2 * (2.0 * sr12 - sr6)
-        f = (coeff * mask)[..., None] * rij
+        coeff = _wca_force_coeff(r2, sig, eps) * (j != i)
+        f = coeff[..., None] * rij
 
         t_shape = jnp.shape(j) + jnp.shape(state.torque[i])
         return f, jnp.zeros(t_shape, dtype=state.torque.dtype), history
@@ -97,8 +107,12 @@ class WCA(ForceModel):
         system: System,
         history: jax.Array,
     ) -> jax.Array:
-        mi, mj = state.mat_id[i], state.mat_id[j]
-        eps = system.mat_table.epsilon_eff[mi, mj]
+        eps_table = system.mat_table.epsilon_eff
+        if eps_table.shape == (1, 1):
+            eps = eps_table[0, 0]
+        else:
+            mi, mj = state.mat_id[i], state.mat_id[j]
+            eps = eps_table[mi, mj]
         sig = state.rad[i] + state.rad[j]
 
         rij = system.domain._displacement(pos[i], pos[j], system)

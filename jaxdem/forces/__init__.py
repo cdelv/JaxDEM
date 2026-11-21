@@ -18,6 +18,21 @@ if TYPE_CHECKING:  # pragma: no cover
     from ..system import System
 
 
+def _safe_sqrt(value: jax.Array) -> jax.Array:
+    """Square root with zero derivative convention at zero."""
+    pos = value > 0.0
+    return jnp.where(pos, jnp.sqrt(jnp.where(pos, value, 1.0)), 0.0)
+
+
+def _damping_ratio(restitution: jax.Array) -> jax.Array:
+    """Viscoelastic damping ratio ``beta`` from restitution coefficient ``e``."""
+    positive = restitution > 0.0
+    ln_e = jnp.log(jnp.where(positive, restitution, 1.0))
+    return jnp.where(
+        positive, -ln_e / jnp.sqrt(jnp.pi * jnp.pi + ln_e * ln_e), 1.0
+    )
+
+
 @jax.tree_util.register_dataclass
 @dataclass(slots=True)
 class ForceModel(Factory, ABC):
@@ -69,6 +84,28 @@ class ForceModel(Factory, ABC):
         ``energy`` directly, with stored pair history held fixed.
         """
         return True
+
+    @property
+    def has_pair_torque(self) -> bool:
+        """Whether ``force`` can return nonzero pair torque about a sphere's center.
+
+        Central force laws set this to ``False`` so colliders can skip
+        accumulating and scattering identically zero pair torques while still
+        adding clump lever-arm moments ``r_p x F``.
+        """
+        return True
+
+    @property
+    def supports_sorted_order(self) -> bool:
+        """Whether ``force`` and ``energy`` are invariant to permuting particle indices.
+
+        Built-in sphere laws that read only per-particle fields indexed by
+        ``i`` and ``j`` set this to ``True``, allowing spatial colliders to
+        evaluate pairs directly in cell-sorted order for coalesced memory
+        access. Laws whose state arrays store raw particle indices (such as
+        facet vertex tables) keep this ``False``.
+        """
+        return False
 
     @property
     def species_capacity(self) -> int | None:

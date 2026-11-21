@@ -111,7 +111,8 @@ class PeriodicDomain(Domain):
         Particle centers select the image, even when velocities include rotation.
         """
         domain = cast("PeriodicDomain", system.domain)
-        return vi - vj - jnp.round((ri - rj) / domain.box_size) * domain.box_rate
+        inv_box = 1.0 / domain.box_size
+        return vi - vj - jnp.round((ri - rj) * inv_box) * domain.box_rate
 
     def search_geometry_snapshot(self) -> jax.Array:
         """Return periodic box geometry used by search caches."""
@@ -173,7 +174,8 @@ class PeriodicDomain(Domain):
 
         """
         rij = ri - rj
-        return rij - system.domain.box_size * jnp.round(rij / system.domain.box_size)
+        inv_box = 1.0 / system.domain.box_size
+        return rij - system.domain.box_size * jnp.round(rij * inv_box)
 
     @staticmethod
     @jax.jit(inline=True)
