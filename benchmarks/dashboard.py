@@ -185,12 +185,13 @@ _DASHBOARD_JS = r"""
     nl_naive: "#6366f1"
   };
 
-  // Group history into separate sections per hardware (+ profile/dtype/only_spheres).
+  // Group history into separate sections per hardware (+ profile/dtype/only_spheres/alpha).
   const hwMap = new Map();
   runs.forEach(r => {
     const tag = r.only_spheres ? "only_spheres" : "clump-equiv";
-    const key = `${r.hw}||${r.profile}||${r.dtype}||${tag}`;
-    if (!hwMap.has(key)) hwMap.set(key, { hw: r.hw, profile: r.profile, dtype: r.dtype, tag, runs: [] });
+    const alpha = r.alpha != null ? Number(r.alpha) : 1.0;
+    const key = `${r.hw}||${r.profile}||${r.dtype}||${tag}||${alpha}`;
+    if (!hwMap.has(key)) hwMap.set(key, { hw: r.hw, profile: r.profile, dtype: r.dtype, tag, alpha, runs: [] });
     hwMap.get(key).runs.push(r);
   });
 
@@ -466,7 +467,7 @@ _DASHBOARD_JS = r"""
       container.innerHTML = `
         <div class="jb-hw-head">
           <div class="jb-hw-title">${group.hw}</div>
-          <div class="jb-hw-meta">${group.profile} · ${group.dtype} · steps=${latest.steps || 2000} · only_spheres=${latest.only_spheres ? "True" : "False"} · ${hwRuns.length} commit(s)</div>
+          <div class="jb-hw-meta">${group.profile} · ${group.dtype} · steps=${latest.steps || 2000} · α=${group.alpha} · only_spheres=${latest.only_spheres ? "True" : "False"} · ${hwRuns.length} commit(s)</div>
         </div>
         ${warnHtml}
 

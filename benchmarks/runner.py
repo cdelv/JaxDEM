@@ -226,9 +226,10 @@ def run_custom(
     profile: str | None = None,
     nl_skin: float = NL_SKIN,
     nl_max_neighbors: int = NL_MAX_NEIGHBORS,
+    alpha: float = 1.0,
     only_spheres: bool = False,
 ) -> dict[str, Any]:
-    """Run one custom spheres-in-a-box point at any valid ``phi`` and ``vel``."""
+    """Run one custom spheres-in-a-box point at any valid ``phi``, ``vel``, and ``alpha``."""
     _warn_if_throttled()
     preset = PROFILES[profile or default_profile()]
     run_n = n if n is not None else preset["n"]
@@ -251,6 +252,7 @@ def run_custom(
         steps=run_steps,
         nl_skin=nl_skin,
         nl_max_neighbors=nl_max_neighbors,
+        alpha=alpha,
         only_spheres=only_spheres,
     )
     mps = _time_built(built, run_repeats)
@@ -262,6 +264,7 @@ def run_custom(
         "collider": collider,
         "phi": phi,
         "vel": vel,
+        "alpha": alpha,
         "total_particles": built[1],
         "steps": built[2],
         "mps": mps,
@@ -297,6 +300,7 @@ def run_suite(
     repeats: int | None = None,
     nl_skin: float = NL_SKIN,
     nl_max_neighbors: int = NL_MAX_NEIGHBORS,
+    alpha: float = 1.0,
     only_spheres: bool = False,
     verbose: bool = True,
 ) -> dict[str, Any]:
@@ -330,7 +334,7 @@ def run_suite(
         print(
             f"JaxDEM Spheres-in-Box | {hw} | profile={prof_name} "
             f"(N={run_n}, naive={run_n_naive}, B={run_batch}, steps={run_steps}, "
-            f"only_spheres={only_spheres}) | {dtype} | commit={commit}{'*' if dirty else ''}"
+            f"alpha={alpha:g}, only_spheres={only_spheres}) | {dtype} | commit={commit}{'*' if dirty else ''}"
         )
 
     nested: dict[str, Any] = {}
@@ -346,6 +350,7 @@ def run_suite(
             steps=run_steps,
             nl_skin=nl_skin,
             nl_max_neighbors=nl_max_neighbors,
+            alpha=alpha,
             only_spheres=only_spheres,
         )
         mps = _time_built(built, run_repeats)
@@ -368,6 +373,7 @@ def run_suite(
         "n_naive": run_n_naive,
         "batch": run_batch,
         "steps": run_steps,
+        "alpha": alpha,
         "only_spheres": only_spheres,
         "jax": jax.__version__,
         "throttled": bool(throttle_warnings),

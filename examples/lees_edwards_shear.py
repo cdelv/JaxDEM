@@ -192,8 +192,8 @@ print(
     f"max |sigma_xy - (-1/A dU/dgamma)| = {np.max(np.abs(0.5 * (aqs_sxy_arr[:-1] + aqs_sxy_arr[1:]) - fd_sxy)):.2e}"
 )
 
-scene_states = {"Dynamic shear": dyn_traj_s, "AQS shear": aqs_states}
-scene_systems = {"Dynamic shear": dyn_traj_sys, "AQS shear": aqs_systems}
+scene_states = dyn_traj_s
+scene_systems = dyn_traj_sys
 
 # %%
 # Compare Dynamic and Quasistatic Shear Responses

@@ -15,12 +15,13 @@ from .cases import COLLIDERS, DIMS, DOMAINS, FORCES, MODES, REGIME_ORDER, REGIME
 DEFAULT_HISTORY_PATH = Path(__file__).resolve().parent / "history.jsonl"
 
 
-def _series_key(rec: dict[str, Any]) -> tuple[str, str, str, bool]:
+def _series_key(rec: dict[str, Any]) -> tuple[str, str, str, bool, float]:
     return (
         rec["hw"],
         rec["profile"],
         rec["dtype"],
         bool(rec.get("only_spheres", False)),
+        float(rec.get("alpha", 1.0)),
     )
 
 
@@ -105,7 +106,7 @@ def upsert_run(
         records.append(record)
 
     if keep is not None and keep > 0:
-        counts: dict[tuple[str, str, str, bool], int] = {}
+        counts: dict[tuple[str, str, str, bool, float], int] = {}
         pruned: list[dict[str, Any]] = []
         for rec in reversed(records):
             sk = _series_key(rec)

@@ -121,8 +121,8 @@ PROFILES: dict[str, dict[str, int]] = {
 }
 
 
-def validate_phi_vel(dim: str, phi: float, vel: float) -> None:
-    """Validate user-supplied ``phi`` ([0, 0.7] in 3D, [0, 0.8] in 2D) and ``vel`` ([0, 1])."""
+def validate_phi_vel(dim: str, phi: float, vel: float, alpha: float = 1.0) -> None:
+    """Validate ``phi`` ([0, 0.7] 3D, [0, 0.8] 2D), ``vel`` ([0, 1]), and ``alpha`` (>= 1)."""
     if dim not in DIMS:
         raise ValueError(f"dim must be one of {DIMS}, got {dim!r}.")
     max_phi = 0.7 if dim == "3d" else 0.8
@@ -133,6 +133,10 @@ def validate_phi_vel(dim: str, phi: float, vel: float) -> None:
     if not (0.0 <= vel <= 1.0):
         raise ValueError(
             f"Initial speed vel={vel} out of bounds (expected [0, 1])."
+        )
+    if alpha < 1.0 or not math.isfinite(alpha):
+        raise ValueError(
+            f"Polydispersity ratio alpha={alpha} must be finite and >= 1.0."
         )
 
 
@@ -234,10 +238,38 @@ def select_cases(
 # ---------------------------------------------------------------------------
 
 
-def _lattice_2d(n: int, rad: float, phi: float) -> tuple[np.ndarray, np.ndarray]:
-    """Place ``n`` disks of radius ``rad`` in a 2D box at packing ``phi`` (0..0.80) with zero overlap."""
+def _min_rad_for_alpha(alpha: float) -> float:
+    """Solve ``E[max_rad / r] = alpha`` for ``r ~ U[r_min, 1.0]``, i.e. ``ln(1/r_min)/(1 - r_min) = alpha``."""
+    if alpha <= 1.0:
+        return 1.0
+    # Let u = ln(1 / r_min) > 0; f(u) = u / (1 - exp(-u)) is strictly increasing on (0, inf)
+    # with f(0+) = 1 and f(u) > u, so the unique root lies in (0, alpha].
+    lo, hi = 0.0, float(alpha)
+    for _ in range(80):
+        mid = 0.5 * (lo + hi)
+        val = mid / (-math.expm1(-mid))
+        if val < alpha:
+            lo = mid
+        else:
+            hi = mid
+    return math.exp(-0.5 * (lo + hi))
+
+
+def _sample_radii(n: int, alpha: float, seed: int = 0) -> np.ndarray:
+    """Return ``n`` uniform radii in ``[r_min, SPHERE_RAD]`` with ``E[max_rad / r] = alpha``."""
+    if alpha <= 1.0:
+        return np.full((n,), SPHERE_RAD, dtype=np.float64)
+    r_min = SPHERE_RAD * _min_rad_for_alpha(alpha)
+    rng = np.random.default_rng(seed)
+    return rng.uniform(r_min, SPHERE_RAD, size=n).astype(np.float64)
+
+
+def _lattice_2d(
+    n: int, rad: np.ndarray, phi: float
+) -> tuple[np.ndarray, np.ndarray]:
+    """Place ``n`` disks with radii ``rad`` in a 2D box at packing ``phi`` (0..0.80)."""
     phi_eff = max(phi, 1e-4)
-    total_area = n * math.pi * (rad**2)
+    total_area = float(np.sum(math.pi * (rad**2)))
     target_area = total_area / phi_eff
 
     if phi_eff <= 0.70:
@@ -253,7 +285,6 @@ def _lattice_2d(n: int, rad: float, phi: float) -> tuple[np.ndarray, np.ndarray]
     n_cells = math.ceil(n / 2.0)
     mx = max(1, round(math.sqrt(n_cells * math.sqrt(3.0))))
     my = math.ceil(n_cells / mx)
-    # Rectangular box with aspect ratio mx : my*sqrt(3) matching exact target_area.
     a = math.sqrt(target_area / (mx * my * math.sqrt(3.0)))
     bx = mx * a
     by = my * a * math.sqrt(3.0)
@@ -265,11 +296,13 @@ def _lattice_2d(n: int, rad: float, phi: float) -> tuple[np.ndarray, np.ndarray]
     return pos, np.array([bx, by], dtype=np.float64)
 
 
-def _lattice_3d(n: int, rad: float, phi: float) -> tuple[np.ndarray, np.ndarray]:
-    """Place ``n`` spheres of radius ``rad`` in a 3D cube at packing ``phi`` (0..0.70) with zero overlap."""
+def _lattice_3d(
+    n: int, rad: np.ndarray, phi: float
+) -> tuple[np.ndarray, np.ndarray]:
+    """Place ``n`` spheres with radii ``rad`` in a 3D cube at packing ``phi`` (0..0.70)."""
     phi_eff = max(phi, 1e-4)
-    vol_sphere = (4.0 / 3.0) * math.pi * (rad**3)
-    box_len = (n * vol_sphere / phi_eff) ** (1.0 / 3.0)
+    total_vol = float(np.sum((4.0 / 3.0) * math.pi * (rad**3)))
+    box_len = (total_vol / phi_eff) ** (1.0 / 3.0)
 
     if phi_eff <= 0.50:
         # Simple cubic lattice (max packing pi/6 ~= 0.5236).
@@ -296,13 +329,13 @@ def _lattice_3d(n: int, rad: float, phi: float) -> tuple[np.ndarray, np.ndarray]
 
 
 def _lattice_positions(
-    n: int, dim: str, rad: float, phi: float, domain: str
+    n: int, dim: str, rad: np.ndarray, phi: float, domain: str
 ) -> tuple[np.ndarray, np.ndarray]:
     pos, box = _lattice_3d(n, rad, phi) if dim == "3d" else _lattice_2d(n, rad, phi)
     if domain in ("reflect", "reflectsphere"):
-        # Keep every sphere center at least `rad` away from reflective box walls.
-        scale = (box - 2.0 * rad) / box
-        pos = rad + pos * scale
+        r_max = float(np.max(rad))
+        scale = (box - 2.0 * r_max) / box
+        pos = r_max + pos * scale
     return pos, box
 
 
@@ -424,10 +457,11 @@ def build_spheres_in_box(
     steps: int = 2_000,
     nl_skin: float = NL_SKIN,
     nl_max_neighbors: int = NL_MAX_NEIGHBORS,
+    alpha: float = 1.0,
     only_spheres: bool = False,
 ) -> BuiltCase:
-    """Build any spheres-in-a-box benchmark with arbitrary valid ``phi`` and ``vel``."""
-    validate_phi_vel(dim, phi, vel)
+    """Build any spheres-in-a-box benchmark with arbitrary valid ``phi``, ``vel``, and ``alpha``."""
+    validate_phi_vel(dim, phi, vel, alpha)
     if domain not in DOMAINS:
         raise ValueError(f"domain must be one of {DOMAINS}, got {domain!r}.")
     if force not in FORCES:
@@ -442,9 +476,11 @@ def build_spheres_in_box(
     batched = mode == "batch"
     n_per_sim = max(16, base_n // 2) if batched else base_n
 
-    pos_np, box_np = _lattice_positions(n_per_sim, dim, SPHERE_RAD, phi, domain)
+    rad_np = _sample_radii(n_per_sim, alpha, seed=0)
+    pos_np, box_np = _lattice_positions(n_per_sim, dim, rad_np, phi, domain)
     dtype = jnp.asarray(0.0).dtype
     box = jnp.asarray(box_np, dtype=dtype)
+    rad_j = jnp.asarray(rad_np, dtype=dtype)
     mat_table = _material_table(force)
     dom_kw = _domain_kw(domain, box)
     rot_integrator = "verletspiral" if force == "cundallstrack" else ""
@@ -456,7 +492,7 @@ def build_spheres_in_box(
         cell_type = secondary if primary == "neighbor_list" else primary
         probe_state = jdem.State.create(
             pos=jnp.asarray(pos_np, dtype=dtype),
-            rad=jnp.full((n_per_sim,), SPHERE_RAD, dtype=dtype),
+            rad=rad_j,
             mass=jnp.full((n_per_sim,), SPHERE_MASS, dtype=dtype),
             only_spheres=only_spheres,
         )
@@ -487,7 +523,7 @@ def build_spheres_in_box(
         state = jdem.State.create(
             pos=jnp.asarray(pos_np, dtype=dtype),
             vel=jnp.asarray(vel_np, dtype=dtype),
-            rad=jnp.full((n_per_sim,), SPHERE_RAD, dtype=dtype),
+            rad=rad_j,
             mass=jnp.full((n_per_sim,), SPHERE_MASS, dtype=dtype),
             only_spheres=only_spheres,
         )
@@ -519,7 +555,7 @@ def build_spheres_in_box(
             st = jdem.State.create(
                 pos=pos_j,
                 vel=vel_i,
-                rad=jnp.full((n_per_sim,), SPHERE_RAD, dtype=dtype),
+                rad=rad_j,
                 mass=jnp.full((n_per_sim,), SPHERE_MASS, dtype=dtype),
                 only_spheres=only_spheres,
             )
@@ -556,6 +592,7 @@ def build_case(
     steps: int,
     nl_skin: float = NL_SKIN,
     nl_max_neighbors: int = NL_MAX_NEIGHBORS,
+    alpha: float = 1.0,
     only_spheres: bool = False,
 ) -> BuiltCase:
     """Build one fixed-regime ``BenchmarkCase``."""
@@ -573,5 +610,6 @@ def build_case(
         steps=steps,
         nl_skin=nl_skin,
         nl_max_neighbors=nl_max_neighbors,
+        alpha=alpha,
         only_spheres=only_spheres,
     )

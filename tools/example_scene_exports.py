@@ -56,7 +56,7 @@ _EXISTING_WRITERS = {
     "introduction",
     "vtk_writer_guide",
 }
-_AQS = {"soft_mode_rearrangement", "lees_edwards_shear"}
+_AQS = {"soft_mode_rearrangement"}
 _KINDS = {
     "spheres": "particles",
     "facets": "surface",

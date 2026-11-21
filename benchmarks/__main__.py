@@ -98,7 +98,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
 
     # Custom (phi, vel) single-point mode for external benchmarking outside the 4 fixed regimes.
     if args.phi is not None or args.vel is not None:
-        if args.record:
+        if args.record and not args.no_save:
             raise SystemExit(
                 "--record only stores the 4 fixed report regimes; omit --phi/--vel to record."
             )
@@ -119,11 +119,13 @@ def _cmd_run(args: argparse.Namespace) -> None:
             profile=args.profile,
             nl_skin=args.nl_skin,
             nl_max_neighbors=args.nl_max_neighbors,
+            alpha=args.alpha,
             only_spheres=args.only_spheres,
         )
         print(
             f"{res['dim']}/{res['domain']}/{res['force']}/{res['mode']}/{res['collider']} "
-            f"(phi={res['phi']}, vel={res['vel']}, B×N={res['total_particles']}, steps={res['steps']}): "
+            f"(phi={res['phi']}, vel={res['vel']}, alpha={res['alpha']:g}, "
+            f"B×N={res['total_particles']}, steps={res['steps']}): "
             f"{res['mps']:.2f} M pstep/s [{res['hw']}]"
         )
         return
@@ -145,10 +147,14 @@ def _cmd_run(args: argparse.Namespace) -> None:
         repeats=args.repeats,
         nl_skin=args.nl_skin,
         nl_max_neighbors=args.nl_max_neighbors,
+        alpha=args.alpha,
         only_spheres=args.only_spheres,
     )
     baseline = find_previous_run(record, history)
     print(format_run_table(record, baseline))
+
+    if args.no_save:
+        return
 
     if args.out:
         out = Path(args.out)
@@ -200,9 +206,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--repeats", type=int, help="Override warm timing repeats.")
     p_run.add_argument("--nl-skin", type=float, default=NL_SKIN, help=f"NeighborList skin distance (default: {NL_SKIN}).")
     p_run.add_argument("--nl-max-neighbors", type=int, default=NL_MAX_NEIGHBORS, help=f"NeighborList average slot budget per particle (default: {NL_MAX_NEIGHBORS}).")
+    p_run.add_argument("--alpha", type=float, default=1.0, help="Target mean polydispersity E[max_rad/r] >= 1.0 for r ~ U[r_min, 1.0] (default: 1.0).")
     p_run.add_argument("--only-spheres", action="store_true", help="Enable State.only_spheres=True fast path.")
     p_run.add_argument("--x64", action="store_true", help="Enable float64 precision.")
-    p_run.add_argument("--record", action="store_true", help="Upsert this run into benchmarks/history.jsonl.")
+    p_run.add_argument("--no-save", action="store_true", help="Print results to stdout only without writing to disk (default unless --record/--out is passed).")
+    p_run.add_argument("--record", action="store_true", help="Upsert this run into benchmarks/history.jsonl (opt-in; nothing is saved by default).")
     p_run.add_argument("--keep", type=int, help="Optional cap on commits kept per hardware/profile when recording.")
     p_run.add_argument("--out", type=Path, help="Optional path to save this run's JSON.")
     p_run.set_defaults(func=_cmd_run)
