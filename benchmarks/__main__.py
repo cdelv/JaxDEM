@@ -25,6 +25,7 @@ from .cases import (
 )
 from .dashboard import render_standalone_html
 from .runner import run_custom, run_suite
+from .scaling import format_scaling_table, parse_bool_token, plot_scaling, run_scaling
 from .store import (
     DEFAULT_HISTORY_PATH,
     count_measurements,
@@ -92,9 +93,75 @@ def _cmd_report(args: argparse.Namespace) -> None:
     print(f"Wrote benchmark report to {out}")
 
 
+def _cmd_scaling(args: argparse.Namespace) -> None:
+    if args.x64:
+        jax.config.update("jax_enable_x64", True)
+
+    if args.from_json:
+        record = json.loads(Path(args.from_json).read_text(encoding="utf-8"))
+    else:
+        def _split_str(raw: str) -> list[str]:
+            return [tok.strip() for tok in raw.split(",") if tok.strip()]
+
+        def _split_float(raw: str) -> list[float]:
+            return [float(tok.strip()) for tok in raw.split(",") if tok.strip()]
+
+        def _split_bool(raw: str) -> list[bool]:
+            return [parse_bool_token(tok) for tok in raw.split(",") if tok.strip()]
+
+        colliders = _split_str(args.collider) if args.collider else None
+        ns = [int(tok) for tok in _split_str(args.ns)] if args.ns else None
+        pallas_vals = _split_bool(args.pallas) if args.pallas is not None else None
+        spheres_vals = _split_bool(args.only_spheres)
+
+        record = run_scaling(
+            colliders=colliders,
+            ns=ns,
+            min_exp=args.min_exp,
+            max_exp=args.max_exp,
+            step_exp=args.step_exp,
+            min_n=args.min_n,
+            max_n=args.max_n,
+            dim=_split_str(args.dim),
+            domain=_split_str(args.domain),
+            force=_split_str(args.force),
+            mode=_split_str(args.mode),
+            phi=_split_float(args.phi),
+            vel=_split_float(args.vel),
+            alpha=_split_float(args.alpha),
+            only_spheres=spheres_vals,
+            pallas=pallas_vals,
+            batch_size=args.batch_size,
+            steps=args.steps,
+            steps_naive=args.steps_naive,
+            profile=args.profile,
+            nl_skin=args.nl_skin,
+            nl_max_neighbors=args.nl_max_neighbors,
+            max_n_naive=args.max_n_naive,
+            ignore_naive_limits=args.ignore_naive_limits,
+            max_seconds=args.max_seconds,
+        )
+
+    print(format_scaling_table(record))
+    if args.no_save:
+        return
+
+    if args.out:
+        out = Path(args.out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+        print(f"\nSaved scaling JSON to {out}")
+
+    if args.plot:
+        plot_path = plot_scaling(record, args.plot)
+        print(f"Saved log-log scaling plot to {plot_path}")
+
+
 def _cmd_run(args: argparse.Namespace) -> None:
     if args.x64:
         jax.config.update("jax_enable_x64", True)
+
+    pallas_opt = parse_bool_token(args.pallas) if args.pallas is not None else None
 
     # Custom (phi, vel) single-point mode for external benchmarking outside the fixed regimes.
     if args.phi is not None or args.vel is not None:
@@ -122,11 +189,13 @@ def _cmd_run(args: argparse.Namespace) -> None:
             nl_max_neighbors=args.nl_max_neighbors,
             alpha=args.alpha,
             only_spheres=args.only_spheres,
+            pallas=pallas_opt,
         )
         rb_str = f", nl_rebuilds={res['nl_rebuilds']}" if res.get("nl_rebuilds") is not None else ""
+        pal_str = f", pallas={'on' if res.get('pallas') else 'off'}"
         print(
             f"{res['dim']}/{res['domain']}/{res['force']}/{res['mode']}/{res['collider']} "
-            f"(phi={res['phi']}, vel={res['vel']}, alpha={res['alpha']:g}, "
+            f"(phi={res['phi']}, vel={res['vel']}, alpha={res['alpha']:g}{pal_str}, "
             f"B×N={res['total_particles']}, steps={res['steps']}{rb_str}): "
             f"{res['mps']:.2f} M pstep/s [{res['hw']}]"
         )
@@ -152,6 +221,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
         nl_max_neighbors=args.nl_max_neighbors,
         alpha=args.alpha,
         only_spheres=args.only_spheres,
+        pallas=pallas_opt,
     )
     baseline = find_previous_run(record, history)
     print(format_run_table(record, baseline))
@@ -212,6 +282,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--nl-max-neighbors", type=int, default=NL_MAX_NEIGHBORS, help=f"NeighborList average slot budget per particle (default: {NL_MAX_NEIGHBORS}).")
     p_run.add_argument("--alpha", type=float, default=1.0, help="Target mean polydispersity E[max_rad/r] >= 1.0 for r ~ U[r_min, 1.0] (default: 1.0).")
     p_run.add_argument("--only-spheres", action="store_true", help="Enable State.only_spheres=True fast path.")
+    p_run.add_argument("--pallas", help="Override Pallas Triton GPU kernels: on or off (default: auto).")
     p_run.add_argument("--x64", action="store_true", help="Enable float64 precision.")
     p_run.add_argument("--no-save", action="store_true", help="Print results to stdout only without writing to disk (default unless --record/--out is passed).")
     p_run.add_argument("--record", action="store_true", help="Upsert this run into benchmarks/history.jsonl (opt-in; nothing is saved by default).")
@@ -235,12 +306,60 @@ def build_parser() -> argparse.ArgumentParser:
     p_rep.add_argument("--out", type=Path, default=Path("/tmp/jaxdem_benchmarks.html"))
     p_rep.set_defaults(func=_cmd_report)
 
+    p_scl = sub.add_parser(
+        "scaling",
+        help="Sweep throughput vs N in powers of 2 (log-log) across colliders and varying parameters.",
+    )
+    p_scl.add_argument(
+        "--collider",
+        help=f"Comma-separated colliders (default: all valid for --force; options: {', '.join(COLLIDERS)}).",
+    )
+    p_scl.add_argument("--dim", default="3d", help=f"Dim or comma-separated dims ({', '.join(DIMS)}; default: 3d).")
+    p_scl.add_argument("--domain", default="periodic", help=f"Domain or comma-separated domains ({', '.join(DOMAINS)}; default: periodic).")
+    p_scl.add_argument("--force", default="spring", help=f"Force or comma-separated forces ({', '.join(FORCES)}; default: spring).")
+    p_scl.add_argument("--mode", default="single", help=f"Mode or comma-separated modes ({', '.join(MODES)}; default: single).")
+    p_scl.add_argument("--phi", default="0.55", help="Packing fraction or comma-separated list (default: 0.55).")
+    p_scl.add_argument("--vel", default="0.15", help="Initial velocity or comma-separated list (default: 0.15).")
+    p_scl.add_argument("--alpha", default="1.0", help="Polydispersity ratio or comma-separated list (default: 1.0).")
+    p_scl.add_argument(
+        "--only-spheres",
+        nargs="?",
+        const="true",
+        default="false",
+        help="Enable only_spheres, or pass comma-separated false,true to compare both.",
+    )
+    p_scl.add_argument(
+        "--pallas",
+        help="Pallas Triton GPU kernels: on, off, or on,off to compare both curves (default: auto).",
+    )
+    p_scl.add_argument("--profile", choices=tuple(PROFILES), help="Profile for default steps/batch (auto-detects gpu/cpu).")
+    p_scl.add_argument("--batch-size", type=int, help="Batch size B when --mode includes batch (default: 6).")
+    p_scl.add_argument("--steps", type=int, help="Steps per warmup/timed chunk (default GPU: 1000, CPU: 200).")
+    p_scl.add_argument("--steps-naive", type=int, help="Steps for naive collider (default GPU: 100, CPU: 50).")
+    p_scl.add_argument("--min-exp", type=int, default=1, help="Min power of 2 for N (default: 1 -> N=2).")
+    p_scl.add_argument("--max-exp", type=int, default=21, help="Max power of 2 for N (default: 21 -> N=2,097,152).")
+    p_scl.add_argument("--step-exp", type=int, default=1, help="Exponent stride for powers of 2 (default: 1).")
+    p_scl.add_argument("--min-n", type=int, help="Minimum N (overrides --min-exp, rounds up to power of 2).")
+    p_scl.add_argument("--max-n", type=int, help="Maximum N (overrides --max-exp, rounds down to power of 2).")
+    p_scl.add_argument("--ns", help="Explicit comma-separated N values (overrides --min-*/--max-*).")
+    p_scl.add_argument("--max-n-naive", type=int, default=8_192, help="Cap N for naive/nl_naive (default: 8192).")
+    p_scl.add_argument("--ignore-naive-limits", action="store_true", help="Disable both the N=8192 cap and reduced step count for naive/nl_naive.")
+    p_scl.add_argument("--max-seconds", type=float, help="Stop sweeping larger N for a curve once one point exceeds this many seconds.")
+    p_scl.add_argument("--nl-skin", type=float, default=NL_SKIN, help=f"NeighborList skin distance (default: {NL_SKIN}).")
+    p_scl.add_argument("--nl-max-neighbors", type=int, default=NL_MAX_NEIGHBORS, help=f"NeighborList average slot budget per particle (default: {NL_MAX_NEIGHBORS}).")
+    p_scl.add_argument("--x64", action="store_true", help="Enable float64 precision.")
+    p_scl.add_argument("--from-json", type=Path, help="Load an existing scaling JSON instead of running benchmarks.")
+    p_scl.add_argument("--out", type=Path, help="Optional path to save scaling results JSON.")
+    p_scl.add_argument("--plot", type=Path, help="Optional path to save log-log plot (.png/.pdf/.svg via matplotlib, or interactive .html).")
+    p_scl.add_argument("--no-save", action="store_true", help="Print table to stdout only without writing files.")
+    p_scl.set_defaults(func=_cmd_scaling)
+
     return parser
 
 
 def main(argv: list[str] | None = None) -> None:
     raw = list(sys.argv[1:] if argv is None else argv)
-    known = {"run", "list", "history", "compare", "report"}
+    known = {"run", "list", "history", "compare", "report", "scaling"}
     if not any(tok in known for tok in raw) and "-h" not in raw and "--help" not in raw:
         if raw[:1] == ["--history"] and len(raw) >= 2:
             raw = raw[:2] + ["run", *raw[2:]]

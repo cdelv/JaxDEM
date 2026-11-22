@@ -96,8 +96,8 @@ PROFILES: dict[str, dict[str, int]] = {
     },
     "cpu": {
         "n": 2_048,
-        "n_naive": 512,
-        "n_naive_batch": 256,
+        "n_naive": 150,
+        "n_naive_batch": 100,
         "batch": BATCH_SIZE,
         "steps": 200,
         "steps_naive": 50,
@@ -470,13 +470,13 @@ def build_spheres_in_box(
     if collider in NAIVE_SIZED_COLLIDERS:
         if batched:
             n_per_sim = max(
-                16,
+                1,
                 n_naive_batch if n_naive_batch is not None else (n_naive // 2),
             )
         else:
             n_per_sim = n_naive
     else:
-        n_per_sim = max(16, n // 2) if batched else n
+        n_per_sim = max(1, n // 2) if batched else n
 
     rad_np = _sample_radii(n_per_sim, alpha, seed=0)
     pos_np, box_np = _lattice_positions(n_per_sim, dim, rad_np, phi, domain)

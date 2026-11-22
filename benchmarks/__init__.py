@@ -18,6 +18,7 @@ from .cases import (
 )
 from .dashboard import render_dashboard_html, render_standalone_html
 from .runner import check_throttle_policy, run_custom, run_suite
+from .scaling import format_scaling_table, plot_scaling, run_scaling
 from .store import DEFAULT_HISTORY_PATH, load_history, upsert_run
 
 __all__ = [
@@ -33,10 +34,13 @@ __all__ = [
     "all_cases",
     "build_spheres_in_box",
     "check_throttle_policy",
+    "format_scaling_table",
     "load_history",
+    "plot_scaling",
     "render_dashboard_html",
     "render_standalone_html",
     "run_custom",
+    "run_scaling",
     "run_suite",
     "select_cases",
     "upsert_run",

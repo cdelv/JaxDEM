@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 import datetime
 import gc
 import shutil
@@ -197,12 +198,29 @@ def _git_info() -> tuple[str, str, bool]:
         return "unknown", datetime.date.today().isoformat(), False
 
 
+def _cpu_model_name() -> str:
+    cpuinfo = Path("/proc/cpuinfo")
+    if cpuinfo.is_file():
+        try:
+            for line in cpuinfo.read_text(encoding="utf-8", errors="ignore").splitlines():
+                if line.startswith("model name") and ":" in line:
+                    raw = line.split(":", 1)[1].strip()
+                    for tok in ("(R)", "(TM)", "CPU"):
+                        raw = raw.replace(tok, "")
+                    return " ".join(raw.split())
+        except OSError:
+            pass
+    return "cpu"
+
+
 def get_hardware_label() -> str:
     devices = jax.devices()
     if not devices:
         return "unknown"
     dev = devices[0]
     kind = dev.device_kind.replace("NVIDIA GeForce ", "").strip()
+    if dev.platform == "cpu" or kind.lower() == "cpu":
+        kind = _cpu_model_name()
     return f"{dev.platform}: {kind}"
 
 
@@ -214,6 +232,28 @@ def _round_sig(val: float, sig: int = 4) -> float:
     if val == 0.0 or not np.isfinite(val):
         return 0.0
     return float(f"{val:.{sig}g}")
+
+
+def pallas_context(enabled: bool | None) -> Any:
+    """Context manager to override Pallas Triton kernels at runtime when supported."""
+    if enabled is None:
+        return nullcontext()
+    try:
+        from jaxdem.colliders._pallas import pallas_enabled
+
+        return pallas_enabled(bool(enabled))
+    except Exception:
+        return nullcontext()
+
+
+def current_pallas_enabled() -> bool:
+    """Return True if Pallas Triton GPU kernels are currently active."""
+    try:
+        from jaxdem.colliders._pallas import is_pallas_enabled
+
+        return bool(is_pallas_enabled())
+    except Exception:
+        return False
 
 
 def _run_and_time(
@@ -276,6 +316,7 @@ def run_custom(
     nl_max_neighbors: int = NL_MAX_NEIGHBORS,
     alpha: float = 1.0,
     only_spheres: bool = False,
+    pallas: bool | None = None,
 ) -> dict[str, Any]:
     """Run one custom spheres-in-a-box point at any valid ``phi``, ``vel``, and ``alpha``."""
     _warn_if_throttled()
@@ -289,27 +330,29 @@ def run_custom(
     run_steps = steps if steps is not None else preset["steps"]
     run_steps_naive = steps_naive if steps_naive is not None else preset["steps_naive"]
 
-    mps, total_particles, actual_steps, nl_rebuilds = _run_and_time(
-        build_spheres_in_box(
-            collider=collider,
-            force=force,
-            domain=domain,
-            dim=dim,
-            mode=mode,
-            phi=phi,
-            vel=vel,
-            n=run_n,
-            n_naive=run_n_naive,
-            n_naive_batch=run_n_naive_batch,
-            batch_size=run_batch,
-            steps=run_steps,
-            steps_naive=run_steps_naive,
-            nl_skin=nl_skin,
-            nl_max_neighbors=nl_max_neighbors,
-            alpha=alpha,
-            only_spheres=only_spheres,
+    with pallas_context(pallas):
+        eff_pallas = current_pallas_enabled()
+        mps, total_particles, actual_steps, nl_rebuilds = _run_and_time(
+            build_spheres_in_box(
+                collider=collider,
+                force=force,
+                domain=domain,
+                dim=dim,
+                mode=mode,
+                phi=phi,
+                vel=vel,
+                n=run_n,
+                n_naive=run_n_naive,
+                n_naive_batch=run_n_naive_batch,
+                batch_size=run_batch,
+                steps=run_steps,
+                steps_naive=run_steps_naive,
+                nl_skin=nl_skin,
+                nl_max_neighbors=nl_max_neighbors,
+                alpha=alpha,
+                only_spheres=only_spheres,
+            )
         )
-    )
     return {
         "dim": dim,
         "domain": domain,
@@ -319,6 +362,7 @@ def run_custom(
         "phi": phi,
         "vel": vel,
         "alpha": alpha,
+        "pallas": eff_pallas,
         "total_particles": total_particles,
         "steps": actual_steps,
         "mps": mps,
@@ -374,6 +418,7 @@ def run_suite(
     nl_max_neighbors: int = NL_MAX_NEIGHBORS,
     alpha: float = 1.0,
     only_spheres: bool = False,
+    pallas: bool | None = None,
     verbose: bool = True,
 ) -> dict[str, Any]:
     """Run selected fixed-regime benchmarks and return a compact v3 throughput record."""
@@ -405,46 +450,49 @@ def run_suite(
     hw = get_hardware_label()
     dtype = "f64" if jax.config.x64_enabled else "f32"
 
-    if verbose:
-        print(
-            f"JaxDEM Spheres-in-Box | {hw} | profile={prof_name} "
-            f"(N={run_n}, naive={run_n_naive}/{run_n_naive_batch}, B={run_batch}, "
-            f"steps={run_steps}, steps_naive={run_steps_naive}, alpha={alpha:g}, "
-            f"only_spheres={only_spheres}) | {dtype} | commit={commit}{'*' if dirty else ''}"
-        )
-
-    nested: dict[str, Any] = {}
-    nl_counts_spatial: dict[tuple[str, str, str, str, int], dict[str, int | float]] = {}
-    nl_counts_naive: dict[tuple[str, str, str, str, int], int | float] = {}
-    t_suite = time.perf_counter()
-    for i, case in enumerate(selected, 1):
+    with pallas_context(pallas):
+        eff_pallas = current_pallas_enabled()
         if verbose:
-            print(f"  [{i:3d}/{len(selected):3d}] {case.name:<58s} ... ", end="", flush=True)
-        mps, _, _, nl_rb = _run_and_time(
-            build_case(
-                case,
-                n=run_n,
-                n_naive=run_n_naive,
-                n_naive_batch=run_n_naive_batch,
-                batch_size=run_batch,
-                steps=run_steps,
-                steps_naive=run_steps_naive,
-                nl_skin=nl_skin,
-                nl_max_neighbors=nl_max_neighbors,
-                alpha=alpha,
-                only_spheres=only_spheres,
+            print(
+                f"JaxDEM Spheres-in-Box | {hw} | profile={prof_name} "
+                f"(N={run_n}, naive={run_n_naive}/{run_n_naive_batch}, B={run_batch}, "
+                f"steps={run_steps}, steps_naive={run_steps_naive}, alpha={alpha:g}, "
+                f"only_spheres={only_spheres}, pallas={'on' if eff_pallas else 'off'}) "
+                f"| {dtype} | commit={commit}{'*' if dirty else ''}"
             )
-        )
-        _put_nested(nested, case, mps)
-        if nl_rb is not None:
-            key = (case.dim, case.domain, case.force, case.mode, REGIME_ORDER.index(case.regime))
-            if case.collider == "nl_naive":
-                nl_counts_naive[key] = nl_rb
-            else:
-                nl_counts_spatial.setdefault(key, {})[case.collider] = nl_rb
-        if verbose:
-            rb_str = f" ({nl_rb} rebuilds)" if nl_rb is not None else ""
-            print(f"{mps:7.2f} M pstep/s{rb_str}")
+
+        nested: dict[str, Any] = {}
+        nl_counts_spatial: dict[tuple[str, str, str, str, int], dict[str, int | float]] = {}
+        nl_counts_naive: dict[tuple[str, str, str, str, int], int | float] = {}
+        t_suite = time.perf_counter()
+        for i, case in enumerate(selected, 1):
+            if verbose:
+                print(f"  [{i:3d}/{len(selected):3d}] {case.name:<58s} ... ", end="", flush=True)
+            mps, _, _, nl_rb = _run_and_time(
+                build_case(
+                    case,
+                    n=run_n,
+                    n_naive=run_n_naive,
+                    n_naive_batch=run_n_naive_batch,
+                    batch_size=run_batch,
+                    steps=run_steps,
+                    steps_naive=run_steps_naive,
+                    nl_skin=nl_skin,
+                    nl_max_neighbors=nl_max_neighbors,
+                    alpha=alpha,
+                    only_spheres=only_spheres,
+                )
+            )
+            _put_nested(nested, case, mps)
+            if nl_rb is not None:
+                key = (case.dim, case.domain, case.force, case.mode, REGIME_ORDER.index(case.regime))
+                if case.collider == "nl_naive":
+                    nl_counts_naive[key] = nl_rb
+                else:
+                    nl_counts_spatial.setdefault(key, {})[case.collider] = nl_rb
+            if verbose:
+                rb_str = f" ({nl_rb} rebuilds)" if nl_rb is not None else ""
+                print(f"{mps:7.2f} M pstep/s{rb_str}")
 
     nl_rebuilds: dict[str, Any] = {}
     nl_naive_rebuilds: dict[str, Any] = {}

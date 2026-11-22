@@ -76,8 +76,9 @@ _DASHBOARD_CSS = """
 .jb-kpi-value { font-size: 1.12rem; font-weight: 700; margin-top: 0.12rem; font-variant-numeric: tabular-nums; }
 .jb-kpi-sub { font-size: 0.72rem; color: var(--jb-muted); margin-top: 0.08rem; }
 .jb-legend {
-  display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.75rem;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; margin-bottom: 0.55rem;
 }
+.jb-legend-commits { margin-bottom: 0.75rem; }
 .jb-leg-item {
   display: inline-flex; align-items: center; gap: 0.32rem;
   font-size: 0.73rem; padding: 0.16rem 0.46rem; border-radius: 5px;
@@ -85,7 +86,11 @@ _DASHBOARD_CSS = """
   color: var(--jb-text); cursor: pointer; user-select: none;
   font-family: var(--pst-font-family-monospace, var(--font-mono, monospace));
 }
+.jb-leg-item:hover { border-color: var(--jb-accent); }
 .jb-leg-item.off { opacity: 0.35; text-decoration: line-through; }
+.jb-leg-date { font-family: inherit; color: var(--jb-muted); font-size: 0.67rem; }
+.jb-axis-commit { cursor: pointer; }
+.jb-axis-commit:hover { fill: var(--jb-accent); text-decoration: underline; }
 .jb-swatch { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
 .jb-grid-2x2 {
   display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -128,7 +133,10 @@ _DASHBOARD_CSS = """
   vertical-align: middle;
 }
 .jb-table tr:last-child td { border-bottom: none; }
-.jb-num { text-align: right; white-space: nowrap; }
+.jb-num, .jb-table th.jb-num, .jb-table td.jb-num { text-align: right; white-space: nowrap; }
+.jb-bar { transition: opacity 0.1s ease, filter 0.1s ease; }
+.jb-bar.hi { opacity: 1; filter: brightness(1.14); }
+.jb-bar-hit { cursor: pointer; }
 .jb-col-name {
   display: flex; align-items: center; gap: 6px; white-space: nowrap;
   font-weight: 600; font-family: var(--pst-font-family-monospace, var(--font-mono, monospace));
@@ -274,8 +282,8 @@ _DASHBOARD_JS = r"""
     hwRuns.forEach((r, idx) => {
       if (idx % stepX === 0 || idx === hwRuns.length - 1) {
         const x = xOf(idx);
-        svg += `<text x="${x}" y="${H - 18}" text-anchor="middle" font-size="8.5" font-family="var(--pst-font-family-monospace,monospace)" fill="var(--jb-text)">${r.commit}</text>`;
-        svg += `<text x="${x}" y="${H - 7}" text-anchor="middle" font-size="8" fill="var(--jb-muted)">${r.date.slice(5)}</text>`;
+        svg += `<text class="jb-axis-commit" data-toggle-commit="${r.commit}" x="${x}" y="${H - 18}" text-anchor="middle" font-size="8.5" font-family="var(--pst-font-family-monospace,monospace)" fill="var(--jb-text)"><title>Click to hide ${r.commit} (${r.date})</title>${r.commit}</text>`;
+        svg += `<text class="jb-axis-commit" data-toggle-commit="${r.commit}" x="${x}" y="${H - 7}" text-anchor="middle" font-size="8" fill="var(--jb-muted)"><title>Click to hide ${r.commit} (${r.date})</title>${r.date.slice(5)}</text>`;
       }
     });
 
@@ -352,10 +360,11 @@ _DASHBOARD_JS = r"""
         const x = gx + ci * (barW + gap);
         const y = yOf(v);
         const h = Math.max(2, m.top + ph - y);
-        svg += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="2.5" fill="${COLORS[col] || '#2563eb'}" opacity="0.9"><title>${col} (${REGIMES[reg].label}): ${v.toFixed(2)} M pstep/s</title></rect>`;
+        svg += `<rect class="jb-bar" data-bar-col="${col}" data-bar-reg="${ri}" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="2.5" fill="${COLORS[col] || '#2563eb'}" opacity="0.9"/>`;
         if (barW >= 15) {
-          svg += `<text x="${(x + barW / 2).toFixed(1)}" y="${(y - 3).toFixed(1)}" text-anchor="middle" font-size="7.5" font-weight="600" fill="var(--jb-text)">${v >= 10 ? v.toFixed(0) : v.toFixed(1)}</text>`;
+          svg += `<text x="${(x + barW / 2).toFixed(1)}" y="${(y - 3).toFixed(1)}" text-anchor="middle" font-size="7.5" font-weight="600" fill="var(--jb-text)" pointer-events="none">${v >= 10 ? v.toFixed(0) : v.toFixed(1)}</text>`;
         }
+        svg += `<rect class="jb-bar-hit" data-bar-col="${col}" data-bar-reg="${ri}" x="${(x - gap / 2).toFixed(1)}" y="${m.top}" width="${(barW + gap).toFixed(1)}" height="${ph}" fill="transparent"/>`;
       });
       svg += `<text x="${(m.left + (ri + 0.5) * grpW).toFixed(1)}" y="${H - 10}" text-anchor="middle" font-size="10.5" font-weight="600" fill="var(--jb-text)">${REGIMES[reg].label}</text>`;
     });
@@ -379,27 +388,34 @@ _DASHBOARD_JS = r"""
       force: FORCES[0],
       mode: MODES[0],
       scale: "linear",
-      hidden: new Set()
+      hidden: new Set(),
+      hiddenCommits: new Set()
     };
 
     function render() {
-      const latest = hwRuns[hwRuns.length - 1];
-      const prev = hwRuns.length >= 2 ? hwRuns[hwRuns.length - 2] : null;
-      const slLatest = getSlice(latest, state.dim, state.domain, state.force, state.mode);
+      const visRuns = hwRuns.filter(r => !state.hiddenCommits.has(r.commit));
+      const latest = visRuns.length ? visRuns[visRuns.length - 1] : null;
+      const prev = visRuns.length >= 2 ? visRuns[visRuns.length - 2] : null;
+      const slLatest = latest ? getSlice(latest, state.dim, state.domain, state.force, state.mode) : {};
       const slPrev = prev ? getSlice(prev, state.dim, state.domain, state.force, state.mode) : {};
       const rbLatest = latest?.nl_rebuilds?.[state.dim]?.[state.domain]?.[state.force]?.[state.mode] || [];
       const rbNaiveLatest = latest?.nl_naive_rebuilds?.[state.dim]?.[state.domain]?.[state.force]?.[state.mode] || [];
-      const cols = COLLIDERS.filter(c => slLatest[c] && slLatest[c].some(v => v != null));
+      const cols = COLLIDERS.filter(c =>
+        visRuns.some(r => {
+          const sl = getSlice(r, state.dim, state.domain, state.force, state.mode);
+          return sl[c] && sl[c].some(v => v != null);
+        })
+      );
 
       const allVals = [];
-      cols.forEach(c => (slLatest[c] || []).forEach(v => { if (v != null) allVals.push(v); }));
+      cols.filter(c => !state.hidden.has(c)).forEach(c => (slLatest[c] || []).forEach(v => { if (v != null) allVals.push(v); }));
       const peakMps = allVals.length ? Math.max(...allVals) : 0;
 
       let gmText = "Baseline";
       let gmSub = "Need ≥2 commits";
       if (prev && cols.length) {
         const ratios = [];
-        cols.forEach(c => REGIME_ORDER.forEach((_, ri) => {
+        cols.filter(c => !state.hidden.has(c)).forEach(c => REGIME_ORDER.forEach((_, ri) => {
           const a = slPrev[c]?.[ri], b = slLatest[c]?.[ri];
           if (a > 0 && b > 0) ratios.push(b / a);
         }));
@@ -413,7 +429,9 @@ _DASHBOARD_JS = r"""
 
       const xOfByReg = {};
       const gridCards = REGIME_ORDER.map((reg, ri) => {
-        const res = renderRegimeProgressionSvg(hwRuns, state, cols, ri);
+        const res = visRuns.length
+          ? renderRegimeProgressionSvg(visRuns, state, cols, ri)
+          : { svg: `<div class="jb-empty" style="padding:1.1rem">All commits hidden — click a commit above to show it</div>`, xOf: () => 0 };
         xOfByReg[ri] = res.xOf;
         const phiVal = REGIMES[reg].phi[state.dim];
         const velVal = REGIMES[reg].vel;
@@ -436,12 +454,15 @@ _DASHBOARD_JS = r"""
           </div>`;
       }).join("");
 
-      const latestBar = renderLatestBarSvg(latest, state, cols);
+      const latestBar = latest
+        ? renderLatestBarSvg(latest, state, cols)
+        : '<div class="jb-empty" style="padding:1.1rem">All commits hidden — click a commit above to show it</div>';
 
-      const nSpatial = state.mode === "batch" ? `${latest.batch || 6}×${((latest.n || 65536) / 2).toLocaleString()}` : (latest.n || 65536).toLocaleString();
-      const nNaive = state.mode === "batch" ? `${latest.batch || 6}×${(latest.n_naive_batch || 2000).toLocaleString()}` : (latest.n_naive || 3000).toLocaleString();
+      const refRun = latest || latestInit;
+      const nSpatial = state.mode === "batch" ? `${refRun.batch || 6}×${((refRun.n || 65536) / 2).toLocaleString()}` : (refRun.n || 65536).toLocaleString();
+      const nNaive = state.mode === "batch" ? `${refRun.batch || 6}×${(refRun.n_naive_batch || 2000).toLocaleString()}` : (refRun.n_naive || 3000).toLocaleString();
 
-      const rowsHtml = cols.map(c => {
+      const rowsHtml = latest ? cols.map(c => {
         const isNaive = c === "naive" || c === "nl_naive";
         const vals = slLatest[c] || [];
         const cells = REGIME_ORDER.map((_, ri) => {
@@ -466,7 +487,7 @@ _DASHBOARD_JS = r"""
           ${cells}
           <td class="jb-num"><span class="jb-badge ${delta.cls}">${delta.text}</span></td>
         </tr>`;
-      }).join("");
+      }).join("") : "";
 
       const rbSummaryParts = REGIME_ORDER.map((r, ri) => rbLatest[ri] != null ? `${REGIMES[r].short}: ${rbLatest[ri]}` : null).filter(Boolean);
       const rbNaiveSummaryParts = REGIME_ORDER.map((r, ri) => rbNaiveLatest[ri] != null ? `${REGIMES[r].short}: ${rbNaiveLatest[ri]}` : null).filter(Boolean);
@@ -475,14 +496,22 @@ _DASHBOARD_JS = r"""
       if (rbNaiveSummaryParts.length) rbAllBits.push(`nl_naive (${rbNaiveSummaryParts.join(", ")})`);
       const rbSummaryTag = rbAllBits.length ? ` · ${rbAllBits.join("; ")}` : "";
 
-      const warnHtml = latest.throttled
+      const warnHtml = refRun.throttled
         ? `<div class="jb-warn">⚠ Latest snapshot was recorded while system throttle policy was not high performance.</div>`
+        : "";
+
+      const commitsLegendHtml = hwRuns.length > 1
+        ? `<div class="jb-legend jb-legend-commits">
+            <span class="jb-ctl-label">Commits</span>
+            ${hwRuns.map(r => `<span class="jb-leg-item${state.hiddenCommits.has(r.commit) ? " off" : ""}" data-toggle-commit="${r.commit}" title="Click to toggle ${r.commit} (${r.date})">${r.commit}<span class="jb-leg-date">${r.date.slice(5)}</span></span>`).join("")}
+            ${state.hiddenCommits.size ? `<span class="jb-leg-item" data-reset-commits="1" title="Show all commits">Reset</span>` : ""}
+          </div>`
         : "";
 
       container.innerHTML = `
         <div class="jb-hw-head">
           <div class="jb-hw-title">${group.hw}</div>
-          <div class="jb-hw-meta">${group.profile} · ${group.dtype} · steps=${latest.steps || 1000} · α=${group.alpha} · only_spheres=${latest.only_spheres ? "True" : "False"} · ${hwRuns.length} commit(s)</div>
+          <div class="jb-hw-meta">${group.profile} · ${group.dtype} · steps=${refRun.steps || 1000} · α=${group.alpha} · only_spheres=${refRun.only_spheres ? "True" : "False"} · ${visRuns.length}/${hwRuns.length} commit(s)</div>
         </div>
         ${warnHtml}
 
@@ -501,7 +530,7 @@ _DASHBOARD_JS = r"""
           </div>
           <div class="jb-ctl-block">
             <span class="jb-ctl-label">Mode</span>
-            ${MODES.map(m => `<button class="jb-pill ${state.mode === m ? "active" : ""}" data-mode="${m}">${m === "batch" ? `batch (B=${latest.batch || 6})` : "single"}</button>`).join("")}
+            ${MODES.map(m => `<button class="jb-pill ${state.mode === m ? "active" : ""}" data-mode="${m}">${m === "batch" ? `batch (B=${refRun.batch || 6})` : "single"}</button>`).join("")}
           </div>
           <div class="jb-ctl-block">
             <button class="jb-pill ${state.scale === "log" ? "active" : ""}" data-scale="1">${state.scale === "log" ? "Log Y" : "Linear Y"}</button>
@@ -511,8 +540,8 @@ _DASHBOARD_JS = r"""
         <div class="jb-kpis">
           <div class="jb-kpi">
             <div class="jb-kpi-label">Latest Commit</div>
-            <div class="jb-kpi-value"><a href="https://github.com/cdelv/JaxDEM/commit/${latest.commit}" target="_blank" rel="noopener">${latest.commit}</a></div>
-            <div class="jb-kpi-sub">${latest.date} · JAX ${latest.jax || ""}</div>
+            <div class="jb-kpi-value">${latest ? `<a href="https://github.com/cdelv/JaxDEM/commit/${latest.commit}" target="_blank" rel="noopener">${latest.commit}</a>` : "—"}</div>
+            <div class="jb-kpi-sub">${latest ? `${latest.date} · JAX ${latest.jax || ""}` : "None selected"}</div>
           </div>
           <div class="jb-kpi">
             <div class="jb-kpi-label">Peak Throughput</div>
@@ -532,22 +561,27 @@ _DASHBOARD_JS = r"""
         </div>
 
         <div class="jb-legend">
+          <span class="jb-ctl-label">Colliders</span>
           ${cols.map(c => `<span class="jb-leg-item${state.hidden.has(c) ? " off" : ""}" data-toggle="${c}"><span class="jb-swatch" style="background:${COLORS[c] || '#2563eb'}"></span>${c}</span>`).join("")}
         </div>
+        ${commitsLegendHtml}
 
         <div class="jb-grid-2x2">${gridCards}</div>
 
         <div class="jb-card jb-card-wide">
           <div class="jb-card-head">
-            <div class="jb-card-title">Latest Commit (${latest.commit}) — Throughput (M particle-steps/s)</div>
+            <div class="jb-card-title">Latest Commit (${latest ? latest.commit : "—"}) — Throughput (M particle-steps/s)</div>
             <div class="jb-card-sub">${state.dim.toUpperCase()} · ${state.domain} · ${state.force} · ${state.mode} · Higher is better</div>
           </div>
-          ${latestBar}
+          <div class="jb-chart-wrap" data-wrap-bar="1">
+            ${latestBar}
+            <div class="jb-tooltip" data-tip-bar="1"></div>
+          </div>
         </div>
 
         <div class="jb-card">
           <div class="jb-card-head">
-            <div class="jb-card-title">Latest Commit Matrix (${latest.commit})</div>
+            <div class="jb-card-title">Latest Commit Matrix (${latest ? latest.commit : "—"})</div>
             <div class="jb-card-sub">Throughput in M particle-steps/s${rbSummaryTag}</div>
           </div>
           <div class="jb-table-wrap">
@@ -576,12 +610,22 @@ _DASHBOARD_JS = r"""
         if (state.hidden.has(c)) state.hidden.delete(c); else state.hidden.add(c);
         render();
       }));
+      container.querySelectorAll("[data-toggle-commit]").forEach(el => el.addEventListener("click", () => {
+        const rev = el.dataset.toggleCommit;
+        if (state.hiddenCommits.has(rev)) state.hiddenCommits.delete(rev); else state.hiddenCommits.add(rev);
+        render();
+      }));
+      const resetCommitsBtn = container.querySelector("[data-reset-commits]");
+      if (resetCommitsBtn) {
+        resetCommitsBtn.addEventListener("click", () => { state.hiddenCommits.clear(); render(); });
+      }
 
       container.querySelectorAll(".jb-hover-col").forEach(colEl => {
         colEl.addEventListener("mouseenter", e => {
           const ri = Number(colEl.dataset.reg);
           const idx = Number(colEl.dataset.idx);
-          const run = hwRuns[idx];
+          const run = visRuns[idx];
+          if (!run) return;
           const wrap = container.querySelector(`[data-wrap-reg="${ri}"]`);
           const tip = container.querySelector(`[data-tip-reg="${ri}"]`);
           const ch = container.querySelector(`.jb-ch[data-reg="${ri}"]`);
@@ -606,6 +650,54 @@ _DASHBOARD_JS = r"""
           if (ch) ch.setAttribute("opacity", "0");
         });
       });
+
+      const barWrap = container.querySelector(`[data-wrap-bar="1"]`);
+      const barTip = container.querySelector(`[data-tip-bar="1"]`);
+      if (barWrap && barTip && latest) {
+        container.querySelectorAll(".jb-bar-hit").forEach(hitEl => {
+          const showBarTip = e => {
+            const col = hitEl.dataset.barCol;
+            const ri = Number(hitEl.dataset.barReg);
+            const reg = REGIME_ORDER[ri];
+            const v = slLatest[col]?.[ri];
+            if (v == null) return;
+            const barEl = container.querySelector(`.jb-bar[data-bar-col="${col}"][data-bar-reg="${ri}"]`);
+            if (barEl) barEl.classList.add("hi");
+            const isNaive = col === "naive" || col === "nl_naive";
+            const parts = isNaive ? nNaive : nSpatial;
+            const prevV = slPrev[col]?.[ri];
+            const dInfo = prev && prevV > 0 ? fmtDelta(v, prevV) : null;
+            const rbVal = col === "nl_naive" ? rbNaiveLatest[ri] : (col.startsWith("nl_") ? rbLatest[ri] : null);
+            let rows = `<div style="display:flex;justify-content:space-between;gap:12px"><span>Throughput</span><strong>${v.toFixed(2)} M/s</strong></div>`;
+            if (dInfo) {
+              rows += `<div style="display:flex;justify-content:space-between;gap:12px"><span>vs ${prev.commit}</span><strong class="${dInfo.cls}" style="padding:0 4px;border-radius:4px">${dInfo.text}</strong></div>`;
+            }
+            rows += `<div style="display:flex;justify-content:space-between;gap:12px"><span>Particles</span><span>${parts}</span></div>`;
+            if (rbVal != null) {
+              rows += `<div style="display:flex;justify-content:space-between;gap:12px"><span>NL rebuilds</span><span>${rbVal}</span></div>`;
+            }
+            barTip.innerHTML =
+              `<div style="font-weight:700;margin-bottom:3px;display:flex;align-items:center;gap:5px"><span class="jb-swatch" style="background:${COLORS[col] || '#2563eb'}"></span>${col}</div>` +
+              `<div style="font-size:0.68rem;color:var(--jb-muted);margin-bottom:4px">${latest.commit} · ${REGIMES[reg].label}</div>` +
+              rows;
+            barTip.style.display = "block";
+            const rect = barWrap.getBoundingClientRect();
+            const tipW = barTip.offsetWidth || 190;
+            const left = Math.min(Math.max(6, e.clientX - rect.left + 12), Math.max(6, rect.width - tipW - 6));
+            barTip.style.left = `${left}px`;
+            barTip.style.top = "8px";
+          };
+          hitEl.addEventListener("mouseenter", showBarTip);
+          hitEl.addEventListener("mousemove", showBarTip);
+          hitEl.addEventListener("mouseleave", () => {
+            const col = hitEl.dataset.barCol;
+            const ri = Number(hitEl.dataset.barReg);
+            const barEl = container.querySelector(`.jb-bar[data-bar-col="${col}"][data-bar-reg="${ri}"]`);
+            if (barEl) barEl.classList.remove("hi");
+            barTip.style.display = "none";
+          });
+        });
+      }
     }
 
     render();
