@@ -236,19 +236,44 @@ class Trainer(Factory, ABC):
             jnp.broadcast_to(terminated[..., None], reward.shape) | agent_terminated
         )
 
-        def evaluate_truncation(_: None) -> jax.Array:
+        from ..environments import Environment as _BaseEnvironment
+
+        base_cls = getattr(env.__class__, "_base_env_cls", env.__class__)
+        static_no_term = base_cls.terminated is _BaseEnvironment.terminated
+
+        def evaluate_truncation(curr_env: Environment) -> jax.Array:
             # Bootstrap evaluation must not mutate the live rollout carry.
             # Copy variables here so they belong to this conditional trace.
             boot_model, *_ = nnx.merge(graphdef, nnx.state((model, *rest)), copy=True)
             boot_model.eval()
-            _, bootstrap = boot_model(env.observation(env), sequence=False)
+            _, bootstrap = boot_model(curr_env.observation(curr_env), sequence=False)
             return jnp.squeeze(bootstrap, -1)
 
-        bootstrap_value = jax.lax.cond(
-            jnp.any(truncated),
-            evaluate_truncation,
-            lambda _: jnp.zeros_like(reward),
-            operand=None,
+        # Combine truncation bootstrap evaluation and episode reset behind a
+        # single 0-or-1-iteration while_loop so common non-boundary steps pay
+        # only one predicate sync and keep env buffers aliased in place.
+        def handle_boundary(
+            carry: tuple[jax.Array, Environment, jax.Array],
+        ) -> tuple[jax.Array, Environment, jax.Array]:
+            _, curr_env, _ = carry
+            if static_no_term:
+                boot = evaluate_truncation(curr_env)
+            else:
+                boot = jax.lax.cond(
+                    jnp.any(truncated),
+                    evaluate_truncation,
+                    lambda _: jnp.zeros_like(reward),
+                    operand=curr_env,
+                )
+            reset_env = curr_env.reset_if_done(
+                curr_env, done, jax.random.split(reset_root, curr_env.num_envs)
+            )
+            return jnp.asarray(False), reset_env, boot
+
+        _, env, bootstrap_value = jax.lax.while_loop(
+            lambda carry: carry[0],
+            handle_boundary,
+            (jnp.any(done), env, jnp.zeros_like(reward)),
         )
 
         # Shape -> (N_envs, N_agents, *)
@@ -268,18 +293,9 @@ class Trainer(Factory, ABC):
             latent_log_prob=latent_log_prob,
         )
 
-        # Reset recurrent state and environments before the next transition.
+        # Reset recurrent state before the next transition.
         carry_reset = done[..., None] | ~agent_mask | ~next_agent_mask
         model.reset(shape=obs.shape, mask=carry_reset)
-
-        env = jax.lax.cond(
-            jnp.any(done),
-            lambda current: current.reset_if_done(
-                current, done, jax.random.split(reset_root, current.num_envs)
-            ),
-            lambda current: current,
-            env,
-        )
 
         graphstate = nnx.state((model, *rest))
         return (env, graphstate, key), traj
@@ -293,7 +309,7 @@ class Trainer(Factory, ABC):
         graphstate: ModelState,
         key: jax.Array,
         num_steps_epoch: int,
-        unroll: int = 8,
+        unroll: int = 1,
         skip_frames: int = 0,
     ) -> tuple[Environment, ModelState, jax.Array, TrajectoryData]:
         r"""Roll out :math:`T = \text{num\_steps\_epoch}` policy decisions using :func:`jax.lax.scan`.

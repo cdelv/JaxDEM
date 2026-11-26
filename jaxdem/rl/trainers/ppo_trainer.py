@@ -794,19 +794,17 @@ class PPOTrainer(Trainer):
             * (1 + int(tr_typed.skip_frames))
         )
 
-        def report(
+        def prepare_report(
             current: PPOTrainer,
-            trajectory: TrajectoryData,
+            trajectory: TrajectoryData | None,
             data: Mapping[str, ArrayLike],
-            epoch: int,
-            *,
-            final: bool = False,
-        ) -> PPOTrainer:
+        ) -> dict[str, ArrayLike]:
             nonlocal custom_names
             # The compiled PPO update already returns scalar metrics.
-            combined = dict(data)
+            combined: dict[str, ArrayLike] = dict(data)
             reserved = set(combined) | {"elapsed", "steps_per_sec"}
             if metrics_fn is not None:
+                assert trajectory is not None
                 extra = compiled_metrics(current, trajectory)
                 overlap = reserved.intersection(extra)
                 if overlap:
@@ -826,7 +824,15 @@ class PPOTrainer(Trainer):
                     f"Unknown progress metrics: {sorted(missing)}. "
                     f"Available metrics: {sorted(available)}"
                 )
+            return combined
 
+        def finish_report(
+            combined: Mapping[str, ArrayLike],
+            epoch: int,
+            *,
+            final: bool = False,
+            current: PPOTrainer | None = None,
+        ) -> PPOTrainer | None:
             # Fetch all scalar values together at the reporting interval.
             values = {
                 name: float(value) for name, value in jax.device_get(combined).items()
@@ -855,7 +861,10 @@ class PPOTrainer(Trainer):
             if writer is not None:
                 for name, value in values.items():
                     writer.add_scalar(name, value, global_step=epoch)
-                writer.flush()
+                # Background thread flushes periodically; sync-flush only when
+                # an external callback or run completion requires it on disk.
+                if final or on_report is not None:
+                    writer.flush()
             if final and display:
                 if formats is None:
                     print(
@@ -871,6 +880,7 @@ class PPOTrainer(Trainer):
                     )
 
             if on_report is not None:
+                assert current is not None
                 leaves, structure = jax.tree.flatten(current)
                 shapes = [getattr(value, "shape", ()) for value in leaves]
                 updated = on_report(current, epoch, dict(values))
@@ -888,8 +898,25 @@ class PPOTrainer(Trainer):
                     raise ValueError(
                         "on_report must preserve the trainer's PyTree structure and array shapes"
                     )
-                current = candidate
+                return candidate
             return current
+
+        use_default_epoch = type(tr_typed).epoch is PPOTrainer.epoch
+        skip_trajectory = use_default_epoch and metrics_fn is None
+        cached_epoch_arg = jnp.asarray(0, dtype=int) if use_default_epoch else None
+
+        def dispatch_epoch(
+            current: PPOTrainer, epoch_index: int
+        ) -> tuple[PPOTrainer, TrajectoryData | None, dict[str, jax.Array]]:
+            if skip_trajectory:
+                next_tr, epoch_data = PPOTrainer._epoch_no_trajectory(current)
+                return next_tr, None, epoch_data
+            epoch_val = (
+                cached_epoch_arg
+                if cached_epoch_arg is not None
+                else jnp.asarray(epoch_index, dtype=int)
+            )
+            return current.epoch(current, epoch_val)
 
         directory = Path(directory)
         log_folder = directory / datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -897,26 +924,26 @@ class PPOTrainer(Trainer):
         try:
             if log:
                 directory.mkdir(parents=True, exist_ok=True)
-                writer = SummaryWriter(log_folder)
+                writer = SummaryWriter(log_folder, max_queue=1024, flush_secs=10)
                 if writer:
                     _log_hparams_fallback(writer, tr_typed, step=0)
 
             # Warmup JIT (first call traces + compiles). Runs epoch ``start_epoch``
             # so a resumed run executes every epoch index exactly once.
-            tr_typed, trajectory, data = tr_typed.epoch(
-                tr_typed, jnp.asarray(start_epoch, dtype=int)
-            )
+            tr_typed, trajectory, data = dispatch_epoch(tr_typed, start_epoch)
             if debug_overflow_checks and jnp.any(tr_typed.env.system.collider.overflow):
                 print("Warning: overflow detected in collider")
 
             if reporting or start_epoch == total_epochs - 1:
-                tr_typed = report(
-                    tr_typed,
-                    trajectory,
-                    data,
+                combined0 = prepare_report(tr_typed, trajectory, data)
+                updated_tr = finish_report(
+                    combined0,
                     start_epoch,
                     final=start_epoch == total_epochs - 1,
+                    current=tr_typed,
                 )
+                assert updated_tr is not None
+                tr_typed = updated_tr
 
             start_time = time.perf_counter()
 
@@ -927,11 +954,15 @@ class PPOTrainer(Trainer):
                 if progress is not None
                 else range(start_epoch + 1, total_epochs)
             )
+            pending_report: tuple[dict[str, ArrayLike], int] | None = None
             for epoch in it:
                 # Dispatch is async — returns immediately with futures.
-                tr_typed, trajectory, data = tr_typed.epoch(
-                    tr_typed, jnp.asarray(epoch, dtype=int)
-                )
+                tr_typed, trajectory, data = dispatch_epoch(tr_typed, int(epoch))
+                # Drain any deferred previous report while the GPU runs this epoch.
+                if pending_report is not None:
+                    prev_combined, prev_epoch = pending_report
+                    pending_report = None
+                    finish_report(prev_combined, prev_epoch, final=False)
                 # NOTE: collider overflow is only checked here when explicitly
                 # requested -- `jnp.any` forces a host sync every epoch, defeating
                 # the async dispatch noted above. It is always checked once after
@@ -941,13 +972,19 @@ class PPOTrainer(Trainer):
                         print("Warning: overflow detected in collider")
 
                 if (reporting and epoch % save_every == 0) or epoch == total_epochs - 1:
-                    tr_typed = report(
-                        tr_typed,
-                        trajectory,
-                        data,
-                        int(epoch),
-                        final=epoch == total_epochs - 1,
-                    )
+                    is_final = epoch == total_epochs - 1
+                    combined = prepare_report(tr_typed, trajectory, data)
+                    if on_report is not None or is_final:
+                        updated_tr = finish_report(
+                            combined,
+                            int(epoch),
+                            final=is_final,
+                            current=tr_typed,
+                        )
+                        assert updated_tr is not None
+                        tr_typed = updated_tr
+                    else:
+                        pending_report = (combined, int(epoch))
             # Single end-of-training overflow check (one host sync total).
             if jnp.any(tr_typed.env.system.collider.overflow):
                 print("Warning: overflow detected in collider")
@@ -1154,40 +1191,9 @@ class PPOTrainer(Trainer):
         return total_loss, aux
 
     @staticmethod
-    @jax.jit(inline=True)
-    @partial(jax.named_call, name="PPOTrainer.epoch")
-    def epoch(
-        tr: PPOTrainer, epoch: ArrayLike
+    def _epoch_impl(
+        tr: PPOTrainer,
     ) -> tuple[PPOTrainer, TrajectoryData, dict[str, jax.Array]]:
-        r"""Collect a rollout and train sequential minibatches with fresh targets.
-
-        Steps:
-        0. Save initial recurrent carry (resets occur inside each rollout step).
-        1. Collect a trajectory of length ``num_steps_epoch``.
-        2. Flatten the agent axis and apply DRIP if enabled.
-        3. Visit contiguous segment blocks, wrapping for additional passes.
-        4. Run the current model, calculate targets, and update parameters.
-        Rollout values and log-probabilities remain unchanged.
-
-        Parameters
-        ----------
-        tr : PPOTrainer
-            Current trainer state.
-        epoch : ArrayLike
-            Zero-based outer iteration index (retained for caller compatibility).
-
-        Returns
-        -------
-        Tuple[PPOTrainer, TrajectoryData, dict[str, jax.Array]]
-            Updated trainer, trajectory data shaped ``[T, S, ...]`` with
-            DRIP-transformed rewards, and metrics averaged equally over
-            nonempty minibatches. An all-empty rollout yields zero metrics.
-            Parameter updates occur according to gradient accumulation;
-            empty minibatches do not advance the optimizer.
-
-
-        """
-        del epoch
         # Trainer.step advances the PRNG key and resets episode boundaries.
         model, _ = nnx.merge(tr.graphdef, tr.graphstate)
         initial_carry = model.carry
@@ -1248,30 +1254,69 @@ class PPOTrainer(Trainer):
             )
             return dripped_rewards
 
-        # Efficiently apply the recursive DRIP backward pass
-        td.reward = apply_drip(td.reward, td.done, tr.drip_decay)
+        # Skip the reverse DRIP scan with zero-copy aliasing when disabled (default).
+        _, td.reward = jax.lax.while_loop(
+            lambda carry: carry[0],
+            lambda carry: (
+                jnp.asarray(False),
+                apply_drip(carry[1], td.done, tr.drip_decay),
+            ),
+            (tr.drip_decay != 0.0, td.reward),
+        )
         # ------------------------------------------------------
 
         caps_key = None
         if tr.caps_spatial_coeff > 0.0:
             tr.key, caps_key = jax.random.split(tr.key)
 
+        from ..environments import Environment as _BaseEnvironment
+
+        base_cls = getattr(tr.env.__class__, "_base_env_cls", tr.env.__class__)
+        static_all_active = base_cls.agent_mask is _BaseEnvironment.agent_mask
+        contiguous_minibatches = (
+            tr.minibatch_size % T == 0 and S % (tr.minibatch_size // T) == 0
+        )
+        always_has_samples = static_all_active and contiguous_minibatches
+        seg_count = tr.minibatch_size // T
+
         @partial(jax.named_call, name="PPOTrainer.train_batch")
         def train_batch(
             graphstate: ModelState, batch_index: jax.Array
         ) -> tuple[ModelState, dict[str, jax.Array]]:
-            indices, loss_mask = _minibatch_selection(
-                T, S, tr.minibatch_size, batch_index
-            )
-            mb_td = jax.tree.map(
-                lambda x: jnp.take(x, indices, axis=1),
-                td,
-            )
-            mb_initial_carry = jax.tree.map(
-                lambda x: jnp.take(x, indices, axis=0),
-                initial_carry,
-            )
-            mb_last_value = jnp.take(last_value, indices, axis=0)
+            if contiguous_minibatches:
+                start_seg = (batch_index * seg_count) % S
+                mb_td = jax.tree.map(
+                    lambda x: jax.lax.dynamic_slice_in_dim(
+                        x, start_seg, seg_count, axis=1
+                    ),
+                    td,
+                )
+                mb_initial_carry = jax.tree.map(
+                    lambda x: jax.lax.dynamic_slice_in_dim(
+                        x, start_seg, seg_count, axis=0
+                    ),
+                    initial_carry,
+                )
+                mb_last_value = jax.lax.dynamic_slice_in_dim(
+                    last_value, start_seg, seg_count, axis=0
+                )
+                loss_mask: jax.Array | None = None
+                selected = mb_td.agent_mask
+            else:
+                indices, loss_mask = _minibatch_selection(
+                    T, S, tr.minibatch_size, batch_index
+                )
+                mb_td = jax.tree.map(
+                    lambda x: jnp.take(x, indices, axis=1),
+                    td,
+                )
+                mb_initial_carry = jax.tree.map(
+                    lambda x: jnp.take(x, indices, axis=0),
+                    initial_carry,
+                )
+                mb_last_value = jnp.take(last_value, indices, axis=0)
+                selected = mb_td.agent_mask & loss_mask
+
             model, optimizer = nnx.merge(tr.graphdef, graphstate)
             model.eval()
             (loss, aux), grads = nnx.value_and_grad(tr.loss_fn, has_aux=True)(
@@ -1298,26 +1343,36 @@ class PPOTrainer(Trainer):
                 ),
             )
             model.train()
-            selected = mb_td.agent_mask & loss_mask
 
-            def apply_update(state: ModelState) -> ModelState:
-                current_model, current_optimizer = nnx.merge(tr.graphdef, state)
-                current_optimizer.update(current_model, grads)
-                return nnx.state((current_model, current_optimizer))
+            if always_has_samples:
+                has_samples = jnp.asarray(True)
+                optimizer.update(model, grads)
+                graphstate = nnx.state((model, optimizer))
+                ratio_mean = jnp.mean(aux["ratio"])
+            else:
+                has_samples = jnp.any(selected)
 
-            # Sequential blocks may consist entirely of inactive padding.
-            # Even zero gradients would otherwise advance optimizer momentum.
-            graphstate = jax.lax.cond(
-                jnp.any(selected),
-                apply_update,
-                lambda state: state,
-                nnx.state((model, optimizer)),
-            )
+                def apply_update(state: ModelState) -> ModelState:
+                    current_model, current_optimizer = nnx.merge(tr.graphdef, state)
+                    current_optimizer.update(current_model, grads)
+                    return nnx.state((current_model, current_optimizer))
+
+                # Sequential blocks may consist entirely of inactive padding.
+                # Even zero gradients would otherwise advance optimizer momentum.
+                graphstate = jax.lax.cond(
+                    has_samples,
+                    apply_update,
+                    lambda state: state,
+                    nnx.state((model, optimizer)),
+                )
+                ratio_mean = jnp.sum(jnp.where(selected, aux["ratio"], 0.0)) / (
+                    jnp.maximum(jnp.sum(selected), 1)
+                )
 
             # No target cache or rollout-value writeback: every next minibatch
             # computes its targets from its own current forward pass.
             mb_metrics = {
-                "_has_samples": jnp.any(selected),
+                "_has_samples": has_samples,
                 "loss": loss,
                 "actor_loss": aux["actor_loss"],
                 "value_loss": aux["value_loss"],
@@ -1327,8 +1382,7 @@ class PPOTrainer(Trainer):
                 "approx_KL": aux["approx_KL"],
                 "explained_variance": aux["explained_variance"],
                 "grad_norm": optax.tree.norm(grads),
-                "ratio": jnp.sum(jnp.where(selected, aux["ratio"], 0.0))
-                / jnp.maximum(jnp.sum(selected), 1),
+                "ratio": ratio_mean,
                 "returns": aux["returns"],
                 "score": aux["score"],
             }
@@ -1338,7 +1392,7 @@ class PPOTrainer(Trainer):
             train_batch,
             tr.graphstate,
             xs=jnp.arange(tr.num_minibatches),
-            unroll=tr.num_minibatches,
+            unroll=1,
         )
         has_samples = epoch_metrics.pop("_has_samples")
         count = jnp.maximum(jnp.sum(has_samples), 1)
@@ -1347,6 +1401,53 @@ class PPOTrainer(Trainer):
             epoch_metrics,
         )
         return tr, td, data
+
+    @staticmethod
+    @jax.jit(inline=True)
+    @partial(jax.named_call, name="PPOTrainer._epoch_no_trajectory")
+    def _epoch_no_trajectory(
+        tr: PPOTrainer,
+    ) -> tuple[PPOTrainer, dict[str, jax.Array]]:
+        """Run one training epoch without returning the full rollout buffer."""
+        tr, _, data = PPOTrainer._epoch_impl(tr)
+        return tr, data
+
+    @staticmethod
+    @jax.jit(inline=True)
+    @partial(jax.named_call, name="PPOTrainer.epoch")
+    def epoch(
+        tr: PPOTrainer, epoch: ArrayLike
+    ) -> tuple[PPOTrainer, TrajectoryData, dict[str, jax.Array]]:
+        r"""Collect a rollout and train sequential minibatches with fresh targets.
+
+        Steps:
+        0. Save initial recurrent carry (resets occur inside each rollout step).
+        1. Collect a trajectory of length ``num_steps_epoch``.
+        2. Flatten the agent axis and apply DRIP if enabled.
+        3. Visit contiguous segment blocks, wrapping for additional passes.
+        4. Run the current model, calculate targets, and update parameters.
+        Rollout values and log-probabilities remain unchanged.
+
+        Parameters
+        ----------
+        tr : PPOTrainer
+            Current trainer state.
+        epoch : ArrayLike
+            Zero-based outer iteration index (retained for caller compatibility).
+
+        Returns
+        -------
+        Tuple[PPOTrainer, TrajectoryData, dict[str, jax.Array]]
+            Updated trainer, trajectory data shaped ``[T, S, ...]`` with
+            DRIP-transformed rewards, and metrics averaged equally over
+            nonempty minibatches. An all-empty rollout yields zero metrics.
+            Parameter updates occur according to gradient accumulation;
+            empty minibatches do not advance the optimizer.
+
+
+        """
+        del epoch
+        return PPOTrainer._epoch_impl(tr)
 
 
 __all__ = ["PPOTrainer"]
