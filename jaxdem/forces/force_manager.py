@@ -220,12 +220,14 @@ class ForceManager:
         force = jnp.asarray(force, dtype=float)
         # COM writes are replicated on every clump member: store the
         # per-member share so ``apply`` can segment-sum without dividing.
-        com_force = force * is_com
-        if not state.only_spheres:
-            count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
-            com_force = com_force / count[..., None]
-        system.force_manager.external_force_com += com_force
-        system.force_manager.external_force += force * (1 - is_com)
+        if is_com:
+            com_force = force
+            if not state.only_spheres:
+                count = jnp.bincount(state.clump_id, length=state.N)[state.clump_id]
+                com_force = com_force / count[..., None]
+            system.force_manager.external_force_com += com_force
+        else:
+            system.force_manager.external_force += force
         return system
 
     @staticmethod

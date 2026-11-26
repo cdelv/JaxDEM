@@ -12,7 +12,7 @@ from functools import partial
 from numbers import Integral
 from typing import TYPE_CHECKING, Any
 
-from .linalg import norm
+from .linalg import norm, norm2
 
 if TYPE_CHECKING:
     from .. import State, System
@@ -69,36 +69,90 @@ def advance_action(
     # Refresh history even for frozen entries: their difference reward is zero.
     env = env.checkpoint(env, action)
 
-    def step_fn(
-        carry: tuple[Environment, jax.Array, jax.Array], _: None
-    ) -> tuple[tuple[Environment, jax.Array, jax.Array], None]:
-        current, terminated, truncated = carry
-        done_before = terminated | truncated
-        # Slots can disappear between repeated physics steps. They must not
-        # keep receiving the action sampled while they were active.
-        stepped = current.step(
-            current, _mask_agent_actions(action, current.agent_mask(current))
-        )
-        current = jax.tree.map(
-            lambda new, old: jnp.where(
-                done_before.reshape(
-                    done_before.shape + (1,) * (new.ndim - done_before.ndim)
-                ),
-                old,
-                new,
+    from ..rl.environments import Environment as _BaseEnvironment
+
+    base_cls = getattr(env.__class__, "_base_env_cls", env.__class__)
+    static_all_active = base_cls.agent_mask is _BaseEnvironment.agent_mask
+    static_no_term = base_cls.terminated is _BaseEnvironment.terminated
+
+    def select_active_update(
+        stepped: Environment, current: Environment, done_before: jax.Array
+    ) -> Environment:
+        return jax.tree.map(
+            lambda new, old: (
+                old
+                if new is old
+                else jnp.where(
+                    done_before.reshape(
+                        done_before.shape + (1,) * (new.ndim - done_before.ndim)
+                    ),
+                    old,
+                    new,
+                )
             ),
             stepped,
             current,
         )
-        terminated = terminated | current.terminated(current)
-        truncated = truncated | current.truncated(current)
-        return (current, terminated, truncated), None
+
+    if terminated is None and truncated is None:
+        # Fresh transition: done_before is statically False on frame 0.
+        env = env.step(env, action)
+        final_terminated = (
+            initial_terminated if static_no_term else env.terminated(env)
+        )
+        final_truncated = env.truncated(env)
+        if skip_frames == 0:
+            return env, final_terminated, final_truncated
+
+        def fresh_step_fn(
+            carry: tuple[Environment, jax.Array, jax.Array], _: None
+        ) -> tuple[tuple[Environment, jax.Array, jax.Array], None]:
+            current, term, trunc = carry
+            done_before = trunc if static_no_term else (term | trunc)
+            step_action = (
+                action
+                if static_all_active
+                else _mask_agent_actions(action, current.agent_mask(current))
+            )
+            stepped = current.step(current, step_action)
+            current = select_active_update(stepped, current, done_before)
+            term = term if static_no_term else (term | current.terminated(current))
+            trunc = trunc | current.truncated(current)
+            return (current, term, trunc), None
+
+        (env, final_terminated, final_truncated), _ = jax.lax.scan(
+            fresh_step_fn,
+            (env, final_terminated, final_truncated),
+            None,
+            length=skip_frames,
+            unroll=2 if skip_frames >= 2 else 1,
+        )
+        return env, final_terminated, final_truncated
+
+    def step_fn(
+        carry: tuple[Environment, jax.Array, jax.Array], _: None
+    ) -> tuple[tuple[Environment, jax.Array, jax.Array], None]:
+        current, term, trunc = carry
+        done_before = term | trunc
+        # Slots can disappear between repeated physics steps. They must not
+        # keep receiving the action sampled while they were active.
+        step_action = (
+            action
+            if static_all_active
+            else _mask_agent_actions(action, current.agent_mask(current))
+        )
+        stepped = current.step(current, step_action)
+        current = select_active_update(stepped, current, done_before)
+        term = term if static_no_term else (term | current.terminated(current))
+        trunc = trunc | current.truncated(current)
+        return (current, term, trunc), None
 
     (env, final_terminated, final_truncated), _ = jax.lax.scan(
         step_fn,
         (env, initial_terminated, initial_truncated),
         None,
         length=1 + skip_frames,
+        unroll=2 if 1 + skip_frames >= 2 else 1,
     )
     return env, final_terminated, final_truncated
 
@@ -399,24 +453,25 @@ def _merge_edges_2d(
                 jnp.stack([z, upper[1] - pos_i[1]]),
             ]
         )
-        wall_dist = norm(wall_disp)
+        wall_dist = jnp.abs(
+            jnp.stack(
+                [
+                    anchor[0] - pos_i[0],
+                    upper[0] - pos_i[0],
+                    anchor[1] - pos_i[1],
+                    upper[1] - pos_i[1],
+                ]
+            )
+        )
         wall_prox = jnp.maximum(0.0, lidar_range - wall_dist)
         wall_bins = _bin_azimuth(wall_disp, n_bins)
 
-        def update(
-            carry: tuple[jax.Array, jax.Array],
-            x: tuple[jax.Array, jax.Array],
-        ) -> tuple[tuple[jax.Array, jax.Array], None]:
-            p, d = carry
-            wp, wb = x
-            closer = wp > p[wb]
-            p = p.at[wb].set(jnp.where(closer, wp, p[wb]))
-            d = d.at[wb].set(jnp.where(closer, -1, d[wb]))
-            return (p, d), None
-
-        (prox_i, ids_i), _ = jax.lax.scan(
-            update, (prox_i, ids_i), (wall_prox, wall_bins)
-        )
+        for wall_idx in range(4):
+            wp = wall_prox[wall_idx]
+            wb = wall_bins[wall_idx]
+            closer = wp > prox_i[wb]
+            prox_i = prox_i.at[wb].set(jnp.where(closer, wp, prox_i[wb]))
+            ids_i = ids_i.at[wb].set(jnp.where(closer, -1, ids_i[wb]))
         return prox_i, ids_i
 
     return jax.vmap(per_particle)(prox, ids, pos)
@@ -452,24 +507,27 @@ def _merge_edges_3d(
                 jnp.stack([z, z, upper[2] - pos_i[2]]),
             ]
         )
-        wall_dist = norm(wall_disp)
+        wall_dist = jnp.abs(
+            jnp.stack(
+                [
+                    anchor[0] - pos_i[0],
+                    upper[0] - pos_i[0],
+                    anchor[1] - pos_i[1],
+                    upper[1] - pos_i[1],
+                    anchor[2] - pos_i[2],
+                    upper[2] - pos_i[2],
+                ]
+            )
+        )
         wall_prox = jnp.maximum(0.0, lidar_range - wall_dist)
         wall_bins = _bin_spherical(wall_disp, n_azimuth, n_elevation)
 
-        def update(
-            carry: tuple[jax.Array, jax.Array],
-            x: tuple[jax.Array, jax.Array],
-        ) -> tuple[tuple[jax.Array, jax.Array], None]:
-            p, d = carry
-            wp, wb = x
-            closer = wp > p[wb]
-            p = p.at[wb].set(jnp.where(closer, wp, p[wb]))
-            d = d.at[wb].set(jnp.where(closer, -1, d[wb]))
-            return (p, d), None
-
-        (prox_i, ids_i), _ = jax.lax.scan(
-            update, (prox_i, ids_i), (wall_prox, wall_bins)
-        )
+        for wall_idx in range(6):
+            wp = wall_prox[wall_idx]
+            wb = wall_bins[wall_idx]
+            closer = wp > prox_i[wb]
+            prox_i = prox_i.at[wb].set(jnp.where(closer, wp, prox_i[wb]))
+            ids_i = ids_i.at[wb].set(jnp.where(closer, -1, ids_i[wb]))
         return prox_i, ids_i
 
     return jax.vmap(per_particle)(prox, ids, pos)
@@ -544,10 +602,11 @@ def lidar_2d(
     # Negated so deltas[i, j] points sensor i -> target j, matching the
     # sensor -> wall convention used by _merge_edges_2d.
     deltas = -system.domain.displacement(pos[:, None, :], pos[None, :, :], system)
-    dist = jnp.where(jnp.eye(N, dtype=bool), jnp.inf, norm(deltas))
+    dist_sq = jnp.where(jnp.eye(N, dtype=bool), jnp.inf, norm2(deltas))
 
     bin_idx = _bin_azimuth(deltas, n_bins)
-    min_dist, min_idx = _bin_min_dist_and_idx(dist, bin_idx, n_bins)
+    min_dist_sq, min_idx = _bin_min_dist_and_idx(dist_sq, bin_idx, n_bins)
+    min_dist = jnp.sqrt(min_dist_sq)
 
     proximity = jnp.maximum(0.0, lidar_range - min_dist)
     own_idx = jnp.arange(N)[:, None]
@@ -626,10 +685,11 @@ def lidar_3d(
     # Negated so deltas[i, j] points sensor i -> target j, matching the
     # sensor -> wall convention used by _merge_edges_3d.
     deltas = -system.domain.displacement(pos[:, None, :], pos[None, :, :], system)
-    dist = jnp.where(jnp.eye(N, dtype=bool), jnp.inf, norm(deltas))
+    dist_sq = jnp.where(jnp.eye(N, dtype=bool), jnp.inf, norm2(deltas))
 
     bin_idx = _bin_spherical(deltas, n_azimuth, n_elevation)
-    min_dist, min_idx = _bin_min_dist_and_idx(dist, bin_idx, n_total)
+    min_dist_sq, min_idx = _bin_min_dist_and_idx(dist_sq, bin_idx, n_total)
+    min_dist = jnp.sqrt(min_dist_sq)
 
     proximity = jnp.maximum(0.0, lidar_range - min_dist)
     own_idx = jnp.arange(N)[:, None]
@@ -693,10 +753,11 @@ def cross_lidar_2d(
     """
     # Negated so deltas[i, j] points sensor i -> target j.
     deltas = -system.domain.displacement(pos_a[:, None, :], pos_b[None, :, :], system)
-    dist = norm(deltas)
+    dist_sq = norm2(deltas)
 
     bin_idx = _bin_azimuth(deltas, n_bins)
-    min_dist, min_idx = _bin_min_dist_and_idx(dist, bin_idx, n_bins)
+    min_dist_sq, min_idx = _bin_min_dist_and_idx(dist_sq, bin_idx, n_bins)
+    min_dist = jnp.sqrt(min_dist_sq)
 
     proximity = jnp.maximum(0.0, lidar_range - min_dist)
     ids = jnp.where(proximity > 0, min_idx, -1)
@@ -757,10 +818,11 @@ def cross_lidar_3d(
 
     # Negated so deltas[i, j] points sensor i -> target j.
     deltas = -system.domain.displacement(pos_a[:, None, :], pos_b[None, :, :], system)
-    dist = norm(deltas)
+    dist_sq = norm2(deltas)
 
     bin_idx = _bin_spherical(deltas, n_azimuth, n_elevation)
-    min_dist, min_idx = _bin_min_dist_and_idx(dist, bin_idx, n_total)
+    min_dist_sq, min_idx = _bin_min_dist_and_idx(dist_sq, bin_idx, n_total)
+    min_dist = jnp.sqrt(min_dist_sq)
 
     proximity = jnp.maximum(0.0, lidar_range - min_dist)
     ids = jnp.where(proximity > 0, min_idx, -1)

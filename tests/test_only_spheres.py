@@ -488,6 +488,7 @@ def test_sphere_managed_forces_omit_body_scatter_reductions():
             fn = getattr(ForceManager, method)
             args = (state, system)
             if method == "add_force":
+                fn = lambda st, sy, f: ForceManager.add_force(st, sy, f, is_com=True)
                 args += (jnp.ones_like(state.force),)
             elif method == "add_torque":
                 args += (jnp.ones_like(state.torque),)
@@ -500,6 +501,20 @@ def test_sphere_managed_forces_omit_body_scatter_reductions():
                 )
             )
         assert found == [True, False], method
+
+    for mode in (False, True):
+        state = _force_state(3, mode)
+        system = _force_system(state)
+        has_scatter = any(
+            "scatter" in name
+            for name in _walk_jaxpr(
+                jax.make_jaxpr(ForceManager.add_force)(
+                    state, system, jnp.ones_like(state.force)
+                ),
+                primitives=True,
+            )
+        )
+        assert not has_scatter
 
 
 @pytest.mark.parametrize("dim", [2, 3])

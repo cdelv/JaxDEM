@@ -135,19 +135,41 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         terms = math.ceil(
             math.log(float(np.finfo(q.dtype).eps) * (1 - ratio) / 8) / math.log(ratio)
         )
-
-        def iteration(
-            index: int, carry: tuple[jax.Array, jax.Array]
-        ) -> tuple[jax.Array, jax.Array]:
-            total, derivative = carry
+        total = jnp.ones_like(q)
+        derivative = jnp.zeros_like(q)
+        for index in range(terms):
             k = terms - index
             derivative = (total + q * derivative) / (a + k)
-            total = 1 + q * total / (a + k)
-            return total, derivative
+            total = 1.0 + q * total / (a + k)
+        return total, derivative
 
-        return jax.lax.fori_loop(
-            0, terms, iteration, (jnp.ones_like(q), jnp.zeros_like(q))
-        )
+    @staticmethod
+    def _gammainc_half_int(d: int, q: jax.Array) -> jax.Array:
+        """Evaluate ``P(d/2, q)`` without host-synced loops for small ``d``.
+
+        The recurrence ``P(a + 1, q) = P(a, q) - exp(-q) * q**a / Gamma(a + 1)``
+        telescopes down to ``P(1, q) = -expm1(-q)`` for even ``d`` and
+        ``P(1/2, q) = erf(sqrt(q))`` for odd ``d``, fusing into a single
+        elementwise kernel. Falls back to ``gammainc`` for ``d > 16`` where the
+        finite sum would lose precision or overflow in float32.
+        """
+        if d > 16:
+            return jax.scipy.special.gammainc(d / 2, q)
+        # Cap q in the decaying tail so q**k cannot overflow where exp(-q) == 0.
+        q_tail = jnp.minimum(q, 1000.0)
+        if d % 2 == 0:
+            p = -jnp.expm1(-q)
+            term = q_tail
+            a0 = 1.0
+        else:
+            p = jax.lax.erf(jnp.sqrt(q))
+            term = (2.0 / math.sqrt(math.pi)) * jnp.sqrt(q_tail)
+            a0 = 0.5
+        tail = jnp.zeros_like(q)
+        for k in range((d - 1) // 2):
+            tail = tail + term
+            term = term * (q_tail / (a0 + k + 1.0))
+        return p - jnp.exp(-q_tail) * tail
 
     @partial(jax.named_call, name="MaxNormSpace.forward_log_det_jacobian")
     def forward_log_det_jacobian(self, x: Array) -> jax.Array:
@@ -166,7 +188,7 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         regular = (
             (1 - self.eps)
             * self.max_norm
-            * jnp.exp(jnp.log(jax.scipy.special.gammainc(a, safe_q)) / d)
+            * jnp.exp(jnp.log(self._gammainc_half_int(d, safe_q)) / d)
             / jnp.sqrt(2 * safe_q)
         )
         scale = jnp.where(small, lower, regular)
@@ -206,8 +228,8 @@ class MaxNormSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
     @partial(jax.named_call, name="MaxNormSpace.log_det_expectation")
     def log_det_expectation(self, mean: jax.Array, std: jax.Array) -> jax.Array:
         """Exact Gaussian expectation of the quadratic log-Jacobian."""
-        return mean.shape[-1] * self._log_linear_scale(mean.shape[-1]) - 0.5 * jnp.sum(
-            mean * mean + std * std, axis=-1
+        return mean.shape[-1] * self._log_linear_scale(mean.shape[-1]) - 0.5 * (
+            norm2(mean) + norm2(std)
         )
 
 
