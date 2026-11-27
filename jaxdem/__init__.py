@@ -4,30 +4,14 @@
 
 from __future__ import annotations
 
-import jax
-
-import dataclasses
+from importlib.metadata import PackageNotFoundError, version as _package_version
 from typing import TYPE_CHECKING, Any
 
-if not hasattr(jax.tree, "static"):
+try:
+    __version__ = _package_version("JaxDEM")
+except PackageNotFoundError:  # pragma: no cover
+    __version__ = "0.0.0+unknown"
 
-    def _static(*args: Any, **kwargs: Any) -> Any:
-        metadata = dict(kwargs.get("metadata", {}))
-        metadata["static"] = True
-        kwargs["metadata"] = metadata
-        return dataclasses.field(*args, **kwargs)
-
-    jax.tree.static = _static
-
-# import os
-# os.environ[
-#     "XLA_FLAGS"
-# ] = """
-#     --xla_gpu_enable_latency_hiding_scheduler=true
-#     --xla_gpu_enable_command_buffer=''
-#     --xla_disable_hlo_passes=collective-permute-motion
-#     --xla_gpu_experimental_pipeline_parallelism_opt_level=PIPELINE_PARALLELISM_OPT_LEVEL_ENABLE
-# """
 from . import utils
 from .bonded_forces import BondedForceModel
 from .colliders import (
@@ -64,6 +48,7 @@ if TYPE_CHECKING:
 
 
 __all__ = [
+    "__version__",
     "BondedForceModel",
     "BodyTopology",
     "Collider",

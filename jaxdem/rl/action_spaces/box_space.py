@@ -17,8 +17,8 @@ from . import ActionSpace
 
 # Gauss-Hermite quadrature nodes/weights for E_{Z~N(0,1)}[f(Z)].
 _GH_N, _GH_W = np.polynomial.hermite_e.hermegauss(16)
-_GH_NODES: jax.Array = jnp.asarray(_GH_N)
-_GH_WEIGHTS: jax.Array = jnp.asarray(_GH_W / np.sqrt(2.0 * np.pi))
+_GH_NODES = np.asarray(_GH_N, dtype=np.float64)
+_GH_WEIGHTS = np.asarray(_GH_W / np.sqrt(2.0 * np.pi), dtype=np.float64)
 
 
 @ActionSpace.register("Box")
@@ -161,9 +161,11 @@ class BoxSpace(distrax.Bijector, ActionSpace):  # type: ignore[misc]
         quadrature (componentwise separable).
         """
         # x_i = mean_i + std_i * z_k, shape (..., d, n_pts)
-        z = (mean[..., None] + std[..., None] * _GH_NODES) / self.width
+        nodes = jnp.asarray(_GH_NODES, dtype=mean.dtype)
+        weights = jnp.asarray(_GH_WEIGHTS, dtype=mean.dtype)
+        z = (mean[..., None] + std[..., None] * nodes) / self.width
         ld = jnp.log(self.half)[..., None] - jnp.log(self.width) + BoxSpace.sec2_log(z)
-        return jnp.sum(dot(ld, _GH_WEIGHTS), axis=-1)
+        return jnp.sum(dot(ld, weights), axis=-1)
 
 
 __all__ = ["BoxSpace"]

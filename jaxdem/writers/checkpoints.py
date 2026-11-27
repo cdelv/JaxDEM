@@ -13,12 +13,7 @@ from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Literal
-
-try:  # Python 3.11+
-    from typing import Self
-except ImportError:  # pragma: no cover
-    from typing_extensions import Self
+from typing import TYPE_CHECKING, Any, Literal, Self
 
 import orbax.checkpoint as ocp  # type: ignore[import-untyped]
 from orbax.checkpoint.checkpoint_managers import (  # type: ignore[import-untyped]

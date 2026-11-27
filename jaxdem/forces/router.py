@@ -61,9 +61,7 @@ class ForceRouter(ForceModel):
     @property
     def has_pair_torque(self) -> bool:
         return any(
-            law.has_pair_torque
-            for a, row in enumerate(self.table)
-            for law in row[a:]
+            law.has_pair_torque for a, row in enumerate(self.table) for law in row[a:]
         )
 
     @property

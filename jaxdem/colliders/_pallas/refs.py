@@ -34,7 +34,9 @@ class ArgPack:
         self._index[name] = len(self._args)
         self._args.append(arr)
 
-    def add_group(self, name: str, arrs: tuple[jax.Array, ...] | list[jax.Array]) -> None:
+    def add_group(
+        self, name: str, arrs: tuple[jax.Array, ...] | list[jax.Array]
+    ) -> None:
         start = len(self._args)
         self._args.extend(arrs)
         self._slices[name] = slice(start, len(self._args))

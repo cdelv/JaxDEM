@@ -11,12 +11,7 @@ from abc import ABC
 from dataclasses import dataclass, replace
 from enum import Enum
 from functools import partial
-from typing import TYPE_CHECKING, Any, ClassVar
-
-try:  # Python 3.11+
-    from typing import Self
-except ImportError:  # pragma: no cover
-    from typing_extensions import Self
+from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 from ..factory import Factory
 

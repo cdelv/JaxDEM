@@ -83,7 +83,11 @@ def _register_unlisted_cuda_gpus(devices: list[Any]) -> None:
                         arch_name=str(cc_str),
                         compute_capability=cc,
                     )
-                    gpu_info.registry[dev.device_kind] = lambda _i=info: _i
+
+                    def _make_info(_i: Any = info) -> Any:
+                        return _i
+
+                    gpu_info.registry[dev.device_kind] = _make_info
     except Exception:
         pass
 
@@ -121,9 +125,7 @@ def is_pallas_enabled() -> bool:
 pallas_triton_enabled = is_pallas_enabled
 
 
-def set_pallas_enabled(
-    enabled: bool | None, *, clear_caches: bool = True
-) -> None:
+def set_pallas_enabled(enabled: bool | None, *, clear_caches: bool = True) -> None:
     """Enable, disable, or reset Pallas Triton GPU kernels at runtime.
 
     Parameters
@@ -147,9 +149,7 @@ def set_pallas_enabled(
 
 
 @contextmanager
-def pallas_enabled(
-    enabled: bool, *, clear_caches: bool = True
-) -> Iterator[None]:
+def pallas_enabled(enabled: bool, *, clear_caches: bool = True) -> Iterator[None]:
     """Temporarily enable or disable Pallas Triton GPU kernels."""
     prev_override = _PALLAS_OVERRIDE
     set_pallas_enabled(enabled, clear_caches=clear_caches)

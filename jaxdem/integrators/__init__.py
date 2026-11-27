@@ -166,6 +166,7 @@ from .velocity_verlet_spiral import VelocityVerletSpiral
 
 __all__ = [
     "DirectEuler",
+    "Integrator",
     "Langevin",
     "LinearIntegrator",
     "free_mask",

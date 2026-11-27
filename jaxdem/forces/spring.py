@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from functools import partial
 from typing import TYPE_CHECKING, cast
 
-from ..utils.linalg import cross, dot, harmonic_mean, norm, norm2, unit, unit_and_norm
+from ..utils.linalg import cross, dot, harmonic_mean, norm2, unit, unit_and_norm
 from . import ForceModel
 from ._facet_incidence import get_facet_incidence
 from .facet_contact import (

@@ -28,9 +28,7 @@ def _damping_ratio(restitution: jax.Array) -> jax.Array:
     """Viscoelastic damping ratio ``beta`` from restitution coefficient ``e``."""
     positive = restitution > 0.0
     ln_e = jnp.log(jnp.where(positive, restitution, 1.0))
-    return jnp.where(
-        positive, -ln_e / jnp.sqrt(jnp.pi * jnp.pi + ln_e * ln_e), 1.0
-    )
+    return jnp.where(positive, -ln_e / jnp.sqrt(jnp.pi * jnp.pi + ln_e * ln_e), 1.0)
 
 
 @jax.tree_util.register_dataclass

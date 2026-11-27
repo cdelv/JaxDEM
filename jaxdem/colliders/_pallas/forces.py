@@ -381,7 +381,9 @@ def _contact_rel_vel(
     wxj = triton_cross_w_r(dim, wj, arm_j)
     v_ci = tuple(ctx["vel_i"][d] + wxi[d] for d in range(dim))
     v_cj = tuple(vj[d] + wxj[d] for d in range(dim))
-    v_rel = triton_relative_velocity(dspec, v_ci, v_cj, ctx["img"], ctx["shear_img"], dom)
+    v_rel = triton_relative_velocity(
+        dspec, v_ci, v_cj, ctx["img"], ctx["shear_img"], dom
+    )
     return v_rel, r_ci, wj
 
 
@@ -466,9 +468,15 @@ def _eval_cundall(
         if node.kind == "cundall_elastic":
             E_i = _lookup_mat_single(p_refs, p_batched, p0, b, node.n_mat, mi, c_mask)
             E_j = _lookup_mat_single(p_refs, p_batched, p0, b, node.n_mat, mj, c_mask)
-            G_i = _lookup_mat_single(p_refs, p_batched, p0 + 1, b, node.n_mat, mi, c_mask)
-            G_j = _lookup_mat_single(p_refs, p_batched, p0 + 1, b, node.n_mat, mj, c_mask)
-            mu_ij = _lookup_mat_pair(p_refs, p_batched, p0 + 2, b, node.n_mat, mi, mj, c_mask)
+            G_i = _lookup_mat_single(
+                p_refs, p_batched, p0 + 1, b, node.n_mat, mi, c_mask
+            )
+            G_j = _lookup_mat_single(
+                p_refs, p_batched, p0 + 1, b, node.n_mat, mj, c_mask
+            )
+            mu_ij = _lookup_mat_pair(
+                p_refs, p_batched, p0 + 2, b, node.n_mat, mi, mj, c_mask
+            )
             kn = harmonic_mean(E_i * ctx["ri"], E_j * ctx["rj"])
             kt = harmonic_mean(G_i * ctx["ri"], G_j * ctx["rj"])
             if not fspec.quasistatic:
@@ -486,8 +494,12 @@ def _eval_cundall(
                 gamma_n = gamma_t = mu_r_ij = jnp.zeros_like(delta)
         else:
             kn = _lookup_mat_pair(p_refs, p_batched, p0, b, node.n_mat, mi, mj, c_mask)
-            kt = _lookup_mat_pair(p_refs, p_batched, p0 + 1, b, node.n_mat, mi, mj, c_mask)
-            mu_ij = _lookup_mat_pair(p_refs, p_batched, p0 + 2, b, node.n_mat, mi, mj, c_mask)
+            kt = _lookup_mat_pair(
+                p_refs, p_batched, p0 + 1, b, node.n_mat, mi, mj, c_mask
+            )
+            mu_ij = _lookup_mat_pair(
+                p_refs, p_batched, p0 + 2, b, node.n_mat, mi, mj, c_mask
+            )
             if not fspec.quasistatic:
                 gamma_n = _lookup_mat_pair(
                     p_refs, p_batched, p0 + 3, b, node.n_mat, mi, mj, c_mask
@@ -502,7 +514,9 @@ def _eval_cundall(
                 gamma_n = gamma_t = mu_r_ij = jnp.zeros_like(delta)
 
         if not fspec.quasistatic:
-            v_rel, r_ci, wj = _contact_rel_vel(rv, fspec, dspec, dom, ctx, n_vec, c_mask)
+            v_rel, r_ci, wj = _contact_rel_vel(
+                rv, fspec, dspec, dom, ctx, n_vec, c_mask
+            )
             vn = triton_dot(v_rel, n_vec)
             vt = tuple(v_rel[d] - vn * n_vec[d] for d in range(dim))
             normal_raw = kn * delta - gamma_n * vn
@@ -548,8 +562,22 @@ def _eval_cundall(
                 sf_d = Ft[d] if fspec.quasistatic else Ft[d] + gamma_t * vt[d]
                 xi_ret_d = jnp.where(kt_pos, -sf_d / safe_kt, 0.0)
                 xi_next_d = jnp.where(sliding, xi_ret_d, xi_eval[d])
-                store1(h_out, b, rv.has_batch, h_base + d, jnp.where(c_mask, xi_next_d, 0.0), w_c)
-                store1(h_out, b, rv.has_batch, h_base + dim + d, jnp.where(c_mask, n_vec[d], 0.0), w_c)
+                store1(
+                    h_out,
+                    b,
+                    rv.has_batch,
+                    h_base + d,
+                    jnp.where(c_mask, xi_next_d, 0.0),
+                    w_c,
+                )
+                store1(
+                    h_out,
+                    b,
+                    rv.has_batch,
+                    h_base + dim + d,
+                    jnp.where(c_mask, n_vec[d], 0.0),
+                    w_c,
+                )
 
         F_out = tuple(Fn * n_vec[d] + Ft[d] for d in range(dim))
         T_out = triton_cross(dim, r_ci, Ft)
@@ -578,7 +606,9 @@ def _eval_cundall(
         h_base = slot * H + hoff
         any_nz = jnp.zeros_like(non_c)
         for d in range(2 * dim):
-            hv = rv.load1("hist", h_base + d, non_c, other=0.0, eviction_policy="evict_first")
+            hv = rv.load1(
+                "hist", h_base + d, non_c, other=0.0, eviction_policy="evict_first"
+            )
             any_nz = any_nz | (hv != 0.0)
         need_clr = non_c & any_nz
 
@@ -617,7 +647,9 @@ def eval_law_node(
     if node.kind == "combiner":
         fx, tx = zero_f, zero_t
         for ch in node.children:
-            cf, ct = eval_law_node(ch, rv, fspec, dspec, dom, ctx, active_mask, hist_write_mask)
+            cf, ct = eval_law_node(
+                ch, rv, fspec, dspec, dom, ctx, active_mask, hist_write_mask
+            )
             fx = tuple(fx[d] + cf[d] for d in range(dim))
             if fspec.has_torque:
                 tx = tuple(tx[d] + ct[d] for d in range(ang_dim))
@@ -655,22 +687,32 @@ def eval_law_node(
         return tuple(coeff * dr[d] for d in range(dim)), zero_t
 
     if node.kind == "hertz":
-        ft_E = _lookup_mat_pair(p_refs, p_batched, p0, b, node.n_mat, mi, mj, active_mask)
-        coeff = jnp.where(active_mask, _hertz_force_coeff(n2, ctx["ri"], ctx["rj"], ft_E), 0.0)
+        ft_E = _lookup_mat_pair(
+            p_refs, p_batched, p0, b, node.n_mat, mi, mj, active_mask
+        )
+        coeff = jnp.where(
+            active_mask, _hertz_force_coeff(n2, ctx["ri"], ctx["rj"], ft_E), 0.0
+        )
         return tuple(coeff * dr[d] for d in range(dim)), zero_t
 
     if node.kind == "wca":
-        eps = _lookup_mat_pair(p_refs, p_batched, p0, b, node.n_mat, mi, mj, active_mask)
+        eps = _lookup_mat_pair(
+            p_refs, p_batched, p0, b, node.n_mat, mi, mj, active_mask
+        )
         coeff = jnp.where(active_mask, _wca_force_coeff(n2, R, eps), 0.0)
         return tuple(coeff * dr[d] for d in range(dim)), zero_t
 
     if node.kind == "wca_shifted":
-        eps = _lookup_mat_pair(p_refs, p_batched, p0, b, node.n_mat, mi, mj, active_mask)
+        eps = _lookup_mat_pair(
+            p_refs, p_batched, p0, b, node.n_mat, mi, mj, active_mask
+        )
         coeff = jnp.where(active_mask, _wca_shifted_force_coeff(n2, R, eps), 0.0)
         return tuple(coeff * dr[d] for d in range(dim)), zero_t
 
     if node.kind == "lj":
-        eps = _lookup_mat_pair(p_refs, p_batched, p0, b, node.n_mat, mi, mj, active_mask)
+        eps = _lookup_mat_pair(
+            p_refs, p_batched, p0, b, node.n_mat, mi, mj, active_mask
+        )
         cr2 = scalar_at(p_refs[p0 + 1], b, p_batched[p0 + 1], 0)
         coeff = jnp.where(active_mask, _lj_force_coeff(n2, R, eps, cr2), 0.0)
         return tuple(coeff * dr[d] for d in range(dim)), zero_t
@@ -682,7 +724,9 @@ def eval_law_node(
         k = _lookup_mat_pair(p_refs, p_batched, p0, b, node.n_mat, mi, mj, contact)
         mag = k * overlap
         if not fspec.quasistatic:
-            tb_sk = _lookup_mat_pair(p_refs, p_batched, p0 + 1, b, node.n_mat, mi, mj, contact)
+            tb_sk = _lookup_mat_pair(
+                p_refs, p_batched, p0 + 1, b, node.n_mat, mi, mj, contact
+            )
             m_j = rv.load1("mass", ctx["j"], contact, other=1.0)
             damping = tb_sk * _safe_sqrt(0.5 * harmonic_mean(ctx["mass_i"], m_j))
             v_rel, _, _ = _contact_rel_vel(rv, fspec, dspec, dom, ctx, n_vec, contact)
@@ -692,7 +736,16 @@ def eval_law_node(
 
     if node.kind in ("cundall_elastic", "cundall_coeff"):
         return _eval_cundall(
-            node, rv, fspec, dspec, dom, ctx, active_mask, hist_write_mask, p_refs, p_batched
+            node,
+            rv,
+            fspec,
+            dspec,
+            dom,
+            ctx,
+            active_mask,
+            hist_write_mask,
+            p_refs,
+            p_batched,
         )
 
     return zero_f, zero_t

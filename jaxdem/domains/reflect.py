@@ -9,14 +9,9 @@ import jax.numpy as jnp
 
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Self, cast
 
-try:  # Python 3.11+
-    from typing import Self
-except ImportError:  # pragma: no cover
-    from typing_extensions import Self
-
-from ..utils.linalg import cross, cross_3X3D_1X2D
+from ..utils.linalg import cross_3X3D_1X2D
 from ..utils.quaternion import Quaternion
 from . import Domain, SearchGeometry
 from ._toc import verlet_collision_fraction
@@ -181,10 +176,14 @@ class ReflectDomain(Domain):
         from ..colliders._partition import _shared_all
 
         single_body = _shared_all(
-            jnp.all(state.clump_id == jax.lax.iota(dtype=state.clump_id.dtype, size=state.N))
+            jnp.all(
+                state.clump_id == jax.lax.iota(dtype=state.clump_id.dtype, size=state.N)
+            )
         )
 
-        def _apply_body(*, is_clumped: bool) -> tuple[jax.Array, jax.Array, Quaternion, jax.Array]:
+        def _apply_body(
+            *, is_clumped: bool
+        ) -> tuple[jax.Array, jax.Array, Quaternion, jax.Array]:
             if is_clumped:
                 hit = jnp.any((over_lo > 0.0) | (over_hi > 0.0), axis=-1)
                 hit_cid = jnp.where(hit, state.clump_id, state.N)
@@ -320,7 +319,9 @@ class ReflectDomain(Domain):
                 )
                 alpha_clump = jnp.minimum(
                     1.0,
-                    jax.ops.segment_min(alpha_min_dim, active_cid, num_segments=state.N),
+                    jax.ops.segment_min(
+                        alpha_min_dim, active_cid, num_segments=state.N
+                    ),
                 )
                 alpha_clump_flat = alpha_clump[state.clump_id]
             else:
@@ -392,7 +393,11 @@ class ReflectDomain(Domain):
             delta_theta = d_omega_net_flat * dt_remaining
             if state.dim == 2:
                 delta_theta = jnp.concatenate(
-                    [jnp.zeros_like(delta_theta), jnp.zeros_like(delta_theta), delta_theta],
+                    [
+                        jnp.zeros_like(delta_theta),
+                        jnp.zeros_like(delta_theta),
+                        delta_theta,
+                    ],
                     axis=-1,
                 )
             dq = Quaternion.from_small_rotvec(delta_theta)

@@ -145,9 +145,7 @@ class Collider(Factory, ABC):
         """
         return system
 
-    def prepare_force(
-        self, state: State, system: System
-    ) -> tuple[System, jax.Array]:
+    def prepare_force(self, state: State, system: System) -> tuple[System, jax.Array]:
         """Prepare pair caches without evaluating forces or advancing history.
 
         Returns the prepared system and a boolean scalar that is true when the

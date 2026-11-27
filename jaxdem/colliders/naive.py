@@ -497,9 +497,7 @@ def _naive_stateless_force(
     if not has_torque:
         force = acc[:n]
         torque = (
-            jnp.zeros_like(state.torque)
-            if state.only_spheres
-            else cross(pos_p, force)
+            jnp.zeros_like(state.torque) if state.only_spheres else cross(pos_p, force)
         )
         return force, torque
     force, torque = acc[0][:n], acc[1][:n]
@@ -551,18 +549,17 @@ def _naive_stateless_force_entry(
 
 
 @_naive_stateless_force_entry.defjvp
-def _naive_stateless_force_jvp(
-    quasistatic: bool, primals: Any, tangents: Any
-) -> Any:
+def _naive_stateless_force_jvp(quasistatic: bool, primals: Any, tangents: Any) -> Any:
     def fixed_tiled(st: State, sy: System) -> tuple[jax.Array, jax.Array]:
         n = st.N
         row_tile = n if n <= 512 else min(n, 512)
         col_tile = n if n <= 512 else min(n, 512)
         return _naive_stateless_force(st, sy, quasistatic, row_tile, col_tile)
 
-    return _naive_stateless_force_entry(*primals, quasistatic), jax.jvp(
-        fixed_tiled, primals, tangents
-    )[1]
+    return (
+        _naive_stateless_force_entry(*primals, quasistatic),
+        jax.jvp(fixed_tiled, primals, tangents)[1],
+    )
 
 
 def _dense_history(state: State, system: System, history: jax.Array) -> jax.Array:

@@ -251,14 +251,14 @@ class NeighborList(Collider):
 
         return reindex_history(state, system, self, new_to_old)
 
-    def prepare_force(
-        self, state: State, system: System
-    ) -> tuple[System, jax.Array]:
+    def prepare_force(self, state: State, system: System) -> tuple[System, jax.Array]:
         """Rebuild current pairs if needed and report whether the layout changed."""
         from ._neighbor_cache import check_and_rebuild
 
         prepared = check_and_rebuild(state, system)
-        changed = cast(NeighborList, prepared.collider).n_build_times != self.n_build_times
+        changed = (
+            cast(NeighborList, prepared.collider).n_build_times != self.n_build_times
+        )
         return prepared, changed
 
     def transfer_history(

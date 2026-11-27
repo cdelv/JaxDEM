@@ -9,6 +9,7 @@ import os
 import pathlib
 import shutil
 import sys
+import tomllib
 import types
 
 from sphinx.util import logging as sphinx_logging
@@ -22,7 +23,8 @@ sys.path.insert(0, str(root))
 
 project = "JaxDEM"
 author = "Carlos Andres del Valle"
-release = ""
+with (root / "pyproject.toml").open("rb") as _pyproject_file:
+    release = tomllib.load(_pyproject_file)["project"]["version"]
 copyright = f"{datetime.datetime.now().year}, {author}"
 
 # ------------------------------------------------------------------

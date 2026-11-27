@@ -188,17 +188,17 @@ class LSTMActorCritic(Model):
 
     @property
     def carry_leading_shape(self) -> tuple[int, ...]:
-        return self.h.value.shape[:-1]
+        return self.h[...].shape[:-1]
 
     @property
     def carry(self) -> Any:
-        return (self.c.value, self.h.value)
+        return (self.c[...], self.h[...])
 
     @partial(jax.named_call, name="LSTMActorCritic.reset")
     def reset(self, shape: tuple[int, ...], mask: jax.Array | None = None) -> None:
         """Reset the persistent LSTM carry.
 
-        - If `self.h.value.shape != (*lead_shape, H)`, allocate fresh zeros once.
+        - If ``self.h[...].shape != (*lead_shape, H)``, allocate fresh zeros once.
 
         - Otherwise, zero in-place:
             * if `mask is None`: zero everything
@@ -217,21 +217,21 @@ class LSTMActorCritic(Model):
         target_shape = (*shape[:-1], H)
 
         # If shape changed, allocate once and return
-        if self.h.value.shape != target_shape:
-            self.h.value = jnp.zeros(target_shape, dtype=float)
-            self.c.value = jnp.zeros(target_shape, dtype=float)
+        if self.h[...].shape != target_shape:
+            self.h.set_value(jnp.zeros(target_shape, dtype=float))
+            self.c.set_value(jnp.zeros(target_shape, dtype=float))
             return
 
         # If shape matches and everything needs resetting
         if mask is None:
-            self.h.value = jnp.zeros_like(self.h.value)
-            self.c.value = jnp.zeros_like(self.c.value)
+            self.h.set_value(jnp.zeros_like(self.h[...]))
+            self.c.set_value(jnp.zeros_like(self.c[...]))
             return
 
         # If shapes matches and masked reset
-        mask = mask.reshape(mask.shape + (1,) * (self.h.value.ndim - mask.ndim))
-        self.h.value = jnp.where(mask, 0.0, self.h.value)
-        self.c.value = jnp.where(mask, 0.0, self.c.value)
+        mask = mask.reshape(mask.shape + (1,) * (self.h[...].ndim - mask.ndim))
+        self.h.set_value(jnp.where(mask, 0.0, self.h[...]))
+        self.c.set_value(jnp.where(mask, 0.0, self.c[...]))
 
     @partial(jax.named_call, name="LSTMActorCritic.__call__")
     def __call__(
@@ -346,14 +346,16 @@ class LSTMActorCritic(Model):
             target = (*batch, self.lstm_features)
 
             # Lazily allocate carry via the cell API when shape mismatches
-            if self.h.value.shape != target:
+            if self.h[...].shape != target:
                 c0, h0 = self.cell.initialize_carry(
                     input_shape=feats.shape, rngs=nnx.Rngs(0)
                 )
-                self.c.value, self.h.value = c0, h0  # carry order = (c, h)
+                self.c.set_value(c0)
+                self.h.set_value(h0)  # carry order = (c, h)
 
-            (c1, h1), y = self.cell((self.c.value, self.h.value), feats)  # (..., H)
-            self.c.value, self.h.value = c1, h1
+            (c1, h1), y = self.cell((self.c[...], self.h[...]), feats)  # (..., H)
+            self.c.set_value(c1)
+            self.h.set_value(h1)
 
         h = y
         fused = self.fused_head(h)

@@ -1,0 +1,53 @@
+name: packaging
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Build and check sdist and wheel
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          twine check --strict dist/*
+      - name: Smoke-test core-only wheel install
+        env:
+          JAX_PLATFORMS: cpu
+        run: |
+          python -m venv /tmp/core-venv
+          /tmp/core-venv/bin/python -m pip install --upgrade pip
+          /tmp/core-venv/bin/python -m pip install dist/*.whl
+          /tmp/core-venv/bin/python -c "
+          from pathlib import Path
+          import jax._src.xla_bridge as xb
+          import jaxdem as jd
+          import jaxdem.analysis
+
+          assert jd.__version__
+          assert (Path(jd.__file__).resolve().parent / 'py.typed').is_file()
+          assert not xb.backends_are_initialized()
+
+          import jax.numpy as jnp
+          state = jd.State.create(pos=jnp.array([[0., 0.], [.8, 0.]]), rad=jnp.full(2, .5))
+          system = jd.System.create(state=state)
+          state, system = jd.System.initialize(state, system)
+          state, system = jd.System.step(state, system, n=2)
+          assert bool(jnp.all(jnp.isfinite(state.pos)))
+          "

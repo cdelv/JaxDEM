@@ -23,7 +23,7 @@ class SigmaParam(nnx.Module):  # type: ignore[misc]
         self.log_std = nnx.Param(jnp.zeros((1, out_dim)))
 
     def __call__(self, _: jax.Array) -> jax.Array:
-        return jnp.exp(self.log_std.value)
+        return jnp.exp(self.log_std[...])
 
 
 class SigmaHead(nnx.Module):  # type: ignore[misc]
@@ -272,4 +272,6 @@ __all__ = [
     "MinGRUActorCritic",
     "Model",
     "SharedActorCritic",
+    "SigmaHead",
+    "SigmaParam",
 ]

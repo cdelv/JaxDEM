@@ -40,7 +40,6 @@ from ._partition import (
     _get_spatial_partition_grid,
     _lees_edwards_compact_stencil,
     _loose_cell_aabbs,
-    _make_direct_row_body,
     _neighbor_hashes_from_coords,
     _permute_state,
     _shared_all,
@@ -108,13 +107,19 @@ def _dense_sorted_traverse(
     dim = int(pos.shape[-1])
     m_stencil = int(neighbor_mask.shape[0])
     side = round(m_stencil ** (1.0 / dim)) if dim in (2, 3) else 0
-    shear_r = (side - 1) // 2 if (dim in (2, 3) and side**dim == m_stencil and side % 2 == 1) else 0
+    shear_r = (
+        (side - 1) // 2
+        if (dim in (2, 3) and side**dim == m_stencil and side % 2 == 1)
+        else 0
+    )
     use_compact_shear = has_shear and shear_r >= 1
     distinct_ok: Any
     if use_compact_shear:
         a = int(cast(Any, system.domain).alpha)
-        min_shear = jnp.full((dim,), 2 * shear_r + 1, dtype=grid_dims.dtype).at[a].set(
-            2 * shear_r + 2
+        min_shear = (
+            jnp.full((dim,), 2 * shear_r + 1, dtype=grid_dims.dtype)
+            .at[a]
+            .set(2 * shear_r + 2)
         )
         distinct_ok = jnp.all(grid_dims >= min_shear)
     else:
@@ -157,9 +162,7 @@ def _dense_sorted_traverse(
         cell_center: jax.Array | None
         cell_half: jax.Array | None
         if do_prune:
-            search_rad_s = system.force_model.search_radii(
-                cast(Any, state_s), system
-            )
+            search_rad_s = system.force_model.search_radii(cast(Any, state_s), system)
             cell_center, cell_half = _loose_cell_aabbs(
                 pos_s - search_rad_s[:, None],
                 pos_s + search_rad_s[:, None],
@@ -274,7 +277,8 @@ def _dense_sorted_traverse(
                     )
                     overlap = jnp.all(
                         jnp.abs(dr_cell)
-                        <= d_search_rad_s[b_iota, None, None] + d_cell_half[safe_starts],
+                        <= d_search_rad_s[b_iota, None, None]
+                        + d_cell_half[safe_starts],
                         axis=-1,
                     )
                     ends_m = jnp.where(overlap, ends_m, starts_m)
@@ -307,7 +311,9 @@ def _dense_sorted_traverse(
                 pre_starts = pre_lens = pre_pref = pre_totals = None
                 full = N // chunk_size * chunk_size
                 iota_g = d_iota[:full].reshape(-1, chunk_size)
-                coords_g = d_coords_s[:full].reshape(-1, chunk_size, d_coords_s.shape[-1])
+                coords_g = d_coords_s[:full].reshape(
+                    -1, chunk_size, d_coords_s.shape[-1]
+                )
 
                 def chunk_stats(
                     x: tuple[jax.Array, jax.Array],
@@ -346,7 +352,9 @@ def _dense_sorted_traverse(
 
                 m_arr, t_arr = jax.lax.map(chunk_stats, (iota_g, coords_g))
                 max_local = jnp.max(m_arr, initial=0)
-                req_local = jnp.minimum(jnp.sum(t_arr, dtype=d_counts.dtype), tile_limit)
+                req_local = jnp.minimum(
+                    jnp.sum(t_arr, dtype=d_counts.dtype), tile_limit
+                )
                 if full < N:
                     m_tail, t_tail = chunk_stats((d_iota[full:], d_coords_s[full:]))
                     max_local = jnp.maximum(max_local, m_tail)
@@ -600,9 +608,7 @@ def _dense_sorted_traverse(
         pos_s = pos[perm]
         state_s = _permute_state(state, perm)
         if prune_cells and not has_shear:
-            search_rad_s = system.force_model.search_radii(
-                cast(Any, state_s), system
-            )
+            search_rad_s = system.force_model.search_radii(cast(Any, state_s), system)
             cell_center, cell_half = _loose_cell_aabbs(
                 pos_s - search_rad_s[:, None],
                 pos_s + search_rad_s[:, None],
@@ -1312,7 +1318,14 @@ class _CellListBase(Collider):
                 stencil = _dedup_stencil_hashes(stencil)
             if prune:
                 stencil = _prune_stencil(
-                    pos_i, stencil, cell_starts, cell_center, cell_half, N, cutoff, system
+                    pos_i,
+                    stencil,
+                    cell_starts,
+                    cell_center,
+                    cell_half,
+                    N,
+                    cutoff,
+                    system,
                 )
 
             def candidate_valid(k: jax.Array) -> jax.Array:

@@ -1,25 +1,54 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=77.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "JaxDEM"
-version = "0.1"
+version = "0.1.0"
 description = "Easy to use and blazing fast JAX-based library for high-performance 2D/3D Discrete Element Method (DEM) simulations."
 readme = "README.md"
 requires-python = ">=3.12"
-license = {text = "BSD-3-Clause"}
+license = "BSD-3-Clause"
+license-files = ["LICENSE"]
 authors = [
   {name = "Carlos Andres del Valle", email = "carlos.delvalleurberuaga@yale.edu"},
   {name = "Marshall McCraw", email = "marshall.mccraw@yale.edu"},
 ]
-urls = {Repository = "https://github.com/cdelv/JaxDEM"}
+keywords = [
+    "dem",
+    "discrete-element-method",
+    "jax",
+    "physics",
+    "simulation",
+    "granular",
+    "differentiable-physics",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Typing :: Typed",
+]
 
 dependencies = [
     "jax>=0.8.1",
     "numpy",
+    "scipy",
     "optax>=0.2.8",
 ]
+
+[project.urls]
+Homepage = "https://cdelv.github.io/JaxDEM"
+Documentation = "https://cdelv.github.io/JaxDEM"
+Repository = "https://github.com/cdelv/JaxDEM"
+Issues = "https://github.com/cdelv/JaxDEM/issues"
 
 [project.optional-dependencies]
 io = ["vtk", "h5py", "orbax-checkpoint>=0.12.1"]
@@ -27,7 +56,6 @@ rl = [
     "flax>=0.12.0",
     "distrax",
     "tqdm",
-    "scipy",
     "tensorboard",
     "tensorboardX>=2.6",
 ]
@@ -42,11 +70,18 @@ docs = [
 ]
 test = ["JaxDEM[io,rl]", "pytest>=8", "mypy>=1.19", "build>=1.2"]
 
-all = ["JaxDEM[io,rl,docs,test]"]
+all = ["JaxDEM[io,rl]"]
+dev = ["JaxDEM[io,rl,docs,test]"]
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["jaxdem", "jaxdem.*"]
+
+[tool.setuptools.package-data]
+jaxdem = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
 
 [tool.mypy]
 strict = true

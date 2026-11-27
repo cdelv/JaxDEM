@@ -97,7 +97,10 @@ def _visit_stencil_cells(
 
     def wrap_coord(raw: jax.Array, lim: jax.Array) -> tuple[jax.Array, jax.Array]:
         if periodic:
-            return jnp.where(raw < 0, raw + lim, jnp.where(raw >= lim, raw - lim, raw)), m_i
+            return (
+                jnp.where(raw < 0, raw + lim, jnp.where(raw >= lim, raw - lim, raw)),
+                m_i,
+            )
         ok = m_i & (raw >= 0) & (raw < lim)
         return jnp.where(ok, raw, 0), ok
 
@@ -165,6 +168,7 @@ def _visit_stencil_cells(
 
             def leaf(h: jax.Array, ok: jax.Array, c: Any) -> Any:
                 return visit_x_slab(h, cx, r_arr, dx_lim, ok, c)
+
         else:
 
             def leaf(h: jax.Array, ok: jax.Array, c: Any) -> Any:
@@ -200,10 +204,14 @@ def _visit_stencil_cells(
                 extra_hi = jnp.where(
                     img_b == 0,
                     0,
-                    jnp.where(img_b > 0, need_hi_pos != 0, need_hi_neg != 0).astype(ca.dtype),
+                    jnp.where(img_b > 0, need_hi_pos != 0, need_hi_neg != 0).astype(
+                        ca.dtype
+                    ),
                 )
                 ca_s = _le_wrap_a(ca + lo_m, da_lim)
-                return visit_x_slab(base_h + wb * sb_st, ca_s, r + extra_hi, da_lim, ok_o, acc_b)
+                return visit_x_slab(
+                    base_h + wb * sb_st, ca_s, r + extra_hi, da_lim, ok_o, acc_b
+                )
 
             return jax.lax.fori_loop(0, width, step_b, acc_o)
 
@@ -234,7 +242,9 @@ def _visit_stencil_cells(
         v_neg = (cb - off_k < 0) & (need_hi_neg != 0)
         v_pos = (cb + off_k >= db_lim) & (need_hi_pos != 0)
         v_bk = m_i & (v_neg | v_pos)
-        wb_bk = jnp.where(v_bk, jnp.where(v_neg, cb - off_k + db_lim, cb + off_k - db_lim), 0)
+        wb_bk = jnp.where(
+            v_bk, jnp.where(v_neg, cb - off_k + db_lim, cb + off_k - db_lim), 0
+        )
         lo_bk = jnp.where(v_neg, lo_neg_m, lo_pos_m)
         wa_bk = _le_wrap_a(ca + (r + 1) + lo_bk, da_lim)
         return _visit_ab(wa_bk * sa_st + wb_bk * sb_st, v_bk, acc_e)
@@ -333,16 +343,16 @@ def _run_pallas_cell_forces(
         vel_i = rv.load_vec("vel", s, dim, m_s) if rv.has("vel") else ()
         ang_i = rv.load_vec("ang", s, ang_dim, m_s) if rv.has("ang") else ()
         ppr_i = rv.load_vec("ppr", s, dim, m_s) if rv.has("ppr") else ()
-        mass_i = rv.load1("mass", s, m_s, other=1.0) if rv.has("mass") else jnp.ones_like(rs)
+        mass_i = (
+            rv.load1("mass", s, m_s, other=1.0) if rv.has("mass") else jnp.ones_like(rs)
+        )
         dom = load_domain_scalars(rv, dspec, need_vel_rates=fspec.needs_vel)
 
         z_f = tuple(jnp.zeros((BLOCK,), dtype=dtype) for _ in range(dim))
         z_t = tuple(jnp.zeros((BLOCK,), dtype=dtype) for _ in range(ang_dim))
         z_tile = (jnp.zeros((BLOCK,), dtype=int_dtype),)
         init_carry = (
-            z_f
-            + (z_t if fspec.has_torque else ())
-            + (z_tile if count_tiles else ())
+            z_f + (z_t if fspec.has_torque else ()) + (z_tile if count_tiles else ())
         )
 
         def visit_cell(
@@ -362,7 +372,9 @@ def _run_pallas_cell_forces(
 
             max_c = jnp.max(c_len)
 
-            def inner(t: jax.Array, acc: tuple[jax.Array, ...]) -> tuple[jax.Array, ...]:
+            def inner(
+                t: jax.Array, acc: tuple[jax.Array, ...]
+            ) -> tuple[jax.Array, ...]:
                 k = c_start + t
                 in_cell = ok_cell & (k < c_end)
                 ck = rv.load1("clump", k, in_cell, other=-2)
@@ -383,9 +395,17 @@ def _run_pallas_cell_forces(
                     "shear_img": shear_img,
                     "valid": valid,
                     "mi": mi,
-                    "mj": rv.load1("mat", k, valid, other=0) if rv.has("mat") else jnp.zeros_like(k),
+                    "mj": (
+                        rv.load1("mat", k, valid, other=0)
+                        if rv.has("mat")
+                        else jnp.zeros_like(k)
+                    ),
                     "si": si,
-                    "sj": rv.load1("sp", k, valid, other=0) if rv.has("sp") else jnp.zeros_like(k),
+                    "sj": (
+                        rv.load1("sp", k, valid, other=0)
+                        if rv.has("sp")
+                        else jnp.zeros_like(k)
+                    ),
                     "vel_i": vel_i,
                     "ang_i": ang_i,
                     "ppr_i": ppr_i,
@@ -395,7 +415,14 @@ def _run_pallas_cell_forces(
                     "hist_out_ref": None,
                 }
                 df, dt_vec = eval_law_node(
-                    fspec.root, rv, fspec, dspec, dom, ctx, valid & (s != k), jnp.zeros_like(valid)
+                    fspec.root,
+                    rv,
+                    fspec,
+                    dspec,
+                    dom,
+                    ctx,
+                    valid & (s != k),
+                    jnp.zeros_like(valid),
                 )
                 new_f = tuple(acc[d] + df[d] for d in range(dim))
                 if fspec.has_torque:
@@ -423,7 +450,9 @@ def _run_pallas_cell_forces(
         out_idx = rv.load1("orig", s, m_s, other=0)
         store_vec(f_out_ref, b, has_batch, out_idx, dim, res[:dim], m_s)
         if fspec.has_torque and t_out_ref is not None:
-            store_vec(t_out_ref, b, has_batch, out_idx, ang_dim, res[dim : dim + ang_dim], m_s)
+            store_vec(
+                t_out_ref, b, has_batch, out_idx, ang_dim, res[dim : dim + ang_dim], m_s
+            )
         if count_tiles and tile_out_ref is not None:
             store1(tile_out_ref, b, has_batch, s, res[-1], m_s)
 
@@ -461,7 +490,11 @@ def try_pallas_cell_forces(
     pure_fallback: Callable[[], tuple[Any, jax.Array]],
 ) -> tuple[Any, jax.Array] | None:
     """Run sorted-grid CellList forces via Pallas Triton when supported, else ``None``."""
-    if not is_pallas_enabled() or r < 1 or has_manual_axes(state_s, system, pos_s, cell_offsets):
+    if (
+        not is_pallas_enabled()
+        or r < 1
+        or has_manual_axes(state_s, system, pos_s, cell_offsets)
+    ):
         return None
     f_res = extract_force_spec(
         system.force_model,
@@ -473,7 +506,9 @@ def try_pallas_cell_forces(
     if f_res is None:
         return None
     fspec, f_params = f_res
-    d_res = extract_domain_spec(system.domain, state_s.dim, need_vel_rates=fspec.needs_vel)
+    d_res = extract_domain_spec(
+        system.domain, state_s.dim, need_vel_rates=fspec.needs_vel
+    )
     if d_res is None or fspec.has_torque != want_torque:
         return None
     dspec, d_params = d_res
@@ -491,13 +526,24 @@ def try_pallas_cell_forces(
     pack.add("dims", dims_i)
     pack.add("strides", strides_i)
     pack.add("clump", state_s.clump_id)
-    pack.add("bond", state_s.bond_id.reshape(-1) if bond_w > 0 else jnp.zeros((1,), dtype=int))
+    pack.add(
+        "bond",
+        state_s.bond_id.reshape(-1) if bond_w > 0 else jnp.zeros((1,), dtype=int),
+    )
     pack.add("orig", state_s.orig_id)
-    pack.add("isame", jnp.reshape(jnp.asarray(system.interact_same_bond_id, dtype=int), (1,)))
+    pack.add(
+        "isame", jnp.reshape(jnp.asarray(system.interact_same_bond_id, dtype=int), (1,))
+    )
     if dspec.kind == "lees_edwards":
-        pack.add("le", prepare_le_cell_shifts(dspec, dims_i, eff_cell_size, system.domain))
+        pack.add(
+            "le", prepare_le_cell_shifts(dspec, dims_i, eff_cell_size, system.domain)
+        )
     if do_prune:
-        assert cell_center is not None and cell_half is not None and search_rad_s is not None
+        assert (
+            cell_center is not None
+            and cell_half is not None
+            and search_rad_s is not None
+        )
         pack.add("cell_c", cell_center.reshape(-1))
         pack.add("cell_h", cell_half.reshape(-1))
         pack.add("sr", search_rad_s)
@@ -607,7 +653,9 @@ def _run_pallas_build(
         strides_i = tuple(rv.scalar("strides", d) for d in range(dim))
         le_vals = tuple(rv.scalar("le", d) for d in range(4)) if rv.has("le") else None
         sr_i = rv.load1("sr", s, m_s, other=0.0) if has_radii else jnp.zeros_like(ps[0])
-        skin_val = rv.scalar("skin") if has_radii else jnp.asarray(0.0, dtype=ps[0].dtype)
+        skin_val = (
+            rv.scalar("skin") if has_radii else jnp.asarray(0.0, dtype=ps[0].dtype)
+        )
         cut_val = rv.scalar("cut") if do_prune else jnp.asarray(0.0, dtype=ps[0].dtype)
         dom = load_domain_scalars(rv, dspec, need_vel_rates=False)
 
@@ -717,7 +765,11 @@ def try_pallas_build_pairs(
     pure_fallback: Callable[[], tuple[Any, ...]],
 ) -> tuple[Any, ...] | None:
     """Build CSR neighbor pairs via Pallas Triton Count+Fill when supported, else ``None``."""
-    if not is_pallas_enabled() or r < 1 or has_manual_axes(pos_s, cell_offsets, perm, domain):
+    if (
+        not is_pallas_enabled()
+        or r < 1
+        or has_manual_axes(pos_s, cell_offsets, perm, domain)
+    ):
         return None
     dim = int(pos_s.shape[-1])
     d_res = extract_domain_spec(domain, dim, need_vel_rates=False)
@@ -739,9 +791,13 @@ def try_pallas_build_pairs(
         pack.add("dims", dims_i)
         pack.add("strides", strides_i)
         pack.add("clump", clumps_s)
-        pack.add("bond", bonds_s.reshape(-1) if bond_w > 0 else jnp.zeros((1,), dtype=int))
+        pack.add(
+            "bond", bonds_s.reshape(-1) if bond_w > 0 else jnp.zeros((1,), dtype=int)
+        )
         pack.add("perm", perm)
-        pack.add("cutoff_sq", jnp.reshape(jnp.asarray(cutoff * cutoff, dtype=dtype), (1,)))
+        pack.add(
+            "cutoff_sq", jnp.reshape(jnp.asarray(cutoff * cutoff, dtype=dtype), (1,))
+        )
         pack.add("isame", jnp.reshape(jnp.asarray(interact_same, dtype=int), (1,)))
         if dspec.kind == "lees_edwards":
             pack.add("le", prepare_le_cell_shifts(dspec, dims_i, eff_cell_size, domain))
@@ -770,12 +826,32 @@ def try_pallas_build_pairs(
 
     gpu_count = batched_pallas(
         lambda kargs, batched, bsz: _run_pallas_build(
-            "count", dspec, count_layout, r, bond_w, has_radii, do_prune, count_tiles, kargs, batched, bsz
+            "count",
+            dspec,
+            count_layout,
+            r,
+            bond_w,
+            has_radii,
+            do_prune,
+            count_tiles,
+            kargs,
+            batched,
+            bsz,
         )
     )
     gpu_fill = batched_pallas(
         lambda kargs, batched, bsz: _run_pallas_build(
-            "fill", dspec, fill_layout, r, bond_w, has_radii, do_prune, False, kargs, batched, bsz
+            "fill",
+            dspec,
+            fill_layout,
+            r,
+            bond_w,
+            has_radii,
+            do_prune,
+            False,
+            kargs,
+            batched,
+            bsz,
         ),
         single_output=True,
     )
@@ -790,7 +866,9 @@ def try_pallas_build_pairs(
         counts = jnp.empty_like(cnt_s).at[pm].set(cnt_s, unique_indices=True)
         if count_tiles:
             assert tile_capacity is not None
-            tile_ov = (jnp.sum(cnt_out[1], dtype=all_in[coff_idx].dtype) > tile_capacity) | hov
+            tile_ov = (
+                jnp.sum(cnt_out[1], dtype=all_in[coff_idx].dtype) > tile_capacity
+            ) | hov
         else:
             tile_ov = hov
         if capacity is None:

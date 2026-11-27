@@ -102,11 +102,7 @@ def dot(a: jax.Array, b: jax.Array) -> jax.Array:
     if a.ndim > 0 and b.ndim > 0 and a.shape[-1] == b.shape[-1]:
         d = a.shape[-1]
         if d == 3:
-            return (
-                a[..., 0] * b[..., 0]
-                + a[..., 1] * b[..., 1]
-                + a[..., 2] * b[..., 2]
-            )
+            return a[..., 0] * b[..., 0] + a[..., 1] * b[..., 1] + a[..., 2] * b[..., 2]
         if d == 2:
             return a[..., 0] * b[..., 0] + a[..., 1] * b[..., 1]
     return jnp.vecdot(a, b)

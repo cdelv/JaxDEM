@@ -20,7 +20,6 @@ from jax.custom_batching import custom_vmap
 
 from ..utils import linalg
 
-
 if TYPE_CHECKING:  # pragma: no cover
     from ..state import State
     from ..system import System
@@ -277,6 +276,7 @@ def shared_bounded_loop(body: Callable[..., Any], *, first_step: bool = False) -
 
     return run
 
+
 # Bound query-axis vectorization during neighbor-list construction.
 # Zero-capacity queries retain vmap: batched lax.map cannot reshape zero-width
 # outputs, and those queries have no neighbor buffers to bound.
@@ -489,7 +489,9 @@ def _lees_edwards_compact_stencil(
     valid_neg = (cb - off_k[None, :] < 0) & need_hi_neg
     valid_pos = (cb + off_k[None, :] >= dims_b) & need_hi_pos
     valid_bk = valid_neg | valid_pos
-    wb_bk = jnp.where(valid_neg, cb - off_k[None, :] + dims_b, cb + off_k[None, :] - dims_b)
+    wb_bk = jnp.where(
+        valid_neg, cb - off_k[None, :] + dims_b, cb + off_k[None, :] - dims_b
+    )
     wb_bk = jnp.where(valid_bk, wb_bk, 0)
     lo_bk = jnp.where(valid_neg, lo_neg_m, lo_pos_m)
     wa_bk = _wrap_a(b_coords[:, a : a + 1] + (r + 1) + lo_bk)

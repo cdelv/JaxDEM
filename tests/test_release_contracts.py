@@ -73,3 +73,29 @@ def test_checkpoint_classes_remain_available_by_explicit_lazy_access():
     assert writers.CheckpointModelLoader is CheckpointModelLoader
     assert writers.CheckpointModelWriter is CheckpointModelWriter
     assert writers.CheckpointWriter is CheckpointWriter
+
+
+def test_package_exposes_version_and_py_typed():
+    from pathlib import Path
+
+    assert isinstance(jd.__version__, str) and jd.__version__
+    assert (Path(jd.__file__).resolve().parent / "py.typed").is_file()
+
+
+def test_importing_core_and_analysis_does_not_initialize_jax_backend():
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            """
+import jax._src.xla_bridge as xb
+import jaxdem
+import jaxdem.analysis
+
+assert not xb.backends_are_initialized(), "Importing jaxdem/jaxdem.analysis initialized JAX backend"
+""",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )

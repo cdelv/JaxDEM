@@ -1,6 +1,9 @@
 <div class="github-only">
+    <a href="https://pypi.org/project/JaxDEM/">
+      <img src="https://img.shields.io/pypi/v/JaxDEM?style=flat-square" alt="PyPI Version">
+    </a>
     <a href="https://cdelv.github.io/JaxDEM">
-      <img src="https://img.shields.io/badge/Documentation-blue?style=flat&logo=readthedocs&logoColor=white" alt="Documentation Sticker">
+      <img src="https://img.shields.io/badge/Documentation-blue?style=flat-square&logo=readthedocs&logoColor=white" alt="Documentation Sticker">
     </a>
     <!-- Convert the Markdown badge to HTML <img> and <a> tags -->
     <a href="https://github.com/cdelv/JaxDEM/actions/workflows/docs.yml">
@@ -26,9 +29,27 @@ The optional `JaxDEM[rl]` subsystem remains experimental during the DEM core's
 1.0 stabilization. See the [reinforcement-learning introduction](https://cdelv.github.io/JaxDEM/auto_examples/intro_to_rl.html)
 for the supported setup and workflow.
 
+# Installation
+
+JaxDEM requires Python 3.12+ and JAX 0.8.1+.
+
+```bash
+pip install JaxDEM                 # Core DEM solver (CPU backend)
+pip install "JaxDEM[io]"           # Add VTK, HDF5, and Orbax checkpointing
+pip install "JaxDEM[all]"          # Add all runtime extras (io + rl)
+```
+
+For GPU or TPU acceleration, install the matching JAX backend alongside JaxDEM (for example `jax[cuda13]`, `jax[cuda12]`, or `jax[tpu]`):
+
+```bash
+pip install "JaxDEM[io]" "jax[cuda13]"
+```
+
+See the [installation guide](https://cdelv.github.io/JaxDEM/auto_examples/installation_guide.html) for full details and local development setup.
+
 # Example
 
-A minimal simulation with I/O output might look like this:
+A minimal simulation with VTK output (requires `pip install "JaxDEM[io]"`; omit `VTKWriter` to run with the core install only) looks like this:
 
 ```python
 import jaxdem as jdem

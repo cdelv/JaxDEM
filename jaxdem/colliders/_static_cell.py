@@ -24,19 +24,16 @@ from ._partition import (
     _can_use_sorted_order,
     _capacity_offsets,
     _dedup_periodic_stencil,
-    _dedup_stencil_hashes,
     _effective_cell_size,
     _energy_pair_fn,
     _force_only_pair_fn,
     _force_pair_fn,
-    _get_spatial_partition,
     _get_spatial_partition_grid,
     _index_limit,
     _loose_cell_aabbs,
     _neighbor_hashes_from_coords,
     _permute_state,
     _saturated_prefix_sum,
-    _shared_all,
     _shared_max,
     _sorted_cell_run_ends,
     _vec_sum,
@@ -243,9 +240,7 @@ def _partition_tile_counts(
             radii = member_radii[perm, None]
             member_min, member_max = members - radii, members + radii
         centers, half_extents = _loose_cell_aabbs(member_min, member_max, hashes)
-        queries = (
-            (members if sort_queries else pos) if query_pos is None else query_pos
-        )
+        queries = (members if sort_queries else pos) if query_pos is None else query_pos
         dr = system.domain.displacement(
             queries[:, None, :], centers[safe_starts], system
         )

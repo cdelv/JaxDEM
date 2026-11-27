@@ -75,9 +75,15 @@ def _run_pallas_csr_forces(
     kernel_batched = list(batched)
     if write_hist:
         idx_hist = layout.index["hist"]
-        h_shape = (batch_size, cap * fspec.hist_width) if has_batch else (cap * fspec.hist_width,)
+        h_shape = (
+            (batch_size, cap * fspec.hist_width)
+            if has_batch
+            else (cap * fspec.hist_width,)
+        )
         if has_batch and not kernel_batched[idx_hist]:
-            kernel_args[idx_hist] = jnp.broadcast_to(kernel_args[idx_hist][None, :], h_shape)
+            kernel_args[idx_hist] = jnp.broadcast_to(
+                kernel_args[idx_hist][None, :], h_shape
+            )
             kernel_batched[idx_hist] = True
         in_out_aliases[idx_hist] = len(out_shapes)
         out_shapes.append(shape_dtype(h_shape, kernel_args[idx_hist].dtype))
@@ -114,7 +120,9 @@ def _run_pallas_csr_forces(
         vel_i = rv.load_vec("vel", i, dim, m_i) if rv.has("vel") else ()
         ang_i = rv.load_vec("ang", i, ang_dim, m_i) if rv.has("ang") else ()
         ppr_i = rv.load_vec("ppr", i, dim, m_i) if rv.has("ppr") else ()
-        mass_i = rv.load1("mass", i, m_i, other=1.0) if rv.has("mass") else jnp.ones_like(ri)
+        mass_i = (
+            rv.load1("mass", i, m_i, other=1.0) if rv.has("mass") else jnp.ones_like(ri)
+        )
         dt_val = rv.scalar("dt") if rv.has("dt") else jnp.asarray(0.0, dtype=dtype)
         dom = load_domain_scalars(rv, dspec, need_vel_rates=fspec.needs_vel)
 
@@ -125,7 +133,9 @@ def _run_pallas_csr_forces(
         def body(k: jax.Array, carry: tuple[jax.Array, ...]) -> tuple[jax.Array, ...]:
             slot = start + k
             in_row = m_i & (slot < end)
-            nbr_j = rv.load1("nbr", slot, in_row, other=-1, eviction_policy="evict_first")
+            nbr_j = rv.load1(
+                "nbr", slot, in_row, other=-1, eviction_policy="evict_first"
+            )
             has_nbr = in_row & (nbr_j >= 0)
             j = jnp.where(has_nbr, nbr_j, 0)
             cj = rv.load1("clump", j, has_nbr, other=-2)
@@ -146,9 +156,17 @@ def _run_pallas_csr_forces(
                 "shear_img": shear_img,
                 "valid": valid,
                 "mi": mi,
-                "mj": rv.load1("mat", j, valid, other=0) if rv.has("mat") else jnp.zeros_like(j),
+                "mj": (
+                    rv.load1("mat", j, valid, other=0)
+                    if rv.has("mat")
+                    else jnp.zeros_like(j)
+                ),
                 "si": si,
-                "sj": rv.load1("sp", j, valid, other=0) if rv.has("sp") else jnp.zeros_like(j),
+                "sj": (
+                    rv.load1("sp", j, valid, other=0)
+                    if rv.has("sp")
+                    else jnp.zeros_like(j)
+                ),
                 "vel_i": vel_i,
                 "ang_i": ang_i,
                 "ppr_i": ppr_i,
@@ -206,7 +224,10 @@ def can_use_pallas_csr_forces(
     )
     if f is None:
         return False
-    return extract_domain_spec(system.domain, state.dim, need_vel_rates=f[0].needs_vel) is not None
+    return (
+        extract_domain_spec(system.domain, state.dim, need_vel_rates=f[0].needs_vel)
+        is not None
+    )
 
 
 def pallas_csr_forces(
@@ -231,7 +252,9 @@ def pallas_csr_forces(
     if f_res is None:
         return pure_fallback()
     fspec, f_params = f_res
-    d_res = extract_domain_spec(system.domain, state.dim, need_vel_rates=fspec.needs_vel)
+    d_res = extract_domain_spec(
+        system.domain, state.dim, need_vel_rates=fspec.needs_vel
+    )
     if d_res is None:
         return pure_fallback()
     dspec, d_params = d_res
@@ -248,10 +271,14 @@ def pallas_csr_forces(
     pack.add("pos", pos.reshape(-1))
     pack.add("rad", state.rad)
     pack.add("clump", state.clump_id)
-    pack.add("bond", state.bond_id.reshape(-1) if bond_w > 0 else jnp.zeros((1,), dtype=int))
+    pack.add(
+        "bond", state.bond_id.reshape(-1) if bond_w > 0 else jnp.zeros((1,), dtype=int)
+    )
     pack.add("off", col.row_offsets)
     pack.add("nbr", col.neighbor_list)
-    pack.add("isame", jnp.reshape(jnp.asarray(system.interact_same_bond_id, dtype=int), (1,)))
+    pack.add(
+        "isame", jnp.reshape(jnp.asarray(system.interact_same_bond_id, dtype=int), (1,))
+    )
     if fspec.needs_mat_id:
         pack.add("mat", state.mat_id)
     if fspec.needs_species_id:
@@ -286,7 +313,11 @@ def pallas_csr_forces(
             torque = out[1].reshape(n, ang_dim)
         else:
             torque = jnp.zeros_like(st.torque)
-        hist = out[-1].reshape(sy.collider.history.shape) if write_hist else sy.collider.history
+        hist = (
+            out[-1].reshape(sy.collider.history.shape)
+            if write_hist
+            else sy.collider.history
+        )
         return force, torque, hist
 
     def cpu_wrapped(

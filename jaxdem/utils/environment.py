@@ -97,9 +97,7 @@ def advance_action(
     if terminated is None and truncated is None:
         # Fresh transition: done_before is statically False on frame 0.
         env = env.step(env, action)
-        final_terminated = (
-            initial_terminated if static_no_term else env.terminated(env)
-        )
+        final_terminated = initial_terminated if static_no_term else env.terminated(env)
         final_truncated = env.truncated(env)
         if skip_frames == 0:
             return env, final_terminated, final_truncated

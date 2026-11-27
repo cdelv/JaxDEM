@@ -155,26 +155,26 @@ class MinGRUActorCritic(Model):
 
     @property
     def carry_leading_shape(self) -> tuple[int, ...]:
-        return self.h.value.shape[:-2]
+        return self.h[...].shape[:-2]
 
     @partial(jax.named_call, name="MinGRUActorCritic.reset")
     def reset(self, shape: tuple[int, ...], mask: jax.Array | None = None) -> None:
         target_shape = (*shape[:-1], self.num_layers, self.gru_features)
 
-        if self.h.value.shape != target_shape:
-            self.h.value = jnp.zeros(target_shape, dtype=float)
+        if self.h[...].shape != target_shape:
+            self.h.set_value(jnp.zeros(target_shape, dtype=float))
             return
 
         if mask is None:
-            self.h.value = jnp.zeros_like(self.h.value)
+            self.h.set_value(jnp.zeros_like(self.h[...]))
             return
 
-        mask = mask.reshape(mask.shape + (1,) * (self.h.value.ndim - mask.ndim))
-        self.h.value = jnp.where(mask, 0.0, self.h.value)
+        mask = mask.reshape(mask.shape + (1,) * (self.h[...].ndim - mask.ndim))
+        self.h.set_value(jnp.where(mask, 0.0, self.h[...]))
 
     @property
     def carry(self) -> Any:
-        return self.h.value
+        return self.h[...]
 
     @partial(jax.named_call, name="MinGRUActorCritic.__call__")
     def __call__(
@@ -313,7 +313,7 @@ class MinGRUActorCritic(Model):
             h_out, _ = jax.lax.scan(
                 scan_layer_seq,
                 h if perturbed_x is None else (h, perturbed_features),
-                (self.mingru_kernel.value, carry_in_t),
+                (self.mingru_kernel[...], carry_in_t),
                 unroll=self.num_layers,
             )
             if perturbed_x is not None:
@@ -323,8 +323,8 @@ class MinGRUActorCritic(Model):
             batch = h.shape[:-1]
             target = (*batch, self.num_layers, self.gru_features)
 
-            if self.h.value.shape != target:
-                self.h.value = jnp.zeros(target, dtype=float)
+            if self.h[...].shape != target:
+                self.h.set_value(jnp.zeros(target, dtype=float))
 
             def scan_layer_step(
                 out_h: jax.Array, xs: tuple[jax.Array, jax.Array]
@@ -341,15 +341,15 @@ class MinGRUActorCritic(Model):
 
             # carry_in has shape [*batch, num_layers, gru_features]
             # we need to iterate over num_layers, so move num_layers to axis 0
-            carry_in_t = jnp.moveaxis(self.h.value, -2, 0)
+            carry_in_t = jnp.moveaxis(self.h[...], -2, 0)
 
             h_out, carry_out_t = jax.lax.scan(
                 scan_layer_step,
                 h,
-                (self.mingru_kernel.value, carry_in_t),
+                (self.mingru_kernel[...], carry_in_t),
                 unroll=self.num_layers,
             )
-            self.h.value = jnp.moveaxis(carry_out_t, 0, -2)
+            self.h.set_value(jnp.moveaxis(carry_out_t, 0, -2))
 
         fused = self.fused_head(h_out)
 

@@ -29,7 +29,6 @@ from ._partition import (
     _dedup_periodic_stencil,
     _dedup_stencil_hashes,
     _effective_cell_size,
-    _get_spatial_partition,
     _get_spatial_partition_grid,
     _lees_edwards_compact_stencil,
     _loose_cell_aabbs,
@@ -146,9 +145,9 @@ def _uses_flat_cache(col: Any, dim: int) -> bool:
 def _same_manual_axes(left: Any, right: Any) -> bool:
     """Keep independent force and torque axes when their reductions differ."""
     left_type, right_type = jax.typeof(left), jax.typeof(right)
-    return getattr(left_type, "manual_axis_type", getattr(left_type, "vma", None)) == getattr(
-        right_type, "manual_axis_type", getattr(right_type, "vma", None)
-    )
+    return getattr(
+        left_type, "manual_axis_type", getattr(left_type, "vma", None)
+    ) == getattr(right_type, "manual_axis_type", getattr(right_type, "vma", None))
 
 
 def _fixed_pool_reduce(
@@ -197,8 +196,10 @@ def _fixed_pool_reduce(
             and _same_manual_axes(values[0], values[1])
         ):
             force_width = totals[0].shape[-1]
-            joined = jnp.concatenate(totals, axis=-1).at[src].add(
-                jnp.concatenate(values, axis=-1), mode="drop"
+            joined = (
+                jnp.concatenate(totals, axis=-1)
+                .at[src]
+                .add(jnp.concatenate(values, axis=-1), mode="drop")
             )
             totals = (joined[..., :force_width], joined[..., force_width:])
         else:
@@ -337,14 +338,18 @@ def _search_pair_candidates(
 
 def _count_search_step(index: Any, counts: Any, operands: Any) -> Any:
     data, rows, begin, end = operands
-    _, valid = _search_pair_candidates(data, rows, begin + 4 * index, end, need_dst=False)
+    _, valid = _search_pair_candidates(
+        data, rows, begin + 4 * index, end, need_dst=False
+    )
     return counts + valid.sum(axis=-1)
 
 
 def _fill_search_step(index: Any, carry: Any, operands: Any) -> Any:
     data, rows, begin, end, slot_ends = operands
     slots, neighbors = carry
-    dst, valid = _search_pair_candidates(data, rows, begin + 4 * index, end, need_dst=True)
+    dst, valid = _search_pair_candidates(
+        data, rows, begin + 4 * index, end, need_dst=True
+    )
     ranks = jnp.cumsum(valid, axis=-1) - 1
     remaining = slot_ends - slots
     writes = slots[..., None] + jnp.minimum(ranks, remaining[..., None])
@@ -564,7 +569,9 @@ def _search_pairs_naive(
 
     def pair_mask(rows: Any) -> Any:
         safe_rows = jnp.minimum(rows, n - 1)
-        delta = system.domain.displacement(pos[safe_rows, None, :], pos[None, :, :], system)
+        delta = system.domain.displacement(
+            pos[safe_rows, None, :], pos[None, :, :], system
+        )
         dist_sq = norm2(delta)
         valid = (rows[:, None] < n) & (dist_sq <= cutoff_sq)
         if search_radii is not None:
@@ -669,8 +676,10 @@ def _dense_sorted_search_pairs(
     distinct_ok: Any
     if use_compact_shear:
         a = int(system.domain.alpha)
-        min_shear = jnp.full((dim,), 2 * shear_r + 1, dtype=grid_dims.dtype).at[a].set(
-            2 * shear_r + 2
+        min_shear = (
+            jnp.full((dim,), 2 * shear_r + 1, dtype=grid_dims.dtype)
+            .at[a]
+            .set(2 * shear_r + 2)
         )
         distinct_ok = jnp.all(grid_dims >= min_shear)
     else:
@@ -902,7 +911,9 @@ def _dense_sorted_search_pairs(
                         iota, pre_starts, pre_pref, pre_totals, slots
                     )
                     cnt_s = val_s.sum(axis=1, dtype=int)
-                    counts = jnp.empty_like(cnt_s).at[perm].set(cnt_s, unique_indices=True)
+                    counts = (
+                        jnp.empty_like(cnt_s).at[perm].set(cnt_s, unique_indices=True)
+                    )
                     if capacity is None:
                         return counts, tile_overflow
                     offsets, pair_overflow = _capacity_offsets(counts, capacity)
@@ -950,7 +961,9 @@ def _dense_sorted_search_pairs(
                 base_all = offsets[perm]
                 end_all = offsets[perm + 1]
 
-                def fill_chunk(nbr: Any, x: tuple[Any, Any, Any, Any]) -> tuple[Any, None]:
+                def fill_chunk(
+                    nbr: Any, x: tuple[Any, Any, Any, Any]
+                ) -> tuple[Any, None]:
                     bi, bc, b_base, b_end = x
                     st_c, _, pr_c, tot_c = stencil_prefix_batch(bi, bc)
                     dst_c, val_c = eval_candidates(bi, st_c, pr_c, tot_c, slots)
@@ -982,9 +995,9 @@ def _dense_sorted_search_pairs(
 
             widths = (0, 8, 16, 32, 48, 64, 96)
             branch_idx = sum((max_total > w).astype(int) for w in widths)
-            branches = tuple(partial(lambda w, _: build_width(w), w) for w in widths) + (
-                lambda _: fallback_fn(),
-            )
+            branches = tuple(
+                partial(lambda w, _: build_width(w), w) for w in widths
+            ) + (lambda _: fallback_fn(),)
             return jax.lax.switch(branch_idx, branches, None)
 
         if shear_r >= 1 and (not has_shear or use_compact_shear):
@@ -1101,9 +1114,9 @@ def _search_pairs_impl(
                 (
                     begin,
                     jnp.zeros_like(
-                        _search_pair_candidates(
-                            data, rows, begin, end, need_dst=False
-                        )[1].sum(axis=-1)
+                        _search_pair_candidates(data, rows, begin, end, need_dst=False)[
+                            1
+                        ].sum(axis=-1)
                     ),
                 ),
             )[1]
@@ -1305,9 +1318,9 @@ def _build_one_cache(
         search_radii=search_radii,
         skin=col.skin,
     )
-    initialized = system.force_model.init_history(
-        nl.shape, state.dim
-    ) + jnp.zeros_like(col.history)
+    initialized = system.force_model.init_history(nl.shape, state.dim) + jnp.zeros_like(
+        col.history
+    )
     if col.history.size:
         for source in (nl, offsets, col.neighbor_list, col.row_offsets):
             initialized = initialized + jnp.zeros_like(
@@ -1411,9 +1424,11 @@ def _rebuild_selected_vmap(
 
     def run_subbatch(k: int, _: Any) -> Any:
         ranks = jnp.cumsum(needs_build, dtype=int) - 1
-        dirty_idx = jnp.zeros((k,), dtype=int).at[
-            jnp.where(needs_build, ranks, k)
-        ].set(jnp.arange(axis_size), mode="drop")
+        dirty_idx = (
+            jnp.zeros((k,), dtype=int)
+            .at[jnp.where(needs_build, ranks, k)]
+            .set(jnp.arange(axis_size), mode="drop")
+        )
         gathered = jax.tree.map(
             lambda x, b: x[dirty_idx] if b else x, payload, payload_b
         )
@@ -1421,7 +1436,11 @@ def _rebuild_selected_vmap(
         w_idx = jnp.where(jnp.arange(k) < n_dirty, dirty_idx, axis_size)
 
         def scatter_leaf(old_v: Any, old_is_b: bool, new_v: Any) -> Any:
-            base = old_v if old_is_b else jnp.broadcast_to(old_v, (axis_size,) + old_v.shape)
+            base = (
+                old_v
+                if old_is_b
+                else jnp.broadcast_to(old_v, (axis_size,) + old_v.shape)
+            )
             return base.at[w_idx].set(new_v, mode="drop")
 
         return jax.tree.map(scatter_leaf, col, col_b, rebuilt_k)
@@ -1874,9 +1893,7 @@ def _eval_csr_large(state: Any, system: Any, quasistatic: bool) -> tuple[Any, An
     return force, torque
 
 
-def _bucketed_csr_forces(
-    state: Any, system: Any, quasistatic: bool
-) -> tuple[Any, Any]:
+def _bucketed_csr_forces(state: Any, system: Any, quasistatic: bool) -> tuple[Any, Any]:
     """Single-kernel degree-bucketed (or two-tier) CSR reduction for stateless caches."""
     col = system.collider
     n = state.N
@@ -1886,7 +1903,9 @@ def _bucketed_csr_forces(
     branches: tuple[Any, ...] = tuple(
         partial(lambda w, _: _eval_csr_width(state, system, quasistatic, w), b)
         for b in _CSR_DEGREE_BUCKETS
-    ) + (lambda _: _eval_csr_large(state, system, quasistatic),)
+    ) + (
+        lambda _: _eval_csr_large(state, system, quasistatic),
+    )
     if use_two_tier:
         cap_tail = max(n // 16, 64)
         branches = branches + tuple(
@@ -2012,17 +2031,16 @@ def rebuild_and_forces(
 
 
 @rebuild_and_forces.defjvp
-def _rebuild_and_forces_jvp(
-    quasistatic: bool, primals: Any, tangents: Any
-) -> Any:
+def _rebuild_and_forces_jvp(quasistatic: bool, primals: Any, tangents: Any) -> Any:
     def fixed_path(state: Any, system: Any) -> tuple[Any, Any, Any]:
         rebuilt = check_and_rebuild(state, system)
         f, t, _ = _flat_forces(state, rebuilt, False, quasistatic)
         return rebuilt, f, t
 
-    return rebuild_and_forces(*primals, quasistatic), jax.jvp(
-        fixed_path, primals, tangents
-    )[1]
+    return (
+        rebuild_and_forces(*primals, quasistatic),
+        jax.jvp(fixed_path, primals, tangents)[1],
+    )
 
 
 @jax.custom_jvp
@@ -2063,9 +2081,7 @@ def energy(state: Any, system: Any) -> Any:
                     ).astype(bool)
                 )
                 e = jax.vmap(
-                    lambda b, h: system.force_model.energy(
-                        i, b, pos, state, system, h
-                    )
+                    lambda b, h: system.force_model.energy(i, b, pos, state, system, h)
                 )(j, empty_hist)
                 return jnp.sum(jnp.where(valid, e, 0.0))
 
@@ -2088,7 +2104,10 @@ def energy(state: Any, system: Any) -> Any:
             rows, _ = _row_reduce(
                 col,
                 jnp.zeros_like(pos, shape=()),
-                lambda i, neighbors, slots: (jax.vmap(evaluate)(i, neighbors, slots), None),
+                lambda i, neighbors, slots: (
+                    jax.vmap(evaluate)(i, neighbors, slots),
+                    None,
+                ),
             )
             return 0.5 * rows.sum()
 
@@ -2160,7 +2179,9 @@ def forces(
             return force, torque, col.history
         pos = state.pos
         if _uses_fixed_cache(col, state.dim):
-            minimum = _HISTORY_PREFIX_SIZE if col.history.size else _FIXED_PAIR_BATCH_SIZE
+            minimum = (
+                _HISTORY_PREFIX_SIZE if col.history.size else _FIXED_PAIR_BATCH_SIZE
+            )
             if capacity <= minimum:
                 return _flat_forces(state, system, advance_history, quasistatic)
 

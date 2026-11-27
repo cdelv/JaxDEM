@@ -99,8 +99,12 @@ def load_domain_scalars(
     dom_refs, dom_batched = rv.group("dom")
     b = rv.b
     out: dict[str, Any] = {
-        "box": tuple(scalar_at(dom_refs[0], b, dom_batched[0], d) for d in range(spec.dim)),
-        "inv": tuple(scalar_at(dom_refs[1], b, dom_batched[1], d) for d in range(spec.dim)),
+        "box": tuple(
+            scalar_at(dom_refs[0], b, dom_batched[0], d) for d in range(spec.dim)
+        ),
+        "inv": tuple(
+            scalar_at(dom_refs[1], b, dom_batched[1], d) for d in range(spec.dim)
+        ),
     }
     if spec.kind == "periodic":
         if need_vel_rates:
