@@ -59,6 +59,10 @@ rl = [
     "tensorboard",
     "tensorboardX>=2.6",
 ]
+puffer = [
+    "JaxDEM[rl]",
+    "pufferlib>=4.0",
+]
 
 docs = [
     "JaxDEM[io,rl]",

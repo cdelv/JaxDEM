@@ -523,4 +523,56 @@ class Trainer(Factory, ABC):
 
 from .ppo_trainer import PPOTrainer
 
-__all__ = ["PPOTrainer", "Trainer", "TrajectoryData"]
+if TYPE_CHECKING:
+    from .protein_sweep import (
+        ParetoPoint,
+        ProteinOptimizer,
+        ProteinSweep,
+        SuggestionInfo,
+        SweepParam,
+        SweepResult,
+        SweepTrial,
+        default_sweep_params,
+        make_ppo_eval_fn,
+    )
+    from .puffer_trainer import PufferTrainer
+
+_LAZY_EXPORTS: dict[str, tuple[str, str]] = {
+    "PufferTrainer": (".puffer_trainer", "PufferTrainer"),
+    "ParetoPoint": (".protein_sweep", "ParetoPoint"),
+    "ProteinOptimizer": (".protein_sweep", "ProteinOptimizer"),
+    "ProteinSweep": (".protein_sweep", "ProteinSweep"),
+    "SuggestionInfo": (".protein_sweep", "SuggestionInfo"),
+    "SweepParam": (".protein_sweep", "SweepParam"),
+    "SweepResult": (".protein_sweep", "SweepResult"),
+    "SweepTrial": (".protein_sweep", "SweepTrial"),
+    "default_sweep_params": (".protein_sweep", "default_sweep_params"),
+    "make_ppo_eval_fn": (".protein_sweep", "make_ppo_eval_fn"),
+}
+
+
+def __getattr__(name: str) -> Any:
+    if name in _LAZY_EXPORTS:
+        import importlib
+
+        mod_name, attr_name = _LAZY_EXPORTS[name]
+        mod = importlib.import_module(mod_name, __name__)
+        return getattr(mod, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+__all__ = [
+    "PPOTrainer",
+    "ParetoPoint",
+    "ProteinOptimizer",
+    "ProteinSweep",
+    "PufferTrainer",
+    "SuggestionInfo",
+    "SweepParam",
+    "SweepResult",
+    "SweepTrial",
+    "Trainer",
+    "TrajectoryData",
+    "default_sweep_params",
+    "make_ppo_eval_fn",
+]

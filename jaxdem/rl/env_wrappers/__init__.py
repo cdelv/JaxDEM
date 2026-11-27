@@ -205,4 +205,6 @@ def unwrap(env: Environment) -> Environment:
     return base_cls(**field_vals)
 
 
-__all__ = ["clip_action_env", "is_wrapped", "unwrap", "vectorise_env"]
+from .puffer import PufferEnvWrapper
+
+__all__ = ["PufferEnvWrapper", "clip_action_env", "is_wrapped", "unwrap", "vectorise_env"]

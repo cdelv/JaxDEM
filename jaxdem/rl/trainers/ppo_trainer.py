@@ -11,6 +11,7 @@ from jax.typing import ArrayLike
 from typing import TYPE_CHECKING, Any, Self, cast
 
 import datetime
+import inspect
 import json
 import math
 import time
@@ -86,17 +87,29 @@ def _build_optimizer(
     """
     factory = optimizer
     configured_dims = None
+    bound_eps = False
     while isinstance(factory, partial):
         configured_dims = factory.keywords.get(
             "muon_weight_dimension_numbers", configured_dims
         )
+        if "eps" in factory.keywords:
+            bound_eps = True
         factory = factory.func
-    kwargs = {}
+    kwargs: dict[str, Any] = {}
     if factory is optax.contrib.muon and configured_dims is None:
         kwargs["muon_weight_dimension_numbers"] = _muon_dimensions
+    if not bound_eps:
+        try:
+            sig_params = inspect.signature(factory).parameters
+            if "eps" in sig_params or any(
+                p.kind == inspect.Parameter.VAR_KEYWORD for p in sig_params.values()
+            ):
+                kwargs["eps"] = 1e-12
+        except (TypeError, ValueError):
+            pass
     inner_tx = optax.chain(
         optax.clip_by_global_norm(float(max_grad_norm)),
-        optimizer(schedule, eps=1e-12, **kwargs),
+        optimizer(schedule, **kwargs),
     )
     if accumulate_n_gradients == 1:
         return inner_tx
@@ -1312,7 +1325,7 @@ class PPOTrainer(Trainer):
                 selected = mb_td.agent_mask & loss_mask
 
             model, optimizer = nnx.merge(tr.graphdef, graphstate)
-            model.eval()
+            model.train()
             (loss, aux), grads = nnx.value_and_grad(tr.loss_fn, has_aux=True)(
                 model,
                 mb_td,
@@ -1336,7 +1349,7 @@ class PPOTrainer(Trainer):
                     else jax.random.fold_in(caps_key, batch_index)
                 ),
             )
-            model.train()
+            model.eval()
 
             if always_has_samples:
                 has_samples = jnp.asarray(True)

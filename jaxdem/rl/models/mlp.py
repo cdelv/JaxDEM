@@ -89,19 +89,23 @@ class SharedActorCritic(Model):
         in_scale: float = math.sqrt(2),
         actor_scale: float = 1.0,
         critic_scale: float = 0.01,
+        sigma_scale: float | None = None,
         actor_sigma_head: bool = False,
         activation: Callable[..., Any] = nnx.gelu,
         action_space: ActionSpace | None = None,
         discrete: bool = False,
     ):
         if architecture is None:
-            architecture = [42, 42, 42]
+            architecture = (42, 42, 42)
         self.observation_space_size = int(observation_space_size)
         self.action_space_size = int(action_space_size)
-        self.architecture = [int(x) for x in architecture]
+        self.architecture = tuple(int(x) for x in architecture)
         self.in_scale = float(in_scale)
         self.actor_scale = float(actor_scale)
         self.critic_scale = float(critic_scale)
+        self.sigma_scale = (
+            float(critic_scale) if sigma_scale is None else float(sigma_scale)
+        )
         self.actor_sigma_head = actor_sigma_head
         self.activation = activation
         self.discrete = discrete
@@ -129,7 +133,7 @@ class SharedActorCritic(Model):
             action_space_size=out_dim,
             key=key,
             actor_scale=self.actor_scale,
-            sigma_scale=self.critic_scale,
+            sigma_scale=self.sigma_scale,
             actor_sigma_head=self.actor_sigma_head,
             action_space=action_space,
             discrete=discrete,
@@ -235,22 +239,26 @@ class ActorCritic(Model):
         in_scale: float = math.sqrt(2),
         actor_scale: float = 1.0,
         critic_scale: float = 0.01,
+        sigma_scale: float | None = None,
         actor_sigma_head: bool = False,
         activation: Callable[..., Any] = nnx.gelu,
         action_space: distrax.Bijector | ActionSpace | None = None,
         discrete: bool = False,
     ):
         if actor_architecture is None:
-            actor_architecture = [42, 42, 42]
+            actor_architecture = (42, 42, 42)
         if critic_architecture is None:
-            critic_architecture = [42, 42, 42]
+            critic_architecture = (42, 42, 42)
         self.observation_space_size = int(observation_space_size)
         self.action_space_size = int(action_space_size)
-        self.actor_architecture = [int(x) for x in actor_architecture]
-        self.critic_architecture = [int(x) for x in critic_architecture]
+        self.actor_architecture = tuple(int(x) for x in actor_architecture)
+        self.critic_architecture = tuple(int(x) for x in critic_architecture)
         self.in_scale = float(in_scale)
         self.actor_scale = float(actor_scale)
         self.critic_scale = float(critic_scale)
+        self.sigma_scale = (
+            float(critic_scale) if sigma_scale is None else float(sigma_scale)
+        )
         self.actor_sigma_head = actor_sigma_head
         self.activation = activation
         self.discrete = discrete
@@ -261,7 +269,7 @@ class ActorCritic(Model):
         # Build actor torso
         actor_layers: list[Any] = []
         actor_in = input_dim
-        for output_dim in actor_architecture:
+        for output_dim in self.actor_architecture:
             actor_layers.append(
                 nnx.Linear(
                     in_features=actor_in,
@@ -278,7 +286,7 @@ class ActorCritic(Model):
         # Build critic
         critic_layers: list[Any] = []
         critic_in = input_dim
-        for output_dim in critic_architecture:
+        for output_dim in self.critic_architecture:
             critic_layers.append(
                 nnx.Linear(
                     in_features=critic_in,
@@ -299,7 +307,7 @@ class ActorCritic(Model):
             action_space_size=out_dim,
             key=key,
             actor_scale=self.actor_scale,
-            sigma_scale=self.critic_scale,
+            sigma_scale=self.sigma_scale,
             actor_sigma_head=self.actor_sigma_head,
             action_space=action_space,
             discrete=discrete,

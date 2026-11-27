@@ -81,6 +81,8 @@ class MinGRUActorCritic(Model):
         self.hidden_features = int(hidden_features)
         self.gru_features = int(gru_features)
         self.num_layers = int(num_layers)
+        if self.num_layers < 1:
+            raise ValueError(f"num_layers must be >= 1, got {self.num_layers}")
         self.activation = activation
         self.actor_sigma_head = actor_sigma_head
         self.discrete = discrete
@@ -114,7 +116,7 @@ class MinGRUActorCritic(Model):
                 lambda r: nnx.initializers.orthogonal(1.0)(
                     r,
                     shape=(self.gru_features, 3 * self.gru_features),
-                    dtype=jnp.float32,
+                    dtype=jnp.result_type(float),
                 )
             )(k)
 
@@ -372,3 +374,6 @@ class MinGRUActorCritic(Model):
                 fused[..., :-1], self.actor_sigma(h_out)
             )
             return Transformed(pi, self.bij), fused[..., -1:], perturbed_output
+
+
+__all__ = ["MinGRUActorCritic"]
