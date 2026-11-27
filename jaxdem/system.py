@@ -108,9 +108,27 @@ def _steps_fori_loop(
 def _steps_fori_loop_unrolled(
     state: State, system: System, n: int
 ) -> tuple[State, System]:
-    return jax.lax.fori_loop(
-        0, n, lambda i, carry: _step_once(*carry), (state, system), unroll=2
-    )
+    k = getattr(system.collider, "check_every", 1)
+    if k <= 1:
+        return jax.lax.fori_loop(
+            0, n, lambda i, carry: _step_once(*carry), (state, system), unroll=2
+        )
+
+    def defer(system: System, flag: bool) -> System:
+        collider = dataclasses.replace(system.collider, defer_check=flag)
+        return dataclasses.replace(system, collider=collider)
+
+    def block(carry: tuple[State, System], m: int) -> tuple[State, System]:
+        # One checked step (host-synced rebuild decision), then m - 1 steps
+        # with a static trip count and no host sync.
+        state, system = _step_once(*carry)
+        state, system = jax.lax.fori_loop(
+            0, m - 1, lambda i, c: _step_once(*c), (state, defer(system, True)), unroll=2
+        )
+        return state, defer(system, False)
+
+    carry = jax.lax.fori_loop(0, n // k, lambda i, c: block(c, k), (state, system))
+    return block(carry, n % k) if n % k else carry
 
 
 @jax.jit(static_argnames=("n", "stride", "save_fn", "unroll"))

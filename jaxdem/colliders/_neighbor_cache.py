@@ -1412,7 +1412,9 @@ def _rebuild_selected_vmap(
             one, in_axes=(0 if needs_b else None, *axes), axis_size=axis_size
         )(needs_build, *payload)
 
-    if not needs_b or axis_size < 8:
+    # Rebuild only the dirty replicas even for small batches: selecting whole
+    # pools after rebuilding every replica cost 27% of B=6 step time.
+    if not needs_b or axis_size < 2:
         out = run_all(None)
         return out, jax.tree.map(lambda _: True, out)
 
@@ -1478,9 +1480,10 @@ def _check_and_rebuild_body(
             jnp.max(state.facet_ids_extra, initial=-1),
         )
 
-    max_disp2 = jnp.max(norm2(pos - col.old_pos), initial=0.0)
+    # Charge the motion until the next check against the skin.
+    displacement = 2.0 * _motion_bound(state, system, pos)
     rebuild = (
-        (4.0 * max_disp2 > col.skin * col.skin)
+        (displacement > col.skin)
         | (col.n_build_times == 0)
         | col.invalidated
         | jnp.any(metric[dim + 1 :] != col.metric_snapshot[dim + 1 :])
@@ -1500,7 +1503,6 @@ def _check_and_rebuild_body(
         )
 
     def maybe_rebuild(cur_col: Any) -> Any:
-        displacement = 2.0 * jnp.sqrt(max_disp2)
         drift = system.domain.search_geometry_drift(
             cur_col.metric_snapshot, cur_col.old_pos
         )
@@ -1578,7 +1580,39 @@ def check_and_rebuild(state: Any, system: Any, *, pos: Any | None = None) -> Any
     rebuilds, even when an existing larger primitive keeps the global reach
     unchanged. Manual rewiring of existing IDs requires explicit invalidation.
     """
-    return _check_and_rebuild_impl(state, system, state.pos if pos is None else pos)
+    pos = state.pos if pos is None else pos
+    if system.collider.defer_check:
+        return _flag_skin_violation(state, system, pos)
+    return _check_and_rebuild_impl(state, system, pos)
+
+
+def _motion_bound(state: Any, system: Any, pos: Any) -> Any:
+    """Largest per-sphere travel since the last build, plus travel until the next check.
+
+    With ``check_every = k > 1`` each sphere adds ``t |v| + t^2 |a| / 2`` with
+    ``t = k * dt``. Forces can still grow inside the window, so unchecked steps
+    also run :func:`_flag_skin_violation`.
+    """
+    col = system.collider
+    travel = jnp.sqrt(norm2(pos - col.old_pos))
+    if col.check_every > 1:
+        speed = jnp.sqrt(norm2(state.vel))
+        if not state.only_spheres:
+            speed = speed + jnp.sqrt(norm2(state.ang_vel) * norm2(state._pos_p_rot))
+        accel = jnp.where(state.fixed, 0.0, jnp.sqrt(norm2(state.force)) / state.mass)
+        t = col.check_every * system.dt
+        travel = travel + jax.lax.stop_gradient(t * speed + 0.5 * t * t * accel)
+    return jnp.max(travel, initial=0.0)
+
+
+def _flag_skin_violation(state: Any, system: Any, pos: Any) -> Any:
+    """Unchecked step: keep the cache and raise ``overflow`` if the skin is spent."""
+    # ponytail: detects but does not repair; raise skin or lower check_every on overflow.
+    col = system.collider
+    displacement = 2.0 * jnp.sqrt(jnp.max(norm2(pos - col.old_pos), initial=0.0))
+    drift = system.domain.search_geometry_drift(col.metric_snapshot, col.old_pos)
+    exceeded = displacement + drift > col.skin
+    return replace(system, collider=replace(col, overflow=col.overflow | exceeded))
 
 
 @jax.jit
@@ -1947,6 +1981,8 @@ def rebuild_and_forces(
         )
         return sys_new, force, torque
 
+    if system.collider.defer_check:
+        system = check_and_rebuild(state, system)
     col, pos = system.collider, state.pos
     dim = state.dim
     n = state.N
@@ -1966,9 +2002,9 @@ def rebuild_and_forces(
             jnp.max(state.facet_id, initial=-1),
             jnp.max(state.facet_ids_extra, initial=-1),
         )
-    max_disp2 = jnp.max(norm2(pos - col.old_pos), initial=0.0)
+    displacement = 2.0 * _motion_bound(state, system, pos)
     rebuild = (
-        (4.0 * max_disp2 > col.skin * col.skin)
+        (displacement > col.skin)
         | (col.n_build_times == 0)
         | col.invalidated
         | jnp.any(metric[dim + 1 :] != col.metric_snapshot[dim + 1 :])
@@ -1978,6 +2014,8 @@ def rebuild_and_forces(
     )
     geometry_changed = jnp.any(metric != col.metric_snapshot)
     needs_check = _shared_any(rebuild | geometry_changed)
+    if col.defer_check:
+        needs_check = jnp.zeros_like(needs_check)
 
     deg = col.row_offsets[1:] - col.row_offsets[:-1]
     max_deg = _shared_max(jnp.max(deg, initial=0))

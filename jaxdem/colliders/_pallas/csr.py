@@ -32,7 +32,6 @@ from .refs import (
     batched_pallas,
     store1,
     store_vec,
-    triton_bond_ok,
     triton_cross,
     triton_dot,
 )
@@ -41,7 +40,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from ...state import State
     from ...system import System
 
-_CSR_BLOCK = 128
 _REMAP_BLOCK = 128
 
 
@@ -49,7 +47,6 @@ def _run_pallas_csr_forces(
     fspec: ForceSpec,
     dspec: DomainSpec,
     layout: PackLayout,
-    bond_w: int,
     args: tuple[Any, ...],
     batched: tuple[bool, ...],
     batch_size: int,
@@ -88,10 +85,10 @@ def _run_pallas_csr_forces(
         in_out_aliases[idx_hist] = len(out_shapes)
         out_shapes.append(shape_dtype(h_shape, kernel_args[idx_hist].dtype))
 
-    # Warp-sized block (32) for stateful history laws maximizes non-contact skip
-    # rate and keeps register pressure low; 128 for stateless laws.
-    BLOCK = 32 if fspec.has_history else _CSR_BLOCK
-    num_warps = 2 if fspec.has_history else 4
+    # Warp-sized blocks: each program loops to its rows' largest degree, so
+    # small blocks waste fewer masked iterations (3D stateless: 38 -> 30 us).
+    BLOCK = 32
+    num_warps = 2 if fspec.has_history else 1
 
     def kernel(*refs: Any) -> None:
         n_in = len(kernel_args)
@@ -106,11 +103,9 @@ def _run_pallas_csr_forces(
 
         i = pid * BLOCK + jnp.arange(BLOCK)
         m_i = i < N
-        isame = rv.scalar("isame") != 0
 
         pi = rv.load_vec("pos", i, dim, m_i)
         ri = rv.load1("rad", i, m_i, other=0.0)
-        ci = rv.load1("clump", i, m_i, other=-1)
         start = rv.load1("off", i, m_i, other=0)
         end = rv.load1("off", i + 1, m_i, other=0)
         max_deg = jnp.max(jnp.where(m_i, end - start, 0))
@@ -138,12 +133,15 @@ def _run_pallas_csr_forces(
             )
             has_nbr = in_row & (nbr_j >= 0)
             j = jnp.where(has_nbr, nbr_j, 0)
-            cj = rv.load1("clump", j, has_nbr, other=-2)
-            valid = has_nbr & (ci != cj)
-            if bond_w > 0:
-                valid = valid & triton_bond_ok(bond_w, rv, i, j, valid, isame)
-            pj = rv.load_vec("pos", j, dim, valid)
-            rj = rv.load1("rad", j, valid, other=0.0)
+            # The build already dropped same-clump and bond-excluded pairs, and
+            # ID rewiring requires invalidation, so no per-pair re-check here.
+            valid = has_nbr
+            if rv.has("pr"):
+                prj = rv.load_vec("pr", j, 4, valid)
+                pj, rj = prj[:dim], prj[3]
+            else:
+                pj = rv.load_vec("pos", j, dim, valid)
+                rj = rv.load1("rad", j, valid, other=0.0)
             dr, img, shear_img = triton_displacement(dspec, pi, pj, dom)
             ctx = {
                 "j": j,
@@ -261,7 +259,6 @@ def pallas_csr_forces(
 
     col: Any = system.collider
     dim, ang_dim = fspec.dim, fspec.ang_dim
-    bond_w = int(state.bond_id.shape[-1])
     if pos is None:
         pos = state.pos
     n = state.N
@@ -270,15 +267,14 @@ def pallas_csr_forces(
     pack = ArgPack()
     pack.add("pos", pos.reshape(-1))
     pack.add("rad", state.rad)
-    pack.add("clump", state.clump_id)
-    pack.add(
-        "bond", state.bond_id.reshape(-1) if bond_w > 0 else jnp.zeros((1,), dtype=int)
-    )
+    if dim == 3:
+        # One 16-byte (x, y, z, r) record per neighbor gather: one L2 sector
+        # instead of ~2.3. In 2D the extra pack pass costs what it saves.
+        lane = jnp.arange(4)
+        padded = jnp.pad(pos, ((0, 0), (0, 4 - dim)))
+        pack.add("pr", jnp.where(lane == 3, state.rad[:, None], padded).reshape(-1))
     pack.add("off", col.row_offsets)
     pack.add("nbr", col.neighbor_list)
-    pack.add(
-        "isame", jnp.reshape(jnp.asarray(system.interact_same_bond_id, dtype=int), (1,))
-    )
     if fspec.needs_mat_id:
         pack.add("mat", state.mat_id)
     if fspec.needs_species_id:
@@ -300,7 +296,7 @@ def pallas_csr_forces(
 
     gpu_eval = batched_pallas(
         lambda kargs, batched, bsz: _run_pallas_csr_forces(
-            fspec, dspec, layout, bond_w, kargs, batched, bsz
+            fspec, dspec, layout, kargs, batched, bsz
         )
     )
 

@@ -38,8 +38,11 @@ from .refs import (
 if TYPE_CHECKING:  # pragma: no cover
     from ...system import System
 
-_CELL_BLOCK = 128
-_BUILD_BLOCK = 128
+# One warp per program: each program loops to its rows' largest cell
+# occupancy, so warp-sized blocks waste fewer masked iterations
+# (3D rebuild 241 -> 162 us, 3D cell_list forces -15%).
+_CELL_BLOCK = 32
+_BUILD_BLOCK = 32
 
 
 # ---------------------------------------------------------------------------
@@ -462,7 +465,7 @@ def _run_pallas_cell_forces(
         kernel,
         out_shape=out_spec,
         grid=grid,
-        compiler_params=triton_compiler_params(num_warps=4, num_stages=2),
+        compiler_params=triton_compiler_params(num_warps=1, num_stages=2),
     )(*args)
     return raw if isinstance(raw, tuple) else (raw,)
 
@@ -732,7 +735,7 @@ def _run_pallas_build(
         out_shape=out_spec,
         grid=grid,
         input_output_aliases=in_out_aliases,
-        compiler_params=triton_compiler_params(num_warps=4, num_stages=2),
+        compiler_params=triton_compiler_params(num_warps=1, num_stages=2),
     )(*k_args)
     if is_fill:
         return raw

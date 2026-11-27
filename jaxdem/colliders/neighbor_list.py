@@ -237,6 +237,7 @@ class NeighborList(Collider):
             max_neighbors=self.max_neighbors,
             secondary_collider_type=secondary.type_name,
             secondary_collider_kw=secondary_kw,
+            check_every=self.check_every,
         )
         return cast(
             Collider,
@@ -314,6 +315,15 @@ class NeighborList(Collider):
     invalidated: jax.Array = field(default_factory=lambda: jnp.asarray(True))
     """Explicit cache invalidation flag for topology or geometry edits."""
 
+    check_every: int = jax.tree.static(default=1, kw_only=True)
+    """Steps between rebuild checks inside :meth:`System.step`. Each check
+    costs one GPU-to-host sync. With ``check_every > 1`` a check also charges
+    the predicted motion of the next ``check_every`` steps against the skin.
+    Unchecked steps raise ``overflow`` if the skin is exceeded."""
+
+    defer_check: bool = jax.tree.static(default=False, kw_only=True)
+    """Internal: True while :meth:`System.step` runs an unchecked step."""
+
     @classmethod
     def Create(
         cls,
@@ -326,6 +336,7 @@ class NeighborList(Collider):
         safety_factor: float = 1.2,
         secondary_collider_type: str | None = None,
         secondary_collider_kw: dict[str, Any] | None = None,
+        check_every: int = 1,
     ) -> Self:
         r"""Create a NeighborList collider.
 
@@ -370,6 +381,10 @@ class NeighborList(Collider):
             For CellList or MultiCellList, set ``static=True`` to estimate
             a fixed tile budget, or supply an explicit ``tile_capacity``.
             Both options use fixed traversal for construction and cached forces.
+        check_every : int, default 1
+            Steps between rebuild checks in :meth:`System.step`. Each check
+            costs one GPU-to-host sync. See the ``check_every`` field.
+
         Returns
         -------
         NeighborList
@@ -409,6 +424,8 @@ class NeighborList(Collider):
             or max_neighbors < 0
         ):
             raise ValueError("max_neighbors must be a non-negative Python integer")
+        if isinstance(check_every, bool) or not isinstance(check_every, int) or check_every < 1:
+            raise ValueError("check_every must be a positive Python integer")
         if number_density < 0 or not math.isfinite(number_density):
             raise ValueError("number_density must be finite and non-negative")
         if safety_factor <= 0 or not math.isfinite(safety_factor):
@@ -489,6 +506,7 @@ class NeighborList(Collider):
             skin_snapshot=jnp.asarray(-1.0, dtype=state.pos.dtype),
             facet_id_snapshot=jnp.asarray(-2, dtype=state.facet_id.dtype),
             invalidated=jnp.asarray(True),
+            check_every=check_every,
         )
 
     @staticmethod
