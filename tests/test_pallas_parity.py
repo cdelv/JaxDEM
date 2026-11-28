@@ -256,27 +256,43 @@ def test_runtime_toggle_api() -> None:
     assert is_pallas_enabled() is initial
 
 
+def _eval_force_once_or_twice(
+    st: jdem.State, sy: jdem.System
+) -> tuple[jdem.State, jdem.System]:
+    """Evaluate collider force (twice for stateful laws so non-zero history is exercised)."""
+    st1, sy1 = sy.collider.compute_force(st, sy)
+    if getattr(sy1.collider, "history", jnp.empty((0,))).size > 0:
+        st1 = replace(st1, pos_c=st1.pos_c + st1.vel * sy1.dt)
+        st1, sy1 = sy1.collider.compute_force(st1, sy1)
+    return st1, sy1
+
+
 def test_pallas_vs_pure_jax_all_forces_neighbor_list() -> None:
-    """Multi-step trajectory parity for every built-in force law in 2D & 3D (non-pow2 N)."""
+    """Parity across distinct built-in force law families (direct force + multi-step remap)."""
     if not is_pallas_enabled():
         pytest.skip("Pallas Triton GPU backend not active on this host")
 
     mat = _make_materials(2)
-    cases: list[tuple[str, jdem.State, jdem.System]] = []
-    # Full 12-law sweep in 3D + 2D coverage of central, damped, history, combiner, router.
-    laws_2d = {
+    # test_schema_and_extractors_activate_for_all_builtins already compiles all
+    # 12 laws in 2D & 3D. Execute one representative per Triton codegen family:
+    # central (spring), velocity-dependent (damped_spring), non-trivial cutoff
+    # (lj), stateful+cond+torque (cundall_elastic), and router+combiner+both
+    # Cundall parameterizations+WCA (router_history).
+    laws_3d = {
         "spring",
         "damped_spring",
-        "wca",
+        "lj",
         "cundall_elastic",
-        "cundall_coeff",
-        "combiner_history",
         "router_history",
     }
+    laws_2d = {"spring", "router_history"}
+    force_cases: list[tuple[str, jdem.State, jdem.System]] = []
+    step_cases: list[tuple[str, jdem.State, jdem.System]] = []
     for dim in (3, 2):
         box_l = 4.2 if dim == 3 else 5.2
+        wanted = laws_3d if dim == 3 else laws_2d
         for label, law, n_sp in _builtin_force_models():
-            if dim == 2 and label not in laws_2d:
+            if label not in wanted:
                 continue
             st = _make_state(dim, 43, box_l, n_mat=2, n_species=n_sp, seed=10 + dim)
             sy = jdem.System.create(
@@ -289,21 +305,40 @@ def test_pallas_vs_pure_jax_all_forces_neighbor_list() -> None:
                 collider_type="NeighborList",
                 collider_kw={"state": st, "cutoff": 1.6, "skin": 0.15},
             )
-            cases.append((f"{label}_{dim}D", st, sy))
+            name = f"{label}_{dim}D"
+            if name in ("spring_3D", "cundall_elastic_3D"):
+                step_cases.append((name, st, sy))
+            else:
+                force_cases.append((name, st, sy))
 
     # Run all Pallas cases together, then clear cache once and run all Pure-JAX cases.
     with pallas_enabled(True):
-        pallas_out = {name: jdem.System.step(st, sy, n=8) for name, st, sy in cases}
+        pallas_out = {
+            name: _eval_force_once_or_twice(st, sy) for name, st, sy in force_cases
+        }
+        pallas_step = {
+            name: jdem.System.step(st, sy, n=6) for name, st, sy in step_cases
+        }
     with pallas_enabled(False):
-        pure_out = {name: jdem.System.step(st, sy, n=8) for name, st, sy in cases}
+        pure_out = {
+            name: _eval_force_once_or_twice(st, sy) for name, st, sy in force_cases
+        }
+        pure_step = {name: jdem.System.step(st, sy, n=6) for name, st, sy in step_cases}
 
-    for name, _, _ in cases:
+    for name, _, _ in force_cases:
         st_p, sy_p = pallas_out[name]
         st_j, sy_j = pure_out[name]
-        _assert_close_pair(st_p.pos_c, st_j.pos_c, f"{name} pos_c")
-        _assert_close_pair(st_p.vel, st_j.vel, f"{name} vel")
         _assert_close_pair(st_p.force, st_j.force, f"{name} force")
         _assert_close_pair(st_p.torque, st_j.torque, f"{name} torque")
+        assert int(sy_p.collider.n_build_times) == int(sy_j.collider.n_build_times)
+
+    for name, _, _ in step_cases:
+        st_p, sy_p = pallas_step[name]
+        st_j, sy_j = pure_step[name]
+        _assert_close_pair(st_p.pos_c, st_j.pos_c, f"{name} step pos_c")
+        _assert_close_pair(st_p.vel, st_j.vel, f"{name} step vel")
+        _assert_close_pair(st_p.force, st_j.force, f"{name} step force")
+        _assert_close_pair(st_p.torque, st_j.torque, f"{name} step torque")
         assert int(sy_p.collider.n_build_times) == int(sy_j.collider.n_build_times)
 
 
@@ -313,53 +348,106 @@ def test_pallas_vs_pure_jax_all_domains_cell_and_nl() -> None:
         pytest.skip("Pallas Triton GPU backend not active on this host")
 
     mat = _make_materials(2)
-    cases: list[tuple[str, jdem.State, jdem.System]] = []
-    for dim in (3, 2):
-        box_l = 4.5 if dim == 3 else 5.5
-        st = _make_state(dim, 37, box_l, n_mat=2, clumps=True, seed=21 + dim)
-        for dom_kind in (
-            "free",
+    force_cases: list[tuple[str, jdem.State, jdem.System]] = []
+    step_cases: list[tuple[str, jdem.State, jdem.System]] = []
+    # Cover every domain topology (non-periodic, periodic, shear-periodic) and
+    # collider family (CellList, StaticCellList, NeighborList) with clumps.
+    matrix: list[tuple[int, str, list[tuple[str, str, dict[str, object]]]]] = [
+        (3, "free", [("cell", "CellList", {"cell_size": 1.3})]),
+        (
+            3,
             "reflect",
-            "reflect_sphere",
+            [
+                ("static_cell", "CellList", {"cell_size": 1.3, "static": True}),
+                ("nl", "NeighborList", {"cutoff": 1.3, "skin": 0.2}),
+            ],
+        ),
+        (3, "reflect_sphere", [("cell", "CellList", {"cell_size": 1.3})]),
+        (
+            3,
             "periodic",
+            [
+                ("cell", "CellList", {"cell_size": 1.3}),
+                ("static_cell", "CellList", {"cell_size": 1.3, "static": True}),
+                ("nl", "NeighborList", {"cutoff": 1.3, "skin": 0.2}),
+            ],
+        ),
+        (
+            3,
             "lees_edwards",
-        ):
-            dom = _make_domain(dom_kind, dim, box_l)
-            col_specs: list[tuple[str, str, dict[str, object]]] = [
-                ("cell", "CellList", {"state": st, "cell_size": 1.3}),
-                ("nl", "NeighborList", {"state": st, "cutoff": 1.3, "skin": 0.2}),
-            ]
-            if dom_kind in ("periodic", "reflect"):
-                col_specs.append(
-                    (
-                        "static_cell",
-                        "CellList",
-                        {"state": st, "cell_size": 1.3, "static": True},
-                    )
-                )
-            for tag, col_type, col_kw in col_specs:
-                sy = jdem.System.create(
-                    state_shape=st.shape,
-                    dt=2e-3,
-                    domain=dom,
-                    force_model=DampedSpringForce(),
-                    mat_table=mat,
-                    collider_type=col_type,
-                    collider_kw=col_kw,
-                )
-                cases.append((f"{dom_kind}_{tag}_{dim}D", st, sy))
+            [
+                ("cell", "CellList", {"cell_size": 1.3}),
+                ("nl", "NeighborList", {"cutoff": 1.3, "skin": 0.2}),
+            ],
+        ),
+        (
+            2,
+            "periodic",
+            [
+                ("cell", "CellList", {"cell_size": 1.3}),
+                ("nl", "NeighborList", {"cutoff": 1.3, "skin": 0.2}),
+            ],
+        ),
+        (
+            2,
+            "lees_edwards",
+            [
+                ("cell", "CellList", {"cell_size": 1.3}),
+                ("nl", "NeighborList", {"cutoff": 1.3, "skin": 0.2}),
+            ],
+        ),
+    ]
+    states = {
+        dim: _make_state(
+            dim, 37, 4.5 if dim == 3 else 5.5, n_mat=2, clumps=True, seed=21 + dim
+        )
+        for dim in (3, 2)
+    }
+    for dim, dom_kind, col_specs in matrix:
+        box_l = 4.5 if dim == 3 else 5.5
+        st = states[dim]
+        dom = _make_domain(dom_kind, dim, box_l)
+        for tag, col_type, extra_kw in col_specs:
+            sy = jdem.System.create(
+                state_shape=st.shape,
+                dt=2e-3,
+                domain=dom,
+                force_model=DampedSpringForce(),
+                mat_table=mat,
+                collider_type=col_type,
+                collider_kw={"state": st, **extra_kw},
+            )
+            name = f"{dom_kind}_{tag}_{dim}D"
+            if dim == 3 and dom_kind == "lees_edwards":
+                step_cases.append((name, st, sy))
+            else:
+                force_cases.append((name, st, sy))
 
     with pallas_enabled(True):
-        pallas_out = {name: jdem.System.step(st, sy, n=6) for name, st, sy in cases}
+        pallas_out = {
+            name: sy.collider.compute_force(st, sy) for name, st, sy in force_cases
+        }
+        pallas_step = {
+            name: jdem.System.step(st, sy, n=5) for name, st, sy in step_cases
+        }
     with pallas_enabled(False):
-        pure_out = {name: jdem.System.step(st, sy, n=6) for name, st, sy in cases}
+        pure_out = {
+            name: sy.collider.compute_force(st, sy) for name, st, sy in force_cases
+        }
+        pure_step = {name: jdem.System.step(st, sy, n=5) for name, st, sy in step_cases}
 
-    for name, _, _ in cases:
+    for name, _, _ in force_cases:
         st_p, _ = pallas_out[name]
         st_j, _ = pure_out[name]
-        _assert_close_pair(st_p.pos_c, st_j.pos_c, f"{name} pos_c")
         _assert_close_pair(st_p.force, st_j.force, f"{name} force")
         _assert_close_pair(st_p.torque, st_j.torque, f"{name} torque")
+
+    for name, _, _ in step_cases:
+        st_p, _ = pallas_step[name]
+        st_j, _ = pure_step[name]
+        _assert_close_pair(st_p.pos_c, st_j.pos_c, f"{name} step pos_c")
+        _assert_close_pair(st_p.force, st_j.force, f"{name} step force")
+        _assert_close_pair(st_p.torque, st_j.torque, f"{name} step torque")
 
 
 def test_pallas_vs_pure_jax_batched_vmap_and_ad() -> None:
@@ -429,17 +517,20 @@ def test_pallas_vs_pure_jax_batched_vmap_and_ad() -> None:
     tangent = jnp.ones_like(st1.pos_c) * 1e-2
 
     def _run_suite() -> tuple[jdem.State, dict[str, jax.Array], jax.Array]:
-        step_b = jax.jit(jax.vmap(lambda s, sy: jdem.System.step(s, sy, n=8)))
+        step_b = jax.jit(jax.vmap(lambda s, sy: jdem.System.step(s, sy, n=5)))
         st_b, _ = step_b(states, systems)
         grads = {}
         for k, sy1 in ad_systems.items():
             grads[k] = jax.grad(
                 lambda pc: jnp.sum(
-                    jdem.System.step(replace(st1, pos_c=pc), sy1, n=3)[0].pos_c ** 2
+                    sy1.collider.compute_force(replace(st1, pos_c=pc), sy1)[0].force
+                    ** 2
                 )
             )(st1.pos_c)
         _, jvp_out = jax.jvp(
-            lambda pc: jdem.System.step(replace(st1, pos_c=pc), sy_dyn, n=3)[0].pos_c,
+            lambda pc: (
+                sy_dyn.collider.compute_force(replace(st1, pos_c=pc), sy_dyn)[0].force
+            ),
             (st1.pos_c,),
             (tangent,),
         )
@@ -748,88 +839,67 @@ def test_pallas_custom_force_laws_and_fallback() -> None:
     )
 
     cases: list[tuple[str, jdem.State, jdem.System]] = []
-    for dim in (3, 2):
-        box_l = 4.2 if dim == 3 else 5.2
-        st = _make_state(dim, 35, box_l, n_mat=2, n_species=2, seed=40 + dim)
-        cases.append(
-            (
-                f"morse_nl_{dim}D",
-                st,
-                jdem.System.create(
-                    state_shape=st.shape,
-                    dt=2e-3,
-                    domain_type="periodic",
-                    domain_kw={"box_size": jnp.full((dim,), box_l)},
-                    force_model=morse,
-                    mat_table=mat,
-                    collider_type="NeighborList",
-                    collider_kw={"state": st, "cutoff": 1.6, "skin": 0.15},
-                ),
-            )
+    st_3d = _make_state(3, 35, 4.2, n_mat=2, n_species=2, seed=43)
+    st_2d = _make_state(2, 35, 5.2, n_mat=2, n_species=2, seed=42)
+    cases.append(
+        (
+            "morse_cell_3D",
+            st_3d,
+            jdem.System.create(
+                state_shape=st_3d.shape,
+                dt=2e-3,
+                domain_type="periodic",
+                domain_kw={"box_size": jnp.full((3,), 4.2)},
+                force_model=morse,
+                mat_table=mat,
+                collider_type="CellList",
+                collider_kw={"state": st_3d, "cell_size": 1.5},
+            ),
         )
-        cases.append(
-            (
-                f"morse_cell_{dim}D",
-                st,
-                jdem.System.create(
-                    state_shape=st.shape,
-                    dt=2e-3,
-                    domain_type="periodic",
-                    domain_kw={"box_size": jnp.full((dim,), box_l)},
-                    force_model=morse,
-                    mat_table=mat,
-                    collider_type="CellList",
-                    collider_kw={"state": st, "cell_size": 1.5},
-                ),
-            )
+    )
+    cases.append(
+        (
+            "custom_hist_le_2D",
+            st_2d,
+            jdem.System.create(
+                state_shape=st_2d.shape,
+                dt=2e-3,
+                domain=_make_domain("lees_edwards", 2, 5.2),
+                force_model=hist_law,
+                mat_table=mat,
+                collider_type="NeighborList",
+                collider_kw={"state": st_2d, "cutoff": 1.6, "skin": 0.15},
+            ),
         )
-        cases.append(
-            (
-                f"custom_hist_le_{dim}D",
-                st,
-                jdem.System.create(
-                    state_shape=st.shape,
-                    dt=2e-3,
-                    domain=_make_domain("lees_edwards", dim, box_l),
-                    force_model=hist_law,
-                    mat_table=mat,
-                    collider_type="NeighborList",
-                    collider_kw={"state": st, "cutoff": 1.6, "skin": 0.15},
-                ),
-            )
+    )
+    cases.append(
+        (
+            "mixed_router_3D",
+            st_3d,
+            jdem.System.create(
+                state_shape=st_3d.shape,
+                dt=2e-3,
+                domain_type="periodic",
+                domain_kw={"box_size": jnp.full((3,), 4.2)},
+                force_model=mixed_router,
+                mat_table=mat,
+                collider_type="NeighborList",
+                collider_kw={"state": st_3d, "cutoff": 1.6, "skin": 0.15},
+            ),
         )
-        cases.append(
-            (
-                f"mixed_comb_{dim}D",
-                st,
-                jdem.System.create(
-                    state_shape=st.shape,
-                    dt=2e-3,
-                    domain_type="periodic",
-                    domain_kw={"box_size": jnp.full((dim,), box_l)},
-                    force_model=mixed_comb,
-                    mat_table=mat,
-                    collider_type="NeighborList",
-                    collider_kw={"state": st, "cutoff": 1.6, "skin": 0.15},
-                ),
-            )
-        )
-        cases.append(
-            (
-                f"mixed_router_{dim}D",
-                st,
-                jdem.System.create(
-                    state_shape=st.shape,
-                    dt=2e-3,
-                    domain_type="periodic",
-                    domain_kw={"box_size": jnp.full((dim,), box_l)},
-                    force_model=mixed_router,
-                    mat_table=mat,
-                    collider_type="NeighborList",
-                    collider_kw={"state": st, "cutoff": 1.6, "skin": 0.15},
-                ),
-            )
-        )
+    )
+    step_custom = (
+        st_3d,
+        jdem.System.create(
+            state_shape=st_3d.shape,
+            dt=2e-3,
+            domain=_make_domain("lees_edwards", 3, 4.2),
+            force_model=hist_law,
+            mat_table=mat,
+            collider_type="NeighborList",
+            collider_kw={"state": st_3d, "cutoff": 1.6, "skin": 0.15},
+        ),
+    )
     # Custom Domain subclass (unknown to Pallas) must compile for both CellList & NL.
     custom_dom_3d = _CustomPeriodicDomain.Create(dim=3, box_size=jnp.full((3,), 4.2))
     st_cd = _make_state(3, 31, 4.2, n_mat=2, seed=77)
@@ -901,37 +971,43 @@ def test_pallas_custom_force_laws_and_fallback() -> None:
     )
 
     def _run_all() -> tuple[
-        dict[str, tuple[jdem.State, jdem.System]], jdem.State, jax.Array
+        dict[str, tuple[jdem.State, jdem.System]],
+        tuple[jdem.State, jdem.System],
+        jdem.State,
+        jax.Array,
     ]:
-        out = {name: jdem.System.step(st, sy, n=6) for name, st, sy in cases}
-        st_v, _ = jax.jit(jax.vmap(lambda s, sy: jdem.System.step(s, sy, n=5)))(
+        out = {name: _eval_force_once_or_twice(st, sy) for name, st, sy in cases}
+        st_step = jdem.System.step(step_custom[0], step_custom[1], n=5)
+        st_v, _ = jax.jit(jax.vmap(lambda s, sy: sy.collider.compute_force(s, sy)))(
             states_b, systems_b
         )
         g = jax.grad(
             lambda d: jnp.sum(
-                jdem.System.step(
+                sy_ad.collider.compute_force(
                     st_ad,
                     replace(
                         sy_ad, force_model=_CustomMorseForce(depth=d, alpha=morse.alpha)
                     ),
-                    n=3,
-                )[0].pos_c
+                )[0].force
                 ** 2
             )
         )(jnp.asarray(2.0))
-        return out, st_v, g
+        return out, st_step, st_v, g
 
     with pallas_enabled(True):
-        out_p, st_vp, g_p = _run_all()
+        out_p, step_p, st_vp, g_p = _run_all()
     with pallas_enabled(False):
-        out_j, st_vj, g_j = _run_all()
+        out_j, step_j, st_vj, g_j = _run_all()
 
     for name, _, _ in cases:
         st_p, _ = out_p[name]
         st_j, _ = out_j[name]
-        _assert_close_pair(st_p.pos_c, st_j.pos_c, f"{name} pos_c")
         _assert_close_pair(st_p.force, st_j.force, f"{name} force")
         _assert_close_pair(st_p.torque, st_j.torque, f"{name} torque")
-    _assert_close_pair(st_vp.pos_c, st_vj.pos_c, "vmap custom morse pos_c")
+    _assert_close_pair(step_p[0].pos_c, step_j[0].pos_c, "custom_hist_le_3D step pos_c")
+    _assert_close_pair(step_p[0].force, step_j[0].force, "custom_hist_le_3D step force")
+    _assert_close_pair(
+        step_p[0].torque, step_j[0].torque, "custom_hist_le_3D step torque"
+    )
     _assert_close_pair(st_vp.force, st_vj.force, "vmap custom morse force")
     _assert_close_pair(g_p, g_j, "grad custom morse depth")

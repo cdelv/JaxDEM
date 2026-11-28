@@ -13,7 +13,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, Self
 
 from . import Collider
+from ._cell_lookup import _cell_starts as _cell_starts
 from ._cell_options import validate_cell_capacity_estimate, validate_cell_options
+from ._partition import (
+    NEIGHBOR_QUERY_BATCH_SIZE as NEIGHBOR_QUERY_BATCH_SIZE,
+    PAIR_TRAVERSAL_BATCH_SIZE as PAIR_TRAVERSAL_BATCH_SIZE,
+)
 from .cell_list import _CellListBase, _traverse_pairs_impl
 
 if TYPE_CHECKING:  # pragma: no cover

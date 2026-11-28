@@ -42,7 +42,8 @@ from ._partition import (
 
 _SEARCH_BATCH_SIZE = 65_536
 # Large row batches minimize launch/sync overhead while bounding workspace at huge N.
-_ROW_BATCH_SIZE = {2: 131_072, 3: 131_072}
+_DEFAULT_ROW_BATCH_SIZE = 131_072
+_ROW_BATCH_SIZE = {2: _DEFAULT_ROW_BATCH_SIZE, 3: _DEFAULT_ROW_BATCH_SIZE}
 # Bound the force-law working set independently of the allocated pair pool.
 _FIXED_PAIR_BATCH_SIZE = 262_144
 _HISTORY_PAIR_BATCH_SIZE = 32_768
@@ -2233,15 +2234,18 @@ def forces(
     if n == 0 or capacity == 0:
         return jnp.zeros_like(state.force), jnp.zeros_like(state.torque), col.history
 
+    use_default_row_batch = _ROW_BATCH_SIZE.get(state.dim) == _DEFAULT_ROW_BATCH_SIZE
+
     def _pure_forces() -> tuple[Any, ...]:
         from ._pallas import has_manual_axes
 
-        if col.history.size > 0 and capacity <= _HISTORY_PREFIX_SIZE:
-            return _flat_forces(state, system, advance_history, quasistatic)
-        if col.history.size == 0 or not has_manual_axes(state, system):
-            return _bucketed_csr_forces(
-                state, system, quasistatic, advance_history=advance_history
-            )
+        if use_default_row_batch:
+            if col.history.size > 0 and capacity <= _HISTORY_PREFIX_SIZE:
+                return _flat_forces(state, system, advance_history, quasistatic)
+            if col.history.size == 0 or not has_manual_axes(state, system):
+                return _bucketed_csr_forces(
+                    state, system, quasistatic, advance_history=advance_history
+                )
         pos = state.pos
         if _uses_fixed_cache(col, state.dim):
             minimum = (
@@ -2298,7 +2302,7 @@ def forces(
             history if write_history else col.history,
         )
 
-    if can_use_pallas_csr_forces(
+    if use_default_row_batch and can_use_pallas_csr_forces(
         state, system, advance_history=advance_history, quasistatic=quasistatic
     ):
         return pallas_csr_forces(
