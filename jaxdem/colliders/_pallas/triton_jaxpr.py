@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any, Callable
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jax.extend.core import ClosedJaxpr, Jaxpr, Literal, Var
+from jax.extend.core import Jaxpr, Literal, Var
 
 from .refs import ArgPack, RefView, store1, triton_rint
 
@@ -213,7 +213,7 @@ class _InBinding:
 class CompiledJaxpr:
     """Validated, loop-invariant-split jaxpr ready for Triton evaluation."""
 
-    closed_jaxpr: ClosedJaxpr
+    closed_jaxpr: Any
     pre_eqns: tuple[Any, ...]
     loop_eqns: tuple[Any, ...]
     const_bindings: tuple[_InBinding, ...]
@@ -329,7 +329,7 @@ def _compile_jaxpr(
         closed = jax.make_jaxpr(fn)(*sample_args)
     except Exception:
         return None
-    closed = ClosedJaxpr(_dce_jaxpr(closed.jaxpr), closed.consts)
+    closed = type(closed)(_dce_jaxpr(closed.jaxpr), closed.consts)
 
     flat_inputs, _ = jax.tree_util.tree_flatten(sample_args)
     if len(flat_inputs) != len(closed.jaxpr.invars):
@@ -759,7 +759,7 @@ def _eval_scatter(
 
 
 def _eval_subjaxpr(
-    sub: ClosedJaxpr,
+    sub: Any,
     args: list[_MemView | _RegTensor],
     rv: RefView,
     load_mask: jax.Array,
@@ -806,7 +806,7 @@ def _eval_eqns(
         out_avals = [v.aval for v in eqn.outvars]
 
         if name in ("pjit", "jit", "custom_jvp_call", "custom_vjp_call"):
-            sub: ClosedJaxpr = params.get("jaxpr") or params["call_jaxpr"]
+            sub: Any = params.get("jaxpr") or params["call_jaxpr"]
             arg_nn = (
                 [
                     None if isinstance(a, Literal) else nonneg_tags.get(a)
@@ -820,7 +820,7 @@ def _eval_eqns(
             )
 
         elif name == "cond":
-            branches: tuple[ClosedJaxpr, ...] = params["branches"]
+            branches: tuple[Any, ...] = params["branches"]
             if len(branches) > _MAX_COND_BRANCHES:
                 raise _UnsupportedTritonOp("too many cond branches")
             which = _materialize(args[0], rv).scalar()
@@ -843,7 +843,7 @@ def _eval_eqns(
                     out_dtypes_br = [a.dtype for a in out_avals_br]
 
                     def _eval_br(
-                        _br: ClosedJaxpr = br,
+                        _br: Any = br,
                         _bm: jax.Array = br_mask,
                         _bc: dict[Any, _RegTensor] | None = br_cache,
                     ) -> tuple[jax.Array, ...]:

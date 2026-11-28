@@ -39,6 +39,7 @@ _DIAGNOSTICS_ONLY = {
     "integrator_guide",
     "materials_guide",
     "pseudo_log_rollout",
+    "pufferlib_guide",
     "state_guide",
     "system_guide",
     "training_metrics_guide",
