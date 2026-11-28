@@ -1,0 +1,12 @@
+jaxdem.rl.environments.swarm\_navigator
+=======================================
+
+.. automodule:: jaxdem.rl.environments.swarm_navigator
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      SwarmNavigator
+   

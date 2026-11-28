@@ -1,0 +1,161 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+r"""One-call particle packing builders
+======================================
+
+Construct relaxed sphere, rigid-clump, and deformable-particle (DP) systems in
+one call using :func:`~jaxdem.utils.particle_creation.build_sphere_system` and
+:func:`~jaxdem.utils.particle_creation.build_ga_system`.
+
+Both helpers place loose bodies at ``initial_phi`` / ``initial_phi_bb``,
+quasistatically compress to the target packing fraction ``phi`` with FIRE, and
+return a ready-to-step ``(state, system)`` pair (plus the bonded-force
+container for DPs). For step-by-step control over each stage, see
+:doc:`clump_construction_pipeline` and :doc:`dp_construction_pipeline`.
+"""
+
+import jax
+
+jax.config.update("jax_enable_x64", True)  # type: ignore[no-untyped-call]
+
+import numpy as np
+
+import jaxdem as jdem
+from jaxdem.utils.packing_utils import compute_packing_fraction
+from jaxdem.utils.particle_creation import build_ga_system, build_sphere_system
+
+
+def summarize(label: str, state: jdem.State, system: jdem.System, container=None) -> None:
+    phi = float(compute_packing_fraction(state, system))
+    box = np.asarray(system.domain.box_size)
+    state, system = jdem.System.evaluate_forces(state, system)
+    max_f = float(np.max(np.linalg.norm(np.asarray(state.force), axis=-1)))
+    system.check_overflow()
+    extra = "" if container is None else f" [{type(container).__name__}]"
+    print(f"[{label}] N={state.N}  phi={phi:.4f}  box={np.round(box, 3)}  max|F|={max_f:.2e}{extra}")
+
+
+# %%
+# 1) Spheres and Disks (:func:`~jaxdem.utils.particle_creation.build_sphere_system`)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Pass per-particle ``particle_radii`` and target ``phi``. Here we build a 3D
+# periodic monodisperse packing with a neighbor list, and a 2D bidisperse disk
+# packing inside reflective walls:
+
+state_3d, sys_3d = build_sphere_system(
+    particle_radii=[0.1] * 12,
+    phi=0.25,
+    dim=3,
+    dt=1e-3,
+    collider_type="neighbor_list",
+    initial_phi=0.15,
+    compression_step=0.025,
+    compression_force_tol=1e-8,
+    max_n_min_steps_per_outer=2_000,
+    seed=0,
+)
+summarize("3D spheres (periodic, neighbor_list)", state_3d, sys_3d)
+
+state_2d, sys_2d = build_sphere_system(
+    particle_radii=[0.08] * 8 + [0.12] * 4,
+    phi=0.35,
+    dim=2,
+    dt=1e-3,
+    domain_type="reflect",
+    collider_type="naive",
+    initial_phi=0.25,
+    compression_step=0.025,
+    compression_force_tol=1e-8,
+    max_n_min_steps_per_outer=2_000,
+    seed=1,
+)
+summarize("2D bidisperse disks (reflect, naive)", state_2d, sys_2d)
+
+# %%
+# 2) Rigid Geometric-Asperity Clumps (:func:`~jaxdem.utils.particle_creation.build_ga_system`)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# ``build_ga_system`` handles polydisperse bodies (per-body ``particle_radii``,
+# ``vertex_counts``, and ``aspect_ratio``) and groups identical specs to share
+# construction work. ``core_type`` controls the interior: ``"hollow"``
+# (asperities only), ``"solid"`` (keeps a central sphere in contacts and mass),
+# or ``"phantom"`` (core counts toward mass/inertia only).
+
+state_clumps, sys_clumps = build_ga_system(
+    particle_radii=[0.45, 0.45, 0.35, 0.35, 0.30, 0.30],
+    vertex_counts=[6, 6, 6, 6, 5, 5],
+    asperity_radius=0.1,
+    aspect_ratio=[[1.0, 1.35]] * 2 + [[1.0, 1.2]] * 2 + [[1.0, 1.0]] * 2,
+    phi=0.25,
+    dim=2,
+    particle_type="clump",
+    core_type="solid",
+    domain_type="periodic",
+    mesh_type="fibonacci",
+    initial_phi_bb=0.20,
+    compression_step=0.025,
+    compression_force_tol=1e-8,
+    max_n_min_steps_per_outer=1_000,
+    dt=1e-3,
+    linear_integrator_type="verlet",
+    rotation_integrator_type="verletspiral",
+    collider_type="naive",
+    seed=0,
+)
+summarize("2D anisotropic rigid clumps", state_clumps, sys_clumps)
+
+# %%
+# 3) Deformable Particles (DPs)
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Setting ``particle_type="dp"`` returns a 3-tuple ``(state, system, container)``
+# with the bonded model already wired into ``system.bonded_force_model``.
+# Disable rigid rotation (``rotation_integrator_type=None``) because DP nodes
+# translate independently; pass ``dp_plasticity_type`` and ``dp_tau_s`` for
+# plastic variants. Note that ``state.N`` counts total vertices, not bodies,
+# and ``phi`` is the nominal sphere-union fraction (smaller than enclosed area
+# for hollow rings):
+
+state_dp, sys_dp, container = build_ga_system(
+    particle_radii=[0.45] * 4,
+    vertex_counts=[6] * 4,
+    asperity_radius=0.1,
+    phi=0.04,
+    dim=2,
+    particle_type="dp",
+    core_type="hollow",
+    domain_type="periodic",
+    mesh_type="fibonacci",
+    initial_phi_bb=0.12,
+    compression_step=0.01,
+    compression_force_tol=1e-8,
+    max_n_min_steps_per_outer=1_000,
+    dt=1e-3,
+    linear_integrator_type="verlet",
+    rotation_integrator_type=None,
+    collider_type="naive",
+    dp_em=1.0,
+    dp_ec=1.0,
+    dp_eb=0.1,
+    dp_el=0.3,
+    dp_gamma=None,
+    seed=2,
+)
+summarize("2D hollow deformable particles", state_dp, sys_dp, container)
+
+# %%
+# 4) Verify with a Short Verlet Rollout
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+state_dp, sys_dp = jdem.System.initialize(state_dp, sys_dp)
+state_dp, sys_dp = jdem.System.step(state_dp, sys_dp, n=10)
+sys_dp.check_overflow()
+print(f"Ran 10 Verlet steps on the DP packing (t = {float(sys_dp.time):.3f}).")
+
+scene_states = {
+    "2D bidisperse disks": state_2d,
+    "Rigid clumps": state_clumps,
+    "Deformable particles": state_dp,
+}
+scene_systems = {
+    "2D bidisperse disks": sys_2d,
+    "Rigid clumps": sys_clumps,
+    "Deformable particles": sys_dp,
+}

@@ -1,0 +1,12 @@
+jaxdem.material\_matchmakers.linear
+===================================
+
+.. automodule:: jaxdem.material_matchmakers.linear
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      LinearMaterialMatchmaker
+   

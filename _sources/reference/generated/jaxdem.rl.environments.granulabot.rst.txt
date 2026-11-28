@@ -1,0 +1,19 @@
+jaxdem.rl.environments.granulabot
+=================================
+
+.. automodule:: jaxdem.rl.environments.granulabot
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      rebuild_status
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Granulabot
+      MagnetPairs
+   

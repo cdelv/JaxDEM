@@ -1,0 +1,12 @@
+jaxdem.rl.models.lstm
+=====================
+
+.. automodule:: jaxdem.rl.models.lstm
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      LSTMActorCritic
+   

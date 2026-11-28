@@ -1,0 +1,198 @@
+# SPDX-License-Identifier: BSD-3-Clause
+# Part of the JaxDEM project - https://github.com/cdelv/JaxDEM
+r"""The Force Manager
+---------------------
+
+:py:class:`~jaxdem.forces.force_manager.ForceManager` collects all non-collider
+contributions (gravity, one-step external loads, custom force functions),
+aggregates per-sphere loads onto rigid clumps, and writes
+:py:attr:`~jaxdem.state.State.force` and :py:attr:`~jaxdem.state.State.torque`.
+
+For pairwise contact laws, law combiners, and species routing, see
+:doc:`../auto_examples/force_model_guide`.
+"""
+
+from collections.abc import Callable
+
+import jax
+import jax.numpy as jnp
+
+import jaxdem as jdem
+
+# %%
+# Gravity
+# ~~~~~~~
+# Set gravity via ``force_manager_kw`` at creation time or update
+# :py:attr:`system.force_manager.gravity <jaxdem.forces.force_manager.ForceManager.gravity>`
+# directly:
+
+state = jdem.State.create(pos=jnp.zeros((1, 2)))
+system = jdem.System.create(
+    state.shape,
+    force_manager_kw={"gravity": jnp.array([0.0, -9.81])},
+)
+print("Gravity:", system.force_manager.gravity)
+
+system.force_manager.gravity = jnp.array([0.0, -1.0])
+print("Updated gravity:", system.force_manager.gravity)
+
+# %%
+# One-Step External Forces and Torques
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Queue loads into the manager's buffers before a step;
+# :py:meth:`~jaxdem.forces.force_manager.ForceManager.apply` consumes and
+# clears the buffers on every physical step. Note that ``add_force*`` and
+# ``add_torque*`` return only the updated ``system`` (not ``(state, system)``).
+#
+# * :py:meth:`~jaxdem.forces.force_manager.ForceManager.add_force` /
+#   :py:meth:`~jaxdem.forces.force_manager.ForceManager.add_torque` apply to
+#   all particles (``is_com=True`` applies at the clump COM without lever-arm
+#   torque and divides by clump member count so each clump receives the total
+#   load once).
+# * :py:meth:`~jaxdem.forces.force_manager.ForceManager.add_force_at` /
+#   :py:meth:`~jaxdem.forces.force_manager.ForceManager.add_torque_at` target
+#   specific array indices directly without clump division.
+#
+# Remember that torques have shape ``(N, 1)`` in 2D and ``(N, 3)`` in 3D:
+
+state = jdem.State.create(pos=jnp.array([[0.0, 0.0], [3.0, 0.0]]))
+system = jdem.System.create(state.shape)
+
+system = jdem.ForceManager.add_force(state, system, jnp.array([[1.0, 0.0], [0.5, 0.0]]))
+system = jdem.ForceManager.add_force_at(
+    state, system, force=jnp.array([[0.0, -5.0]]), idx=jnp.array([0])
+)
+system = jdem.ForceManager.add_torque(state, system, torque=jnp.array([[0.1], [0.2]]))
+print("Buffered external force:\n", system.force_manager.external_force)
+print("Buffered external torque:\n", system.force_manager.external_torque)
+
+state, system = jdem.System.initialize(state, system)
+state, system = jdem.System.step(state, system)
+print("Buffers cleared after step:", bool(jnp.all(system.force_manager.external_force == 0)))
+
+# %%
+# Custom Force Functions
+# ~~~~~~~~~~~~~~~~~~~~~~
+# Register state-dependent callbacks in ``force_manager_kw["force_functions"]``.
+# Each force callback has signature ``(pos, state, system) -> (force, torque)``,
+# optionally paired with an energy callback ``(pos, state, system) -> energy``
+# (returning either per-particle ``(N,)`` or a scalar, which JaxDEM sums).
+#
+# Supported entry formats in ``force_functions``:
+#
+# .. list-table::
+#    :header-rows: 1
+#
+#    * - Format
+#      - Interpretation
+#    * - ``func``
+#      - Force at particle position, no energy
+#    * - ``(func, bool)``
+#      - ``bool`` selects COM (``True``) or particle position (``False``)
+#    * - ``(func, energy_func)``
+#      - Force at particle position with energy
+#    * - ``(func, energy_func, bool)``
+#      - Full specification: force, energy, and COM flag
+
+
+def harmonic_trap(
+    pos: jax.Array, state: jdem.State, system: jdem.System
+) -> tuple[jax.Array, jax.Array]:
+    """Pull every particle toward the origin with k = 1."""
+    return -pos, jnp.zeros_like(state.torque)
+
+
+def harmonic_trap_energy(
+    pos: jax.Array, state: jdem.State, system: jdem.System
+) -> jax.Array:
+    return 0.5 * jnp.sum(pos**2, axis=-1)
+
+
+state = jdem.State.create(pos=jnp.array([[2.0, 0.0]]))
+system = jdem.System.create(
+    state.shape,
+    force_manager_kw={"force_functions": [(harmonic_trap, harmonic_trap_energy)]},
+    dt=0.02,
+)
+state, system = jdem.System.initialize(state, system)
+state, system = jdem.System.step(state, system, n=20)
+print(
+    f"Harmonic trap x(t)={float(state.pos[0, 0]):.6f} "
+    f"(exact 2 cos(t)={float(2.0 * jnp.cos(system.time)):.6f})"
+)
+
+# %%
+# How Forces Are Aggregated
+# ~~~~~~~~~~~~~~~~~~~~~~~~~
+# After the collider writes pairwise contact forces and torques,
+# :py:meth:`~jaxdem.forces.force_manager.ForceManager.apply`:
+#
+# 1. Evaluates all registered ``force_functions``.
+# 2. Adds buffered external forces and torques.
+# 3. Adds lever-arm torques :math:`\boldsymbol{\tau} = \mathbf{r}_p \times \mathbf{F}`
+#    from particle-position forces on rigid clumps.
+# 4. Aggregates per-sphere forces and torques per clump via ``jax.ops.segment_sum``
+#    and broadcasts the totals back to every member sphere.
+# 5. Adds gravity :math:`m \mathbf{g}` at the center of mass (after aggregation,
+#    because each clump member already stores total clump mass).
+# 6. Clears the external buffers.
+
+# %%
+# Computing Potential Energy
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~
+# :py:meth:`~jaxdem.forces.force_manager.ForceManager.compute_potential_energy`
+# sums gravitational energy (:math:`U = -m\,\mathbf{g}\cdot\mathbf{r}`, so
+# ``gravity=(0, -9.81)`` gives positive :math:`mgh`) and all registered energy
+# functions. Note that the force manager returns a bare scalar, whereas
+# :py:meth:`~jaxdem.colliders.Collider.compute_potential_energy` returns
+# ``(state, system, pe)``:
+
+state = jdem.State.create(pos=jnp.array([[0.0, 1.0]]), mass=jnp.array([2.0]))
+system = jdem.System.create(
+    state.shape,
+    force_manager_kw={"gravity": jnp.array([0.0, -9.81])},
+)
+pe = system.force_manager.compute_potential_energy(state, system)
+print(f"Gravitational PE: {float(pe):.2f}")
+
+# %%
+# Infinite Elastic Wall Example
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Closures are a convenient way to parameterize custom force functions (such as
+# an elastic half-space wall). Note that local closures work for simulations
+# and minimization, but cannot be serialized by
+# :py:class:`~jaxdem.writers.checkpoints.CheckpointWriter`—if you need
+# checkpointing, define top-level functions in an importable module (see
+# :doc:`../auto_examples/checkpoint_guide`):
+
+
+def make_wall(
+    point: jax.Array, normal: jax.Array, stiffness: float = 1.0
+) -> tuple[Callable, Callable]:
+    point = jnp.asarray(point, dtype=float)
+    normal = jdem.utils.unit(jnp.asarray(normal, dtype=float))
+    stiffness = jnp.asarray(stiffness, dtype=float)
+
+    def energy_fn(pos: jax.Array, state: jdem.State, system: jdem.System) -> jax.Array:
+        delta = jnp.minimum(0.0, jnp.dot(pos - point, normal) - state.rad)
+        return 0.5 * stiffness * jnp.square(delta)
+
+    def force_fn(
+        pos: jax.Array, state: jdem.State, system: jdem.System
+    ) -> tuple[jax.Array, jax.Array]:
+        delta = jnp.minimum(0.0, jnp.dot(pos - point, normal) - state.rad)
+        return (-stiffness * delta)[..., None] * normal, jnp.zeros_like(state.torque)
+
+    return force_fn, energy_fn
+
+
+system = jdem.System.create(
+    state.shape,
+    force_manager_kw={
+        "force_functions": [
+            make_wall(point=[0.0, 0.5], normal=[0.0, 1.0], stiffness=100.0)
+        ],
+    },
+)
+state, system = jdem.System.evaluate_forces(state, system)
+print("Upward wall force on overlapping sphere:", state.force)

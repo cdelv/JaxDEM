@@ -1,0 +1,381 @@
+{
+  "title": "Clump jamming dynamical matrix and friction",
+  "renderer": "ParaView",
+  "paraview_version": "6.2.0",
+  "manifest": "/tmp/jaxdem-media-clump_jamming_dynamical_matrix_and_friction-zbsarbck/scene.json",
+  "size": [
+    960,
+    600
+  ],
+  "camera": "xy",
+  "bounds": [
+    0.0016434252029284835,
+    8.917960166931152,
+    -0.5455957651138306,
+    3.0746569633483887,
+    -0.30000001192092896,
+    0.30000001192092896
+  ],
+  "poster_time": 0.0,
+  "time_label": "t",
+  "native_times": [
+    0.0
+  ],
+  "animation_times": [],
+  "fps": 8,
+  "end_hold_frames": 0,
+  "end_hold_seconds": 0.0,
+  "encoded_frame_count": 0,
+  "series": [
+    {
+      "path": "/tmp/jaxdem-media-clump_jamming_dynamical_matrix_and_friction-zbsarbck/vtk/group_00/batch_00000000_domain.pvd",
+      "kind": "domain",
+      "native_times": [
+        0.0
+      ],
+      "source_points": 24,
+      "source_cells": 6,
+      "point_arrays": [
+        "Normals",
+        "TCoords"
+      ],
+      "representation": {
+        "offset": [
+          0.3144341935913419,
+          0.0,
+          0.0
+        ]
+      },
+      "geometry_points": 24,
+      "geometry_cells": 6
+    },
+    {
+      "path": "/tmp/jaxdem-media-clump_jamming_dynamical_matrix_and_friction-zbsarbck/vtk/group_00/batch_00000000_spheres.pvd",
+      "kind": "particles",
+      "native_times": [
+        0.0
+      ],
+      "source_points": 28,
+      "source_cells": 0,
+      "point_arrays": [
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "rad",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_id",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color_by": "rad",
+        "color": [
+          0.12,
+          0.48,
+          0.72
+        ],
+        "offset": [
+          0.3144341935913419,
+          0.0,
+          0.0
+        ]
+      },
+      "geometry_points": 9464,
+      "geometry_cells": 18816
+    },
+    {
+      "path": "/tmp/jaxdem-media-clump_jamming_dynamical_matrix_and_friction-zbsarbck/vtk/group_01/batch_00000000_domain.pvd",
+      "kind": "domain",
+      "native_times": [
+        0.0
+      ],
+      "source_points": 24,
+      "source_cells": 6,
+      "point_arrays": [
+        "Normals",
+        "TCoords"
+      ],
+      "representation": {
+        "offset": [
+          5.355949234353838,
+          0.0,
+          0.0
+        ]
+      },
+      "geometry_points": 24,
+      "geometry_cells": 6
+    },
+    {
+      "path": "/tmp/jaxdem-media-clump_jamming_dynamical_matrix_and_friction-zbsarbck/vtk/group_01/batch_00000000_spheres.pvd",
+      "kind": "particles",
+      "native_times": [
+        0.0
+      ],
+      "source_points": 28,
+      "source_cells": 0,
+      "point_arrays": [
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "rad",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_id",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color_by": "rad",
+        "color": [
+          0.88,
+          0.46,
+          0.12
+        ],
+        "offset": [
+          5.355949234353838,
+          0.0,
+          0.0
+        ]
+      },
+      "geometry_points": 9464,
+      "geometry_cells": 18816
+    }
+  ],
+  "outputs": {
+    "scene.png": 127465
+  },
+  "example": "clump_jamming_dynamical_matrix_and_friction.py",
+  "example_sha256": "eefd74bdc3706442cb2afe42c19ab15956b1268d46120d8bb247f9a39d9f12b6",
+  "library_revision": "a068aa9327266b7d1415f672ce725ae12d9d57d0",
+  "library_sha256": "fda86deee4111e5b9d8699c8c556c103b26b25ddedc6e50512b4354f93bddcc5",
+  "media_seconds": 3.085,
+  "simulation": {
+    "slug": "clump_jamming_dynamical_matrix_and_friction",
+    "source": "Current example State/System snapshots via VTKWriter; derived diagnostics via native VTK",
+    "groups": [
+      {
+        "label": "Before rattler removal",
+        "source_frames": 1,
+        "exported_frames": 1,
+        "selected_indices": [
+          0
+        ],
+        "particle_rows": [
+          28
+        ],
+        "source_step_counts": [
+          0
+        ],
+        "source_times": [
+          0.0
+        ],
+        "collection_times": [
+          0.0
+        ],
+        "offset": [
+          0.3144341935913419,
+          0.0,
+          0.0
+        ],
+        "geometry_only_system": false
+      },
+      {
+        "label": "After rattler removal",
+        "source_frames": 1,
+        "exported_frames": 1,
+        "selected_indices": [
+          0
+        ],
+        "particle_rows": [
+          28
+        ],
+        "source_step_counts": [
+          0
+        ],
+        "source_times": [
+          0.0
+        ],
+        "collection_times": [
+          0.0
+        ],
+        "offset": [
+          5.355949234353838,
+          0.0,
+          0.0
+        ],
+        "geometry_only_system": false
+      }
+    ],
+    "geometry": [
+      {
+        "label": "Before rattler removal",
+        "kind": "domain",
+        "path": "/tmp/jaxdem-media-clump_jamming_dynamical_matrix_and_friction-zbsarbck/vtk/group_00/batch_00000000_domain.pvd",
+        "point_arrays": [
+          "Normals",
+          "TCoords"
+        ],
+        "frames": [
+          {
+            "time": 0.0,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              2.9660186767578125,
+              0.0,
+              2.9660186767578125,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          }
+        ]
+      },
+      {
+        "label": "Before rattler removal",
+        "kind": "particles",
+        "path": "/tmp/jaxdem-media-clump_jamming_dynamical_matrix_and_friction-zbsarbck/vtk/group_00/batch_00000000_spheres.pvd",
+        "point_arrays": [
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "rad",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_id",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 0.0,
+            "points": 28,
+            "cells": 0,
+            "bounds": [
+              -0.014434193591341904,
+              3.2636542993028863,
+              -0.2472391782402829,
+              2.7763002927827167,
+              0.0,
+              0.0
+            ],
+            "bytes": 7834,
+            "physical_summary": {
+              "radius_min": 0.3,
+              "radius_max": 0.3,
+              "speed_max": 0.0,
+              "force_norm_max": 8.073184975893847e-08
+            }
+          }
+        ]
+      },
+      {
+        "label": "After rattler removal",
+        "kind": "domain",
+        "path": "/tmp/jaxdem-media-clump_jamming_dynamical_matrix_and_friction-zbsarbck/vtk/group_01/batch_00000000_domain.pvd",
+        "point_arrays": [
+          "Normals",
+          "TCoords"
+        ],
+        "frames": [
+          {
+            "time": 0.0,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              2.9660186767578125,
+              0.0,
+              2.9660186767578125,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          }
+        ]
+      },
+      {
+        "label": "After rattler removal",
+        "kind": "particles",
+        "path": "/tmp/jaxdem-media-clump_jamming_dynamical_matrix_and_friction-zbsarbck/vtk/group_01/batch_00000000_spheres.pvd",
+        "point_arrays": [
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "rad",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_id",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 0.0,
+            "points": 28,
+            "cells": 0,
+            "bounds": [
+              -0.014434193591341904,
+              3.2636542993028863,
+              -0.2472391782402829,
+              2.7763002927827167,
+              0.0,
+              0.0
+            ],
+            "bytes": 7834,
+            "physical_summary": {
+              "radius_min": 0.3,
+              "radius_max": 0.3,
+              "speed_max": 0.0,
+              "force_norm_max": 8.073184975893847e-08
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

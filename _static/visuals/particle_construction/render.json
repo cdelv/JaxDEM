@@ -1,0 +1,644 @@
+{
+  "title": "Particle construction",
+  "renderer": "ParaView",
+  "paraview_version": "6.2.0",
+  "manifest": "/tmp/jaxdem-media-particle_construction-xchax13h/scene.json",
+  "size": [
+    960,
+    600
+  ],
+  "camera": "xy",
+  "bounds": [
+    0.00015401601558551192,
+    10.2088041305542,
+    -0.21410387754440308,
+    4.341607570648193,
+    -0.3499999940395355,
+    0.3499999940395355
+  ],
+  "poster_time": 0.01,
+  "time_label": "t",
+  "native_times": [
+    0.01
+  ],
+  "animation_times": [],
+  "fps": 8,
+  "end_hold_frames": 0,
+  "end_hold_seconds": 0.0,
+  "encoded_frame_count": 0,
+  "series": [
+    {
+      "path": "/tmp/jaxdem-media-particle_construction-xchax13h/vtk/group_00/batch_00000000_domain.pvd",
+      "kind": "domain",
+      "native_times": [
+        0.0
+      ],
+      "source_points": 24,
+      "source_cells": 6,
+      "point_arrays": [
+        "Normals",
+        "TCoords"
+      ],
+      "representation": {
+        "offset": [
+          0.05620288953626154,
+          0.0,
+          0.0
+        ]
+      },
+      "geometry_points": 24,
+      "geometry_cells": 6
+    },
+    {
+      "path": "/tmp/jaxdem-media-particle_construction-xchax13h/vtk/group_00/batch_00000000_spheres.pvd",
+      "kind": "particles",
+      "native_times": [
+        0.0
+      ],
+      "source_points": 12,
+      "source_cells": 0,
+      "point_arrays": [
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "rad",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_id",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color_by": "rad",
+        "color": [
+          0.12,
+          0.48,
+          0.72
+        ],
+        "offset": [
+          0.05620288953626154,
+          0.0,
+          0.0
+        ]
+      },
+      "geometry_points": 17304,
+      "geometry_cells": 34560
+    },
+    {
+      "path": "/tmp/jaxdem-media-particle_construction-xchax13h/vtk/group_01/batch_00000000_domain.pvd",
+      "kind": "domain",
+      "native_times": [
+        0.0
+      ],
+      "source_points": 24,
+      "source_cells": 6,
+      "point_arrays": [
+        "Normals",
+        "TCoords"
+      ],
+      "representation": {
+        "offset": [
+          1.9874906898413434,
+          0.0,
+          0.0
+        ]
+      },
+      "geometry_points": 24,
+      "geometry_cells": 6
+    },
+    {
+      "path": "/tmp/jaxdem-media-particle_construction-xchax13h/vtk/group_01/batch_00000000_spheres.pvd",
+      "kind": "particles",
+      "native_times": [
+        0.0
+      ],
+      "source_points": 40,
+      "source_cells": 0,
+      "point_arrays": [
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "rad",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_id",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color_by": "rad",
+        "color": [
+          0.88,
+          0.46,
+          0.12
+        ],
+        "offset": [
+          1.9874906898413434,
+          0.0,
+          0.0
+        ]
+      },
+      "geometry_points": 13520,
+      "geometry_cells": 26880
+    },
+    {
+      "path": "/tmp/jaxdem-media-particle_construction-xchax13h/vtk/group_02/batch_00000000_deformable_edges.pvd",
+      "kind": "edges",
+      "native_times": [
+        0.01
+      ],
+      "source_points": 24,
+      "source_cells": 24,
+      "point_arrays": [],
+      "representation": {
+        "color": [
+          0.22,
+          0.3,
+          0.36
+        ],
+        "offset": [
+          5.867196614000206,
+          0.0,
+          0.0
+        ],
+        "tube_radius": 0.012
+      },
+      "geometry_points": 960,
+      "geometry_cells": 288
+    },
+    {
+      "path": "/tmp/jaxdem-media-particle_construction-xchax13h/vtk/group_02/batch_00000000_deformable_elements.pvd",
+      "kind": "surface",
+      "native_times": [
+        0.01
+      ],
+      "source_points": 24,
+      "source_cells": 24,
+      "point_arrays": [],
+      "representation": {
+        "color": [
+          0.23,
+          0.63,
+          0.42
+        ],
+        "opacity": 0.38,
+        "offset": [
+          5.867196614000206,
+          0.0,
+          0.0
+        ]
+      },
+      "geometry_points": 24,
+      "geometry_cells": 24
+    },
+    {
+      "path": "/tmp/jaxdem-media-particle_construction-xchax13h/vtk/group_02/batch_00000000_domain.pvd",
+      "kind": "domain",
+      "native_times": [
+        0.01
+      ],
+      "source_points": 24,
+      "source_cells": 6,
+      "point_arrays": [
+        "Normals",
+        "TCoords"
+      ],
+      "representation": {
+        "offset": [
+          5.867196614000206,
+          0.0,
+          0.0
+        ]
+      },
+      "geometry_points": 24,
+      "geometry_cells": 6
+    },
+    {
+      "path": "/tmp/jaxdem-media-particle_construction-xchax13h/vtk/group_02/batch_00000000_spheres.pvd",
+      "kind": "particles",
+      "native_times": [
+        0.01
+      ],
+      "source_points": 24,
+      "source_cells": 0,
+      "point_arrays": [
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "rad",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_id",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color_by": "rad",
+        "color": [
+          0.23,
+          0.63,
+          0.42
+        ],
+        "offset": [
+          5.867196614000206,
+          0.0,
+          0.0
+        ]
+      },
+      "geometry_points": 8112,
+      "geometry_cells": 16128
+    }
+  ],
+  "outputs": {
+    "scene.png": 45439
+  },
+  "example": "particle_construction.py",
+  "example_sha256": "41db9c4397ac785757e015e151bc30050bca122bc5dc9de82303b0e9a0a48b4d",
+  "library_revision": "a068aa9327266b7d1415f672ce725ae12d9d57d0",
+  "library_sha256": "fda86deee4111e5b9d8699c8c556c103b26b25ddedc6e50512b4354f93bddcc5",
+  "media_seconds": 4.108,
+  "simulation": {
+    "slug": "particle_construction",
+    "source": "Current example State/System snapshots via VTKWriter; derived diagnostics via native VTK",
+    "groups": [
+      {
+        "label": "2D bidisperse disks",
+        "source_frames": 1,
+        "exported_frames": 1,
+        "selected_indices": [
+          0
+        ],
+        "particle_rows": [
+          12
+        ],
+        "source_step_counts": [
+          0
+        ],
+        "source_times": [
+          0.0
+        ],
+        "collection_times": [
+          0.0
+        ],
+        "offset": [
+          0.05620288953626154,
+          0.0,
+          0.0
+        ],
+        "geometry_only_system": false
+      },
+      {
+        "label": "Rigid clumps",
+        "source_frames": 1,
+        "exported_frames": 1,
+        "selected_indices": [
+          0
+        ],
+        "particle_rows": [
+          40
+        ],
+        "source_step_counts": [
+          0
+        ],
+        "source_times": [
+          0.0
+        ],
+        "collection_times": [
+          0.0
+        ],
+        "offset": [
+          1.9874906898413434,
+          0.0,
+          0.0
+        ],
+        "geometry_only_system": false
+      },
+      {
+        "label": "Deformable particles",
+        "source_frames": 1,
+        "exported_frames": 1,
+        "selected_indices": [
+          0
+        ],
+        "particle_rows": [
+          24
+        ],
+        "source_step_counts": [
+          10
+        ],
+        "source_times": [
+          0.010000000000000002
+        ],
+        "collection_times": [
+          0.010000000000000002
+        ],
+        "offset": [
+          5.867196614000206,
+          0.0,
+          0.0
+        ],
+        "geometry_only_system": false
+      }
+    ],
+    "geometry": [
+      {
+        "label": "2D bidisperse disks",
+        "kind": "domain",
+        "path": "/tmp/jaxdem-media-particle_construction-xchax13h/vtk/group_00/batch_00000000_domain.pvd",
+        "point_arrays": [
+          "Normals",
+          "TCoords"
+        ],
+        "frames": [
+          {
+            "time": 0.0,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              0.9882239103317261,
+              0.0,
+              0.9882239103317261,
+              0.0,
+              0.0
+            ],
+            "bytes": 3050,
+            "physical_summary": {}
+          }
+        ]
+      },
+      {
+        "label": "2D bidisperse disks",
+        "kind": "particles",
+        "path": "/tmp/jaxdem-media-particle_construction-xchax13h/vtk/group_00/batch_00000000_spheres.pvd",
+        "point_arrays": [
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "rad",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_id",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 0.0,
+            "points": 12,
+            "cells": 0,
+            "bounds": [
+              0.06379711046373845,
+              0.9295387695373654,
+              0.02391497163538244,
+              0.8305171526887467,
+              0.0,
+              0.0
+            ],
+            "bytes": 6994,
+            "physical_summary": {
+              "radius_min": 0.08,
+              "radius_max": 0.12,
+              "speed_max": 0.0,
+              "force_norm_max": 0.0
+            }
+          }
+        ]
+      },
+      {
+        "label": "Rigid clumps",
+        "kind": "domain",
+        "path": "/tmp/jaxdem-media-particle_construction-xchax13h/vtk/group_01/batch_00000000_domain.pvd",
+        "point_arrays": [
+          "Normals",
+          "TCoords"
+        ],
+        "frames": [
+          {
+            "time": 0.0,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              2.7153053283691406,
+              0.0,
+              2.7153053283691406,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          }
+        ]
+      },
+      {
+        "label": "Rigid clumps",
+        "kind": "particles",
+        "path": "/tmp/jaxdem-media-particle_construction-xchax13h/vtk/group_01/batch_00000000_spheres.pvd",
+        "point_arrays": [
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "rad",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_id",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 0.0,
+            "points": 40,
+            "cells": 0,
+            "bounds": [
+              -0.20002653304562806,
+              2.507459972496288,
+              -0.004130412641938475,
+              2.0448433919432887,
+              0.0,
+              0.0
+            ],
+            "bytes": 8066,
+            "physical_summary": {
+              "radius_min": 0.1,
+              "radius_max": 0.35,
+              "speed_max": 0.0,
+              "force_norm_max": 0.0
+            }
+          }
+        ]
+      },
+      {
+        "label": "Deformable particles",
+        "kind": "edges",
+        "path": "/tmp/jaxdem-media-particle_construction-xchax13h/vtk/group_02/batch_00000000_deformable_edges.pvd",
+        "point_arrays": [],
+        "frames": [
+          {
+            "time": 0.01,
+            "points": 24,
+            "cells": 24,
+            "bounds": [
+              0.7017159902726124,
+              3.643557646429582,
+              -0.11465168515351266,
+              2.6364621579452683,
+              0.0,
+              0.0
+            ],
+            "bytes": 3828,
+            "physical_summary": {}
+          }
+        ]
+      },
+      {
+        "label": "Deformable particles",
+        "kind": "surface",
+        "path": "/tmp/jaxdem-media-particle_construction-xchax13h/vtk/group_02/batch_00000000_deformable_elements.pvd",
+        "point_arrays": [],
+        "frames": [
+          {
+            "time": 0.01,
+            "points": 24,
+            "cells": 24,
+            "bounds": [
+              0.7017159902726124,
+              3.643557646429582,
+              -0.11465168515351266,
+              2.6364621579452683,
+              0.0,
+              0.0
+            ],
+            "bytes": 5399,
+            "physical_summary": {}
+          }
+        ]
+      },
+      {
+        "label": "Deformable particles",
+        "kind": "domain",
+        "path": "/tmp/jaxdem-media-particle_construction-xchax13h/vtk/group_02/batch_00000000_domain.pvd",
+        "point_arrays": [
+          "Normals",
+          "TCoords"
+        ],
+        "frames": [
+          {
+            "time": 0.01,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              4.341607570648193,
+              0.0,
+              4.341607570648193,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          }
+        ]
+      },
+      {
+        "label": "Deformable particles",
+        "kind": "particles",
+        "path": "/tmp/jaxdem-media-particle_construction-xchax13h/vtk/group_02/batch_00000000_spheres.pvd",
+        "point_arrays": [
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "rad",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_id",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 0.01,
+            "points": 24,
+            "cells": 0,
+            "bounds": [
+              0.7017159902726124,
+              3.643557646429582,
+              -0.11465168515351266,
+              2.6364621579452683,
+              0.0,
+              0.0
+            ],
+            "bytes": 8809,
+            "physical_summary": {
+              "radius_min": 0.1,
+              "radius_max": 0.1,
+              "speed_max": 1.6557107416181187e-16,
+              "force_norm_max": 2.7595179026968637e-15
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

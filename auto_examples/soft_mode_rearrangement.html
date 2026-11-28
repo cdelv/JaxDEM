@@ -1,0 +1,783 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Watch a soft mode develop into a rearrangement &#8212; JaxDEM 0.1.0</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery.css?v=fd6457a4" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-binder.css?v=f4aeca0c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-dataframe.css?v=2082cf3c" />
+    <link rel="stylesheet" type="text/css" href="../_static/sg_gallery-rendered-html.css?v=1277b6f3" />
+    <link rel="stylesheet" type="text/css" href="../_static/custom.css?v=6cb5ae24" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../_static/documentation_options.js?v=38b66d78"></script>
+    <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/sg-tags.js?v=d80f6fa4"></script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'auto_examples/soft_mode_rearrangement';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Run an ensemble of granular compaction experiments" href="batched_granular_experiments.html" />
+    <link rel="prev" title="Rigid, elastic and viscoplastic grains under the same load" href="rigid_elastic_viscoplastic_loading.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+  
+    
+    <script src="../_static/searchtools.js"></script>
+    <script src="../_static/language_data.js"></script>
+    <script src="../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search the docs ..."
+         aria-label="Search the docs ..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-3 navbar-header-items__start">
+    
+      <div class="navbar-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+  
+    <p class="title logo__title">JaxDEM 0.1.0</p>
+  
+</a></div>
+    
+  </div>
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    <div class="me-auto navbar-header-items__center">
+      
+        <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+      
+    </div>
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+        </div>
+      
+      
+        <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+      
+        <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+      <div class="sidebar-header-items__center">
+        
+          
+          
+            <div class="navbar-item">
+<nav>
+  <ul class="bd-navbar-elements navbar-nav">
+    
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../user_guide/index.html">
+    User guide
+  </a>
+</li>
+
+
+<li class="nav-item current active">
+  <a class="nav-link nav-internal" href="../examples/index.html">
+    Examples
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../contribution_guide/index.html">
+    Contribution Guide
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../reference/api.html">
+    API reference
+  </a>
+</li>
+
+
+<li class="nav-item ">
+  <a class="nav-link nav-internal" href="../benchmarks/index.html">
+    Benchmarks
+  </a>
+</li>
+
+  </ul>
+</nav></div>
+          
+        
+      </div>
+    
+    
+    
+      <div class="sidebar-header-items__end">
+        
+          <div class="navbar-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://github.com/cdelv/JaxDEM" title="GitHub" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fab fa-github fa-lg" aria-hidden="true"></i><span class="visually-hidden">GitHub</span></a>
+        </li>
+</ul></div>
+        
+          <div class="navbar-item">
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div></div>
+        
+      </div>
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item pst-sidebar-collapse"><button id="pst-collapse-sidebar-button" aria-expanded="true" aria-controls="pst-primary-sidebar">
+  <svg class="pst-icon" role="img" aria-hidden="true" focusable="false" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+    <path fill="currentColor" d="M3 15.5C2.36232 15.5 1.74874 15.2564 1.28478 14.8189C0.820828 14.3815 0.541576 13.7832 0.504167 13.1467L0.5 13L0.5 3C0.499965 2.36232 0.743605 1.74874 1.18107 1.28478C1.61854 0.820828 2.21676 0.541576 2.85333 0.504167L3 0.5L13 0.5C13.6377 0.499965 14.2513 0.743605 14.7152 1.18107C15.1792 1.61854 15.4584 2.21676 15.4958 2.85333L15.5 3L15.5 13C15.5 13.6377 15.2564 14.2513 14.8189 14.7152C14.3815 15.1792 13.7832 15.4584 13.1467 15.4958L13 15.5L3 15.5ZM3 13.8333L10.5 13.8333L10.5 2.16667L3 2.16667C2.79589 2.16669 2.59889 2.24163 2.44636 2.37726C2.29383 2.5129 2.19638 2.69979 2.1725 2.9025L2.16667 3L2.16667 13C2.16669 13.2041 2.24163 13.4011 2.37726 13.5536C2.5129 13.7062 2.69979 13.8036 2.9025 13.8275L3 13.8333ZM6.65583 10.325L6.5775 10.2558L4.91083 8.58917C4.76735 8.44567 4.68116 8.25476 4.66843 8.05223C4.65569 7.84971 4.71729 7.6495 4.84167 7.48917L4.91083 7.41083L6.5775 5.74417C6.72747 5.59471 6.9287 5.50794 7.14032 5.50148C7.35194 5.49502 7.55809 5.56935 7.7169 5.70937C7.8757 5.8494 7.97525 6.04463 7.99533 6.25539C8.01541 6.46616 7.95451 6.67667 7.825 6.84417L7.75583 6.9225L6.67917 8L7.75583 9.0775C7.89931 9.22099 7.98551 9.41191 7.99824 9.61443C8.01097 9.81695 7.94938 10.0172 7.825 10.1775L7.75583 10.2558C7.61234 10.3993 7.42142 10.4855 7.2189 10.4982C7.01638 10.511 6.81617 10.4494 6.65583 10.325Z"/>
+  </svg>
+  <span class="pst-collapse-sidebar-label">Collapse Sidebar</span>
+  <span class="pst-expand-sidebar-label">Expand Sidebar</span>
+</button></div>
+        <div class="sidebar-primary-item">
+
+<nav class="bd-docs-nav bd-links"
+     aria-label="Section Navigation">
+  <p class="bd-links__title" role="heading" aria-level="1">Section Navigation</p>
+  <div class="bd-toc-item navbar-nav"><ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="particle_construction.html">One-call particle packing builders</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clump_construction_pipeline.html">Rigid geometric-asperity clumps: step-by-step pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dp_construction_pipeline.html">Geometric-asperity deformable particles: step-by-step pipeline</a></li>
+<li class="toctree-l1"><a class="reference internal" href="minimize_and_jam_spheres.html">Batched energy minimization and bisection jamming</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sphere_jamming_rattlers_dynamical_matrix.html">Jammed bidisperse spheres: contacts, rattlers, and the dynamical matrix</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clump_jamming_dynamical_matrix_and_friction.html">Jammed rigid clumps: contacts, Hessian, and geometric friction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="packing_analysis.html">Find rattlers and draw a contact network</a></li>
+<li class="toctree-l1"><a class="reference internal" href="packing_fraction_protocol.html">Packing-fraction protocol: integrate with a scheduled box rescale</a></li>
+<li class="toctree-l1"><a class="reference internal" href="pseudo_log_rollout.html">Save selected quantities on a pseudo-logarithmic schedule</a></li>
+<li class="toctree-l1"><a class="reference internal" href="clump_surface_properties.html">Clump surface properties: SASA and geometric friction</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="rotating_drum.html">A rotating drum loaded from an STL mesh</a></li>
+<li class="toctree-l1"><a class="reference internal" href="temperature_density_control.html">Temperature and density control</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lees_edwards_shear.html">Lees–Edwards shear: dynamic flow and athermal quasistatic (AQS) loading</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vicsek_model.html">Vicsek alignment of rigid dumbbells</a></li>
+</ul>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="infer_contact_stiffness.html">Infer contact stiffness from observed trajectories</a></li>
+<li class="toctree-l1"><a class="reference internal" href="rigid_elastic_viscoplastic_loading.html">Rigid, elastic and viscoplastic grains under the same load</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Watch a soft mode develop into a rearrangement</a></li>
+<li class="toctree-l1"><a class="reference internal" href="batched_granular_experiments.html">Run an ensemble of granular compaction experiments</a></li>
+</ul>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="environment_custom_policy.html">Drive vectorized environments with a custom policy</a></li>
+<li class="toctree-l1"><a class="reference internal" href="data/index.html">Scenario data</a></li>
+</ul>
+</div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item"><nav class="sidebar-indices-items" aria-labelledby="pst-indices-navigation-heading-2">
+  <p id="pst-indices-navigation-heading-2" class="sidebar-indices-items__title" role="heading" aria-level="1">Indices</p>
+  <ul class="indices-link">
+        <li class="toctree-l1">
+          <a class="reference internal"
+             href="../genindex.html"
+             accesskey="I">General Index</a>
+        </li>
+        <li class="toctree-l1">
+          <a class="reference internal" href="../py-modindex.html">Python Module Index</a>
+        </li>
+  </ul>
+</nav></div>
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item">
+
+<nav aria-label="Breadcrumb" class="d-print-none">
+  <ul class="bd-breadcrumbs">
+    
+    <li class="breadcrumb-item breadcrumb-home">
+      <a href="../index.html" class="nav-link" aria-label="Home">
+        <i class="fa-solid fa-home"></i>
+      </a>
+    </li>
+    
+    <li class="breadcrumb-item"><a href="../examples/index.html" class="nav-link">Examples</a></li>
+    
+    <li class="breadcrumb-item active" aria-current="page"><span class="ellipsis">Watch a soft mode develop into a rearrangement</span></li>
+  </ul>
+</nav>
+</div>
+      
+    </div>
+  
+  
+</div>
+</div>
+              
+              
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <div class="sphx-glr-download-link-note admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="#sphx-glr-download-auto-examples-soft-mode-rearrangement-py"><span class="std std-ref">Go to the end</span></a>
+to download the full example code.</p>
+</div>
+<section class="sphx-glr-example-title" id="watch-a-soft-mode-develop-into-a-rearrangement">
+<span id="sphx-glr-auto-examples-soft-mode-rearrangement-py"></span><h1>Watch a soft mode develop into a rearrangement<a class="headerlink" href="#watch-a-soft-mode-develop-into-a-rearrangement" title="Link to this heading">#</a></h1>
+<p>Track the lowest vibrational eigenmode of a sheared 2D bidisperse disk packing
+with <code class="docutils literal notranslate"><span class="pre">jax.hessian</span></code> across athermal quasistatic (AQS) shear steps, and measure
+its alignment with the nonaffine displacement during a plastic rearrangement.</p>
+<p>Starting from the prepared 16-disk configuration in
+<code class="docutils literal notranslate"><span class="pre">data/soft_mode_packing.json</span></code> (see <a class="reference internal" href="lees_edwards_shear.html"><span class="doc">Lees–Edwards shear: dynamic flow and athermal quasistatic (AQS) loading</span></a> for how AQS
+packings are prepared), this example recomputes equilibrium relaxation, exact
+Hessians, mode softening, and the rearrangement event from scratch. Requires
+Matplotlib.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">replace</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax</span>
+
+<span class="n">jax</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s2">"jax_enable_x64"</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jax.numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jnp</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">jaxdem</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">jdem</span>
+</pre></div>
+</div>
+<section id="load-the-prepared-packing-and-define-exact-jax-hessian-diagnostics">
+<h2>1) Load the Prepared Packing and Define Exact <code class="docutils literal notranslate"><span class="pre">jax.hessian</span></code> Diagnostics<a class="headerlink" href="#load-the-prepared-packing-and-define-exact-jax-hessian-diagnostics" title="Link to this heading">#</a></h2>
+<p>Three JAX/JaxDEM details make exact second derivatives work cleanly:</p>
+<ul class="simple">
+<li><p>Differentiate with respect to the stored center coordinates <code class="docutils literal notranslate"><span class="pre">pos_c</span></code> (not
+the derived <code class="docutils literal notranslate"><span class="pre">pos</span></code> property).</p></li>
+<li><p>Use <code class="docutils literal notranslate"><span class="pre">collider_type=&quot;naive&quot;</span></code> (smooth, branchless all-pairs energy).</p></li>
+<li><p><a class="reference internal" href="../reference/generated/jaxdem.colliders.html#jaxdem.colliders.Collider.compute_potential_energy" title="jaxdem.colliders.Collider.compute_potential_energy"><code class="xref py py-meth docutils literal notranslate"><span class="pre">compute_potential_energy()</span></code></a> returns
+<code class="docutils literal notranslate"><span class="pre">(state,</span> <span class="pre">system,</span> <span class="pre">pe)</span></code>, so index <code class="docutils literal notranslate"><span class="pre">[2]</span></code> extracts the scalar potential energy.</p></li>
+</ul>
+<p>To remove the two uniform periodic translations without discarding genuine
+soft modes, build an orthonormal complement <span class="math notranslate nohighlight">\(Q\)</span> via complete QR
+factorization and diagonalize <span class="math notranslate nohighlight">\(Q^T H Q\)</span>.</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">example_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">parent</span> <span class="k">if</span> <span class="s2">"__file__"</span> <span class="ow">in</span> <span class="nb">globals</span><span class="p">()</span> <span class="k">else</span> <span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span>
+<span class="n">fixture</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">((</span><span class="n">example_dir</span> <span class="o">/</span> <span class="s2">"data"</span> <span class="o">/</span> <span class="s2">"soft_mode_packing.json"</span><span class="p">)</span><span class="o">.</span><span class="n">read_text</span><span class="p">())</span>
+<span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">fixture</span><span class="p">[</span><span class="s2">"radii"</span><span class="p">])</span>
+<span class="n">STRAIN_INCREMENT</span> <span class="o">=</span> <span class="mf">5e-5</span>
+<span class="n">MAX_STRAIN_STEPS</span> <span class="o">=</span> <span class="mi">36</span>
+<span class="n">FORCE_TOL</span> <span class="o">=</span> <span class="mf">2e-10</span>
+
+<span class="n">state</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">pos</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">fixture</span><span class="p">[</span><span class="s2">"positions"</span><span class="p">]),</span>
+    <span class="n">rad</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">fixture</span><span class="p">[</span><span class="s2">"radii"</span><span class="p">]),</span>
+    <span class="n">mass</span><span class="o">=</span><span class="n">jnp</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="n">N</span><span class="p">),</span>
+<span class="p">)</span>
+<span class="n">system</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">state</span><span class="o">=</span><span class="n">state</span><span class="p">,</span>
+    <span class="n">dt</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span>
+    <span class="n">force_model_type</span><span class="o">=</span><span class="s2">"spring"</span><span class="p">,</span>
+    <span class="n">collider_type</span><span class="o">=</span><span class="s2">"naive"</span><span class="p">,</span>
+    <span class="n">rotation_integrator_type</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">minimizer</span><span class="o">=</span><span class="n">jdem</span><span class="o">.</span><span class="n">minimizers</span><span class="o">.</span><span class="n">fire</span><span class="p">,</span>
+    <span class="n">minimizer_kw</span><span class="o">=</span><span class="p">{</span><span class="s2">"dt"</span><span class="p">:</span> <span class="mf">0.05</span><span class="p">},</span>
+    <span class="n">domain_type</span><span class="o">=</span><span class="s2">"leesedwards"</span><span class="p">,</span>
+    <span class="n">domain_kw</span><span class="o">=</span><span class="p">{</span><span class="s2">"box_size"</span><span class="p">:</span> <span class="n">fixture</span><span class="p">[</span><span class="s2">"box_size"</span><span class="p">],</span> <span class="s2">"gamma"</span><span class="p">:</span> <span class="n">fixture</span><span class="p">[</span><span class="s2">"gamma"</span><span class="p">]},</span>
+    <span class="n">mat_table</span><span class="o">=</span><span class="n">jdem</span><span class="o">.</span><span class="n">MaterialTable</span><span class="o">.</span><span class="n">from_materials</span><span class="p">(</span>
+        <span class="p">[</span><span class="n">jdem</span><span class="o">.</span><span class="n">Material</span><span class="o">.</span><span class="n">create</span><span class="p">(</span><span class="s2">"elastic"</span><span class="p">,</span> <span class="o">**</span><span class="n">fixture</span><span class="p">[</span><span class="s2">"material"</span><span class="p">])]</span>
+    <span class="p">),</span>
+<span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">total_energy</span><span class="p">(</span><span class="n">flat_positions</span><span class="p">:</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">,</span> <span class="n">st</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="p">,</span> <span class="n">sys</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">jax</span><span class="o">.</span><span class="n">Array</span><span class="p">:</span>
+    <span class="n">trial</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">st</span><span class="p">,</span> <span class="n">pos_c</span><span class="o">=</span><span class="n">flat_positions</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">st</span><span class="o">.</span><span class="n">pos_c</span><span class="o">.</span><span class="n">shape</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">sys</span><span class="o">.</span><span class="n">collider</span><span class="o">.</span><span class="n">compute_potential_energy</span><span class="p">(</span><span class="n">trial</span><span class="p">,</span> <span class="n">sys</span><span class="p">)[</span><span class="mi">2</span><span class="p">]</span>
+
+
+<span class="n">energy</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">(</span><span class="n">total_energy</span><span class="p">)</span>
+<span class="n">hessian</span> <span class="o">=</span> <span class="n">jax</span><span class="o">.</span><span class="n">jit</span><span class="p">(</span><span class="n">jax</span><span class="o">.</span><span class="n">hessian</span><span class="p">(</span><span class="n">total_energy</span><span class="p">,</span> <span class="n">argnums</span><span class="o">=</span><span class="mi">0</span><span class="p">))</span>
+<span class="n">translations</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="p">(</span><span class="n">N</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+<span class="n">Q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">qr</span><span class="p">(</span><span class="n">translations</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">"complete"</span><span class="p">)[</span><span class="mi">0</span><span class="p">][:,</span> <span class="mi">2</span><span class="p">:]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">spectrum</span><span class="p">(</span><span class="n">st</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="p">,</span> <span class="n">sys</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="p">):</span>
+    <span class="n">H</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">hessian</span><span class="p">(</span><span class="n">st</span><span class="o">.</span><span class="n">pos_c</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">st</span><span class="p">,</span> <span class="n">sys</span><span class="p">))</span>
+    <span class="n">H</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">H</span> <span class="o">+</span> <span class="n">H</span><span class="o">.</span><span class="n">T</span><span class="p">)</span>
+    <span class="n">values</span><span class="p">,</span> <span class="n">vectors</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">eigh</span><span class="p">(</span><span class="n">Q</span><span class="o">.</span><span class="n">T</span> <span class="o">@</span> <span class="n">H</span> <span class="o">@</span> <span class="n">Q</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">H</span><span class="p">,</span> <span class="n">values</span><span class="p">,</span> <span class="n">Q</span> <span class="o">@</span> <span class="n">vectors</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">relax</span><span class="p">(</span><span class="n">st</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">State</span><span class="p">,</span> <span class="n">sys</span><span class="p">:</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="p">):</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">jdem</span><span class="o">.</span><span class="n">System</span><span class="o">.</span><span class="n">minimize</span><span class="p">(</span>
+        <span class="n">st</span><span class="p">,</span> <span class="n">sys</span><span class="p">,</span> <span class="n">max_steps</span><span class="o">=</span><span class="mi">8_000</span><span class="p">,</span> <span class="n">force_tol</span><span class="o">=</span><span class="n">FORCE_TOL</span><span class="p">,</span> <span class="n">torque_tol</span><span class="o">=</span><span class="n">FORCE_TOL</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">bool</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">converged</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"AQS relaxation failed: </span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="n">info</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">res</span>
+</pre></div>
+</div>
+</section>
+<section id="shear-quasistatically-until-a-plastic-rearrangement-occurs">
+<h2>2) Shear Quasistatically Until a Plastic Rearrangement Occurs<a class="headerlink" href="#shear-quasistatically-until-a-plastic-rearrangement-occurs" title="Link to this heading">#</a></h2>
+<p>At each strain step, apply <a class="reference internal" href="../reference/generated/jaxdem.domains.lees_edwards.html#jaxdem.domains.lees_edwards.LeesEdwardsDomain.shear" title="jaxdem.domains.lees_edwards.LeesEdwardsDomain.shear"><code class="xref py py-meth docutils literal notranslate"><span class="pre">shear()</span></code></a>,
+relax to force balance, and measure the normalized overlap
+<span class="math notranslate nohighlight">\(C = |\mathbf{e}_{\min}^{n} \cdot \mathbf{u}^{\mathrm{NA}}| / \|\mathbf{u}^{\mathrm{NA}}\|\)</span>
+between the preceding lowest eigenmode and the nonaffine displacement:</p>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">initial</span> <span class="o">=</span> <span class="n">relax</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+<span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">initial</span><span class="o">.</span><span class="n">state</span><span class="p">,</span> <span class="n">initial</span><span class="o">.</span><span class="n">system</span>
+<span class="n">_</span><span class="p">,</span> <span class="n">eigenvalues</span><span class="p">,</span> <span class="n">mode</span> <span class="o">=</span> <span class="n">spectrum</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+
+<span class="n">strain_values</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">gamma</span><span class="p">)]</span>
+<span class="n">energies_per_disk</span> <span class="o">=</span> <span class="p">[</span><span class="nb">float</span><span class="p">(</span><span class="n">initial</span><span class="o">.</span><span class="n">energy</span><span class="p">)]</span>
+<span class="n">released_per_disk</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">]</span>
+<span class="n">lowest_values</span> <span class="o">=</span> <span class="p">[</span><span class="n">eigenvalues</span><span class="p">[:</span><span class="mi">2</span><span class="p">]]</span>
+<span class="n">overlaps</span> <span class="o">=</span> <span class="p">[</span><span class="mf">0.0</span><span class="p">]</span>
+<span class="n">scene_states</span> <span class="o">=</span> <span class="p">[</span><span class="n">state</span><span class="p">]</span>
+<span class="n">scene_systems</span> <span class="o">=</span> <span class="p">[</span><span class="n">system</span><span class="p">]</span>
+<span class="n">event</span> <span class="o">=</span> <span class="kc">None</span>
+
+<span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">MAX_STRAIN_STEPS</span><span class="p">):</span>
+    <span class="n">prev_mode</span> <span class="o">=</span> <span class="n">mode</span>
+    <span class="n">affine</span><span class="p">,</span> <span class="n">strained_sys</span> <span class="o">=</span> <span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">shear</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">,</span> <span class="n">STRAIN_INCREMENT</span><span class="p">)</span>
+    <span class="n">affine_energy</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">energy</span><span class="p">(</span><span class="n">affine</span><span class="o">.</span><span class="n">pos_c</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span> <span class="n">affine</span><span class="p">,</span> <span class="n">strained_sys</span><span class="p">))</span>
+    <span class="n">res</span> <span class="o">=</span> <span class="n">relax</span><span class="p">(</span><span class="n">affine</span><span class="p">,</span> <span class="n">strained_sys</span><span class="p">)</span>
+    <span class="n">state</span><span class="p">,</span> <span class="n">system</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">state</span><span class="p">,</span> <span class="n">res</span><span class="o">.</span><span class="n">system</span>
+
+    <span class="n">disp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">displacement</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">pos</span><span class="p">,</span> <span class="n">affine</span><span class="o">.</span><span class="n">pos</span><span class="p">,</span> <span class="n">system</span><span class="p">))</span>
+    <span class="n">disp</span> <span class="o">=</span> <span class="n">disp</span> <span class="o">-</span> <span class="n">disp</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">disp_norm</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">disp</span><span class="p">))</span>
+    <span class="n">overlap</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">prev_mode</span> <span class="o">@</span> <span class="n">disp</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span> <span class="o">/</span> <span class="n">disp_norm</span><span class="p">)</span>
+    <span class="n">_</span><span class="p">,</span> <span class="n">eigenvalues</span><span class="p">,</span> <span class="n">mode</span> <span class="o">=</span> <span class="n">spectrum</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">system</span><span class="p">)</span>
+    <span class="n">energy_drop</span> <span class="o">=</span> <span class="n">energies_per_disk</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="nb">float</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">energy</span><span class="p">)</span>
+
+    <span class="n">strain_values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">system</span><span class="o">.</span><span class="n">domain</span><span class="o">.</span><span class="n">gamma</span><span class="p">))</span>
+    <span class="n">energies_per_disk</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">energy</span><span class="p">))</span>
+    <span class="n">released_per_disk</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">affine_energy</span> <span class="o">/</span> <span class="n">N</span> <span class="o">-</span> <span class="nb">float</span><span class="p">(</span><span class="n">res</span><span class="o">.</span><span class="n">energy</span><span class="p">))</span>
+    <span class="n">lowest_values</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">eigenvalues</span><span class="p">[:</span><span class="mi">2</span><span class="p">])</span>
+    <span class="n">overlaps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">overlap</span><span class="p">)</span>
+    <span class="n">scene_states</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+    <span class="n">scene_systems</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">system</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">disp_norm</span> <span class="o">&gt;</span> <span class="mf">0.15</span> <span class="ow">and</span> <span class="n">energy_drop</span> <span class="o">&gt;</span> <span class="mf">1e-4</span><span class="p">:</span>
+        <span class="n">event</span> <span class="o">=</span> <span class="p">(</span><span class="n">disp_norm</span><span class="p">,</span> <span class="n">energy_drop</span><span class="p">,</span> <span class="n">overlap</span><span class="p">)</span>
+        <span class="k">break</span>
+
+<span class="k">if</span> <span class="n">event</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">"No energy-releasing rearrangement found in strain interval."</span><span class="p">)</span>
+
+<span class="n">event_norm</span><span class="p">,</span> <span class="n">drop</span><span class="p">,</span> <span class="n">alignment</span> <span class="o">=</span> <span class="n">event</span>
+<span class="n">lowest_values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">lowest_values</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Rearrangement at gamma = </span><span class="si">{</span><span class="n">strain_values</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="si">:</span><span class="s2">.5f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Energy drop / disk = </span><span class="si">{</span><span class="n">drop</span><span class="si">:</span><span class="s2">.4e</span><span class="si">}</span><span class="s2"> | nonaffine norm = </span><span class="si">{</span><span class="n">event_norm</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Overlap with preceding soft mode: C = </span><span class="si">{</span><span class="n">alignment</span><span class="si">:</span><span class="s2">.4f</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span>
+    <span class="sa">f</span><span class="s2">"Lowest eigenvalue softened from </span><span class="si">{</span><span class="n">lowest_values</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">]</span><span class="si">:</span><span class="s2">.4g</span><span class="si">}</span><span class="s2"> "</span>
+    <span class="sa">f</span><span class="s2">"to </span><span class="si">{</span><span class="n">lowest_values</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">()</span><span class="si">:</span><span class="s2">.4g</span><span class="si">}</span><span class="s2">"</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="sphx-glr-script-out highlight-none notranslate"><div class="highlight"><pre><span></span>Rearrangement at gamma = 0.04760
+Energy drop / disk = 6.9451e-04 | nonaffine norm = 0.8903
+Overlap with preceding soft mode: C = 0.8347
+Lowest eigenvalue softened from 0.09858 to 0.001714
+</pre></div>
+</div>
+</section>
+<section id="plot-softening-mode-overlap-and-energy-release">
+<h2>3) Plot Softening, Mode Overlap, and Energy Release<a class="headerlink" href="#plot-softening-mode-overlap-and-energy-release" title="Link to this heading">#</a></h2>
+<div class="highlight-Python notranslate"><div class="highlight"><pre><span></span><span class="n">strain_offset</span> <span class="o">=</span> <span class="mi">1_000</span> <span class="o">*</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">strain_values</span><span class="p">)</span> <span class="o">-</span> <span class="n">strain_values</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<span class="n">fig</span><span class="p">,</span> <span class="n">axes</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">11</span><span class="p">,</span> <span class="mf">8.0</span><span class="p">),</span> <span class="n">layout</span><span class="o">=</span><span class="s2">"constrained"</span><span class="p">)</span>
+
+<span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">strain_offset</span><span class="p">,</span> <span class="n">energies_per_disk</span><span class="p">,</span> <span class="s2">"o-"</span><span class="p">,</span> <span class="n">ms</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"#275e94"</span><span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">ylabel</span><span class="o">=</span><span class="s2">"Relaxed energy U / N"</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s2">"Equilibrium energy"</span><span class="p">)</span>
+
+<span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">semilogy</span><span class="p">(</span>
+    <span class="n">strain_offset</span><span class="p">,</span> <span class="n">lowest_values</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span> <span class="s2">"o-"</span><span class="p">,</span> <span class="n">ms</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"#258685"</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s2">"lowest $\lambda$"</span>
+<span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">semilogy</span><span class="p">(</span><span class="n">strain_offset</span><span class="p">,</span> <span class="n">lowest_values</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="s2">"--"</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"0.55"</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">r</span><span class="s2">"next $\lambda$"</span><span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">ylabel</span><span class="o">=</span><span class="s2">"Stiffness eigenvalue"</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s2">"Soft mode precedes rearrangement"</span><span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">fontsize</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+
+<span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">strain_offset</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="n">overlaps</span><span class="p">[</span><span class="mi">1</span><span class="p">:],</span> <span class="s2">"o-"</span><span class="p">,</span> <span class="n">ms</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"#275e94"</span><span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">axhline</span><span class="p">(</span><span class="n">alignment</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"0.5"</span><span class="p">,</span> <span class="n">ls</span><span class="o">=</span><span class="s2">"--"</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span>
+    <span class="n">ylim</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mf">1.05</span><span class="p">),</span>
+    <span class="n">ylabel</span><span class="o">=</span><span class="s2">"Mode overlap C"</span><span class="p">,</span>
+    <span class="n">title</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Soft-mode alignment at event: </span><span class="si">{</span><span class="n">alignment</span><span class="si">:</span><span class="s2">.3f</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">strain_offset</span><span class="p">,</span> <span class="n">released_per_disk</span><span class="p">,</span> <span class="s2">"o-"</span><span class="p">,</span> <span class="n">ms</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"#d07a28"</span><span class="p">)</span>
+<span class="n">axes</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="n">ylabel</span><span class="o">=</span><span class="s2">"Released energy / N"</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="s2">"Relaxation energy drop"</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">ax</span> <span class="ow">in</span> <span class="n">axes</span><span class="o">.</span><span class="n">flat</span><span class="p">:</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">strain_offset</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="n">color</span><span class="o">=</span><span class="s2">"0.45"</span><span class="p">,</span> <span class="n">ls</span><span class="o">=</span><span class="s2">":"</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s2">"Strain increment from fixture, $1000\,\Delta\gamma$"</span><span class="p">)</span>
+    <span class="n">ax</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">alpha</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+<span class="n">fig</span><span class="o">.</span><span class="n">suptitle</span><span class="p">(</span><span class="s2">"Soft collective mode developing into a plastic rearrangement"</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">13</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+<img src="../_images/sphx_glr_soft_mode_rearrangement_001.png" srcset="../_images/sphx_glr_soft_mode_rearrangement_001.png" alt="Soft collective mode developing into a plastic rearrangement, Equilibrium energy, Soft mode precedes rearrangement, Soft-mode alignment at event: 0.835, Relaxation energy drop" class = "sphx-glr-single-img"/><div class="animation-poster docutils container">
+<img src="../_images/sphx_glr_soft_mode_rearrangement_002.png" srcset="../_images/sphx_glr_soft_mode_rearrangement_002.png" alt="Soft mode rearrangement" class = "sphx-glr-single-img"/></div>
+<p>Colors show nonaffine displacement from the preceding saved equilibrium. Arrows show each equilibrium’s unit-norm soft eigenmode with sign aligned and a fixed display scale. In this planar scene the arrow glyphs are projected in front of the spheres; native particle positions and vector data are unchanged.</p>
+<figure class="simulation-media"><video controls loop muted playsinline preload="none" poster="../_static/visuals/soft_mode_rearrangement/scene.png" aria-label="Soft mode rearrangement"><source src="../_static/visuals/soft_mode_rearrangement/animation.mp4" type="video/mp4"><a href="../_static/visuals/soft_mode_rearrangement/animation.mp4">Download the animation</a></video><figcaption>Accepted equilibria in strain order. Playback speed represents neither a physical loading rate nor minimizer time. The final rearranged configuration is held for three seconds before looping.</figcaption></figure><details class="simulation-media interactive-scene"><summary>Explore this scene in 3D</summary><iframe src="../_static/visuals/viewer.html?name=soft_mode_rearrangement.vtkjs&amp;url=soft_mode_rearrangement%2Fscene.vtkjs&amp;noGirder=true" loading="lazy" title="Interactive ParaView scene: Soft mode rearrangement"></iframe><p><a href="../_static/visuals/viewer.html?name=soft_mode_rearrangement.vtkjs&amp;url=soft_mode_rearrangement%2Fscene.vtkjs&amp;noGirder=true" target="_blank" rel="noopener">Open the interactive scene in a separate tab</a></p></details></section>
+<section id="preparation-provenance-references">
+<h2>Preparation Provenance &amp; References<a class="headerlink" href="#preparation-provenance-references" title="Link to this heading">#</a></h2>
+<p>Full generation parameters for <code class="docutils literal notranslate"><span class="pre">data/soft_mode_packing.json</span></code> are stored in
+its <code class="docutils literal notranslate"><span class="pre">&quot;provenance&quot;</span></code> field (built with the AQS protocol from
+<a class="reference internal" href="lees_edwards_shear.html"><span class="doc">Lees–Edwards shear: dynamic flow and athermal quasistatic (AQS) loading</span></a>). For background on soft modes and AQS plasticity,
+see Maloney &amp; Lemaître (<a class="reference external" href="https://arxiv.org/abs/cond-mat/0510677">arXiv:cond-mat/0510677</a>) and Manning &amp; Liu
+(<a class="reference external" href="https://arxiv.org/abs/1012.4822">arXiv:1012.4822</a>).</p>
+<p class="sphx-glr-timing"><strong>Total running time of the script:</strong> (0 minutes 9.997 seconds)</p>
+<div class="sphx-glr-footer sphx-glr-footer-example docutils container" id="sphx-glr-download-auto-examples-soft-mode-rearrangement-py">
+<div class="sphx-glr-download sphx-glr-download-jupyter docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/5d4cc6f0ca88c737e57716db1b3e9a71/soft_mode_rearrangement.ipynb"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Jupyter</span> <span class="pre">notebook:</span> <span class="pre">soft_mode_rearrangement.ipynb</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-python docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/a60fe4bc5ec4c2d127e252a132d48c61/soft_mode_rearrangement.py"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">Python</span> <span class="pre">source</span> <span class="pre">code:</span> <span class="pre">soft_mode_rearrangement.py</span></code></a></p>
+</div>
+<div class="sphx-glr-download sphx-glr-download-zip docutils container">
+<p><a class="reference download internal" download="" href="../_downloads/4ad88ee3a9a32387e263c407c56a1906/soft_mode_rearrangement.zip"><code class="xref download docutils literal notranslate"><span class="pre">Download</span> <span class="pre">zipped:</span> <span class="pre">soft_mode_rearrangement.zip</span></code></a></p>
+</div>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="rigid_elastic_viscoplastic_loading.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Rigid, elastic and viscoplastic grains under the same load</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="batched_granular_experiments.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Run an ensemble of granular compaction experiments</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+<div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#load-the-prepared-packing-and-define-exact-jax-hessian-diagnostics">1) Load the Prepared Packing and Define Exact <code class="docutils literal notranslate"><span class="pre">jax.hessian</span></code> Diagnostics</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#shear-quasistatically-until-a-plastic-rearrangement-occurs">2) Shear Quasistatically Until a Plastic Rearrangement Occurs</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#plot-softening-mode-overlap-and-energy-release">3) Plot Softening, Mode Overlap, and Energy Release</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#preparation-provenance-references">Preparation Provenance &amp; References</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+          </footer>
+        
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+<div class="bd-footer__inner bd-page-width">
+  
+    <div class="footer-items__start">
+      
+        <div class="footer-item">
+
+  <p class="sphinx-version">
+    Created using <a href="https://www.sphinx-doc.org/">Sphinx</a> 9.1.0.
+    <br/>
+  </p>
+</div>
+      
+    </div>
+  
+  
+  
+    <div class="footer-items__end">
+      
+        <div class="footer-item">
+<p class="theme-version">
+  <!-- # L10n: Setting the PST URL as an argument as this does not need to be localized -->
+  Built with the <a href="https://pydata-sphinx-theme.readthedocs.io/en/stable/index.html">PyData Sphinx Theme</a> 0.20.0.
+</p></div>
+      
+    </div>
+  
+</div>
+
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,12 @@
+jaxdem.colliders.multi\_cell\_list
+==================================
+
+.. automodule:: jaxdem.colliders.multi_cell_list
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      DynamicMultiCellList
+   

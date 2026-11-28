@@ -1,0 +1,22 @@
+jaxdem.rl.trainers
+==================
+
+.. automodule:: jaxdem.rl.trainers
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Trainer
+      TrajectoryData
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   ppo_trainer
+   protein_sweep
+   puffer_trainer

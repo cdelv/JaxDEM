@@ -1,0 +1,12 @@
+jaxdem.rl.trainers.puffer\_trainer
+==================================
+
+.. automodule:: jaxdem.rl.trainers.puffer_trainer
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      PufferTrainer
+   

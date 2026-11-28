@@ -1,0 +1,23 @@
+jaxdem.rl.models
+================
+
+.. automodule:: jaxdem.rl.models
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Model
+      SigmaHead
+      SigmaParam
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   lstm
+   mingru
+   mlp

@@ -1,0 +1,12 @@
+jaxdem.utils.clumps
+===================
+
+.. automodule:: jaxdem.utils.clumps
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      compute_clump_properties
+   

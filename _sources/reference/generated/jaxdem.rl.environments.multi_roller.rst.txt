@@ -1,0 +1,12 @@
+jaxdem.rl.environments.multi\_roller
+====================================
+
+.. automodule:: jaxdem.rl.environments.multi_roller
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      MultiRoller
+   

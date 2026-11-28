@@ -1,0 +1,2018 @@
+{
+  "title": "Temperature density control",
+  "renderer": "ParaView",
+  "paraview_version": "6.2.0",
+  "manifest": "/tmp/jaxdem-media-temperature_density_control-9j4uowsl/scene.json",
+  "size": [
+    960,
+    600
+  ],
+  "camera": "xy",
+  "bounds": [
+    0.005478084087371826,
+    23.715757369995117,
+    -0.7503353357315063,
+    9.033317565917969,
+    -1.0,
+    1.0
+  ],
+  "poster_time": 2.0,
+  "time_label": "t",
+  "native_times": [
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9,
+    1.0,
+    1.1,
+    1.2,
+    1.3,
+    1.4,
+    1.5,
+    1.6,
+    1.7,
+    1.8,
+    1.9,
+    2.0
+  ],
+  "animation_times": [
+    0.1,
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.7,
+    0.8,
+    0.9,
+    1.0,
+    1.1,
+    1.2,
+    1.3,
+    1.4,
+    1.5,
+    1.6,
+    1.7,
+    1.8,
+    1.9,
+    2.0
+  ],
+  "fps": 8,
+  "end_hold_frames": 0,
+  "end_hold_seconds": 0.0,
+  "encoded_frame_count": 20,
+  "series": [
+    {
+      "path": "/tmp/jaxdem-media-temperature_density_control-9j4uowsl/vtk/group_00/batch_00000000_domain.pvd",
+      "kind": "domain",
+      "native_times": [
+        0.1,
+        0.2,
+        0.3,
+        0.4,
+        0.5,
+        0.6,
+        0.7,
+        0.8,
+        0.9,
+        1.0,
+        1.1,
+        1.2,
+        1.3,
+        1.4,
+        1.5,
+        1.6,
+        1.7,
+        1.8,
+        1.9,
+        2.0
+      ],
+      "source_points": 24,
+      "source_cells": 6,
+      "point_arrays": [
+        "Normals",
+        "TCoords"
+      ],
+      "representation": {
+        "offset": [
+          0.9750953909185096,
+          0.0,
+          0.0
+        ]
+      },
+      "geometry_points": 24,
+      "geometry_cells": 6
+    },
+    {
+      "path": "/tmp/jaxdem-media-temperature_density_control-9j4uowsl/vtk/group_00/batch_00000000_spheres.pvd",
+      "kind": "particles",
+      "native_times": [
+        0.1,
+        0.2,
+        0.3,
+        0.4,
+        0.5,
+        0.6,
+        0.7,
+        0.8,
+        0.9,
+        1.0,
+        1.1,
+        1.2,
+        1.3,
+        1.4,
+        1.5,
+        1.6,
+        1.7,
+        1.8,
+        1.9,
+        2.0
+      ],
+      "source_points": 16,
+      "source_cells": 0,
+      "point_arrays": [
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "rad",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_id",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color_by": "rad",
+        "color": [
+          0.12,
+          0.48,
+          0.72
+        ],
+        "offset": [
+          0.9750953909185096,
+          0.0,
+          0.0
+        ]
+      },
+      "geometry_points": 5408,
+      "geometry_cells": 10752
+    },
+    {
+      "path": "/tmp/jaxdem-media-temperature_density_control-9j4uowsl/vtk/group_01/batch_00000000_domain.pvd",
+      "kind": "domain",
+      "native_times": [
+        0.1,
+        0.2,
+        0.3,
+        0.4,
+        0.5,
+        0.6,
+        0.7,
+        0.8,
+        0.9,
+        1.0,
+        1.1,
+        1.2,
+        1.3,
+        1.4,
+        1.5,
+        1.6,
+        1.7,
+        1.8,
+        1.9,
+        2.0
+      ],
+      "source_points": 24,
+      "source_cells": 6,
+      "point_arrays": [
+        "Normals",
+        "TCoords"
+      ],
+      "representation": {
+        "offset": [
+          14.25570760776576,
+          0.0,
+          0.0
+        ]
+      },
+      "geometry_points": 24,
+      "geometry_cells": 6
+    },
+    {
+      "path": "/tmp/jaxdem-media-temperature_density_control-9j4uowsl/vtk/group_01/batch_00000000_spheres.pvd",
+      "kind": "particles",
+      "native_times": [
+        0.1,
+        0.2,
+        0.3,
+        0.4,
+        0.5,
+        0.6,
+        0.7,
+        0.8,
+        0.9,
+        1.0,
+        1.1,
+        1.2,
+        1.3,
+        1.4,
+        1.5,
+        1.6,
+        1.7,
+        1.8,
+        1.9,
+        2.0
+      ],
+      "source_points": 16,
+      "source_cells": 0,
+      "point_arrays": [
+        "pos_c",
+        "pos_p",
+        "vel",
+        "force",
+        "ang_vel",
+        "torque",
+        "rad",
+        "volume",
+        "mass",
+        "inertia",
+        "clump_id",
+        "bond_id",
+        "mat_id",
+        "species_id",
+        "fixed",
+        "facet_id",
+        "facet_vertices",
+        "q.xyz",
+        "q.w"
+      ],
+      "representation": {
+        "color_by": "rad",
+        "color": [
+          0.88,
+          0.46,
+          0.12
+        ],
+        "offset": [
+          14.25570760776576,
+          0.0,
+          0.0
+        ]
+      },
+      "geometry_points": 5408,
+      "geometry_cells": 10752
+    }
+  ],
+  "outputs": {
+    "scene.png": 116730,
+    "animation.mp4": 114385
+  },
+  "example": "temperature_density_control.py",
+  "example_sha256": "f86a33c415724c5a40cf6f199e1178230951e9fc84ef18d9562854aefc41ac43",
+  "library_revision": "a068aa9327266b7d1415f672ce725ae12d9d57d0",
+  "library_sha256": "fda86deee4111e5b9d8699c8c556c103b26b25ddedc6e50512b4354f93bddcc5",
+  "media_seconds": 6.203,
+  "simulation": {
+    "slug": "temperature_density_control",
+    "source": "Current example State/System snapshots via VTKWriter; derived diagnostics via native VTK",
+    "groups": [
+      {
+        "label": "Bare Verlet",
+        "source_frames": 20,
+        "exported_frames": 20,
+        "selected_indices": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19
+        ],
+        "particle_rows": [
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16
+        ],
+        "source_step_counts": [
+          50,
+          100,
+          150,
+          200,
+          250,
+          300,
+          350,
+          400,
+          450,
+          500,
+          550,
+          600,
+          650,
+          700,
+          750,
+          800,
+          850,
+          900,
+          950,
+          1000
+        ],
+        "source_times": [
+          0.10000000000000007,
+          0.20000000000000015,
+          0.3000000000000002,
+          0.4000000000000003,
+          0.5000000000000003,
+          0.6000000000000004,
+          0.7000000000000005,
+          0.8000000000000006,
+          0.9000000000000007,
+          1.0000000000000007,
+          1.1000000000000008,
+          1.2000000000000008,
+          1.300000000000001,
+          1.400000000000001,
+          1.500000000000001,
+          1.6000000000000012,
+          1.7000000000000013,
+          1.8000000000000014,
+          1.9000000000000015,
+          2.0000000000000013
+        ],
+        "collection_times": [
+          0.10000000000000007,
+          0.20000000000000015,
+          0.3000000000000002,
+          0.4000000000000003,
+          0.5000000000000003,
+          0.6000000000000004,
+          0.7000000000000005,
+          0.8000000000000006,
+          0.9000000000000007,
+          1.0000000000000007,
+          1.1000000000000008,
+          1.2000000000000008,
+          1.300000000000001,
+          1.400000000000001,
+          1.500000000000001,
+          1.6000000000000012,
+          1.7000000000000013,
+          1.8000000000000014,
+          1.9000000000000015,
+          2.0000000000000013
+        ],
+        "offset": [
+          0.9750953909185096,
+          0.0,
+          0.0
+        ],
+        "geometry_only_system": false
+      },
+      {
+        "label": "Velocity rescaling",
+        "source_frames": 20,
+        "exported_frames": 20,
+        "selected_indices": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19
+        ],
+        "particle_rows": [
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16
+        ],
+        "source_step_counts": [
+          50,
+          100,
+          150,
+          200,
+          250,
+          300,
+          350,
+          400,
+          450,
+          500,
+          550,
+          600,
+          650,
+          700,
+          750,
+          800,
+          850,
+          900,
+          950,
+          1000
+        ],
+        "source_times": [
+          0.10000000000000007,
+          0.20000000000000015,
+          0.3000000000000002,
+          0.4000000000000003,
+          0.5000000000000003,
+          0.6000000000000004,
+          0.7000000000000005,
+          0.8000000000000006,
+          0.9000000000000007,
+          1.0000000000000007,
+          1.1000000000000008,
+          1.2000000000000008,
+          1.300000000000001,
+          1.400000000000001,
+          1.500000000000001,
+          1.6000000000000012,
+          1.7000000000000013,
+          1.8000000000000014,
+          1.9000000000000015,
+          2.0000000000000013
+        ],
+        "collection_times": [
+          0.10000000000000007,
+          0.20000000000000015,
+          0.3000000000000002,
+          0.4000000000000003,
+          0.5000000000000003,
+          0.6000000000000004,
+          0.7000000000000005,
+          0.8000000000000006,
+          0.9000000000000007,
+          1.0000000000000007,
+          1.1000000000000008,
+          1.2000000000000008,
+          1.300000000000001,
+          1.400000000000001,
+          1.500000000000001,
+          1.6000000000000012,
+          1.7000000000000013,
+          1.8000000000000014,
+          1.9000000000000015,
+          2.0000000000000013
+        ],
+        "offset": [
+          14.25570760776576,
+          0.0,
+          0.0
+        ],
+        "geometry_only_system": false
+      }
+    ],
+    "geometry": [
+      {
+        "label": "Bare Verlet",
+        "kind": "domain",
+        "path": "/tmp/jaxdem-media-temperature_density_control-9j4uowsl/vtk/group_00/batch_00000000_domain.pvd",
+        "point_arrays": [
+          "Normals",
+          "TCoords"
+        ],
+        "frames": [
+          {
+            "time": 0.1,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.569048881530762,
+              0.0,
+              8.569048881530762,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.2,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.65764331817627,
+              0.0,
+              8.65764331817627,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.3,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.729941368103027,
+              0.0,
+              8.729941368103027,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.4,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.777326583862305,
+              0.0,
+              8.777326583862305,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.5,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.79383373260498,
+              0.0,
+              8.79383373260498,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.6,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.777326583862305,
+              0.0,
+              8.777326583862305,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.7,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.729941368103027,
+              0.0,
+              8.729941368103027,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.8,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.65764331817627,
+              0.0,
+              8.65764331817627,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.9,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.569048881530762,
+              0.0,
+              8.569048881530762,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 1.0,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.473950386047363,
+              0.0,
+              8.473950386047363,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 1.1,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.381949424743652,
+              0.0,
+              8.381949424743652,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 1.2,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.301474571228027,
+              0.0,
+              8.301474571228027,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 1.3,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.239233016967773,
+              0.0,
+              8.239233016967773,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 1.4,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.200002670288086,
+              0.0,
+              8.200002670288086,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 1.5,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.186614036560059,
+              0.0,
+              8.186614036560059,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 1.6,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.200002670288086,
+              0.0,
+              8.200002670288086,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 1.7,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.239233016967773,
+              0.0,
+              8.239233016967773,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 1.8,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.301474571228027,
+              0.0,
+              8.301474571228027,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 1.9,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.381949424743652,
+              0.0,
+              8.381949424743652,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 2.0,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.473950386047363,
+              0.0,
+              8.473950386047363,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          }
+        ]
+      },
+      {
+        "label": "Bare Verlet",
+        "kind": "particles",
+        "path": "/tmp/jaxdem-media-temperature_density_control-9j4uowsl/vtk/group_00/batch_00000000_spheres.pvd",
+        "point_arrays": [
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "rad",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_id",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 0.1,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              1.003739553879125,
+              7.547211605393991,
+              0.9907419866549009,
+              7.551632449163924,
+              0.0,
+              0.0
+            ],
+            "bytes": 7834,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 1.9829192372564473,
+              "force_norm_max": 26.36230089229122
+            }
+          },
+          {
+            "time": 0.2,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.9899997083185277,
+              7.619854170720928,
+              0.9135884434209217,
+              7.667972967730035,
+              0.0,
+              0.0
+            ],
+            "bytes": 7726,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 1.8789346570298409,
+              "force_norm_max": 19.248342561810755
+            }
+          },
+          {
+            "time": 0.3,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.9034227514364052,
+              7.7021943358079445,
+              0.9218743911240698,
+              7.77792600770813,
+              0.0,
+              0.0
+            ],
+            "bytes": 7790,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 1.9619725780908088,
+              "force_norm_max": 27.49925332037416
+            }
+          },
+          {
+            "time": 0.4,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.9462493986107602,
+              7.865925496351075,
+              0.8188025260449144,
+              7.866679381819586,
+              0.0,
+              0.0
+            ],
+            "bytes": 7830,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 1.8552358958056059,
+              "force_norm_max": 36.9383954521425
+            }
+          },
+          {
+            "time": 0.5,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.8253726642693691,
+              8.003853516277925,
+              0.8053790766785945,
+              7.934178958490591,
+              0.0,
+              0.0
+            ],
+            "bytes": 7754,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 1.852840609212271,
+              "force_norm_max": 11.583075386468561
+            }
+          },
+          {
+            "time": 0.6,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.7016270562609914,
+              8.124260721610675,
+              0.7986387598769964,
+              7.905972167092448,
+              0.0,
+              0.0
+            ],
+            "bytes": 7762,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 1.859997058941413,
+              "force_norm_max": 3.186523464981879
+            }
+          },
+          {
+            "time": 0.7,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.6657307362788354,
+              8.214347611743156,
+              0.7891172217929501,
+              7.884929360607298,
+              0.0,
+              0.0
+            ],
+            "bytes": 7822,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 1.6578869427630398,
+              "force_norm_max": 48.631381428505115
+            }
+          },
+          {
+            "time": 0.8,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.6184591230614583,
+              8.170249500612156,
+              0.7757572006944347,
+              7.902975836706204,
+              0.0,
+              0.0
+            ],
+            "bytes": 7842,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.2201939137257596,
+              "force_norm_max": 46.36655982979283
+            }
+          },
+          {
+            "time": 0.9,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.5498562062450523,
+              8.062168370931133,
+              0.7336079182348464,
+              7.905287055533216,
+              0.0,
+              0.0
+            ],
+            "bytes": 7758,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.2201939137257596,
+              "force_norm_max": 34.99349023072713
+            }
+          },
+          {
+            "time": 1.0,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.4640018607801142,
+              7.953312678564017,
+              0.6639359953193241,
+              7.900586173713107,
+              0.0,
+              0.0
+            ],
+            "bytes": 7858,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.2201939137257596,
+              "force_norm_max": 37.33265932806005
+            }
+          },
+          {
+            "time": 1.1,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.4533778037989086,
+              7.8824080058041615,
+              0.6611181509154649,
+              7.695484911821843,
+              0.0,
+              0.0
+            ],
+            "bytes": 7874,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 1.9775737765393473,
+              "force_norm_max": 47.10915665414143
+            }
+          },
+          {
+            "time": 1.2,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.5194508592102413,
+              8.014511808634722,
+              0.7998078605642097,
+              7.467852049922809,
+              0.0,
+              0.0
+            ],
+            "bytes": 7886,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.764915065274051,
+              "force_norm_max": 58.26112116223224
+            }
+          },
+          {
+            "time": 1.3,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.5099961346327346,
+              8.168947620913176,
+              0.8999312458593011,
+              7.546069229918304,
+              0.0,
+              0.0
+            ],
+            "bytes": 7862,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.197576606963974,
+              "force_norm_max": 114.71509384956019
+            }
+          },
+          {
+            "time": 1.4,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.4077604120163828,
+              8.05432480662149,
+              0.8860368573347271,
+              7.535356378369983,
+              0.0,
+              0.0
+            ],
+            "bytes": 8014,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.521582627717579,
+              "force_norm_max": 67.89583283090134
+            }
+          },
+          {
+            "time": 1.5,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.23051035326304517,
+              7.931770654589123,
+              0.8023669523497617,
+              7.359365864227823,
+              0.0,
+              0.0
+            ],
+            "bytes": 7902,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.6796457376035288,
+              "force_norm_max": 49.1135993450971
+            }
+          },
+          {
+            "time": 1.6,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.15677532220570245,
+              8.063327671516056,
+              0.6976879737669627,
+              7.451978247059564,
+              0.0,
+              0.0
+            ],
+            "bytes": 7926,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.5869086764929796,
+              "force_norm_max": 73.55104058801565
+            }
+          },
+          {
+            "time": 1.7,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.024904609081490392,
+              7.552570465271325,
+              0.7404435361924471,
+              7.6473407211068185,
+              0.0,
+              0.0
+            ],
+            "bytes": 7878,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.583355804593967,
+              "force_norm_max": 51.9829091765179
+            }
+          },
+          {
+            "time": 1.8,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.1248611540822342,
+              8.236248400601033,
+              0.7641339465493817,
+              7.7497532388692285,
+              0.0,
+              0.0
+            ],
+            "bytes": 7802,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 3.516361179918208,
+              "force_norm_max": 35.992638508679285
+            }
+          },
+          {
+            "time": 1.9,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.2810712935462476,
+              8.038162954510565,
+              0.7813133682550761,
+              7.708829345584177,
+              0.0,
+              0.0
+            ],
+            "bytes": 7874,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.7140839096551157,
+              "force_norm_max": 43.21622836140949
+            }
+          },
+          {
+            "time": 2.0,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.36852949122193834,
+              7.959517072400744,
+              0.7739739074341357,
+              7.626041243103135,
+              0.0,
+              0.0
+            ],
+            "bytes": 7762,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 3.279119840707517,
+              "force_norm_max": 37.913234827893234
+            }
+          }
+        ]
+      },
+      {
+        "label": "Velocity rescaling",
+        "kind": "domain",
+        "path": "/tmp/jaxdem-media-temperature_density_control-9j4uowsl/vtk/group_01/batch_00000000_domain.pvd",
+        "point_arrays": [
+          "Normals",
+          "TCoords"
+        ],
+        "frames": [
+          {
+            "time": 0.1,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.569048881530762,
+              0.0,
+              8.569048881530762,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.2,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.65764331817627,
+              0.0,
+              8.65764331817627,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.3,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.729941368103027,
+              0.0,
+              8.729941368103027,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.4,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.777326583862305,
+              0.0,
+              8.777326583862305,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.5,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.79383373260498,
+              0.0,
+              8.79383373260498,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.6,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.777326583862305,
+              0.0,
+              8.777326583862305,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.7,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.729941368103027,
+              0.0,
+              8.729941368103027,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.8,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.65764331817627,
+              0.0,
+              8.65764331817627,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 0.9,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.569048881530762,
+              0.0,
+              8.569048881530762,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 1.0,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.473950386047363,
+              0.0,
+              8.473950386047363,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 1.1,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.381949424743652,
+              0.0,
+              8.381949424743652,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 1.2,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.301474571228027,
+              0.0,
+              8.301474571228027,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 1.3,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.239233016967773,
+              0.0,
+              8.239233016967773,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 1.4,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.200002670288086,
+              0.0,
+              8.200002670288086,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 1.5,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.186614036560059,
+              0.0,
+              8.186614036560059,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 1.6,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.200002670288086,
+              0.0,
+              8.200002670288086,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 1.7,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.239233016967773,
+              0.0,
+              8.239233016967773,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 1.8,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.301474571228027,
+              0.0,
+              8.301474571228027,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 1.9,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.381949424743652,
+              0.0,
+              8.381949424743652,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          },
+          {
+            "time": 2.0,
+            "points": 24,
+            "cells": 6,
+            "bounds": [
+              0.0,
+              8.473950386047363,
+              0.0,
+              8.473950386047363,
+              0.0,
+              0.0
+            ],
+            "bytes": 3054,
+            "physical_summary": {}
+          }
+        ]
+      },
+      {
+        "label": "Velocity rescaling",
+        "kind": "particles",
+        "path": "/tmp/jaxdem-media-temperature_density_control-9j4uowsl/vtk/group_01/batch_00000000_spheres.pvd",
+        "point_arrays": [
+          "pos_c",
+          "pos_p",
+          "vel",
+          "force",
+          "ang_vel",
+          "torque",
+          "rad",
+          "volume",
+          "mass",
+          "inertia",
+          "clump_id",
+          "bond_id",
+          "mat_id",
+          "species_id",
+          "fixed",
+          "facet_id",
+          "facet_vertices",
+          "q.xyz",
+          "q.w"
+        ],
+        "frames": [
+          {
+            "time": 0.1,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              1.003739553879125,
+              7.547211605393991,
+              0.9907419866549009,
+              7.551632449163924,
+              0.0,
+              0.0
+            ],
+            "bytes": 7830,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.2501543235541446,
+              "force_norm_max": 26.36230089229122
+            }
+          },
+          {
+            "time": 0.2,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.9792142593532034,
+              7.615792203794349,
+              0.9018101187598963,
+              7.674173596955698,
+              0.0,
+              0.0
+            ],
+            "bytes": 7726,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.152842942520699,
+              "force_norm_max": 19.509528657091135
+            }
+          },
+          {
+            "time": 0.3,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.9069300273760836,
+              7.735185051111879,
+              0.892793716020237,
+              7.7910898838984055,
+              0.0,
+              0.0
+            ],
+            "bytes": 7750,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.607628803583734,
+              "force_norm_max": 31.700016257814305
+            }
+          },
+          {
+            "time": 0.4,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.8968516636346823,
+              7.937469890316097,
+              0.8086567715143423,
+              7.89417928944379,
+              0.0,
+              0.0
+            ],
+            "bytes": 7806,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.3709656225302584,
+              "force_norm_max": 24.51607016199476
+            }
+          },
+          {
+            "time": 0.5,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.7576717787658048,
+              8.125837081639817,
+              0.8326641979435924,
+              7.948327251669316,
+              0.0,
+              0.0
+            ],
+            "bytes": 7838,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.0464875931496884,
+              "force_norm_max": 39.50179112175982
+            }
+          },
+          {
+            "time": 0.6,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.6475516519251922,
+              8.267638502621715,
+              0.854734815949788,
+              7.9084648192062765,
+              0.0,
+              0.0
+            ],
+            "bytes": 7870,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.2707038863295885,
+              "force_norm_max": 52.70834326011675
+            }
+          },
+          {
+            "time": 0.7,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.602474071620701,
+              8.29609103911164,
+              0.8687394007355457,
+              7.97605341161833,
+              0.0,
+              0.0
+            ],
+            "bytes": 7886,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 3.242485661197865,
+              "force_norm_max": 92.74238541634502
+            }
+          },
+          {
+            "time": 0.8,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.4864932619086933,
+              8.237169989489384,
+              0.8179086604583163,
+              8.038796018433597,
+              0.0,
+              0.0
+            ],
+            "bytes": 7842,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.743371821050439,
+              "force_norm_max": 105.95918289852492
+            }
+          },
+          {
+            "time": 0.9,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.5200008424829387,
+              8.101658723505242,
+              0.7645350536373986,
+              8.00609583527119,
+              0.0,
+              0.0
+            ],
+            "bytes": 7794,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.2424692030093607,
+              "force_norm_max": 62.96265758470547
+            }
+          },
+          {
+            "time": 1.0,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.5506826813871595,
+              8.035937512670369,
+              0.718624817506969,
+              7.747524823507612,
+              0.0,
+              0.0
+            ],
+            "bytes": 7886,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.3318648219816853,
+              "force_norm_max": 58.25441206384038
+            }
+          },
+          {
+            "time": 1.1,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.4693200164620512,
+              8.104366790220897,
+              0.7000592792101402,
+              7.665680134051384,
+              0.0,
+              0.0
+            ],
+            "bytes": 7830,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.375469404404897,
+              "force_norm_max": 62.55375397715148
+            }
+          },
+          {
+            "time": 1.2,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.44169168534680486,
+              8.010349321957037,
+              0.7534356615248881,
+              7.669828174546937,
+              0.0,
+              0.0
+            ],
+            "bytes": 7890,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.876124885477363,
+              "force_norm_max": 110.07484091576418
+            }
+          },
+          {
+            "time": 1.3,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.38825573368741134,
+              7.953612050122294,
+              0.7007365793835638,
+              7.423870699373885,
+              0.0,
+              0.0
+            ],
+            "bytes": 7902,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.2888448000916277,
+              "force_norm_max": 70.51245942627224
+            }
+          },
+          {
+            "time": 1.4,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.2994350178526264,
+              7.946264052779806,
+              0.604318750636311,
+              7.345906318124365,
+              0.0,
+              0.0
+            ],
+            "bytes": 7926,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.1762021236731064,
+              "force_norm_max": 93.08278414658213
+            }
+          },
+          {
+            "time": 1.5,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.20840636813480673,
+              7.927704580147472,
+              0.5241008517155578,
+              7.454528387461397,
+              0.0,
+              0.0
+            ],
+            "bytes": 7834,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.673084280406275,
+              "force_norm_max": 67.86601912660804
+            }
+          },
+          {
+            "time": 1.6,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.10081531514561416,
+              7.950792248518301,
+              0.4159400225242328,
+              7.572765768014792,
+              0.0,
+              0.0
+            ],
+            "bytes": 7966,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.1253327177315446,
+              "force_norm_max": 73.21549266401915
+            }
+          },
+          {
+            "time": 1.7,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.019039321209644175,
+              8.014562427953742,
+              0.3945149790976818,
+              7.739354913423622,
+              0.0,
+              0.0
+            ],
+            "bytes": 7838,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.461043462867231,
+              "force_norm_max": 20.57659772255819
+            }
+          },
+          {
+            "time": 1.8,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.894782723043307,
+              8.272616571787584,
+              0.3686779655890075,
+              7.858502594855465,
+              0.0,
+              0.0
+            ],
+            "bytes": 7866,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.6706720249707274,
+              "force_norm_max": 57.4269859309429
+            }
+          },
+          {
+            "time": 1.9,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.8256815577456869,
+              8.350106248044467,
+              0.30703036037346343,
+              7.85905410636544,
+              0.0,
+              0.0
+            ],
+            "bytes": 7802,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 2.8078029161279154,
+              "force_norm_max": 18.666610851590583
+            }
+          },
+          {
+            "time": 2.0,
+            "points": 16,
+            "cells": 0,
+            "bounds": [
+              0.10296953802991915,
+              8.465527829149638,
+              0.24418659346372698,
+              7.8697552560525015,
+              0.0,
+              0.0
+            ],
+            "bytes": 7790,
+            "physical_summary": {
+              "radius_min": 1.0,
+              "radius_max": 1.0,
+              "speed_max": 3.044378031970399,
+              "force_norm_max": 54.81452830027798
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+jaxdem.analysis
+===============
+
+.. automodule:: jaxdem.analysis
+
+   
+.. rubric:: Modules
+
+.. autosummary::
+   :toctree:
+   :recursive:
+
+   bessel
+   bins
+   engine
+   kernels
+   pairs

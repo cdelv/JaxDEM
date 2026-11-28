@@ -1,0 +1,15 @@
+jaxdem.utils.load\_legacy
+=========================
+
+.. automodule:: jaxdem.utils.load_legacy
+
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+   
+      load_legacy_dp
+      load_legacy_simulation
+      load_legacy_state
+      load_legacy_system
+   

@@ -1,0 +1,12 @@
+jaxdem.integrators.langevin
+===========================
+
+.. automodule:: jaxdem.integrators.langevin
+
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+   
+      Langevin
+   
