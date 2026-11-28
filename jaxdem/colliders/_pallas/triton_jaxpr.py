@@ -838,8 +838,9 @@ def _eval_eqns(
                 br_mask = load_mask & (which_i == b_i)
                 br_cache = dict(load_cache) if load_cache is not None else None
                 if len(br.jaxpr.eqns) > 16 and not isinstance(rv, _DryRunRefView):
-                    out_shapes_br = [tuple(v.aval.shape) for v in br.jaxpr.outvars]
-                    out_dtypes_br = [v.aval.dtype for v in br.jaxpr.outvars]
+                    out_avals_br: list[Any] = [v.aval for v in br.jaxpr.outvars]
+                    out_shapes_br = [tuple(a.shape) for a in out_avals_br]
+                    out_dtypes_br = [a.dtype for a in out_avals_br]
 
                     def _eval_br(
                         _br: ClosedJaxpr = br,

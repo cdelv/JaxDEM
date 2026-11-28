@@ -825,6 +825,7 @@ class ProteinSweep:
     score-vs-wall-clock-cost Pareto frontier.
 
     Supports three execution backends:
+
     - ``backend="puffer"`` (default): :class:`PufferTrainer` (``pufferlib.pufferl.PuffeRL``).
     - ``backend="ppo"``: JaxDEM's full-JIT :class:`PPOTrainer`.
     - ``evaluate_fn``: custom callable ``(params, should_stop) -> dict`` for
