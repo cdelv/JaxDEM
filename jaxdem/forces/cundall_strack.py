@@ -258,9 +258,12 @@ def _contact_response_with_coefficients(
     xi = _transport_tangent(xi_old, previous_normal, n)
     if dim == 3:
         spin = 0.5 * dot(state.ang_vel[i] + state.ang_vel[j], n)
-        xi = _rotate_about_axis(
-            xi, n, spin * system.dt if advance_history else jnp.zeros_like(spin)
-        )
+        if advance_history:
+            angle = spin * system.dt
+            xi = (
+                xi * jnp.cos(angle)[..., None]
+                + cross(n, xi) * jnp.sin(angle)[..., None]
+            )
     if resolve_contact_birth and advance_history:
         # Only quasistatic updates encode a whole configuration increment in
         # these velocities. Real time integration retains its usual DEM update.
@@ -293,8 +296,7 @@ def _contact_response_with_coefficients(
     new_history = next_history if advance_history else history
 
     normal_force = Fn[..., None] * n
-    F = normal_force + Ft
-    torque = cross(r_ci, F)
+    torque = cross(r_ci, Ft)
 
     # Rolling friction: resistive torque opposing relative angular velocity
     R_eff = 0.5 * _harmonic_mean(R_i, R_j)
@@ -357,12 +359,12 @@ def _pair_coefficients(
     kn, kt = _pair_stiffnesses(i, j, state, system)
     if single_mat:
         mu_ij = jnp.asarray(
-            law.friction_mixing(table.mu[0], table.mu[0]), dtype=state.pos.dtype
+            law.friction_mixing(table.mu[0], table.mu[0]), dtype=state.pos_c.dtype
         )
     else:
         mi, mj = state.mat_id[i], state.mat_id[j]
         mu_ij = jnp.asarray(
-            law.friction_mixing(table.mu[mi], table.mu[mj]), dtype=state.pos.dtype
+            law.friction_mixing(table.mu[mi], table.mu[mj]), dtype=state.pos_c.dtype
         )
 
     if law.parameterization == "elastic":
@@ -389,12 +391,12 @@ def _pair_coefficients(
     if single_mat:
         mu_r_ij = jnp.asarray(
             law.rolling_friction_mixing(table.mu_r[0], table.mu_r[0]),
-            dtype=state.pos.dtype,
+            dtype=state.pos_c.dtype,
         )
     else:
         mu_r_ij = jnp.asarray(
             law.rolling_friction_mixing(table.mu_r[mi], table.mu_r[mj]),
-            dtype=state.pos.dtype,
+            dtype=state.pos_c.dtype,
         )
     return kn, kt, gamma_n, gamma_t, mu_ij, mu_r_ij
 
@@ -627,32 +629,50 @@ class CundallStrackForce(ForceModel):
             input, while force uses its contact-frame-transported spring.
 
         """
-        kn, kt, gamma_n, gamma_t, mu_ij, mu_r_ij = _pair_coefficients(
-            i, j, state, system
-        )
-        if quasistatic:
-            gamma_n = jnp.zeros_like(gamma_n)
-            gamma_t = jnp.zeros_like(gamma_t)
-            mu_r_ij = jnp.zeros_like(mu_r_ij)
-        normal, tangential, torque, new_history, _ = (
-            _contact_response_with_coefficients(
-                i,
-                j,
-                pos,
-                state,
-                system,
-                history,
-                kn,
-                kt,
-                gamma_n,
-                gamma_t,
-                mu_ij,
-                mu_r_ij,
-                advance_history=advance_history,
-                resolve_contact_birth=quasistatic,
+        R_sum = state.rad[i] + state.rad[j]
+        rij = system.domain._displacement(pos[i], pos[j], system)
+        safe_r_sum = jnp.where(R_sum > 0.0, R_sum, 1.0)
+        rij_scaled = rij / safe_r_sum[..., None]
+        near = (norm2(rij_scaled) <= 1.0) & (R_sum > 0.0) & (i != j)
+
+        def _do_contact(_: None) -> tuple[jax.Array, jax.Array, jax.Array]:
+            kn, kt, gamma_n, gamma_t, mu_ij, mu_r_ij = _pair_coefficients(
+                i, j, state, system
             )
-        )
-        return normal + tangential, torque, new_history
+            if quasistatic:
+                gamma_n = jnp.zeros_like(gamma_n)
+                gamma_t = jnp.zeros_like(gamma_t)
+                mu_r_ij = jnp.zeros_like(mu_r_ij)
+            normal, tangential, torque, new_history, _ = (
+                _contact_response_with_coefficients(
+                    i,
+                    j,
+                    pos,
+                    state,
+                    system,
+                    history,
+                    kn,
+                    kt,
+                    gamma_n,
+                    gamma_t,
+                    mu_ij,
+                    mu_r_ij,
+                    advance_history=advance_history,
+                    resolve_contact_birth=quasistatic,
+                )
+            )
+            return normal + tangential, torque, new_history
+
+        def _no_contact(_: None) -> tuple[jax.Array, jax.Array, jax.Array]:
+            ang_dim = 3 if pos.shape[-1] == 3 else 1
+            zero_f = jnp.zeros_like(pos[i])
+            zero_t = jnp.zeros((ang_dim,), dtype=pos.dtype)
+            zero_h = jnp.zeros_like(history) if advance_history else history
+            return zero_f, zero_t, zero_h
+
+        if jnp.ndim(near) == 0:
+            return jax.lax.cond(near, _do_contact, _no_contact, None)
+        return _do_contact(None)
 
     @staticmethod
     @jax.jit(inline=True)

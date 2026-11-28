@@ -189,7 +189,7 @@ def _reduce_contacts(
     elif isinstance(collider, NeighborList):
         sources = pair_sources(collider)
         i = jnp.minimum(sources, state.N - 1)
-        j, valid = _valid_pairs(state, system, i, collider.neighbor_list)
+        j, valid = _valid_pairs(collider.neighbor_list)
         values = _summary_values(state, system, i, j, collider.history, valid, quantity)
         rows = jax.ops.segment_sum(values, sources, num_segments=state.N + 1)[: state.N]
         overflow = collider.overflow

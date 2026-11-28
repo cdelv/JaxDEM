@@ -87,6 +87,15 @@ class Collider(Factory, ABC):
         return self
 
     @property
+    def _step_check_interval(self) -> int:
+        """Steps between rebuild checks inside :meth:`System.step`."""
+        return 1
+
+    def _with_check_horizon(self, horizon: int) -> Collider:
+        """Configure internal rebuild-check deferral for :meth:`System.step`."""
+        return self
+
+    @property
     def stateful(self) -> bool:
         """Whether this collider caches state-size-dependent search data."""
         return False

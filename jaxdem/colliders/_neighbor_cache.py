@@ -19,21 +19,21 @@ from dataclasses import dataclass, replace
 from functools import partial
 from typing import Any
 
-from ..utils.linalg import cross, norm2
+from ..utils.linalg import cross, norm, norm2
 from . import valid_interaction_mask
 from ._cell_lookup import _cell_starts
 from ._partition import (
-    PAIR_UNROLL,
+    _build_dense_cell_table,
     _capacity_offsets,
     _compacted_stencil_decode,
     _dedup_periodic_stencil,
-    _dedup_stencil_hashes,
+    _dense_grid_stats,
+    _dense_stencil_prefix_batch,
     _effective_cell_size,
     _get_spatial_partition_grid,
-    _lees_edwards_compact_stencil,
     _loose_cell_aabbs,
     _neighbor_hashes_from_coords,
-    _shared_all,
+    _prepare_dense_grid,
     _shared_max,
     _sorted_cell_run_ends,
     _vec_sum,
@@ -371,6 +371,7 @@ class _SearchState:
     pos: Any
     clump_id: Any
     bond_id: Any
+    only_spheres: bool = jax.tree.static(default=False)
 
     @property
     def N(self) -> int:
@@ -446,7 +447,12 @@ def _compact_search_inputs(state: Any, system: Any) -> tuple[Any, Any] | None:
         value = domain.restitution_coefficient
         fields["restitution_coefficient"] = jnp.zeros(value.shape, value.dtype)
     return (
-        _SearchState(state.pos, state.clump_id, state.bond_id),
+        _SearchState(
+            state.pos,
+            state.clump_id,
+            state.bond_id,
+            only_spheres=bool(getattr(state, "only_spheres", False)),
+        ),
         _SearchSystem(
             replace(domain, **fields), collider, system.interact_same_bond_id
         ),
@@ -649,56 +655,22 @@ def _dense_sorted_search_pairs(
     n = state.N
     pos = state.pos
     iota = jax.lax.iota(dtype=int, size=n)
-    (
-        perm,
-        p_cell_hash,
-        p_cell_coords,
-        grid_dims,
-        grid_strides,
-        eff_cell_size,
-        hash_overflow,
-    ) = _get_spatial_partition_grid(pos, system, cell_size, iota)
-
-    n_cells = jnp.prod(grid_dims)
-    min_unique = (2 * jnp.max(jnp.abs(neighbor_mask)) + 1).astype(grid_dims.dtype)
-    periodic = system.domain.periodic
-    has_shear = hasattr(system.domain, "gamma")
-    do_prune = prune_cells and not has_shear
-    dim = int(pos.shape[-1])
-    m_stencil = int(neighbor_mask.shape[0])
-    side = round(m_stencil ** (1.0 / dim)) if dim in (2, 3) else 0
-    shear_r = (
-        (side - 1) // 2
-        if (dim in (2, 3) and side**dim == m_stencil and side % 2 == 1)
-        else 0
+    meta, use_dense = _prepare_dense_grid(
+        pos, system, cell_size, neighbor_mask, iota, prune_cells=prune_cells
     )
-    use_compact_shear = has_shear and shear_r >= 1
-    distinct_ok: Any
-    if use_compact_shear:
-        a = int(system.domain.alpha)
-        min_shear = (
-            jnp.full((dim,), 2 * shear_r + 1, dtype=grid_dims.dtype)
-            .at[a]
-            .set(2 * shear_r + 2)
-        )
-        distinct_ok = jnp.all(grid_dims >= min_shear)
-    else:
-        distinct_ok = (not periodic) or has_shear or jnp.all(grid_dims >= min_unique)
-
-    cap_dense = max(1, 4 * n)
-    can_dense = cap_dense <= 2**31 - 1
-
-    use_dense = (
-        _shared_all(
-            (~hash_overflow)
-            & distinct_ok
-            & (n_cells <= jnp.asarray(cap_dense, dtype=n_cells.dtype))
-            & (p_cell_hash[-1] < jnp.asarray(cap_dense, dtype=p_cell_hash.dtype))
-        )
-        if can_dense
-        else jnp.asarray(False)
-    )
-    m_stencil = int(neighbor_mask.shape[0])
+    perm = meta.perm
+    p_cell_hash = meta.p_cell_hash
+    p_cell_coords = meta.p_cell_coords
+    grid_dims = meta.grid_dims
+    grid_strides = meta.grid_strides
+    eff_cell_size = meta.eff_cell_size
+    hash_overflow = meta.hash_overflow
+    cap_dense = meta.cap_dense
+    periodic = meta.periodic
+    has_shear = meta.has_shear
+    do_prune = meta.do_prune
+    shear_r = meta.shear_r
+    use_compact_shear = meta.use_compact_shear
 
     def run_dense(cap: int) -> tuple[Any, ...]:
         pos_s = pos[perm]
@@ -712,154 +684,67 @@ def _dense_sorted_search_pairs(
         cutoff_sq = cutoff**2
         interact_same = system.interact_same_bond_id
 
-        cell_counts = (
-            jnp.zeros_like(p_cell_hash, shape=(cap,), dtype=int)
-            .at[p_cell_hash]
-            .add(1, mode="drop")
-        )
-        cell_offsets = jnp.concatenate(
-            (jnp.zeros_like(cell_counts, shape=(1,)), jnp.cumsum(cell_counts))
-        )
+        cell_counts, cell_offsets = _build_dense_cell_table(p_cell_hash, cap)
 
         if do_prune:
             cell_center, cell_half = _loose_cell_aabbs(pos_s, pos_s, p_cell_hash)
         else:
             cell_center = cell_half = None
 
-        tile_limit = (tile_capacity + 1) if tile_capacity is not None else 0
         chunk_size = min(n, 65_536)
 
         def run_pure_dense_build() -> tuple[Any, ...]:
             def stencil_prefix_batch(
                 b_iota: Any, b_coords: Any
             ) -> tuple[Any, Any, Any, Any]:
-                if use_compact_shear:
-                    starts_m, ends_m = _lees_edwards_compact_stencil(
-                        b_coords,
-                        dims_i,
-                        strides_i,
-                        eff_cell_size,
-                        offsets_mask,
-                        cell_offsets,
-                        system.domain,
-                        shear_r,
-                    )
-                elif has_shear:
-                    stencil_h = _neighbor_hashes_from_coords(
-                        b_coords.astype(grid_strides.dtype),
-                        grid_dims,
-                        grid_strides,
-                        eff_cell_size,
-                        neighbor_mask,
-                        system.domain,
-                    )
-                    stencil_h = jax.vmap(_dedup_stencil_hashes)(stencil_h)
-                    valid_h = stencil_h < jnp.asarray(cap, dtype=stencil_h.dtype)
-                    safe_h = jnp.where(valid_h, stencil_h, 0).astype(int)
-                    starts_m = jnp.where(valid_h, cell_offsets[safe_h], 0)
-                    ends_m = jnp.where(valid_h, cell_offsets[safe_h + 1], 0)
-                else:
-                    raw = b_coords[:, None, :] + offsets_mask[None, :, :]
-                    if periodic:
-                        wrapped = jnp.where(
-                            raw < 0,
-                            raw + dims_i,
-                            jnp.where(raw >= dims_i, raw - dims_i, raw),
-                        )
-                        h = jnp.dot(wrapped, strides_i)
-                        starts_m = cell_offsets[h]
-                        ends_m = cell_offsets[h + 1]
-                    else:
-                        in_bounds = jnp.all((raw >= 0) & (raw < dims_i), axis=-1)
-                        safe_raw = jnp.where(in_bounds[:, :, None], raw, 0)
-                        h = jnp.dot(safe_raw, strides_i)
-                        starts_m = jnp.where(in_bounds, cell_offsets[h], 0)
-                        ends_m = jnp.where(in_bounds, cell_offsets[h + 1], 0)
-                if do_prune:
-                    assert cell_center is not None and cell_half is not None
-                    safe_starts = jnp.minimum(starts_m, n - 1)
-                    dr_cell = system.domain.displacement(
-                        pos_s[b_iota, None, :], cell_center[safe_starts], system
-                    )
-                    overlap = jnp.all(
-                        jnp.abs(dr_cell) <= cutoff + cell_half[safe_starts], axis=-1
-                    )
-                    ends_m = jnp.where(overlap, ends_m, starts_m)
-                lens_m = ends_m - starts_m
-                pref_m = jnp.cumsum(lens_m, axis=1)
-                totals = pref_m[:, -1]
-                return starts_m, lens_m, pref_m, totals
-
-            if n <= chunk_size:
-                pre_starts, pre_lens, pre_pref, pre_totals = stencil_prefix_batch(
-                    iota, coords_s
+                return _dense_stencil_prefix_batch(
+                    b_iota,
+                    b_coords,
+                    n=n,
+                    pos_s=pos_s,
+                    dims_i=dims_i,
+                    strides_i=strides_i,
+                    eff_cell_size=eff_cell_size,
+                    grid_dims=grid_dims,
+                    grid_strides=grid_strides,
+                    neighbor_mask=neighbor_mask,
+                    offsets_mask=offsets_mask,
+                    cell_offsets=cell_offsets,
+                    system=system,
+                    cap=cap,
+                    periodic=periodic,
+                    has_shear=has_shear,
+                    use_compact_shear=use_compact_shear,
+                    shear_r=shear_r,
+                    do_prune=do_prune,
+                    cell_center=cell_center,
+                    cell_half=cell_half,
+                    prune_rad=cutoff if do_prune else None,
                 )
-                max_total = _shared_max(jnp.max(pre_totals, initial=0))
-                if tile_capacity is not None:
-                    req_tiles = jnp.minimum(
-                        jnp.sum(
-                            (pre_lens + PAIR_UNROLL - 1) // PAIR_UNROLL,
-                            dtype=cell_counts.dtype,
-                        ),
-                        tile_limit,
-                    )
-                    tile_overflow = (req_tiles > tile_capacity) | hash_overflow
-                else:
-                    tile_overflow = hash_overflow
-            else:
-                pre_starts = pre_lens = pre_pref = pre_totals = None
-                full = n // chunk_size * chunk_size
-                iota_g = iota[:full].reshape(-1, chunk_size)
-                coords_g = coords_s[:full].reshape(-1, chunk_size, coords_s.shape[-1])
 
-                def chunk_stats(x: tuple[Any, Any]) -> tuple[Any, Any]:
-                    if not do_prune and not has_shear:
-                        _, b_coords = x
-                        raw = b_coords[:, None, :] + offsets_mask[None, :, :]
-                        if periodic:
-                            wrapped = jnp.where(
-                                raw < 0,
-                                raw + dims_i,
-                                jnp.where(raw >= dims_i, raw - dims_i, raw),
-                            )
-                            lens_c = cell_counts[jnp.dot(wrapped, strides_i)]
-                        else:
-                            in_bounds = jnp.all((raw >= 0) & (raw < dims_i), axis=-1)
-                            safe_raw = jnp.where(in_bounds[:, :, None], raw, 0)
-                            lens_c = jnp.where(
-                                in_bounds, cell_counts[jnp.dot(safe_raw, strides_i)], 0
-                            )
-                        tot_c = jnp.sum(lens_c, axis=1)
-                    else:
-                        _, lens_c, _, tot_c = stencil_prefix_batch(*x)
-                    m_c = jnp.max(tot_c, initial=0)
-                    if tile_capacity is not None:
-                        t_c = jnp.minimum(
-                            jnp.sum(
-                                (lens_c + PAIR_UNROLL - 1) // PAIR_UNROLL,
-                                dtype=cell_counts.dtype,
-                            ),
-                            tile_limit,
-                        )
-                    else:
-                        t_c = jnp.zeros_like(m_c)
-                    return m_c, t_c
-
-                m_arr, t_arr = jax.lax.map(chunk_stats, (iota_g, coords_g))
-                max_local = jnp.max(m_arr, initial=0)
-                req_local = jnp.minimum(
-                    jnp.sum(t_arr, dtype=cell_counts.dtype), tile_limit
-                )
-                if full < n:
-                    m_tail, t_tail = chunk_stats((iota[full:], coords_s[full:]))
-                    max_local = jnp.maximum(max_local, m_tail)
-                    req_local = jnp.minimum(req_local + t_tail, tile_limit)
-                max_total = _shared_max(max_local)
-                tile_overflow = (
-                    ((req_local > tile_capacity) | hash_overflow)
-                    if tile_capacity is not None
-                    else hash_overflow
-                )
+            (
+                pre_starts,
+                _pre_lens,
+                pre_pref,
+                pre_totals,
+                max_total,
+                tile_overflow,
+            ) = _dense_grid_stats(
+                n,
+                chunk_size,
+                iota,
+                coords_s,
+                stencil_prefix_batch,
+                cell_counts=cell_counts,
+                dims_i=dims_i,
+                strides_i=strides_i,
+                offsets_mask=offsets_mask,
+                periodic=periodic,
+                has_shear=has_shear,
+                do_prune=do_prune,
+                tile_capacity=tile_capacity,
+                hash_overflow=hash_overflow,
+            )
 
             def eval_candidates(
                 b_iota: Any,
@@ -1014,13 +899,14 @@ def _dense_sorted_search_pairs(
                 clumps_s,
                 bonds_s,
                 search_radii_s,
-                system.domain,
+                system,
                 cutoff,
                 skin,
                 interact_same,
                 hash_overflow,
                 shear_r,
                 capacity,
+                only_spheres=bool(state.only_spheres),
                 do_prune=do_prune,
                 cell_center=cell_center,
                 cell_half=cell_half,
@@ -1248,16 +1134,10 @@ def remap_history(
     return jnp.where(found, old[order[idx]], initialized)
 
 
-def _valid_pairs(state: Any, system: Any, i: Any, neighbors: Any) -> tuple[Any, Any]:
-    j = jnp.maximum(neighbors, 0)
-    valid = (neighbors >= 0) & valid_interaction_mask(
-        state.clump_id[i],
-        state.clump_id[j],
-        state.bond_id[i],
-        j,
-        system.interact_same_bond_id,
-    ).astype(bool)
-    return j, valid
+def _valid_pairs(neighbors: Any) -> tuple[Any, Any]:
+    # The cache build already drops same-clump and bond-excluded pairs; editing
+    # clump_id, bond_id, or interact_same_bond_id requires explicit invalidation.
+    return jnp.maximum(neighbors, 0), neighbors >= 0
 
 
 def pair_values(
@@ -1273,7 +1153,7 @@ def pair_values(
 ) -> tuple[Any, ...]:
     """Evaluate scalar-pair laws with shared positions and interaction masking."""
     i = sources
-    j, valid = _valid_pairs(state, system, i, neighbors)
+    j, valid = _valid_pairs(neighbors)
     force, torque, updated = jax.vmap(
         lambda a, b, h: system.force_model.force(
             a,
@@ -1420,9 +1300,6 @@ def _rebuild_selected_vmap(
 
     n_dirty = jnp.sum(needs_build, dtype=int)
     ks = tuple(k for k in (1, 4, 16) if k < axis_size)
-    if not ks:
-        out = run_all(None)
-        return out, jax.tree.map(lambda _: True, out)
 
     def run_subbatch(k: int, _: Any) -> Any:
         ranks = jnp.cumsum(needs_build, dtype=int) - 1
@@ -1453,12 +1330,65 @@ def _rebuild_selected_vmap(
     return out, jax.tree.map(lambda _: True, out)
 
 
-def _check_and_rebuild_body(
-    state: Any, system: Any, pos: Any, *, zero_copy_while: bool
-) -> Any:
-    """Shared body for ``check_and_rebuild`` (while-loop primal, cond JVP/VJP)."""
-    from ._pallas import has_manual_axes as _has_manual_axes
+@dataclass(frozen=True, slots=True)
+class _CacheCheck:
+    """Shared cache-validity predicates for rebuild, fused step, and deferred checks."""
 
+    metric: Any
+    cutoff: Any
+    facet_id: Any
+    max_disp2: Any
+    displacement: Any | None
+    rebuild: Any
+    geometry_changed: Any
+
+    def travel_displacement(self) -> Any:
+        if self.displacement is not None:
+            return self.displacement
+        return 2.0 * jnp.sqrt(jax.lax.stop_gradient(self.max_disp2))
+
+    def needs_rebuild(self, domain: Any, col: Any) -> Any:
+        drift = domain.search_geometry_drift(col.metric_snapshot, col.old_pos)
+        return self.rebuild | (
+            self.geometry_changed & (self.travel_displacement() + drift > col.skin)
+        )
+
+
+def _max_facet_id(state: Any) -> Any:
+    if state.only_spheres:
+        return jnp.asarray(-1, dtype=state.facet_id.dtype)
+    if state.facet_ids_extra.shape[-1] == 0:
+        return jnp.max(state.facet_id, initial=-1)
+    return jnp.maximum(
+        jnp.max(state.facet_id, initial=-1),
+        jnp.max(state.facet_ids_extra, initial=-1),
+    )
+
+
+def _motion_bound(state: Any, system: Any, pos: Any, horizon: int) -> Any:
+    """Largest per-sphere travel since the last build, plus predicted travel.
+
+    Each sphere adds a heuristic ``t |v| + t^2 |a| / 2`` estimate with
+    ``t = horizon * dt`` (linear speed, clump rotational speed, and linear
+    acceleration; angular acceleration and future force growth are caught on
+    deferred steps by :func:`_flag_skin_violation`).
+    """
+    col = system.collider
+    travel = norm(pos - col.old_pos)
+    speed = norm(state.vel)
+    if not state.only_spheres:
+        speed = speed + norm(state.ang_vel) * norm(state._pos_p_rot)
+    safe_mass = jnp.where(state.fixed, 1.0, state.mass)
+    accel = jnp.where(state.fixed, 0.0, norm(state.force) / safe_mass)
+    t = horizon * system.dt
+    return jnp.max(
+        jax.lax.stop_gradient(travel + t * speed + 0.5 * t * t * accel),
+        initial=0.0,
+    )
+
+
+def _inspect_cache(state: Any, system: Any, pos: Any, *, horizon: int) -> _CacheCheck:
+    """Evaluate all cache-validity predicates shared by checked and deferred paths."""
     col = system.collider
     dim = state.dim
     metric = system.domain.search_geometry_snapshot()
@@ -1470,20 +1400,19 @@ def _check_and_rebuild_body(
         system.force_model.search_radii(state, system), initial=0.0
     )
     cutoff = jnp.maximum(col.cutoff, 2 * max_search_rad)
-    if state.only_spheres:
-        facet_id = jnp.asarray(-1, dtype=state.facet_id.dtype)
-    elif state.facet_ids_extra.shape[-1] == 0:
-        facet_id = jnp.max(state.facet_id, initial=-1)
-    else:
-        facet_id = jnp.maximum(
-            jnp.max(state.facet_id, initial=-1),
-            jnp.max(state.facet_ids_extra, initial=-1),
-        )
+    facet_id = _max_facet_id(state)
 
-    # Charge the motion until the next check against the skin.
-    displacement = 2.0 * _motion_bound(state, system, pos)
+    if horizon > 0:
+        displacement = 2.0 * _motion_bound(state, system, pos, horizon)
+        max_disp2 = None
+        skin_spent = displacement > col.skin
+    else:
+        max_disp2 = jnp.max(norm2(pos - col.old_pos), initial=0.0)
+        displacement = None
+        skin_spent = 4.0 * max_disp2 > col.skin * col.skin
+
     rebuild = (
-        (displacement > col.skin)
+        skin_spent
         | (col.n_build_times == 0)
         | col.invalidated
         | jnp.any(metric[dim + 1 :] != col.metric_snapshot[dim + 1 :])
@@ -1492,29 +1421,47 @@ def _check_and_rebuild_body(
         | (facet_id != col.facet_id_snapshot)
     )
     geometry_changed = jnp.any(metric != col.metric_snapshot)
+    return _CacheCheck(
+        metric=metric,
+        cutoff=cutoff,
+        facet_id=facet_id,
+        max_disp2=max_disp2,
+        displacement=displacement,
+        rebuild=rebuild,
+        geometry_changed=geometry_changed,
+    )
+
+
+def _check_and_rebuild_body(
+    state: Any, system: Any, pos: Any, *, zero_copy_while: bool
+) -> Any:
+    """Shared body for ``check_and_rebuild`` (while-loop primal, cond JVP/VJP)."""
+    from ._pallas import has_manual_axes as _has_manual_axes
+
+    col = system.collider
+    chk = _inspect_cache(state, system, pos, horizon=col._check_horizon)
     use_subbatch = zero_copy_while and not _has_manual_axes(state, system)
 
     if col.history.size and _has_manual_axes(state, system):
         col = _with_axes(
             col,
             _build_one_cache(
-                state, replace(system, collider=col), cutoff, metric, facet_id
+                state,
+                replace(system, collider=col),
+                chk.cutoff,
+                chk.metric,
+                chk.facet_id,
             ),
         )
 
     def maybe_rebuild(cur_col: Any) -> Any:
-        drift = system.domain.search_geometry_drift(
-            cur_col.metric_snapshot, cur_col.old_pos
-        )
-        needs_build = rebuild | (
-            geometry_changed & (displacement + drift > cur_col.skin)
-        )
+        needs_build = chk.needs_rebuild(system.domain, cur_col)
         if use_subbatch:
             sys_c = replace(system, collider=cur_col)
             return jax.lax.cond(
                 _shared_any(needs_build),
                 lambda _: _rebuild_selected(
-                    needs_build, state, sys_c, cutoff, metric, facet_id
+                    needs_build, state, sys_c, chk.cutoff, chk.metric, chk.facet_id
                 ),
                 lambda _: cur_col,
                 None,
@@ -1524,7 +1471,11 @@ def _check_and_rebuild_body(
             lambda _: jax.lax.cond(
                 needs_build,
                 lambda __: _build_one_cache(
-                    state, replace(system, collider=cur_col), cutoff, metric, facet_id
+                    state,
+                    replace(system, collider=cur_col),
+                    chk.cutoff,
+                    chk.metric,
+                    chk.facet_id,
                 ),
                 lambda __: cur_col,
                 None,
@@ -1533,7 +1484,7 @@ def _check_and_rebuild_body(
             None,
         )
 
-    do_check = _shared_any(rebuild | geometry_changed)
+    do_check = _shared_any(chk.rebuild | chk.geometry_changed)
     if zero_copy_while:
         # A 0-or-1-iteration while_loop lets XLA alias the carry buffer in place
         # on the ~98% no-rebuild steps, avoiding a full copy of neighbor_list
@@ -1578,40 +1529,24 @@ def check_and_rebuild(state: Any, system: Any, *, pos: Any | None = None) -> Any
     the domain's bound on image motion. Changes to the search axes, the
     required reach, or the skin itself always rebuild. Adding facets also
     rebuilds, even when an existing larger primitive keeps the global reach
-    unchanged. Manual rewiring of existing IDs requires explicit invalidation.
+    unchanged. Manual rewiring of ``clump_id``, ``bond_id``, or
+    ``interact_same_bond_id`` requires explicit invalidation.
     """
     pos = state.pos if pos is None else pos
-    if system.collider.defer_check:
+    if system.collider._check_horizon < 0:
         return _flag_skin_violation(state, system, pos)
     return _check_and_rebuild_impl(state, system, pos)
 
 
-def _motion_bound(state: Any, system: Any, pos: Any) -> Any:
-    """Largest per-sphere travel since the last build, plus travel until the next check.
+def _flag_skin_violation(state: Any, system: Any, pos: Any) -> Any:
+    """Deferred step: keep the cache and raise ``overflow`` if it becomes invalid.
 
-    With ``check_every = k > 1`` each sphere adds ``t |v| + t^2 |a| / 2`` with
-    ``t = k * dt``. Forces can still grow inside the window, so unchecked steps
-    also run :func:`_flag_skin_violation`.
+    Detects skin exhaustion and cache invalidation without repairing; raise
+    ``skin`` or lower ``check_every`` if overflow is observed.
     """
     col = system.collider
-    travel = jnp.sqrt(norm2(pos - col.old_pos))
-    if col.check_every > 1:
-        speed = jnp.sqrt(norm2(state.vel))
-        if not state.only_spheres:
-            speed = speed + jnp.sqrt(norm2(state.ang_vel) * norm2(state._pos_p_rot))
-        accel = jnp.where(state.fixed, 0.0, jnp.sqrt(norm2(state.force)) / state.mass)
-        t = col.check_every * system.dt
-        travel = travel + jax.lax.stop_gradient(t * speed + 0.5 * t * t * accel)
-    return jnp.max(travel, initial=0.0)
-
-
-def _flag_skin_violation(state: Any, system: Any, pos: Any) -> Any:
-    """Unchecked step: keep the cache and raise ``overflow`` if the skin is spent."""
-    # ponytail: detects but does not repair; raise skin or lower check_every on overflow.
-    col = system.collider
-    displacement = 2.0 * jnp.sqrt(jnp.max(norm2(pos - col.old_pos), initial=0.0))
-    drift = system.domain.search_geometry_drift(col.metric_snapshot, col.old_pos)
-    exceeded = displacement + drift > col.skin
+    chk = _inspect_cache(state, system, pos, horizon=0)
+    exceeded = chk.needs_rebuild(system.domain, col)
     return replace(system, collider=replace(col, overflow=col.overflow | exceeded))
 
 
@@ -1715,74 +1650,107 @@ _CSR_TWO_TIER_MIN_N = 4_096
 def _eval_csr_chunked(
     state: Any,
     system: Any,
+    advance_history: bool,
     quasistatic: bool,
     row_i: Any,
     row_start: Any,
     row_end: Any,
     width: int,
-) -> Any:
+    history: Any = None,
+) -> tuple[Any, Any]:
     """Evaluate CSR rows ``(row_i, row_start, row_end)`` up to ``width`` lanes."""
     col = system.collider
     m, capacity = int(row_i.shape[0]), col.neighbor_list.size
     pos = state.pos
     has_torque = system.force_model.has_pair_torque
-    batch_size = 65_536
+    h_cur = col.history if history is None else history
+    has_history = h_cur.size > 0
+    write_history = has_history and advance_history
+    batch_size = 16_384 if write_history else 65_536
     lanes = jnp.arange(width)
     empty_hist = system.force_model.init_history((width,), state.dim)
 
-    def eval_batch(batch_rows: Any) -> Any:
-        b_i, b_start, b_end = batch_rows
-
-        def eval_row(i: Any, start: Any, end: Any) -> Any:
-            slots = start + lanes
-            in_row = slots < end
-            safe = jnp.minimum(slots, capacity - 1)
-            nbr = col.neighbor_list[safe]
-            j = jnp.maximum(nbr, 0)
-            valid = (
-                in_row
-                & (nbr >= 0)
-                & valid_interaction_mask(
-                    state.clump_id[i],
-                    state.clump_id[j],
-                    state.bond_id[i],
-                    j,
-                    system.interact_same_bond_id,
-                ).astype(bool)
+    def eval_row(i: Any, start: Any, end: Any, h_src: Any) -> Any:
+        slots = start + lanes
+        in_row = slots < end
+        safe = jnp.minimum(slots, capacity - 1)
+        nbr = col.neighbor_list[safe]
+        j = jnp.maximum(nbr, 0)
+        valid = in_row & (nbr >= 0)
+        h_in = h_src[safe] if has_history else empty_hist
+        f, t, h_new = jax.vmap(
+            lambda b, h: system.force_model.force(
+                i,
+                b,
+                pos,
+                state,
+                system,
+                h,
+                advance_history=advance_history,
+                quasistatic=quasistatic,
             )
-            f, t, _ = jax.vmap(
-                lambda b, h: system.force_model.force(
-                    i,
-                    b,
-                    pos,
-                    state,
-                    system,
-                    h,
-                    advance_history=False,
-                    quasistatic=quasistatic,
-                )
-            )(j, empty_hist)
-            f_masked = jnp.where(valid[:, None], f, 0.0)
-            if not has_torque:
-                return f_masked
-            return f_masked, jnp.where(valid[:, None], t, 0.0)
+        )(j, h_in)
+        f_masked = jnp.where(valid[:, None], f, 0.0)
+        ft = (
+            f_masked
+            if not has_torque
+            else (f_masked, jnp.where(valid[:, None], t, 0.0))
+        )
+        if not write_history:
+            return ft
+        h_mask = valid.reshape(valid.shape + (1,) * (h_new.ndim - 1))
+        h_out = jnp.where(h_mask, h_new, empty_hist)
+        w_slots = jnp.where(in_row, slots, capacity)
+        return ft, h_out, w_slots
 
-        raw = jax.vmap(eval_row)(b_i, b_start, b_end)
+    def eval_batch_stateless(batch_rows: Any) -> Any:
+        b_i, b_start, b_end = batch_rows
+        raw = jax.vmap(lambda a, s, e: eval_row(a, s, e, h_cur))(b_i, b_start, b_end)
         if not has_torque:
             return _vec_sum(raw, 1)
         return _vec_sum(raw[0], 1), _vec_sum(raw[1], 1)
 
+    def eval_batch_stateful(h_buf: Any, batch_rows: Any) -> tuple[Any, Any]:
+        b_i, b_start, b_end = batch_rows
+        ft_raw, h_out, w_slots = jax.vmap(lambda a, s, e: eval_row(a, s, e, h_buf))(
+            b_i, b_start, b_end
+        )
+        ft_sum = (
+            _vec_sum(ft_raw, 1)
+            if not has_torque
+            else (_vec_sum(ft_raw[0], 1), _vec_sum(ft_raw[1], 1))
+        )
+        h_buf = h_buf.at[w_slots].set(
+            h_out.astype(h_buf.dtype), unique_indices=True, mode="drop"
+        )
+        return h_buf, ft_sum
+
     rows_all = (row_i, row_start, row_end)
+    if not write_history:
+        if m <= batch_size:
+            return eval_batch_stateless(rows_all), h_cur
+        full = m // batch_size * batch_size
+        grouped = jax.tree.map(lambda x: x[:full].reshape(-1, batch_size), rows_all)
+        out = jax.lax.map(eval_batch_stateless, grouped)
+        out = jax.tree.map(lambda x: x.reshape((full,) + x.shape[2:]), out)
+        if full < m:
+            tail = eval_batch_stateless(jax.tree.map(lambda x: x[full:], rows_all))
+            out = jax.tree.map(lambda a, b: jnp.concatenate((a, b), axis=0), out, tail)
+        return out, h_cur
+
     if m <= batch_size:
-        return eval_batch(rows_all)
+        h_buf, out = eval_batch_stateful(h_cur, rows_all)
+        return out, h_buf
     full = m // batch_size * batch_size
     grouped = jax.tree.map(lambda x: x[:full].reshape(-1, batch_size), rows_all)
-    out = jax.lax.map(eval_batch, grouped)
+    h_buf, out = jax.lax.scan(eval_batch_stateful, h_cur, grouped)
     out = jax.tree.map(lambda x: x.reshape((full,) + x.shape[2:]), out)
     if full < m:
-        tail = eval_batch(jax.tree.map(lambda x: x[full:], rows_all))
+        h_buf, tail = eval_batch_stateful(
+            h_buf, jax.tree.map(lambda x: x[full:], rows_all)
+        )
         out = jax.tree.map(lambda a, b: jnp.concatenate((a, b), axis=0), out, tail)
-    return out
+    return out, h_buf
 
 
 def _finalize_csr_forces(state: Any, system: Any, out: Any) -> tuple[Any, Any]:
@@ -1802,41 +1770,65 @@ def _finalize_csr_forces(state: Any, system: Any, out: Any) -> tuple[Any, Any]:
 
 
 def _eval_csr_width(
-    state: Any, system: Any, quasistatic: bool, width: int
-) -> tuple[Any, Any]:
-    """Evaluate stateless CSR rows for a fixed degree bucket via variadic _vec_sum."""
-    if width == 0:
-        return jnp.zeros_like(state.force), jnp.zeros_like(state.torque)
+    state: Any,
+    system: Any,
+    advance_history: bool,
+    quasistatic: bool,
+    width: int,
+    history: Any = None,
+) -> tuple[Any, Any, Any]:
+    """Evaluate CSR rows for a fixed degree bucket via variadic ``_vec_sum``."""
     col = system.collider
+    h_cur = col.history if history is None else history
+    if width == 0:
+        return jnp.zeros_like(state.force), jnp.zeros_like(state.torque), h_cur
     n = state.N
-    out = _eval_csr_chunked(
+    write_hist = h_cur.size > 0 and advance_history
+    out, h_out = _eval_csr_chunked(
         state,
         system,
+        advance_history,
         quasistatic,
         jnp.arange(n),
         col.row_offsets[:-1],
         col.row_offsets[1:],
         width,
+        history=h_cur,
     )
-    return _finalize_csr_forces(state, system, out)
+    force, torque = _finalize_csr_forces(state, system, out)
+    return force, torque, h_out if write_hist else h_cur
 
 
 def _eval_csr_two_tier(
     state: Any,
     system: Any,
+    advance_history: bool,
     quasistatic: bool,
     base_w: int,
     cap_tail: int,
     tail_w: int,
-) -> tuple[Any, Any]:
+    history: Any = None,
+) -> tuple[Any, Any, Any]:
     """Evaluate first ``base_w`` lanes for all rows, then compact overflow rows."""
     col = system.collider
+    h_cur = col.history if history is None else history
     n = state.N
     starts = col.row_offsets[:-1]
     ends = col.row_offsets[1:]
     iota = jnp.arange(n)
+    write_hist = h_cur.size > 0 and advance_history
 
-    out = _eval_csr_chunked(state, system, quasistatic, iota, starts, ends, base_w)
+    out, h_buf = _eval_csr_chunked(
+        state,
+        system,
+        advance_history,
+        quasistatic,
+        iota,
+        starts,
+        ends,
+        base_w,
+        history=h_cur,
+    )
 
     over = (ends - starts) > base_w
     ranks = jnp.cumsum(over, dtype=int) - 1
@@ -1847,12 +1839,21 @@ def _eval_csr_two_tier(
     t_start = starts[safe_i] + base_w
     t_end = jnp.where(valid_tail, ends[safe_i], t_start)
 
-    tail_out = _eval_csr_chunked(
-        state, system, quasistatic, safe_i, t_start, t_end, tail_w
+    tail_out, h_buf = _eval_csr_chunked(
+        state,
+        system,
+        advance_history,
+        quasistatic,
+        safe_i,
+        t_start,
+        t_end,
+        tail_w,
+        history=h_buf,
     )
     w_idx = jnp.where(valid_tail, safe_i, n)
     out = jax.tree.map(lambda a, da: a.at[w_idx].add(da, mode="drop"), out, tail_out)
-    return _finalize_csr_forces(state, system, out)
+    force, torque = _finalize_csr_forces(state, system, out)
+    return force, torque, h_buf if write_hist else h_cur
 
 
 def _csr_dispatch_index(n: int, deg: Any, max_deg: Any) -> tuple[Any, bool]:
@@ -1882,27 +1883,36 @@ def _csr_dispatch_index(n: int, deg: Any, max_deg: Any) -> tuple[Any, bool]:
     return idx, True
 
 
-def _eval_csr_large(state: Any, system: Any, quasistatic: bool) -> tuple[Any, Any]:
+def _eval_csr_large(
+    state: Any,
+    system: Any,
+    advance_history: bool,
+    quasistatic: bool,
+    history: Any = None,
+) -> tuple[Any, Any, Any]:
     """Fallback row-batched CSR evaluator when max degree exceeds bucket range."""
     col = system.collider
+    h_cur = col.history if history is None else history
     pos = state.pos
     has_torque = system.force_model.has_pair_torque
+    write_hist = h_cur.size > 0 and advance_history
 
     def evaluate(i: Any, neighbors: Any, slots: Any) -> Any:
-        f, t, _ = pair_values(
+        f, t, h = pair_values(
             state,
             system,
             pos,
             i,
             neighbors,
-            col.history[slots],
-            advance_history=False,
+            h_cur[slots],
+            advance_history=advance_history,
             quasistatic=quasistatic,
         )
-        return f if not has_torque else (f, t)
+        return (f if not has_torque else (f, t)), (h if write_hist else None)
 
     def evaluate_rows(i: Any, neighbors: Any, slots: Any) -> Any:
-        return jax.vmap(evaluate)(i, neighbors, slots), None
+        ft, h = jax.vmap(evaluate)(i, neighbors, slots)
+        return ft, h if write_hist else None
 
     initial = (
         jnp.zeros_like(state.force, shape=state.force.shape[1:])
@@ -1912,47 +1922,86 @@ def _eval_csr_large(state: Any, system: Any, quasistatic: bool) -> tuple[Any, An
             jnp.zeros_like(state.torque, shape=state.torque.shape[1:]),
         )
     )
-    out, _ = _row_reduce(col, initial, evaluate_rows, None)
-    if not has_torque:
-        force = out
-        torque = (
-            jnp.zeros_like(state.torque)
-            if state.only_spheres
-            else cross(state._pos_p_rot, force)
-        )
-    else:
-        force, torque = out
-        if not state.only_spheres:
-            torque = torque + cross(state._pos_p_rot, force)
-    return force, torque
+    out, out_hist = _row_reduce(
+        col,
+        initial,
+        evaluate_rows,
+        h_cur if write_hist else None,
+    )
+    force, torque = _finalize_csr_forces(state, system, out)
+    return force, torque, out_hist if write_hist else h_cur
 
 
-def _bucketed_csr_forces(state: Any, system: Any, quasistatic: bool) -> tuple[Any, Any]:
-    """Single-kernel degree-bucketed (or two-tier) CSR reduction for stateless caches."""
+_CSR_STATEFUL_BUCKETS = (0, 8, 16, 32, 64)
+
+
+def _bucketed_csr_forces(
+    state: Any,
+    system: Any,
+    quasistatic: bool,
+    *,
+    advance_history: bool = False,
+) -> tuple[Any, Any, Any]:
+    """Single-kernel degree-bucketed (or two-tier) CSR reduction."""
     col = system.collider
     n = state.N
     deg = col.row_offsets[1:] - col.row_offsets[:-1]
     max_deg = _shared_max(jnp.max(deg, initial=0))
-    branch_idx, use_two_tier = _csr_dispatch_index(n, deg, max_deg)
+    has_history = col.history.size > 0
+    # Pass history as the explicit switch operand (not captured in `system`) so
+    # XLA can alias the large history buffer in place across switch branches.
+    h_op = col.history
+    sys_eval = (
+        replace(
+            system,
+            collider=replace(col, history=jnp.empty((0,), dtype=col.history.dtype)),
+        )
+        if has_history
+        else system
+    )
+    buckets: tuple[int, ...]
+    if has_history:
+        # Stateful force laws (e.g. Cundall-Strack, combiners) have large jaxprs;
+        # coarse buckets cut compile time 3x while keeping runtime throughput.
+        buckets = _CSR_STATEFUL_BUCKETS
+        branch_idx = sum((max_deg > b).astype(int) for b in buckets)
+        use_two_tier = False
+    else:
+        buckets = _CSR_DEGREE_BUCKETS
+        branch_idx, use_two_tier = _csr_dispatch_index(n, deg, max_deg)
     branches: tuple[Any, ...] = tuple(
-        partial(lambda w, _: _eval_csr_width(state, system, quasistatic, w), b)
-        for b in _CSR_DEGREE_BUCKETS
+        partial(
+            lambda w, h: _eval_csr_width(
+                state, sys_eval, advance_history, quasistatic, w, history=h
+            ),
+            b,
+        )
+        for b in buckets
     ) + (
-        lambda _: _eval_csr_large(state, system, quasistatic),
+        lambda h: _eval_csr_large(
+            state, sys_eval, advance_history, quasistatic, history=h
+        ),
     )
     if use_two_tier:
         cap_tail = max(n // 16, 64)
         branches = branches + tuple(
             partial(
-                lambda bw, tw, _: _eval_csr_two_tier(
-                    state, system, quasistatic, bw, cap_tail, tw
+                lambda bw, tw, h: _eval_csr_two_tier(
+                    state,
+                    sys_eval,
+                    advance_history,
+                    quasistatic,
+                    bw,
+                    cap_tail,
+                    tw,
+                    history=h,
                 ),
                 bw,
                 tw,
             )
             for bw, tw in _CSR_TWO_TIER_SPECS
         )
-    return jax.lax.switch(branch_idx, branches, None)
+    return jax.lax.switch(branch_idx, branches, h_op)
 
 
 @partial(jax.custom_jvp, nondiff_argnums=(2,))
@@ -1973,49 +2022,21 @@ def rebuild_and_forces(
         sys_new = check_and_rebuild(state, system, pos=pos)
 
         def _pure_stateless() -> tuple[Any, Any, Any]:
-            f, t = _bucketed_csr_forces(state, sys_new, quasistatic)
-            return f, t, sys_new.collider.history
+            return _bucketed_csr_forces(state, sys_new, quasistatic)
 
         force, torque, _ = pallas_csr_forces(
             state, sys_new, False, quasistatic, _pure_stateless, pos=pos
         )
         return sys_new, force, torque
 
-    if system.collider.defer_check:
-        system = check_and_rebuild(state, system)
+    if system.collider._check_horizon < 0:
+        sys_new = _flag_skin_violation(state, system, state.pos)
+        force, torque, _ = _bucketed_csr_forces(state, sys_new, quasistatic)
+        return sys_new, force, torque
     col, pos = system.collider, state.pos
-    dim = state.dim
     n = state.N
-    metric = system.domain.search_geometry_snapshot()
-    if metric.shape != (dim + 3,):
-        raise ValueError(
-            f"Domain.search_geometry_snapshot() must have shape {(dim + 3,)}"
-        )
-    search_radii = system.force_model.search_radii(state, system)
-    cutoff = jnp.maximum(col.cutoff, 2 * jnp.max(search_radii, initial=0.0))
-    if state.only_spheres:
-        facet_id = jnp.asarray(-1, dtype=state.facet_id.dtype)
-    elif state.facet_ids_extra.shape[-1] == 0:
-        facet_id = jnp.max(state.facet_id, initial=-1)
-    else:
-        facet_id = jnp.maximum(
-            jnp.max(state.facet_id, initial=-1),
-            jnp.max(state.facet_ids_extra, initial=-1),
-        )
-    displacement = 2.0 * _motion_bound(state, system, pos)
-    rebuild = (
-        (displacement > col.skin)
-        | (col.n_build_times == 0)
-        | col.invalidated
-        | jnp.any(metric[dim + 1 :] != col.metric_snapshot[dim + 1 :])
-        | (cutoff != col.physical_cutoff_snapshot)
-        | (col.skin != col.skin_snapshot)
-        | (facet_id != col.facet_id_snapshot)
-    )
-    geometry_changed = jnp.any(metric != col.metric_snapshot)
-    needs_check = _shared_any(rebuild | geometry_changed)
-    if col.defer_check:
-        needs_check = jnp.zeros_like(needs_check)
+    chk = _inspect_cache(state, system, pos, horizon=col._check_horizon)
+    needs_check = _shared_any(chk.rebuild | chk.geometry_changed)
 
     deg = col.row_offsets[1:] - col.row_offsets[:-1]
     max_deg = _shared_max(jnp.max(deg, initial=0))
@@ -2030,23 +2051,26 @@ def rebuild_and_forces(
         )
         coarse = (0, 8, 16, 32, 64)
         idx = sum((max_d > b).astype(int) for b in coarse)
-        f, t = jax.lax.switch(
+        f, t, _ = jax.lax.switch(
             idx,
             tuple(
-                partial(lambda w, _: _eval_csr_width(state, sys_new, quasistatic, w), b)
+                partial(
+                    lambda w, _: _eval_csr_width(state, sys_new, False, quasistatic, w),
+                    b,
+                )
                 for b in coarse
             )
-            + (lambda _: _eval_csr_large(state, sys_new, quasistatic),),
+            + (lambda _: _eval_csr_large(state, sys_new, False, quasistatic),),
             None,
         )
         return col_new, f, t
 
     def do_width(w: int, _: Any) -> tuple[Any, Any, Any]:
-        f, t = _eval_csr_width(state, system, quasistatic, w)
+        f, t, _ = _eval_csr_width(state, system, False, quasistatic, w)
         return col, f, t
 
     def do_large(_: Any) -> tuple[Any, Any, Any]:
-        f, t = _eval_csr_large(state, system, quasistatic)
+        f, t, _ = _eval_csr_large(state, system, False, quasistatic)
         return col, f, t
 
     branches: tuple[Any, ...] = (
@@ -2058,7 +2082,9 @@ def rebuild_and_forces(
         cap_tail = max(n // 16, 64)
 
         def do_two_tier(bw: int, tw: int, _: Any) -> tuple[Any, Any, Any]:
-            f, t = _eval_csr_two_tier(state, system, quasistatic, bw, cap_tail, tw)
+            f, t, _ = _eval_csr_two_tier(
+                state, system, False, quasistatic, bw, cap_tail, tw
+            )
             return col, f, t
 
         branches = branches + tuple(
@@ -2087,13 +2113,18 @@ def energy(state: Any, system: Any) -> Any:
     pos = state.pos
     col = system.collider
 
-    if col.history.size == 0 and state.N > 0 and col.neighbor_list.size > 0:
+    if (
+        (col.history.size == 0 or col.neighbor_list.size > _HISTORY_PREFIX_SIZE)
+        and state.N > 0
+        and col.neighbor_list.size > 0
+    ):
         n, capacity = state.N, col.neighbor_list.size
         starts = col.row_offsets[:-1]
         ends = col.row_offsets[1:]
         max_deg = _shared_max(jnp.max(ends - starts, initial=0))
         batch_size = _ROW_BATCH_SIZE[state.dim]
         rows_all = (jnp.arange(n), starts, ends)
+        has_history = col.history.size > 0
 
         def eval_e_width(width: int) -> Any:
             if width == 0:
@@ -2107,20 +2138,11 @@ def energy(state: Any, system: Any) -> Any:
                 safe = jnp.minimum(slots, capacity - 1)
                 nbr = col.neighbor_list[safe]
                 j = jnp.maximum(nbr, 0)
-                valid = (
-                    in_row
-                    & (nbr >= 0)
-                    & valid_interaction_mask(
-                        state.clump_id[i],
-                        state.clump_id[j],
-                        state.bond_id[i],
-                        j,
-                        system.interact_same_bond_id,
-                    ).astype(bool)
-                )
+                valid = in_row & (nbr >= 0)
+                h_in = col.history[safe] if has_history else empty_hist
                 e = jax.vmap(
                     lambda b, h: system.force_model.energy(i, b, pos, state, system, h)
-                )(j, empty_hist)
+                )(j, h_in)
                 return jnp.sum(jnp.where(valid, e, 0.0))
 
             if n <= batch_size:
@@ -2133,7 +2155,7 @@ def energy(state: Any, system: Any) -> Any:
 
         def eval_e_large() -> Any:
             def evaluate(i: Any, neighbors: Any, slots: Any) -> Any:
-                j, valid = _valid_pairs(state, system, i, neighbors)
+                j, valid = _valid_pairs(neighbors)
                 e = jax.vmap(
                     lambda b, h: system.force_model.energy(i, b, pos, state, system, h)
                 )(j, col.history[slots])
@@ -2149,7 +2171,7 @@ def energy(state: Any, system: Any) -> Any:
             )
             return 0.5 * rows.sum()
 
-        buckets = _CSR_DEGREE_BUCKETS
+        buckets = _CSR_STATEFUL_BUCKETS if has_history else _CSR_DEGREE_BUCKETS
         branch_idx = sum((max_deg > b).astype(int) for b in buckets)
         branches = tuple(partial(lambda w, _: eval_e_width(w), b) for b in buckets) + (
             lambda _: eval_e_large(),
@@ -2165,7 +2187,7 @@ def energy(state: Any, system: Any) -> Any:
         return _prefix_dispatch(_fixed_pool_energy, minimum)(state, system)
 
     def evaluate(i: Any, neighbors: Any, slots: Any) -> Any:
-        j, valid = _valid_pairs(state, system, i, neighbors)
+        j, valid = _valid_pairs(neighbors)
         e = jax.vmap(
             lambda b, h: system.force_model.energy(i, b, pos, state, system, h)
         )(j, system.collider.history[slots])
@@ -2184,7 +2206,7 @@ def _fixed_pool_energy(prefix: int, state: Any, system: Any) -> Any:
     pos = state.pos
 
     def values(i: Any, neighbors: Any, slots: Any) -> Any:
-        j, valid = _valid_pairs(state, system, i, neighbors)
+        j, valid = _valid_pairs(neighbors)
         energies = jax.vmap(
             lambda a, b, h: system.force_model.energy(a, b, pos, state, system, h)
         )(i, j, system.collider.history[slots])
@@ -2212,9 +2234,14 @@ def forces(
         return jnp.zeros_like(state.force), jnp.zeros_like(state.torque), col.history
 
     def _pure_forces() -> tuple[Any, ...]:
-        if col.history.size == 0:
-            force, torque = _bucketed_csr_forces(state, system, quasistatic)
-            return force, torque, col.history
+        from ._pallas import has_manual_axes
+
+        if col.history.size > 0 and capacity <= _HISTORY_PREFIX_SIZE:
+            return _flat_forces(state, system, advance_history, quasistatic)
+        if col.history.size == 0 or not has_manual_axes(state, system):
+            return _bucketed_csr_forces(
+                state, system, quasistatic, advance_history=advance_history
+            )
         pos = state.pos
         if _uses_fixed_cache(col, state.dim):
             minimum = (
@@ -2342,7 +2369,7 @@ def _energy_jvp(primals: Any, tangents: Any) -> Any:
         if state.N == 0 or col.neighbor_list.size == 0:
             return jnp.asarray(0.0, dtype=state.pos.dtype)
         i = jnp.minimum(pair_sources(col), max(state.N - 1, 0))
-        j, valid = _valid_pairs(state, system, i, col.neighbor_list)
+        j, valid = _valid_pairs(col.neighbor_list)
         pos = state.pos
         values = jax.vmap(
             lambda a, b, h: system.force_model.energy(a, b, pos, state, system, h)

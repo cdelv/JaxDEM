@@ -25,7 +25,6 @@ __all__ = [
     "has_manual_axes",
     "is_pallas_enabled",
     "pallas_enabled",
-    "pallas_triton_enabled",
     "pl",
     "platform_dispatch",
     "pltriton",
@@ -119,10 +118,6 @@ def _active_triton_platforms() -> tuple[str, ...]:
 def is_pallas_enabled() -> bool:
     """Return ``True`` when Pallas Triton GPU kernels are available and enabled."""
     return len(_active_triton_platforms()) > 0
-
-
-# Internal alias preserved for clarity at collider call sites.
-pallas_triton_enabled = is_pallas_enabled
 
 
 def set_pallas_enabled(enabled: bool | None, *, clear_caches: bool = True) -> None:

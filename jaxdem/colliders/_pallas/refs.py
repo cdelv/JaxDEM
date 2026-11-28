@@ -206,45 +206,6 @@ def triton_cross(
     )
 
 
-def triton_cross_w_r(
-    dim: int, w: tuple[jax.Array, ...], r: tuple[jax.Array, ...]
-) -> tuple[jax.Array, ...]:
-    if dim == 2:
-        return (-w[0] * r[1], w[0] * r[0])
-    return (
-        w[1] * r[2] - w[2] * r[1],
-        w[2] * r[0] - w[0] * r[2],
-        w[0] * r[1] - w[1] * r[0],
-    )
-
-
-def triton_scaled_unit_and_norm(
-    comps: tuple[jax.Array, ...],
-) -> tuple[tuple[jax.Array, ...], jax.Array]:
-    """Overflow-safe unit vector and norm matching ``linalg.unit_and_norm``."""
-    scale = jnp.abs(comps[0])
-    for c in comps[1:]:
-        scale = jnp.maximum(scale, jnp.abs(c))
-    zero = scale == 0.0
-    safe_s = jnp.where(zero, 1.0, scale)
-    s_comps = tuple(c / safe_s for c in comps)
-    n2 = triton_dot(s_comps, s_comps)
-    r = jnp.sqrt(jnp.where(zero, 1.0, n2))
-    inv_r = jnp.where(zero, 0.0, 1.0 / r)
-    return tuple(c * inv_r for c in s_comps), jnp.where(zero, 0.0, r * scale)
-
-
-def triton_scaled_norm(comps: tuple[jax.Array, ...]) -> jax.Array:
-    scale = jnp.abs(comps[0])
-    for c in comps[1:]:
-        scale = jnp.maximum(scale, jnp.abs(c))
-    zero = scale == 0.0
-    safe_s = jnp.where(zero, 1.0, scale)
-    s_comps = tuple(c / safe_s for c in comps)
-    n2 = triton_dot(s_comps, s_comps)
-    return jnp.where(zero, 0.0, jnp.sqrt(jnp.where(zero, 1.0, n2)) * scale)
-
-
 def triton_bond_ok(
     bond_w: int,
     rv: RefView,

@@ -14,12 +14,15 @@ import pytest
 import jaxdem as jdem
 from jaxdem.colliders._pallas import (
     can_use_pallas_csr_forces,
-    extract_domain_spec,
-    extract_force_spec,
+    compile_displacement_spec,
+    compile_force_spec,
+    extract_grid_topology,
     is_pallas_enabled,
     pallas_enabled,
     set_pallas_enabled,
 )
+from jaxdem.colliders._pallas.refs import ArgPack
+from jaxdem.domains import Domain, SearchGeometry
 from jaxdem.forces.cundall_strack import (
     CundallStrackForce,
     arithmetic_mean_friction,
@@ -189,25 +192,52 @@ def test_schema_and_extractors_activate_for_all_builtins() -> None:
     """Every built-in domain & force law must compile into Pallas specs (no silent fallback)."""
     mat_table = _make_materials(2)
     for dim in (2, 3):
-        for dom_kind in ("free", "reflect", "reflect_sphere", "periodic", "lees_edwards"):
+        st_dom = _make_state(dim, 16, 6.0, n_mat=1)
+        for dom_kind in (
+            "free",
+            "reflect",
+            "reflect_sphere",
+            "periodic",
+            "lees_edwards",
+        ):
             dom = _make_domain(dom_kind, dim, 6.0)
-            assert extract_domain_spec(dom, dim, need_vel_rates=False) is not None
-            assert extract_domain_spec(dom, dim, need_vel_rates=True) is not None
+            sy_dom = jdem.System.create(
+                state_shape=st_dom.shape,
+                dt=1e-3,
+                domain=dom,
+                force_model=SpringForce(),
+                mat_table=mat_table,
+            )
+            assert extract_grid_topology(dom, dim) is not None
+            assert (
+                compile_displacement_spec(sy_dom, dim, st_dom.pos.dtype, pack=ArgPack())
+                is not None
+            )
 
         for label, law, n_sp in _builtin_force_models():
-            st = _make_state(dim, 17, 4.0, n_mat=2, n_species=n_sp)
+            # Use N=100 (> _MAX_REG_ELEMS) with clumps=True (only_spheres=False)
+            # so any accidental O(N) rotation refresh or whole-array op fails loudly.
+            st = _make_state(dim, 100, 6.0, n_mat=2, n_species=n_sp, clumps=True)
             sy = jdem.System.create(
                 state_shape=st.shape,
                 dt=1e-3,
                 domain_type="periodic",
-                domain_kw={"box_size": jnp.full((dim,), 4.0)},
+                domain_kw={"box_size": jnp.full((dim,), 6.0)},
                 force_model=law,
                 mat_table=mat_table,
                 collider_type="NeighborList",
                 collider_kw={"state": st, "cutoff": 1.8, "skin": 0.3},
             )
             assert (
-                extract_force_spec(law, st, sy, advance_history=True, quasistatic=False)
+                compile_force_spec(
+                    law,
+                    st,
+                    sy,
+                    st.pos,
+                    advance_history=True,
+                    quasistatic=False,
+                    pack=ArgPack(),
+                )
                 is not None
             ), f"Force spec failed for {label} {dim}D"
             if is_pallas_enabled():
@@ -287,7 +317,13 @@ def test_pallas_vs_pure_jax_all_domains_cell_and_nl() -> None:
     for dim in (3, 2):
         box_l = 4.5 if dim == 3 else 5.5
         st = _make_state(dim, 37, box_l, n_mat=2, clumps=True, seed=21 + dim)
-        for dom_kind in ("free", "reflect", "reflect_sphere", "periodic", "lees_edwards"):
+        for dom_kind in (
+            "free",
+            "reflect",
+            "reflect_sphere",
+            "periodic",
+            "lees_edwards",
+        ):
             dom = _make_domain(dom_kind, dim, box_l)
             col_specs: list[tuple[str, str, dict[str, object]]] = [
                 ("cell", "CellList", {"state": st, "cell_size": 1.3}),
@@ -295,7 +331,11 @@ def test_pallas_vs_pure_jax_all_domains_cell_and_nl() -> None:
             ]
             if dom_kind in ("periodic", "reflect"):
                 col_specs.append(
-                    ("static_cell", "CellList", {"state": st, "cell_size": 1.3, "static": True})
+                    (
+                        "static_cell",
+                        "CellList",
+                        {"state": st, "cell_size": 1.3, "static": True},
+                    )
                 )
             for tag, col_type, col_kw in col_specs:
                 sy = jdem.System.create(
@@ -348,7 +388,9 @@ def test_pallas_vs_pure_jax_batched_vmap_and_ad() -> None:
             "skin": 0.15,
         },
     )
-    systems = jax.tree.map(lambda x: jnp.broadcast_to(x[None, ...], (B,) + x.shape), sy0)
+    systems = jax.tree.map(
+        lambda x: jnp.broadcast_to(x[None, ...], (B,) + x.shape), sy0
+    )
 
     st1 = _make_state(3, 25, 3.8, n_mat=1, seed=55)
     mat1 = _make_materials(1)
@@ -392,7 +434,9 @@ def test_pallas_vs_pure_jax_batched_vmap_and_ad() -> None:
         grads = {}
         for k, sy1 in ad_systems.items():
             grads[k] = jax.grad(
-                lambda pc: jnp.sum(jdem.System.step(replace(st1, pos_c=pc), sy1, n=3)[0].pos_c ** 2)
+                lambda pc: jnp.sum(
+                    jdem.System.step(replace(st1, pos_c=pc), sy1, n=3)[0].pos_c ** 2
+                )
             )(st1.pos_c)
         _, jvp_out = jax.jvp(
             lambda pc: jdem.System.step(replace(st1, pos_c=pc), sy_dyn, n=3)[0].pos_c,
@@ -412,3 +456,482 @@ def test_pallas_vs_pure_jax_batched_vmap_and_ad() -> None:
     for k in ad_systems:
         _assert_close_pair(g_p[k], g_j[k], f"grad {k}")
     _assert_close_pair(jvp_p, jvp_j, "jvp DynamicCellList")
+
+
+@jax.tree_util.register_dataclass
+@dataclass(slots=True, kw_only=True)
+class _CustomMorseForce(jdem.ForceModel):
+    """User-defined central force law unknown to Pallas."""
+
+    depth: jax.Array
+    alpha: jax.Array
+
+    @property
+    def has_pair_torque(self) -> bool:
+        return False
+
+    @property
+    def supports_sorted_order(self) -> bool:
+        return True
+
+    def search_radii(self, state: jdem.State, system: jdem.System) -> jax.Array:
+        return state.rad
+
+    def force(
+        self,
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: jdem.State,
+        system: jdem.System,
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+        quasistatic: bool = False,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
+        from jaxdem.utils import linalg
+
+        rij = system.domain.displacement(pos[i], pos[j], system)
+        n, r = linalg.unit_and_norm(rij)
+        R = state.rad[i] + state.rad[j]
+        delta = jnp.maximum(0.0, R - r)
+        e = jnp.exp(-self.alpha * (r - R))
+        mag = 2.0 * self.depth * self.alpha * (e * e - e)
+        f = jnp.where((r > 0.0) & (delta > 0.0) & (i != j), mag, 0.0)[..., None] * n
+        torque = jnp.zeros(
+            (*f.shape[:-1], state.torque.shape[-1]), dtype=state.torque.dtype
+        )
+        return f, torque, history
+
+    def energy(
+        self,
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: jdem.State,
+        system: jdem.System,
+        history: jax.Array,
+    ) -> jax.Array:
+        return jnp.asarray(0.0, dtype=pos.dtype)
+
+
+@jax.tree_util.register_dataclass
+@dataclass(slots=True, kw_only=True)
+class _CustomHistoryTorqueForce(jdem.ForceModel):
+    """User-defined stateful force law with contact history and pair torque."""
+
+    k_n: jax.Array
+    k_t: jax.Array
+
+    @property
+    def has_pair_torque(self) -> bool:
+        return True
+
+    @property
+    def supports_sorted_order(self) -> bool:
+        return True
+
+    def search_radii(self, state: jdem.State, system: jdem.System) -> jax.Array:
+        return state.rad
+
+    def history_shape(self, dim: int) -> tuple[int, ...]:
+        return (dim,)
+
+    def force(
+        self,
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: jdem.State,
+        system: jdem.System,
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+        quasistatic: bool = False,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
+        from jaxdem.utils import linalg
+
+        rij = system.domain.displacement(pos[i], pos[j], system)
+        n, r = linalg.unit_and_norm(rij)
+        R = state.rad[i] + state.rad[j]
+        delta = jnp.maximum(0.0, R - r)
+        contact = ((r > 0.0) & (delta > 0.0) & (i != j))[..., None]
+
+        dv = system.domain.relative_velocity(
+            pos[i], pos[j], state.vel[i], state.vel[j], system
+        )
+        vt = dv - linalg.dot(dv, n)[..., None] * n
+        h_proj = history - linalg.dot(history, n)[..., None] * n
+        h_next = jnp.where(
+            contact,
+            h_proj + vt * system.dt if advance_history else h_proj,
+            jnp.zeros_like(history),
+        )
+        f_n = (self.k_n * delta)[..., None] * n
+        f_t = -self.k_t * h_next
+        f = jnp.where(contact, f_n + f_t, jnp.zeros_like(rij))
+        zero_tau = jnp.zeros(
+            (*f.shape[:-1], state.torque.shape[-1]), dtype=state.torque.dtype
+        )
+        tau = jnp.where(
+            contact,
+            linalg.cross(-state.rad[i][..., None] * n, f_t),
+            zero_tau,
+        )
+        return f, tau, h_next
+
+    def energy(
+        self,
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: jdem.State,
+        system: jdem.System,
+        history: jax.Array,
+    ) -> jax.Array:
+        return jnp.asarray(0.0, dtype=pos.dtype)
+
+
+@jax.tree_util.register_dataclass
+@dataclass(slots=True, kw_only=True)
+class _UnsupportedSortForce(jdem.ForceModel):
+    """Custom force using jnp.sort to verify graceful Pure-JAX fallback."""
+
+    @property
+    def has_pair_torque(self) -> bool:
+        return False
+
+    @property
+    def supports_sorted_order(self) -> bool:
+        return True
+
+    def search_radii(self, state: jdem.State, system: jdem.System) -> jax.Array:
+        return state.rad
+
+    def force(
+        self,
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: jdem.State,
+        system: jdem.System,
+        history: jax.Array,
+        *,
+        advance_history: bool = True,
+        quasistatic: bool = False,
+    ) -> tuple[jax.Array, jax.Array, jax.Array]:
+        rij = system.domain.displacement(pos[i], pos[j], system)
+        s = jnp.sort(jnp.abs(rij), axis=-1)
+        f = 0.01 * s * (i != j)[..., None]
+        torque = jnp.zeros(
+            (*f.shape[:-1], state.torque.shape[-1]), dtype=state.torque.dtype
+        )
+        return f, torque, history
+
+    def energy(
+        self,
+        i: int,
+        j: int,
+        pos: jax.Array,
+        state: jdem.State,
+        system: jdem.System,
+        history: jax.Array,
+    ) -> jax.Array:
+        return jnp.asarray(0.0, dtype=pos.dtype)
+
+
+@jax.tree_util.register_dataclass
+@dataclass(slots=True)
+class _CustomPeriodicDomain(Domain):
+    """User-defined orthogonal periodic domain unknown to Pallas."""
+
+    search_geometry = SearchGeometry.ORTHOGONAL
+
+    @property
+    def periodic(self) -> bool:
+        return True
+
+    @staticmethod
+    @jax.jit(inline=True)
+    def _displacement(ri: jax.Array, rj: jax.Array, system: jdem.System) -> jax.Array:
+        dr = ri - rj
+        box = system.domain.box_size
+        return dr - box * jnp.rint(dr * system.domain.inv_box_size)
+
+    @staticmethod
+    @jax.jit(inline=True)
+    def displacement(ri: jax.Array, rj: jax.Array, system: jdem.System) -> jax.Array:
+        return _CustomPeriodicDomain._displacement(ri, rj, system)
+
+    @staticmethod
+    @jax.jit(inline=True)
+    def _shift(pos: jax.Array, system: jdem.System) -> jax.Array:
+        box = system.domain.box_size
+        anchor = system.domain.anchor
+        return anchor + jnp.mod(pos - anchor, box)
+
+    @staticmethod
+    @jax.jit(inline=True)
+    def apply(state: jdem.State, system: jdem.System) -> tuple[jdem.State, jdem.System]:
+        box = system.domain.box_size
+        anchor = system.domain.anchor
+        return replace(state, pos_c=anchor + jnp.mod(state.pos_c - anchor, box)), system
+
+
+def test_pallas_custom_force_laws_and_fallback() -> None:
+    """Arbitrary user ForceModels and Domains compile to Pallas & match Pure-JAX."""
+    mat = _make_materials(2)
+    morse = _CustomMorseForce(depth=jnp.asarray(2.0), alpha=jnp.asarray(1.5))
+    hist_law = _CustomHistoryTorqueForce(k_n=jnp.asarray(15.0), k_t=jnp.asarray(5.0))
+    mixed_comb = LawCombiner(laws=(SpringForce(), morse))
+    mixed_router = ForceRouter(
+        table=(
+            (SpringForce(), morse),
+            (morse, hist_law),
+        )
+    )
+    unsupported = _UnsupportedSortForce()
+
+    st_check = _make_state(3, 19, 4.0, n_mat=2, n_species=2, seed=7)
+    for law in (morse, hist_law, mixed_comb, mixed_router):
+        sy = jdem.System.create(
+            state_shape=st_check.shape,
+            dt=1e-3,
+            domain_type="periodic",
+            domain_kw={"box_size": jnp.full((3,), 4.0)},
+            force_model=law,
+            mat_table=mat,
+            collider_type="NeighborList",
+            collider_kw={"state": st_check, "cutoff": 1.6, "skin": 0.2},
+        )
+        assert (
+            compile_force_spec(
+                law,
+                st_check,
+                sy,
+                st_check.pos,
+                advance_history=True,
+                quasistatic=False,
+                pack=ArgPack(),
+            )
+            is not None
+        ), f"Custom law failed to compile: {type(law).__name__}"
+
+    sy_unsup = jdem.System.create(
+        state_shape=st_check.shape,
+        dt=1e-3,
+        domain_type="periodic",
+        domain_kw={"box_size": jnp.full((3,), 4.0)},
+        force_model=unsupported,
+        mat_table=mat,
+        collider_type="NeighborList",
+        collider_kw={"state": st_check, "cutoff": 1.6, "skin": 0.2},
+    )
+    assert (
+        compile_force_spec(
+            unsupported,
+            st_check,
+            sy_unsup,
+            st_check.pos,
+            advance_history=True,
+            quasistatic=False,
+            pack=ArgPack(),
+        )
+        is None
+    )
+
+    if not is_pallas_enabled():
+        pytest.skip("Pallas Triton GPU backend not active on this host")
+
+    assert not can_use_pallas_csr_forces(
+        st_check, sy_unsup, advance_history=True, quasistatic=False
+    )
+
+    cases: list[tuple[str, jdem.State, jdem.System]] = []
+    for dim in (3, 2):
+        box_l = 4.2 if dim == 3 else 5.2
+        st = _make_state(dim, 35, box_l, n_mat=2, n_species=2, seed=40 + dim)
+        cases.append(
+            (
+                f"morse_nl_{dim}D",
+                st,
+                jdem.System.create(
+                    state_shape=st.shape,
+                    dt=2e-3,
+                    domain_type="periodic",
+                    domain_kw={"box_size": jnp.full((dim,), box_l)},
+                    force_model=morse,
+                    mat_table=mat,
+                    collider_type="NeighborList",
+                    collider_kw={"state": st, "cutoff": 1.6, "skin": 0.15},
+                ),
+            )
+        )
+        cases.append(
+            (
+                f"morse_cell_{dim}D",
+                st,
+                jdem.System.create(
+                    state_shape=st.shape,
+                    dt=2e-3,
+                    domain_type="periodic",
+                    domain_kw={"box_size": jnp.full((dim,), box_l)},
+                    force_model=morse,
+                    mat_table=mat,
+                    collider_type="CellList",
+                    collider_kw={"state": st, "cell_size": 1.5},
+                ),
+            )
+        )
+        cases.append(
+            (
+                f"custom_hist_le_{dim}D",
+                st,
+                jdem.System.create(
+                    state_shape=st.shape,
+                    dt=2e-3,
+                    domain=_make_domain("lees_edwards", dim, box_l),
+                    force_model=hist_law,
+                    mat_table=mat,
+                    collider_type="NeighborList",
+                    collider_kw={"state": st, "cutoff": 1.6, "skin": 0.15},
+                ),
+            )
+        )
+        cases.append(
+            (
+                f"mixed_comb_{dim}D",
+                st,
+                jdem.System.create(
+                    state_shape=st.shape,
+                    dt=2e-3,
+                    domain_type="periodic",
+                    domain_kw={"box_size": jnp.full((dim,), box_l)},
+                    force_model=mixed_comb,
+                    mat_table=mat,
+                    collider_type="NeighborList",
+                    collider_kw={"state": st, "cutoff": 1.6, "skin": 0.15},
+                ),
+            )
+        )
+        cases.append(
+            (
+                f"mixed_router_{dim}D",
+                st,
+                jdem.System.create(
+                    state_shape=st.shape,
+                    dt=2e-3,
+                    domain_type="periodic",
+                    domain_kw={"box_size": jnp.full((dim,), box_l)},
+                    force_model=mixed_router,
+                    mat_table=mat,
+                    collider_type="NeighborList",
+                    collider_kw={"state": st, "cutoff": 1.6, "skin": 0.15},
+                ),
+            )
+        )
+    # Custom Domain subclass (unknown to Pallas) must compile for both CellList & NL.
+    custom_dom_3d = _CustomPeriodicDomain.Create(dim=3, box_size=jnp.full((3,), 4.2))
+    st_cd = _make_state(3, 31, 4.2, n_mat=2, seed=77)
+    sy_cd_nl = jdem.System.create(
+        state_shape=st_cd.shape,
+        dt=2e-3,
+        domain=custom_dom_3d,
+        force_model=morse,
+        mat_table=mat,
+        collider_type="NeighborList",
+        collider_kw={"state": st_cd, "cutoff": 1.6, "skin": 0.15},
+    )
+    sy_cd_cell = jdem.System.create(
+        state_shape=st_cd.shape,
+        dt=2e-3,
+        domain=custom_dom_3d,
+        force_model=morse,
+        mat_table=mat,
+        collider_type="CellList",
+        collider_kw={"state": st_cd, "cell_size": 1.5},
+    )
+    assert extract_grid_topology(custom_dom_3d, 3) is not None
+    assert (
+        compile_displacement_spec(sy_cd_nl, 3, st_cd.pos.dtype, pack=ArgPack())
+        is not None
+    )
+    cases.append(("custom_domain_nl_3D", st_cd, sy_cd_nl))
+    cases.append(("custom_domain_cell_3D", st_cd, sy_cd_cell))
+
+    # Fallback law must also match Pure-JAX seamlessly.
+    cases.append(("unsupported_fallback_3D", st_check, sy_unsup))
+
+    # Batched vmap with per-replica varying custom force parameters + AD.
+    B, N = 5, 23
+    states_b = jax.tree.map(
+        lambda *xs: jnp.stack(xs),
+        *[_make_state(3, N, 4.0, n_mat=2, seed=200 + b) for b in range(B)],
+    )
+    sy_b_list = [
+        jdem.System.create(
+            state_shape=(N, 3),
+            dt=2e-3,
+            domain_type="periodic",
+            domain_kw={"box_size": jnp.full((3,), 4.0)},
+            force_model=_CustomMorseForce(
+                depth=jnp.asarray(1.0 + 0.5 * b), alpha=jnp.asarray(1.2 + 0.1 * b)
+            ),
+            mat_table=mat,
+            collider_type="NeighborList",
+            collider_kw={
+                "state": jax.tree.map(lambda x: x[b], states_b),
+                "cutoff": 1.5,
+                "skin": 0.15,
+            },
+        )
+        for b in range(B)
+    ]
+    systems_b = jax.tree.map(lambda *xs: jnp.stack(xs), *sy_b_list)
+    st_ad = _make_state(3, 21, 3.8, n_mat=1, seed=99)
+    sy_ad = jdem.System.create(
+        state_shape=st_ad.shape,
+        dt=1e-3,
+        domain_type="periodic",
+        domain_kw={"box_size": jnp.full((3,), 3.8)},
+        force_model=morse,
+        mat_table=_make_materials(1),
+        collider_type="NeighborList",
+        collider_kw={"state": st_ad, "cutoff": 1.5, "skin": 0.2},
+    )
+
+    def _run_all() -> tuple[
+        dict[str, tuple[jdem.State, jdem.System]], jdem.State, jax.Array
+    ]:
+        out = {name: jdem.System.step(st, sy, n=6) for name, st, sy in cases}
+        st_v, _ = jax.jit(jax.vmap(lambda s, sy: jdem.System.step(s, sy, n=5)))(
+            states_b, systems_b
+        )
+        g = jax.grad(
+            lambda d: jnp.sum(
+                jdem.System.step(
+                    st_ad,
+                    replace(
+                        sy_ad, force_model=_CustomMorseForce(depth=d, alpha=morse.alpha)
+                    ),
+                    n=3,
+                )[0].pos_c
+                ** 2
+            )
+        )(jnp.asarray(2.0))
+        return out, st_v, g
+
+    with pallas_enabled(True):
+        out_p, st_vp, g_p = _run_all()
+    with pallas_enabled(False):
+        out_j, st_vj, g_j = _run_all()
+
+    for name, _, _ in cases:
+        st_p, _ = out_p[name]
+        st_j, _ = out_j[name]
+        _assert_close_pair(st_p.pos_c, st_j.pos_c, f"{name} pos_c")
+        _assert_close_pair(st_p.force, st_j.force, f"{name} force")
+        _assert_close_pair(st_p.torque, st_j.torque, f"{name} torque")
+    _assert_close_pair(st_vp.pos_c, st_vj.pos_c, "vmap custom morse pos_c")
+    _assert_close_pair(st_vp.force, st_vj.force, "vmap custom morse force")
+    _assert_close_pair(g_p, g_j, "grad custom morse depth")

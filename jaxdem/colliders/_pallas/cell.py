@@ -4,11 +4,13 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable
 
 import jax
 import jax.numpy as jnp
 
+from ...domains import SearchGeometry
 from .config import (
     has_manual_axes,
     is_pallas_enabled,
@@ -17,13 +19,6 @@ from .config import (
     shape_dtype,
     triton_compiler_params,
 )
-from .domains import (
-    DomainSpec,
-    extract_domain_spec,
-    load_domain_scalars,
-    triton_displacement,
-)
-from .forces import ForceSpec, eval_law_node, extract_force_spec
 from .refs import (
     ArgPack,
     PackLayout,
@@ -34,6 +29,16 @@ from .refs import (
     triton_bond_ok,
     triton_dot,
 )
+from .triton_jaxpr import (
+    DisplacementSpec,
+    ForceSpec,
+    compile_displacement_spec,
+    compile_force_spec,
+    eval_displacement,
+    eval_displacement_pre,
+    eval_force_pair,
+    eval_force_pre,
+)
 
 if TYPE_CHECKING:  # pragma: no cover
     from ...system import System
@@ -43,6 +48,37 @@ if TYPE_CHECKING:  # pragma: no cover
 # (3D rebuild 241 -> 162 us, 3D cell_list forces -15%).
 _CELL_BLOCK = 32
 _BUILD_BLOCK = 32
+
+
+@dataclass(frozen=True)
+class GridTopology:
+    """Grid-stencil wrapping geometry read from the public ``Domain`` protocol."""
+
+    dim: int
+    periodic: bool
+    shear: bool = False
+    alpha: int = 0
+    beta: int = 1
+
+
+def extract_grid_topology(domain: Any, dim: int) -> GridTopology | None:
+    """Derive grid-stencil topology from ``domain.search_geometry`` and ``domain.periodic``."""
+    if dim not in (2, 3):
+        return None
+    geom = getattr(domain, "search_geometry", None)
+    if geom is SearchGeometry.ORTHOGONAL:
+        return GridTopology(dim=dim, periodic=bool(domain.periodic))
+    if geom is SearchGeometry.SHEAR_PERIODIC and all(
+        hasattr(domain, attr) for attr in ("alpha", "beta", "gamma", "box_size")
+    ):
+        return GridTopology(
+            dim=dim,
+            periodic=True,
+            shear=True,
+            alpha=int(domain.alpha),
+            beta=int(domain.beta),
+        )
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -56,13 +92,13 @@ def _le_wrap_a(v: jax.Array, dims_a: jax.Array) -> jax.Array:
 
 
 def prepare_le_cell_shifts(
-    dspec: DomainSpec,
+    topo: GridTopology,
     grid_dims: jax.Array,
     eff_cell_size: jax.Array,
     domain: Any,
 ) -> jax.Array:
-    """Compute compact Lees-Edwards cell-shift metadata ``(lo_pos, lo_neg, hi_pos, hi_neg)``."""
-    a, b_ax = dspec.alpha, dspec.beta
+    """Compute compact shear-periodic cell-shift metadata ``(lo_pos, lo_neg, hi_pos, hi_neg)``."""
+    a, b_ax = topo.alpha, topo.beta
     dims_a = grid_dims[a].astype(int)
     shift_mag = domain.gamma * domain.box_size[b_ax] / eff_cell_size[a]
     s_pos, s_neg = -shift_mag, shift_mag
@@ -79,7 +115,7 @@ def prepare_le_cell_shifts(
 
 
 def _visit_stencil_cells(
-    dspec: DomainSpec,
+    topo: GridTopology,
     r: int,
     coords_i: tuple[jax.Array, ...],
     dims_i: tuple[jax.Array, ...],
@@ -93,10 +129,10 @@ def _visit_stencil_cells(
     merge_x_slab: bool = False,
 ) -> Any:
     """Iterate over every distinct stencil cell (or merged stride-1 X-slab)."""
-    dim = dspec.dim
+    dim = topo.dim
     width = 2 * r + 1
-    periodic = dspec.kind != "nonperiodic"
-    has_shear = dspec.kind == "lees_edwards"
+    periodic = topo.periodic
+    has_shear = topo.shear
 
     def wrap_coord(raw: jax.Array, lim: jax.Array) -> tuple[jax.Array, jax.Array]:
         if periodic:
@@ -139,13 +175,19 @@ def _visit_stencil_cells(
             carry,
         )
         has_wrap = ok & (wrap_lo | wrap_hi)
-        lo2 = jnp.where(wrap_lo, raw_lo + dx_lim, 0)
-        hi2 = jnp.where(wrap_lo, dx_lim, raw_hi - dx_lim)
-        return visit_cell_fn(
-            rv.load1("cell_off", base_h + lo2, has_wrap, other=0),
-            rv.load1("cell_off", base_h + hi2, has_wrap, other=0),
-            has_wrap,
-            carry,
+
+        def _do_wrap() -> Any:
+            lo2 = jnp.where(wrap_lo, raw_lo + dx_lim, 0)
+            hi2 = jnp.where(wrap_lo, dx_lim, raw_hi - dx_lim)
+            return visit_cell_fn(
+                rv.load1("cell_off", base_h + lo2, has_wrap, other=0),
+                rv.load1("cell_off", base_h + hi2, has_wrap, other=0),
+                has_wrap,
+                carry,
+            )
+
+        return jax.lax.cond(
+            jnp.sum(has_wrap.astype(jnp.int32)) != 0, _do_wrap, lambda: carry
         )
 
     def _for_axis(
@@ -184,10 +226,10 @@ def _visit_stencil_cells(
             return y_step(zero_h, m_i, init_carry)
         return _for_axis(2, zero_h, m_i, init_carry, y_step)
 
-    # Lees-Edwards compact duplicate-free stencil.
+    # Shear-periodic compact duplicate-free stencil.
     assert le_vals is not None
     lo_pos_m, lo_neg_m, need_hi_pos, need_hi_neg = le_vals
-    a, b_ax = dspec.alpha, dspec.beta
+    a, b_ax = topo.alpha, topo.beta
     ca, cb = coords_i[a], coords_i[b_ax]
     da_lim, db_lim = dims_i[a], dims_i[b_ax]
     sa_st, sb_st = strides_i[a], strides_i[b_ax]
@@ -257,8 +299,8 @@ def _visit_stencil_cells(
 
 def _prune_cell_aabb(
     rv: RefView,
-    dspec: DomainSpec,
-    dom: dict[str, Any],
+    disp_spec: DisplacementSpec,
+    disp_pre: dict[Any, Any],
     ps: tuple[jax.Array, ...],
     reach_i: jax.Array,
     c_start: jax.Array,
@@ -267,12 +309,12 @@ def _prune_cell_aabb(
     c_len: jax.Array,
 ) -> tuple[jax.Array, jax.Array]:
     """Prune a candidate cell whose loose AABB cannot overlap ``reach_i``."""
-    dim = dspec.dim
+    dim = disp_spec.dim
     non_empty = ok_cell & (c_len > 0)
     safe_st = jnp.where(non_empty, c_start, 0)
     cc = rv.load_vec("cell_c", safe_st, dim, non_empty)
     ch = rv.load_vec("cell_h", safe_st, dim, non_empty)
-    dr_c, _, _ = triton_displacement(dspec, ps, cc, dom)
+    dr_c = eval_displacement(disp_spec, disp_pre, rv, ps, cc, non_empty)
     ov = non_empty
     for d in range(dim):
         ov = ov & (jnp.abs(dr_c[d]) <= reach_i + ch[d])
@@ -286,8 +328,10 @@ def _prune_cell_aabb(
 
 def _run_pallas_cell_forces(
     fspec: ForceSpec,
-    dspec: DomainSpec,
+    topo: GridTopology,
+    disp_spec: DisplacementSpec | None,
     layout: PackLayout,
+    N: int,
     r: int,
     bond_w: int,
     do_prune: bool,
@@ -296,13 +340,12 @@ def _run_pallas_cell_forces(
     batched: tuple[bool, ...],
     batch_size: int,
 ) -> tuple[jax.Array, ...]:
+    """Launch Triton sorted-grid CellList force kernel for any ``ForceModel``."""
     from .._partition import PAIR_UNROLL
 
     dim, ang_dim = fspec.dim, fspec.ang_dim
     has_batch = batch_size > 0
-    pos_s_flat = args[layout.index["pos"]]
-    N = pos_s_flat.shape[-1] // dim
-    dtype = pos_s_flat.dtype
+    dtype = fspec.out_dtype
     int_dtype = args[layout.index["cell_off"]].dtype
 
     f_shape = (batch_size, N * dim) if has_batch else (N * dim,)
@@ -331,25 +374,29 @@ def _run_pallas_cell_forces(
         m_s = s < N
         isame = rv.scalar("isame") != 0
 
-        ps = rv.load_vec("pos", s, dim, m_s)
-        rs = rv.load1("rad", s, m_s, other=0.0)
+        ps = rv.load_vec("pos", s, dim, m_s) if do_prune else ()
         cs_coords = rv.load_vec("coords", s, dim, m_s, other=0)
-        clump_i = rv.load1("clump", s, m_s, other=-1)
+        clump_i = (
+            rv.load1("clump", s, m_s, other=-1)
+            if not fspec.only_spheres
+            else jnp.zeros_like(s)
+        )
         orig_i = rv.load1("orig", s, m_s, other=-1) if bond_w > 0 else jnp.zeros_like(s)
         dims_i = tuple(rv.scalar("dims", d) for d in range(dim))
         strides_i = tuple(rv.scalar("strides", d) for d in range(dim))
         le_vals = tuple(rv.scalar("le", d) for d in range(4)) if rv.has("le") else None
-        sr_i = rv.load1("sr", s, m_s, other=0.0) if do_prune else jnp.zeros_like(rs)
-
-        mi = rv.load1("mat", s, m_s, other=0) if rv.has("mat") else jnp.zeros_like(s)
-        si = rv.load1("sp", s, m_s, other=0) if rv.has("sp") else jnp.zeros_like(s)
-        vel_i = rv.load_vec("vel", s, dim, m_s) if rv.has("vel") else ()
-        ang_i = rv.load_vec("ang", s, ang_dim, m_s) if rv.has("ang") else ()
-        ppr_i = rv.load_vec("ppr", s, dim, m_s) if rv.has("ppr") else ()
-        mass_i = (
-            rv.load1("mass", s, m_s, other=1.0) if rv.has("mass") else jnp.ones_like(rs)
+        sr_i = (
+            rv.load1("sr", s, m_s, other=0.0)
+            if do_prune
+            else jnp.zeros((BLOCK,), dtype=dtype)
         )
-        dom = load_domain_scalars(rv, dspec, need_vel_rates=fspec.needs_vel)
+        disp_pre = (
+            eval_displacement_pre(disp_spec, rv, BLOCK)
+            if do_prune and disp_spec is not None
+            else {}
+        )
+
+        pre_env = eval_force_pre(fspec, rv, s, m_s)
 
         z_f = tuple(jnp.zeros((BLOCK,), dtype=dtype) for _ in range(dim))
         z_t = tuple(jnp.zeros((BLOCK,), dtype=dtype) for _ in range(ang_dim))
@@ -366,8 +413,9 @@ def _run_pallas_cell_forces(
         ) -> tuple[jax.Array, ...]:
             c_len = jnp.where(ok_cell, c_end - c_start, 0)
             if do_prune:
+                assert disp_spec is not None
                 c_len, c_end = _prune_cell_aabb(
-                    rv, dspec, dom, ps, sr_i, c_start, c_end, ok_cell, c_len
+                    rv, disp_spec, disp_pre, ps, sr_i, c_start, c_end, ok_cell, c_len
                 )
             if count_tiles:
                 tile_inc = (c_len + (PAIR_UNROLL - 1)) // PAIR_UNROLL
@@ -380,53 +428,14 @@ def _run_pallas_cell_forces(
             ) -> tuple[jax.Array, ...]:
                 k = c_start + t
                 in_cell = ok_cell & (k < c_end)
-                ck = rv.load1("clump", k, in_cell, other=-2)
-                valid = in_cell & (clump_i != ck)
+                if fspec.only_spheres:
+                    valid = in_cell & (s != k)
+                else:
+                    ck = rv.load1("clump", k, in_cell, other=-2)
+                    valid = in_cell & (clump_i != ck) & (s != k)
                 if bond_w > 0:
                     valid = valid & triton_bond_ok(bond_w, rv, k, orig_i, valid, isame)
-                pk = rv.load_vec("pos", k, dim, valid)
-                rk = rv.load1("rad", k, valid, other=0.0)
-                dr, img, shear_img = triton_displacement(dspec, ps, pk, dom)
-                ctx = {
-                    "j": k,
-                    "ri": rs,
-                    "rj": rk,
-                    "R": rs + rk,
-                    "dr": dr,
-                    "n2": triton_dot(dr, dr),
-                    "img": img,
-                    "shear_img": shear_img,
-                    "valid": valid,
-                    "mi": mi,
-                    "mj": (
-                        rv.load1("mat", k, valid, other=0)
-                        if rv.has("mat")
-                        else jnp.zeros_like(k)
-                    ),
-                    "si": si,
-                    "sj": (
-                        rv.load1("sp", k, valid, other=0)
-                        if rv.has("sp")
-                        else jnp.zeros_like(k)
-                    ),
-                    "vel_i": vel_i,
-                    "ang_i": ang_i,
-                    "ppr_i": ppr_i,
-                    "mass_i": mass_i,
-                    "dt": jnp.asarray(0.0, dtype=dtype),
-                    "slot": None,
-                    "hist_out_ref": None,
-                }
-                df, dt_vec = eval_law_node(
-                    fspec.root,
-                    rv,
-                    fspec,
-                    dspec,
-                    dom,
-                    ctx,
-                    valid & (s != k),
-                    jnp.zeros_like(valid),
-                )
+                df, dt_vec = eval_force_pair(fspec, pre_env, rv, k, valid)
                 new_f = tuple(acc[d] + df[d] for d in range(dim))
                 if fspec.has_torque:
                     new_t = tuple(acc[dim + d] + dt_vec[d] for d in range(ang_dim))
@@ -436,7 +445,7 @@ def _run_pallas_cell_forces(
             return jax.lax.fori_loop(0, max_c, inner, carry)
 
         res = _visit_stencil_cells(
-            dspec,
+            topo,
             r,
             cs_coords,
             dims_i,
@@ -470,6 +479,52 @@ def _run_pallas_cell_forces(
     return raw if isinstance(raw, tuple) else (raw,)
 
 
+def _pack_grid_common(
+    pack: ArgPack,
+    topo: GridTopology,
+    coords_s: jax.Array,
+    cell_offsets: jax.Array,
+    dims_i: jax.Array,
+    strides_i: jax.Array,
+    eff_cell_size: jax.Array,
+    clumps_s: jax.Array,
+    bonds_s: jax.Array,
+    interact_same: Any,
+    domain: Any,
+    *,
+    only_spheres: bool,
+    do_prune: bool,
+    cell_center: jax.Array | None,
+    cell_half: jax.Array | None,
+) -> int:
+    """Pack sorted-grid buffers shared by Pallas cell-force and pair-build kernels."""
+    bond_w = int(bonds_s.shape[-1])
+    pack.add("coords", coords_s.reshape(-1))
+    pack.add("cell_off", cell_offsets)
+    pack.add("dims", dims_i)
+    pack.add("strides", strides_i)
+    if not only_spheres:
+        pack.add("clump", clumps_s)
+    pack.add(
+        "bond",
+        bonds_s.reshape(-1) if bond_w > 0 else jnp.zeros((1,), dtype=int),
+    )
+    pack.add(
+        "isame",
+        jnp.reshape(jnp.asarray(interact_same, dtype=int), (1,)),
+    )
+    if topo.shear:
+        pack.add(
+            "le",
+            prepare_le_cell_shifts(topo, dims_i, eff_cell_size, domain),
+        )
+    if do_prune:
+        assert cell_center is not None and cell_half is not None
+        pack.add("cell_c", cell_center.reshape(-1))
+        pack.add("cell_h", cell_half.reshape(-1))
+    return bond_w
+
+
 def try_pallas_cell_forces(
     state_s: Any,
     system: System,
@@ -499,75 +554,76 @@ def try_pallas_cell_forces(
         or has_manual_axes(state_s, system, pos_s, cell_offsets)
     ):
         return None
-    f_res = extract_force_spec(
+    n = pos_s.shape[0]
+    dim_in = int(pos_s.shape[-1])
+    count_tiles = tile_capacity is not None
+
+    topo = extract_grid_topology(system.domain, dim_in)
+    if topo is None:
+        return None
+
+    pack = ArgPack()
+    if do_prune:
+        pack.add("pos", pos_s.reshape(-1))
+    if dim_in == 3:
+        rad_col = state_s.rad.astype(pos_s.dtype)[:, None]
+        pack.add("pr", jnp.concatenate((pos_s, rad_col), axis=-1).reshape(-1))
+    bond_w = _pack_grid_common(
+        pack,
+        topo,
+        coords_s,
+        cell_offsets,
+        dims_i,
+        strides_i,
+        eff_cell_size,
+        state_s.clump_id,
+        state_s.bond_id,
+        system.interact_same_bond_id,
+        system.domain,
+        only_spheres=bool(state_s.only_spheres),
+        do_prune=do_prune,
+        cell_center=cell_center,
+        cell_half=cell_half,
+    )
+    pack.add("orig", state_s.orig_id)
+    disp_spec: DisplacementSpec | None = None
+    if do_prune:
+        assert search_rad_s is not None
+        pack.add("sr", search_rad_s)
+        disp_spec = compile_displacement_spec(system, dim_in, pos_s.dtype, pack=pack)
+        if disp_spec is None:
+            return None
+
+    fspec = compile_force_spec(
         system.force_model,
         state_s,
         system,
+        pos_s,
         advance_history=False,
         quasistatic=quasistatic,
+        pack=pack,
+        pr_pos_ref="pr" if dim_in == 3 else None,
+        pr_rad_ref="pr" if dim_in == 3 else None,
     )
-    if f_res is None:
+    if fspec is None or fspec.has_torque != want_torque:
         return None
-    fspec, f_params = f_res
-    d_res = extract_domain_spec(
-        system.domain, state_s.dim, need_vel_rates=fspec.needs_vel
-    )
-    if d_res is None or fspec.has_torque != want_torque:
-        return None
-    dspec, d_params = d_res
-
     dim, ang_dim = fspec.dim, fspec.ang_dim
-    n = pos_s.shape[0]
-    bond_w = int(state_s.bond_id.shape[-1])
-    count_tiles = tile_capacity is not None
-
-    pack = ArgPack()
-    pack.add("pos", pos_s.reshape(-1))
-    pack.add("rad", state_s.rad)
-    pack.add("coords", coords_s.reshape(-1))
-    pack.add("cell_off", cell_offsets)
-    pack.add("dims", dims_i)
-    pack.add("strides", strides_i)
-    pack.add("clump", state_s.clump_id)
-    pack.add(
-        "bond",
-        state_s.bond_id.reshape(-1) if bond_w > 0 else jnp.zeros((1,), dtype=int),
-    )
-    pack.add("orig", state_s.orig_id)
-    pack.add(
-        "isame", jnp.reshape(jnp.asarray(system.interact_same_bond_id, dtype=int), (1,))
-    )
-    if dspec.kind == "lees_edwards":
-        pack.add(
-            "le", prepare_le_cell_shifts(dspec, dims_i, eff_cell_size, system.domain)
-        )
-    if do_prune:
-        assert (
-            cell_center is not None
-            and cell_half is not None
-            and search_rad_s is not None
-        )
-        pack.add("cell_c", cell_center.reshape(-1))
-        pack.add("cell_h", cell_half.reshape(-1))
-        pack.add("sr", search_rad_s)
-    if fspec.needs_mat_id:
-        pack.add("mat", state_s.mat_id)
-    if fspec.needs_species_id:
-        pack.add("sp", state_s.species_id)
-    if fspec.needs_vel:
-        pack.add("vel", state_s.vel.reshape(-1))
-        pack.add("ang", state_s.ang_vel.reshape(-1))
-        if not fspec.only_spheres:
-            pack.add("ppr", state_s._pos_p_rot.reshape(-1))
-    if fspec.needs_mass:
-        pack.add("mass", state_s.mass)
-    pack.add_group("dom", d_params)
-    pack.add_group("params", f_params)
     flat_args, layout = pack.build()
 
     gpu_eval = batched_pallas(
         lambda kargs, batched, bsz: _run_pallas_cell_forces(
-            fspec, dspec, layout, r, bond_w, do_prune, count_tiles, kargs, batched, bsz
+            fspec,
+            topo,
+            disp_spec,
+            layout,
+            n,
+            r,
+            bond_w,
+            do_prune,
+            count_tiles,
+            kargs,
+            batched,
+            bsz,
         )
     )
 
@@ -595,10 +651,12 @@ def try_pallas_cell_forces(
 
 def _run_pallas_build(
     mode: str,  # "count" | "fill"
-    dspec: DomainSpec,
+    topo: GridTopology,
+    disp_spec: DisplacementSpec,
     layout: PackLayout,
     r: int,
     bond_w: int,
+    only_spheres: bool,
     has_radii: bool,
     do_prune: bool,
     count_tiles: bool,
@@ -609,7 +667,7 @@ def _run_pallas_build(
     """Unified Triton sorted-grid neighbor pair counter and CSR filler."""
     from .._partition import PAIR_UNROLL
 
-    dim = dspec.dim
+    dim = topo.dim
     has_batch = batch_size > 0
     pos_s_flat = args[layout.index["pos"]]
     N = pos_s_flat.shape[-1] // dim
@@ -650,7 +708,11 @@ def _run_pallas_build(
 
         ps = rv.load_vec("pos", s, dim, m_s)
         cs_coords = rv.load_vec("coords", s, dim, m_s, other=0)
-        clump_i = rv.load1("clump", s, m_s, other=-1)
+        clump_i = (
+            rv.load1("clump", s, m_s, other=-1)
+            if not only_spheres
+            else jnp.zeros_like(s)
+        )
         perm_i = rv.load1("perm", s, m_s, other=-1) if bond_w > 0 else jnp.zeros_like(s)
         dims_i = tuple(rv.scalar("dims", d) for d in range(dim))
         strides_i = tuple(rv.scalar("strides", d) for d in range(dim))
@@ -660,7 +722,7 @@ def _run_pallas_build(
             rv.scalar("skin") if has_radii else jnp.asarray(0.0, dtype=ps[0].dtype)
         )
         cut_val = rv.scalar("cut") if do_prune else jnp.asarray(0.0, dtype=ps[0].dtype)
-        dom = load_domain_scalars(rv, dspec, need_vel_rates=False)
+        disp_pre = eval_displacement_pre(disp_spec, rv, BLOCK)
 
         if is_fill:
             base_s = rv.load1("base_s", s, m_s, other=0)
@@ -677,7 +739,15 @@ def _run_pallas_build(
             c_len = jnp.where(ok_cell, c_end - c_start, 0)
             if do_prune:
                 c_len, c_end = _prune_cell_aabb(
-                    rv, dspec, dom, ps, cut_val, c_start, c_end, ok_cell, c_len
+                    rv,
+                    disp_spec,
+                    disp_pre,
+                    ps,
+                    cut_val,
+                    c_start,
+                    c_end,
+                    ok_cell,
+                    c_len,
                 )
             if (not is_fill) and count_tiles:
                 tile_inc = (c_len + (PAIR_UNROLL - 1)) // PAIR_UNROLL
@@ -688,12 +758,15 @@ def _run_pallas_build(
             def inner(t: jax.Array, acc: Any) -> Any:
                 k = c_start + t
                 in_cell = ok_cell & (k < c_end)
-                ck = rv.load1("clump", k, in_cell, other=-2)
-                valid = in_cell & (clump_i != ck)
+                if only_spheres:
+                    valid = in_cell & (s != k)
+                else:
+                    ck = rv.load1("clump", k, in_cell, other=-2)
+                    valid = in_cell & (clump_i != ck)
                 if bond_w > 0:
                     valid = valid & triton_bond_ok(bond_w, rv, k, perm_i, valid, isame)
                 pk = rv.load_vec("pos", k, dim, valid)
-                dr, _, _ = triton_displacement(dspec, ps, pk, dom)
+                dr = eval_displacement(disp_spec, disp_pre, rv, ps, pk, valid)
                 d2 = triton_dot(dr, dr)
                 ok = valid & (d2 <= cutoff_sq)
                 if has_radii:
@@ -711,7 +784,7 @@ def _run_pallas_build(
             return jax.lax.fori_loop(0, max_c, inner, carry)
 
         res = _visit_stencil_cells(
-            dspec,
+            topo,
             r,
             cs_coords,
             dims_i,
@@ -753,7 +826,7 @@ def try_pallas_build_pairs(
     clumps_s: jax.Array,
     bonds_s: jax.Array,
     search_radii_s: jax.Array | None,
-    domain: Any,
+    system: System,
     cutoff: jax.Array,
     skin: jax.Array,
     interact_same: Any,
@@ -761,6 +834,7 @@ def try_pallas_build_pairs(
     r: int,
     capacity: int | None,
     *,
+    only_spheres: bool = False,
     do_prune: bool,
     cell_center: jax.Array | None,
     cell_half: jax.Array | None,
@@ -768,6 +842,7 @@ def try_pallas_build_pairs(
     pure_fallback: Callable[[], tuple[Any, ...]],
 ) -> tuple[Any, ...] | None:
     """Build CSR neighbor pairs via Pallas Triton Count+Fill when supported, else ``None``."""
+    domain = system.domain
     if (
         not is_pallas_enabled()
         or r < 1
@@ -775,48 +850,49 @@ def try_pallas_build_pairs(
     ):
         return None
     dim = int(pos_s.shape[-1])
-    d_res = extract_domain_spec(domain, dim, need_vel_rates=False)
-    if d_res is None:
+    topo = extract_grid_topology(domain, dim)
+    if topo is None:
         return None
-    dspec, d_params = d_res
 
     from .._partition import _capacity_offsets
 
-    bond_w = int(bonds_s.shape[-1])
     has_radii = search_radii_s is not None
     count_tiles = tile_capacity is not None
     dtype = pos_s.dtype
 
-    def _pack_common(pack: ArgPack) -> None:
-        pack.add("pos", pos_s.reshape(-1))
-        pack.add("coords", coords_s.reshape(-1))
-        pack.add("cell_off", cell_offsets)
-        pack.add("dims", dims_i)
-        pack.add("strides", strides_i)
-        pack.add("clump", clumps_s)
-        pack.add(
-            "bond", bonds_s.reshape(-1) if bond_w > 0 else jnp.zeros((1,), dtype=int)
-        )
-        pack.add("perm", perm)
-        pack.add(
-            "cutoff_sq", jnp.reshape(jnp.asarray(cutoff * cutoff, dtype=dtype), (1,))
-        )
-        pack.add("isame", jnp.reshape(jnp.asarray(interact_same, dtype=int), (1,)))
-        if dspec.kind == "lees_edwards":
-            pack.add("le", prepare_le_cell_shifts(dspec, dims_i, eff_cell_size, domain))
-        if has_radii:
-            assert search_radii_s is not None
-            pack.add("sr", search_radii_s)
-            pack.add("skin", jnp.reshape(jnp.asarray(skin, dtype=dtype), (1,)))
-        if do_prune:
-            assert cell_center is not None and cell_half is not None
-            pack.add("cell_c", cell_center.reshape(-1))
-            pack.add("cell_h", cell_half.reshape(-1))
-            pack.add("cut", jnp.reshape(jnp.asarray(cutoff, dtype=dtype), (1,)))
-        pack.add_group("dom", d_params)
-
     c_pack = ArgPack()
-    _pack_common(c_pack)
+    c_pack.add("pos", pos_s.reshape(-1))
+    bond_w = _pack_grid_common(
+        c_pack,
+        topo,
+        coords_s,
+        cell_offsets,
+        dims_i,
+        strides_i,
+        eff_cell_size,
+        clumps_s,
+        bonds_s,
+        interact_same,
+        domain,
+        only_spheres=only_spheres,
+        do_prune=do_prune,
+        cell_center=cell_center,
+        cell_half=cell_half,
+    )
+    c_pack.add("perm", perm)
+    c_pack.add(
+        "cutoff_sq", jnp.reshape(jnp.asarray(cutoff * cutoff, dtype=dtype), (1,))
+    )
+    if has_radii:
+        assert search_radii_s is not None
+        c_pack.add("sr", search_radii_s)
+        c_pack.add("skin", jnp.reshape(jnp.asarray(skin, dtype=dtype), (1,)))
+    if do_prune:
+        c_pack.add("cut", jnp.reshape(jnp.asarray(cutoff, dtype=dtype), (1,)))
+
+    disp_spec = compile_displacement_spec(system, dim, dtype, pack=c_pack)
+    if disp_spec is None:
+        return None
     count_args, count_layout = c_pack.build()
 
     # Fill layout extends count_layout with (base_s, end_s, nbr_init) appended at the end.
@@ -830,10 +906,12 @@ def try_pallas_build_pairs(
     gpu_count = batched_pallas(
         lambda kargs, batched, bsz: _run_pallas_build(
             "count",
-            dspec,
+            topo,
+            disp_spec,
             count_layout,
             r,
             bond_w,
+            only_spheres,
             has_radii,
             do_prune,
             count_tiles,
@@ -845,10 +923,12 @@ def try_pallas_build_pairs(
     gpu_fill = batched_pallas(
         lambda kargs, batched, bsz: _run_pallas_build(
             "fill",
-            dspec,
+            topo,
+            disp_spec,
             fill_layout,
             r,
             bond_w,
+            only_spheres,
             has_radii,
             do_prune,
             False,

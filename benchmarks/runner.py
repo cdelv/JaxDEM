@@ -202,7 +202,9 @@ def _cpu_model_name() -> str:
     cpuinfo = Path("/proc/cpuinfo")
     if cpuinfo.is_file():
         try:
-            for line in cpuinfo.read_text(encoding="utf-8", errors="ignore").splitlines():
+            for line in cpuinfo.read_text(
+                encoding="utf-8", errors="ignore"
+            ).splitlines():
                 if line.startswith("model name") and ":" in line:
                     raw = line.split(":", 1)[1].strip()
                     for tok in ("(R)", "(TM)", "CPU"):
@@ -292,6 +294,7 @@ def _run_and_time(
 
     del step_fn, state, system
     gc.collect()
+    jax.clear_caches()
     mps = _round_sig((total_particles * actual_steps) / max(elapsed_s, 1e-12) / 1e6)
     return mps, total_particles, actual_steps, nl_rebuilds
 
@@ -371,9 +374,7 @@ def run_custom(
     }
 
 
-def _put_nested(
-    data: dict[str, Any], case: BenchmarkCase, mps: float
-) -> None:
+def _put_nested(data: dict[str, Any], case: BenchmarkCase, mps: float) -> None:
     d_dim = data.setdefault(case.dim, {})
     d_dom = d_dim.setdefault(case.domain, {})
     d_frc = d_dom.setdefault(case.force, {})
@@ -462,12 +463,18 @@ def run_suite(
             )
 
         nested: dict[str, Any] = {}
-        nl_counts_spatial: dict[tuple[str, str, str, str, int], dict[str, int | float]] = {}
+        nl_counts_spatial: dict[
+            tuple[str, str, str, str, int], dict[str, int | float]
+        ] = {}
         nl_counts_naive: dict[tuple[str, str, str, str, int], int | float] = {}
         t_suite = time.perf_counter()
         for i, case in enumerate(selected, 1):
             if verbose:
-                print(f"  [{i:3d}/{len(selected):3d}] {case.name:<58s} ... ", end="", flush=True)
+                print(
+                    f"  [{i:3d}/{len(selected):3d}] {case.name:<58s} ... ",
+                    end="",
+                    flush=True,
+                )
             mps, _, _, nl_rb = _run_and_time(
                 build_case(
                     case,
@@ -485,7 +492,13 @@ def run_suite(
             )
             _put_nested(nested, case, mps)
             if nl_rb is not None:
-                key = (case.dim, case.domain, case.force, case.mode, REGIME_ORDER.index(case.regime))
+                key = (
+                    case.dim,
+                    case.domain,
+                    case.force,
+                    case.mode,
+                    REGIME_ORDER.index(case.regime),
+                )
                 if case.collider == "nl_naive":
                     nl_counts_naive[key] = nl_rb
                 else:
@@ -523,7 +536,9 @@ def run_suite(
         )
 
     if verbose:
-        print(f"Finished {len(selected)} case(s) in {time.perf_counter() - t_suite:.1f}s.")
+        print(
+            f"Finished {len(selected)} case(s) in {time.perf_counter() - t_suite:.1f}s."
+        )
 
     record: dict[str, Any] = {
         "v": 3,

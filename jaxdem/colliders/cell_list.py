@@ -28,21 +28,22 @@ from ._partition import (
     NEIGHBOR_QUERY_BATCH_SIZE,
     PAIR_TRAVERSAL_BATCH_SIZE,
     PAIR_UNROLL,
+    _build_dense_cell_table,
     _can_use_sorted_order,
     _compacted_stencil_decode,
     _dedup_periodic_stencil,
     _dedup_stencil_hashes,
+    _dense_grid_stats,
+    _dense_stencil_prefix_batch,
     _effective_cell_size,
     _energy_pair_fn,
     _force_only_pair_fn,
     _force_pair_fn,
     _get_spatial_partition,
-    _get_spatial_partition_grid,
-    _lees_edwards_compact_stencil,
     _loose_cell_aabbs,
     _neighbor_hashes_from_coords,
     _permute_state,
-    _shared_all,
+    _prepare_dense_grid,
     _shared_max,
     _sorted_cell_run_ends,
     _traverse_neighbor_row,
@@ -89,74 +90,32 @@ def _dense_sorted_traverse(
     N = state.N
     pos = state.pos
     iota = jax.lax.iota(dtype=int, size=N)
-    (
-        perm,
-        p_cell_hash,
-        p_cell_coords,
-        grid_dims,
-        grid_strides,
-        eff_cell_size,
-        hash_overflow,
-    ) = _get_spatial_partition_grid(pos, system, cell_size, iota)
-
-    n_cells = jnp.prod(grid_dims)
-    min_unique = (2 * jnp.max(jnp.abs(neighbor_mask)) + 1).astype(grid_dims.dtype)
-    periodic = system.domain.periodic
-    has_shear = hasattr(system.domain, "gamma")
-    do_prune = prune_cells and not has_shear
-    dim = int(pos.shape[-1])
-    m_stencil = int(neighbor_mask.shape[0])
-    side = round(m_stencil ** (1.0 / dim)) if dim in (2, 3) else 0
-    shear_r = (
-        (side - 1) // 2
-        if (dim in (2, 3) and side**dim == m_stencil and side % 2 == 1)
-        else 0
+    meta, use_dense = _prepare_dense_grid(
+        pos, system, cell_size, neighbor_mask, iota, prune_cells=prune_cells
     )
-    use_compact_shear = has_shear and shear_r >= 1
-    distinct_ok: Any
-    if use_compact_shear:
-        a = int(cast(Any, system.domain).alpha)
-        min_shear = (
-            jnp.full((dim,), 2 * shear_r + 1, dtype=grid_dims.dtype)
-            .at[a]
-            .set(2 * shear_r + 2)
-        )
-        distinct_ok = jnp.all(grid_dims >= min_shear)
-    else:
-        distinct_ok = (not periodic) or has_shear or jnp.all(grid_dims >= min_unique)
-
-    cap_dense = max(1, 4 * N)
-    can_dense = cap_dense <= 2**31 - 1
-
-    use_dense = (
-        _shared_all(
-            (~hash_overflow)
-            & distinct_ok
-            & (n_cells <= jnp.asarray(cap_dense, dtype=n_cells.dtype))
-            & (p_cell_hash[-1] < jnp.asarray(cap_dense, dtype=p_cell_hash.dtype))
-        )
-        if can_dense
-        else jnp.asarray(False)
-    )
-    m_stencil = int(neighbor_mask.shape[0])
+    perm = meta.perm
+    p_cell_hash = meta.p_cell_hash
+    p_cell_coords = meta.p_cell_coords
+    grid_dims = meta.grid_dims
+    grid_strides = meta.grid_strides
+    eff_cell_size = meta.eff_cell_size
+    hash_overflow = meta.hash_overflow
+    cap_dense = meta.cap_dense
+    periodic = meta.periodic
+    has_shear = meta.has_shear
+    do_prune = meta.do_prune
+    shear_r = meta.shear_r
+    use_compact_shear = meta.use_compact_shear
 
     def run_dense(cap: int) -> tuple[Any, jax.Array]:
         pos_s = pos[perm]
-        coords_s_raw = p_cell_coords[perm]
-        coords_s = coords_s_raw.astype(int)
+        coords_s = p_cell_coords[perm].astype(int)
         state_s = _permute_state(state, perm)
         dims_i = grid_dims.astype(int)
         strides_i = grid_strides.astype(int)
         offsets_mask = neighbor_mask.astype(int)
 
-        counts = (
-            jnp.zeros_like(p_cell_hash, shape=(cap,), dtype=int)
-            .at[p_cell_hash]
-            .add(1, mode="drop")
-        )
-        cell_offsets = jnp.concatenate(
-            (jnp.zeros_like(counts, shape=(1,)), jnp.cumsum(counts))
-        )
+        counts, cell_offsets = _build_dense_cell_table(p_cell_hash, cap)
 
         search_rad_s: jax.Array | None
         cell_center: jax.Array | None
@@ -174,8 +133,9 @@ def _dense_sorted_traverse(
 
         zero_single = jax.tree.map(jnp.zeros_like, init_acc)
         interact_same = system.interact_same_bond_id
-        tile_limit = (tile_capacity + 1) if tile_capacity is not None else 0
-        chunk_size = min(N, 65_536)
+        # Bound per-chunk workspace for non-pruned grids so batched vmap stays
+        # in L2; keep pruned grids single-pass to avoid repeating AABB checks.
+        chunk_size = min(N, 65_536 if do_prune else 16_384)
 
         pair_partial = pair_fn if isinstance(pair_fn, partial) else None
         is_force_pair = pair_partial is not None and pair_partial.func in (
@@ -223,148 +183,59 @@ def _dense_sorted_traverse(
             def stencil_prefix_batch(
                 b_iota: jax.Array, b_coords: jax.Array
             ) -> tuple[jax.Array, jax.Array, jax.Array, jax.Array]:
-                if use_compact_shear:
-                    starts_m, ends_m = _lees_edwards_compact_stencil(
-                        b_coords,
-                        d_dims_i,
-                        d_strides_i,
-                        d_eff_cell_size,
-                        d_offsets_mask,
-                        d_cell_offsets,
-                        sy.domain,
-                        shear_r,
-                    )
-                elif has_shear:
-                    stencil_h = _neighbor_hashes_from_coords(
-                        b_coords.astype(d_grid_strides.dtype),
-                        d_grid_dims,
-                        d_grid_strides,
-                        d_eff_cell_size,
-                        d_neighbor_mask,
-                        sy.domain,
-                    )
-                    stencil_h = jax.vmap(_dedup_stencil_hashes)(stencil_h)
-                    valid_h = stencil_h < jnp.asarray(cap, dtype=stencil_h.dtype)
-                    safe_h = jnp.where(valid_h, stencil_h, 0).astype(int)
-                    starts_m = jnp.where(valid_h, d_cell_offsets[safe_h], 0)
-                    ends_m = jnp.where(valid_h, d_cell_offsets[safe_h + 1], 0)
-                else:
-                    raw = b_coords[:, None, :] + d_offsets_mask[None, :, :]
-                    if periodic:
-                        wrapped = jnp.where(
-                            raw < 0,
-                            raw + d_dims_i,
-                            jnp.where(raw >= d_dims_i, raw - d_dims_i, raw),
-                        )
-                        h = jnp.dot(wrapped, d_strides_i)
-                        starts_m = d_cell_offsets[h]
-                        ends_m = d_cell_offsets[h + 1]
-                    else:
-                        in_bounds = jnp.all((raw >= 0) & (raw < d_dims_i), axis=-1)
-                        safe_raw = jnp.where(in_bounds[:, :, None], raw, 0)
-                        h = jnp.dot(safe_raw, d_strides_i)
-                        starts_m = jnp.where(in_bounds, d_cell_offsets[h], 0)
-                        ends_m = jnp.where(in_bounds, d_cell_offsets[h + 1], 0)
-                if do_prune:
-                    assert (
-                        d_cell_center is not None
-                        and d_cell_half is not None
-                        and d_search_rad_s is not None
-                    )
-                    safe_starts = jnp.minimum(starts_m, N - 1)
-                    dr_cell = sy.domain.displacement(
-                        ps[b_iota, None, :], d_cell_center[safe_starts], sy
-                    )
-                    overlap = jnp.all(
-                        jnp.abs(dr_cell)
-                        <= d_search_rad_s[b_iota, None, None]
-                        + d_cell_half[safe_starts],
-                        axis=-1,
-                    )
-                    ends_m = jnp.where(overlap, ends_m, starts_m)
-                lens_m = ends_m - starts_m
-                pref_m = jnp.cumsum(lens_m, axis=1)
-                totals = pref_m[:, -1]
-                return starts_m, lens_m, pref_m, totals
-
-            pre_starts: jax.Array | None
-            pre_lens: jax.Array | None
-            pre_pref: jax.Array | None
-            pre_totals: jax.Array | None
-            if N <= chunk_size:
-                pre_starts, pre_lens, pre_pref, pre_totals = stencil_prefix_batch(
-                    d_iota, d_coords_s
+                prune_rad = (
+                    d_search_rad_s[b_iota, None, None]
+                    if (do_prune and d_search_rad_s is not None)
+                    else None
                 )
-                max_total = _shared_max(jnp.max(pre_totals, initial=0))
-                if tile_capacity is not None:
-                    req_tiles = jnp.minimum(
-                        jnp.sum(
-                            (pre_lens + PAIR_UNROLL - 1) // PAIR_UNROLL,
-                            dtype=d_counts.dtype,
-                        ),
-                        tile_limit,
-                    )
-                    dense_overflow = (req_tiles > tile_capacity) | d_hash_overflow
-                else:
-                    dense_overflow = d_hash_overflow
-            else:
-                pre_starts = pre_lens = pre_pref = pre_totals = None
-                full = N // chunk_size * chunk_size
-                iota_g = d_iota[:full].reshape(-1, chunk_size)
-                coords_g = d_coords_s[:full].reshape(
-                    -1, chunk_size, d_coords_s.shape[-1]
+                return _dense_stencil_prefix_batch(
+                    b_iota,
+                    b_coords,
+                    n=N,
+                    pos_s=ps,
+                    dims_i=d_dims_i,
+                    strides_i=d_strides_i,
+                    eff_cell_size=d_eff_cell_size,
+                    grid_dims=d_grid_dims,
+                    grid_strides=d_grid_strides,
+                    neighbor_mask=d_neighbor_mask,
+                    offsets_mask=d_offsets_mask,
+                    cell_offsets=d_cell_offsets,
+                    system=sy,
+                    cap=cap,
+                    periodic=periodic,
+                    has_shear=has_shear,
+                    use_compact_shear=use_compact_shear,
+                    shear_r=shear_r,
+                    do_prune=do_prune,
+                    cell_center=d_cell_center,
+                    cell_half=d_cell_half,
+                    prune_rad=prune_rad,
                 )
 
-                def chunk_stats(
-                    x: tuple[jax.Array, jax.Array],
-                ) -> tuple[jax.Array, jax.Array]:
-                    if not do_prune and not has_shear:
-                        _, b_coords = x
-                        raw = b_coords[:, None, :] + d_offsets_mask[None, :, :]
-                        if periodic:
-                            wrapped = jnp.where(
-                                raw < 0,
-                                raw + d_dims_i,
-                                jnp.where(raw >= d_dims_i, raw - d_dims_i, raw),
-                            )
-                            lens_c = d_counts[jnp.dot(wrapped, d_strides_i)]
-                        else:
-                            in_bounds = jnp.all((raw >= 0) & (raw < d_dims_i), axis=-1)
-                            safe_raw = jnp.where(in_bounds[:, :, None], raw, 0)
-                            lens_c = jnp.where(
-                                in_bounds, d_counts[jnp.dot(safe_raw, d_strides_i)], 0
-                            )
-                        tot_c = jnp.sum(lens_c, axis=1)
-                    else:
-                        _, lens_c, _, tot_c = stencil_prefix_batch(*x)
-                    m_c = jnp.max(tot_c, initial=0)
-                    if tile_capacity is not None:
-                        t_c = jnp.minimum(
-                            jnp.sum(
-                                (lens_c + PAIR_UNROLL - 1) // PAIR_UNROLL,
-                                dtype=d_counts.dtype,
-                            ),
-                            tile_limit,
-                        )
-                    else:
-                        t_c = jnp.zeros_like(m_c)
-                    return m_c, t_c
-
-                m_arr, t_arr = jax.lax.map(chunk_stats, (iota_g, coords_g))
-                max_local = jnp.max(m_arr, initial=0)
-                req_local = jnp.minimum(
-                    jnp.sum(t_arr, dtype=d_counts.dtype), tile_limit
-                )
-                if full < N:
-                    m_tail, t_tail = chunk_stats((d_iota[full:], d_coords_s[full:]))
-                    max_local = jnp.maximum(max_local, m_tail)
-                    req_local = jnp.minimum(req_local + t_tail, tile_limit)
-                max_total = _shared_max(max_local)
-                dense_overflow = (
-                    ((req_local > tile_capacity) | d_hash_overflow)
-                    if tile_capacity is not None
-                    else d_hash_overflow
-                )
+            (
+                pre_starts,
+                _pre_lens,
+                pre_pref,
+                pre_totals,
+                max_total,
+                dense_overflow,
+            ) = _dense_grid_stats(
+                N,
+                chunk_size,
+                d_iota,
+                d_coords_s,
+                stencil_prefix_batch,
+                cell_counts=d_counts,
+                dims_i=d_dims_i,
+                strides_i=d_strides_i,
+                offsets_mask=d_offsets_mask,
+                periodic=periodic,
+                has_shear=has_shear,
+                do_prune=do_prune,
+                tile_capacity=tile_capacity,
+                hash_overflow=d_hash_overflow,
+            )
 
             pair_eval = (
                 partial(pair_partial.func, system=sy, quasistatic=quasistatic_p)
@@ -384,13 +255,22 @@ def _dense_sorted_traverse(
                 ) -> Any:
                     k = _compacted_stencil_decode(st_m, pr_m, slots)
                     sk = jnp.minimum(k, N - 1)
-                    valid = (slots < tot) & valid_interaction_mask(
-                        st_s.clump_id[sk],
-                        st_s.clump_id[s],
-                        st_s.bond_id[sk],
-                        st_s.orig_id[s],
-                        d_interact_same,
-                    ).astype(bool)
+                    if st_s.only_spheres:
+                        eligible = sk != s
+                        if st_s.bond_id.shape[-1] > 0:
+                            is_bonded = jnp.any(
+                                st_s.bond_id[sk] == st_s.orig_id[s][..., None], axis=-1
+                            )
+                            eligible = eligible & (~is_bonded | d_interact_same)
+                    else:
+                        eligible = valid_interaction_mask(
+                            st_s.clump_id[sk],
+                            st_s.clump_id[s],
+                            st_s.bond_id[sk],
+                            st_s.orig_id[s],
+                            d_interact_same,
+                        ).astype(bool)
+                    valid = (slots < tot) & eligible
                     return pair_eval(d_zero_single, s, sk, ps, st_s, valid)
 
                 raw = jax.vmap(per_particle)(b_iota, starts_m, pref_m, totals)

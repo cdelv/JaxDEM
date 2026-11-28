@@ -120,6 +120,11 @@ class NeighborList(Collider):
     - **secondary_collider_type**: The identifier of the underlying collider that runs the spatial queries
       during rebuilds: ``"CellList"``, ``"naive"``, or ``"MultiCellList"``.
     - **secondary_collider_kw**: Keyword args for the underlying collider constructor.
+    - **check_every**: Steps between rebuild checks inside :meth:`System.step` (default ``1``).
+      Larger values amortize GPU-to-host syncs by charging predicted motion over the
+      block against the skin; deferred steps still detect and flag skin or cache
+      violations via ``overflow``. Applies to :meth:`System.step` only (not
+      :meth:`System.step_dynamic` or variable-stride rollouts).
 
     This collider suits dense assemblies, static packings, slow shear flows,
     and gravity settling. Fast motion triggers more rebuilds. Excluded
@@ -157,9 +162,9 @@ class NeighborList(Collider):
         Explicit ``jax.vmap`` batches share a cache-validity check. If every
         cache is valid, the whole batch skips neighbor-list construction.
         Each simulation still controls its own rebuild counter, cached positions,
-        history, and overflow flag. If any cache needs work, the batch evaluates
-        the rebuild path and selects each simulation's result. Mixed batches can
-        therefore do extra search work for simulations whose caches remain valid.
+        history, and overflow flag. If any cache needs work, only the dirty
+        replicas are gathered and rebuilt in bucketed sub-batches (widths 1, 4,
+        16, or the full batch) and scattered back into the batch cache.
     """
 
     secondary_collider: Collider
@@ -298,6 +303,13 @@ class NeighborList(Collider):
         """Request a rebuild at the next force or energy evaluation."""
         return replace(self, invalidated=jnp.asarray(True))
 
+    @property
+    def _step_check_interval(self) -> int:
+        return self.check_every
+
+    def _with_check_horizon(self, horizon: int) -> Collider:
+        return replace(self, _check_horizon=horizon)
+
     metric_snapshot: jax.Array = field(default_factory=lambda: jnp.empty((0,)))
     """Periodic box lengths, strain, and shear axes at the last build."""
 
@@ -317,12 +329,14 @@ class NeighborList(Collider):
 
     check_every: int = jax.tree.static(default=1, kw_only=True)
     """Steps between rebuild checks inside :meth:`System.step`. Each check
-    costs one GPU-to-host sync. With ``check_every > 1`` a check also charges
-    the predicted motion of the next ``check_every`` steps against the skin.
-    Unchecked steps raise ``overflow`` if the skin is exceeded."""
+    costs one GPU-to-host sync. With ``check_every > 1`` a checked step charges
+    the predicted motion of the upcoming block against the skin, and deferred
+    steps raise ``overflow`` if the skin is spent or the cache is invalidated.
+    Applies to :meth:`System.step` only (not :meth:`System.step_dynamic`)."""
 
-    defer_check: bool = jax.tree.static(default=False, kw_only=True)
-    """Internal: True while :meth:`System.step` runs an unchecked step."""
+    _check_horizon: int = jax.tree.static(default=0, kw_only=True)
+    """Internal: ``< 0`` defers rebuild checks, ``0`` runs an ordinary check,
+    and ``> 0`` charges ``_check_horizon`` steps of predicted motion."""
 
     @classmethod
     def Create(
@@ -424,7 +438,11 @@ class NeighborList(Collider):
             or max_neighbors < 0
         ):
             raise ValueError("max_neighbors must be a non-negative Python integer")
-        if isinstance(check_every, bool) or not isinstance(check_every, int) or check_every < 1:
+        if (
+            isinstance(check_every, bool)
+            or not isinstance(check_every, int)
+            or check_every < 1
+        ):
             raise ValueError("check_every must be a positive Python integer")
         if number_density < 0 or not math.isfinite(number_density):
             raise ValueError("number_density must be finite and non-negative")

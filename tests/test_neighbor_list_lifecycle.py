@@ -141,7 +141,9 @@ def test_neighbor_cache_rebuilds_when_lees_edwards_axes_change():
 
 
 def test_neighbor_capacity_defaults_and_explicit_overrides():
-    zero_rad = jd.State.create(pos=jnp.array([[0.0, 0.0], [1.0, 0.0]]), rad=jnp.zeros(2))
+    zero_rad = jd.State.create(
+        pos=jnp.array([[0.0, 0.0], [1.0, 0.0]]), rad=jnp.zeros(2)
+    )
     auto = jd.colliders.NeighborList.Create(
         zero_rad, cutoff=1.0, secondary_collider_type="naive"
     )
@@ -514,6 +516,132 @@ def test_zero_radius_default_grid_remains_a_valid_geometric_query(collider_type)
 def test_grid_constructor_rejects_invalid_search_geometry():
     state = jd.State.create(pos=jnp.array([[0.0, 0.0]]))
     for collider_type in ("CellList", "MultiCellList"):
-        for kw in ({"cell_size": 0.0}, {"cell_size": float("nan")}, {"search_range": 0}):
+        for kw in (
+            {"cell_size": 0.0},
+            {"cell_size": float("nan")},
+            {"search_range": 0},
+        ):
             with pytest.raises(ValueError):
                 jd.Collider.create(collider_type, state=state, **kw)
+
+
+def _moving_pair(vel, check_every, *, secondary_collider_type="naive"):
+    # Two disks approach head-on; dt = 0.01 by default.
+    state = jd.State.create(
+        pos=jnp.asarray([[3.0, 5.0], [4.0, 5.0], [7.0, 5.0]]),
+        rad=jnp.full(3, 0.4),
+        vel=jnp.asarray([[vel, 0.0], [-vel, 0.0], [0.0, 0.0]]),
+    )
+    system = jd.System.create(
+        state=state,
+        domain_type="periodic",
+        domain_kw={"box_size": jnp.array([10.0, 10.0])},
+        collider_type="NeighborList",
+        collider_kw={
+            "cutoff": 0.8,
+            "skin": 0.2,
+            "max_neighbors": 4,
+            "secondary_collider_type": secondary_collider_type,
+            "check_every": check_every,
+        },
+    )
+    return jd.System.initialize(state, system)
+
+
+def _invalidate_on_step_two(state, system):
+    should_edit = system.step_count == 2
+    rad = jnp.where(should_edit, jnp.full_like(state.rad, 2.0), state.rad)
+    collider = jax.lax.cond(
+        should_edit,
+        lambda c: c.invalidate(),
+        lambda c: c,
+        system.collider,
+    )
+    return replace(state, rad=rad), replace(system, collider=collider)
+
+
+def test_check_every_matches_per_step_checks_and_flags_spent_skin():
+    ref_state, _ = jd.System.step(*_moving_pair(1.0, 1), n=50)
+    for use_pallas in (True, False):
+        with jd.colliders.pallas_enabled(use_pallas):
+            state, system = jd.System.step(
+                *_moving_pair(1.0, 4, secondary_collider_type="CellList"), n=50
+            )
+            np.testing.assert_allclose(state.pos, ref_state.pos, rtol=0, atol=1e-6)
+            assert not bool(system.search_overflow)
+            assert system.collider.check_every == 4
+            assert system.collider._check_horizon == 0
+    # A window longer than the skin allows must be reported, not silently missed.
+    _, system = jd.System.step(*_moving_pair(1.0, 30), n=60)
+    assert bool(system.search_overflow)
+
+
+@pytest.mark.parametrize("n", [0, 1, 2, 5])
+def test_check_every_edge_step_counts(n):
+    ref_state, _ = jd.System.step(*_moving_pair(1.0, 1), n=n)
+    state, system = jd.System.step(*_moving_pair(1.0, 4), n=n)
+    np.testing.assert_allclose(state.pos, ref_state.pos, rtol=0, atol=1e-6)
+    assert not bool(system.search_overflow)
+    assert system.collider._check_horizon == 0
+
+
+def test_check_every_batched_vmap_and_jvp_debug_nans():
+    s0, y0 = _moving_pair(1.0, 4)
+    s1, y1 = _moving_pair(0.5, 4)
+    out_state, out_sys = jd.System.step(
+        jd.State.stack([s0, s1]), jd.System.stack([y0, y1]), n=20
+    )
+    r0, _ = jd.System.step(*_moving_pair(1.0, 1), n=20)
+    r1, _ = jd.System.step(*_moving_pair(0.5, 1), n=20)
+    np.testing.assert_allclose(out_state.pos[0], r0.pos, rtol=0, atol=1e-6)
+    np.testing.assert_allclose(out_state.pos[1], r1.pos, rtol=0, atol=1e-6)
+    assert not bool(jnp.any(out_sys.search_overflow))
+    assert out_sys.collider._check_horizon == 0
+
+    # Zero velocity / zero force must not produce NaN tangents in _motion_bound.
+    st_rest, sy_rest = _moving_pair(0.0, 4)
+    tangent = jnp.ones_like(st_rest.pos_c) * 1e-2
+    with jax.debug_nans(True):
+        _, dpos = jax.jvp(
+            lambda pc: (
+                jd.System.step(replace(st_rest, pos_c=pc), sy_rest, n=4)[0].pos_c
+            ),
+            (st_rest.pos_c,),
+            (tangent,),
+        )
+    assert bool(jnp.all(jnp.isfinite(dpos)))
+
+
+def test_check_every_flags_deferred_invalidation_and_survives_checkpoint(tmp_path):
+    state = jd.State.create(
+        pos=jnp.asarray([[0.0, 0.0], [2.5, 0.0]]), rad=jnp.full(2, 0.4)
+    )
+    system = jd.System.create(
+        state=state,
+        domain_type="periodic",
+        domain_kw={"box_size": jnp.array([10.0, 10.0])},
+        collider_type="NeighborList",
+        collider_kw={
+            "cutoff": 0.8,
+            "skin": 0.2,
+            "max_neighbors": 4,
+            "secondary_collider_type": "naive",
+            "check_every": 4,
+        },
+        user_pre_step_actions=_invalidate_on_step_two,
+    )
+    st0, sy0 = jd.System.initialize(state, system)
+    _, sy1 = jd.System.step(st0, sy0, n=3)
+    assert bool(sy1.search_overflow)
+
+    pytest.importorskip("orbax.checkpoint")
+    s_ckpt, y_ckpt = _moving_pair(1.0, 4)
+    ckpt_dir = tmp_path / "check-every"
+    with jd.CheckpointWriter(ckpt_dir) as writer:
+        writer.save(s_ckpt, y_ckpt)
+    r_state, r_sys = jd.CheckpointLoader(ckpt_dir).load()
+    assert r_sys.collider.check_every == 4
+    assert r_sys.collider._check_horizon == 0
+    s_exp, _ = jd.System.step(s_ckpt, y_ckpt, n=10)
+    s_act, _ = jd.System.step(r_state, r_sys, n=10)
+    np.testing.assert_allclose(s_act.pos, s_exp.pos, rtol=0, atol=1e-6)

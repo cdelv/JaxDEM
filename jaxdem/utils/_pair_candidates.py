@@ -95,7 +95,7 @@ def _cached_pairs(
     i, j = pair_sources(collider), collider.neighbor_list
     valid = jnp.arange(j.size) < collider.row_offsets[-1]
     if state.N:
-        _, mask = _valid_pairs(state, system, jnp.minimum(i, state.N - 1), j)
+        _, mask = _valid_pairs(j)
         valid = valid & mask
     return (
         _record_overflow(system, collider.overflow),

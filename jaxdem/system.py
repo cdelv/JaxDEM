@@ -108,27 +108,43 @@ def _steps_fori_loop(
 def _steps_fori_loop_unrolled(
     state: State, system: System, n: int
 ) -> tuple[State, System]:
-    k = getattr(system.collider, "check_every", 1)
+    if n == 0:
+        return state, system
+    k = system.collider._step_check_interval
     if k <= 1:
         return jax.lax.fori_loop(
             0, n, lambda i, carry: _step_once(*carry), (state, system), unroll=2
         )
 
-    def defer(system: System, flag: bool) -> System:
-        collider = dataclasses.replace(system.collider, defer_check=flag)
-        return dataclasses.replace(system, collider=collider)
+    def with_horizon(sys: System, horizon: int) -> System:
+        return dataclasses.replace(
+            sys, collider=sys.collider._with_check_horizon(horizon)
+        )
 
     def block(carry: tuple[State, System], m: int) -> tuple[State, System]:
-        # One checked step (host-synced rebuild decision), then m - 1 steps
-        # with a static trip count and no host sync.
-        state, system = _step_once(*carry)
-        state, system = jax.lax.fori_loop(
-            0, m - 1, lambda i, c: _step_once(*c), (state, defer(system, True)), unroll=2
+        if m == 1:
+            return _step_once(*carry)
+        # One checked step (charging m steps of predicted motion), then m - 1
+        # deferred steps with a static trip count and no host sync.
+        st, sy = carry
+        st, sy = _step_once(st, with_horizon(sy, m))
+        st, sy = jax.lax.fori_loop(
+            0,
+            m - 1,
+            lambda i, c: _step_once(*c),
+            (st, with_horizon(sy, -1)),
+            unroll=2,
         )
-        return state, defer(system, False)
+        return st, with_horizon(sy, 0)
 
-    carry = jax.lax.fori_loop(0, n // k, lambda i, c: block(c, k), (state, system))
-    return block(carry, n % k) if n % k else carry
+    carry = (state, system)
+    n_blocks = n // k
+    if n_blocks > 0:
+        carry = jax.lax.fori_loop(0, n_blocks, lambda i, c: block(c, k), carry)
+    rem = n % k
+    if rem > 0:
+        carry = block(carry, rem)
+    return carry
 
 
 @jax.jit(static_argnames=("n", "stride", "save_fn", "unroll"))

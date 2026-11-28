@@ -18,13 +18,6 @@ from .config import (
     shape_dtype,
     triton_compiler_params,
 )
-from .domains import (
-    DomainSpec,
-    extract_domain_spec,
-    load_domain_scalars,
-    triton_displacement,
-)
-from .forces import ForceSpec, eval_law_node, extract_force_spec
 from .refs import (
     ArgPack,
     PackLayout,
@@ -33,30 +26,34 @@ from .refs import (
     store1,
     store_vec,
     triton_cross,
-    triton_dot,
+)
+from .triton_jaxpr import (
+    ForceSpec,
+    compile_force_spec,
+    eval_force_pair,
+    eval_force_pre,
 )
 
 if TYPE_CHECKING:  # pragma: no cover
     from ...state import State
     from ...system import System
 
-_REMAP_BLOCK = 128
+_CSR_BLOCK = 32
+_REMAP_BLOCK = 32
 
 
 def _run_pallas_csr_forces(
     fspec: ForceSpec,
-    dspec: DomainSpec,
     layout: PackLayout,
+    N: int,
     args: tuple[Any, ...],
     batched: tuple[bool, ...],
     batch_size: int,
 ) -> tuple[jax.Array, ...]:
-    """Launch Triton CSR force kernel (1D unbatched or 2D batched)."""
+    """Launch Triton CSR force kernel (1D unbatched or 2D batched) for any ``ForceModel``."""
     dim, ang_dim = fspec.dim, fspec.ang_dim
     has_batch = batch_size > 0
-    pos_flat = args[layout.index["pos"]]
-    N = pos_flat.shape[-1] // dim
-    dtype = pos_flat.dtype
+    dtype = fspec.out_dtype
     cap = args[layout.index["nbr"]].shape[-1]
     write_hist = fspec.has_history and fspec.advance_history
     emit_torque = fspec.has_torque or (not fspec.only_spheres)
@@ -85,10 +82,9 @@ def _run_pallas_csr_forces(
         in_out_aliases[idx_hist] = len(out_shapes)
         out_shapes.append(shape_dtype(h_shape, kernel_args[idx_hist].dtype))
 
-    # Warp-sized blocks: each program loops to its rows' largest degree, so
-    # small blocks waste fewer masked iterations (3D stateless: 38 -> 30 us).
-    BLOCK = 32
-    num_warps = 2 if fspec.has_history else 1
+    # One warp per program: each warp loops only to its own 32 rows' max degree
+    # without wasting an extra warp on a 32-lane block.
+    BLOCK = _CSR_BLOCK
 
     def kernel(*refs: Any) -> None:
         n_in = len(kernel_args)
@@ -103,23 +99,12 @@ def _run_pallas_csr_forces(
 
         i = pid * BLOCK + jnp.arange(BLOCK)
         m_i = i < N
-
-        pi = rv.load_vec("pos", i, dim, m_i)
-        ri = rv.load1("rad", i, m_i, other=0.0)
         start = rv.load1("off", i, m_i, other=0)
         end = rv.load1("off", i + 1, m_i, other=0)
         max_deg = jnp.max(jnp.where(m_i, end - start, 0))
-
-        mi = rv.load1("mat", i, m_i, other=0) if rv.has("mat") else jnp.zeros_like(i)
-        si = rv.load1("sp", i, m_i, other=0) if rv.has("sp") else jnp.zeros_like(i)
-        vel_i = rv.load_vec("vel", i, dim, m_i) if rv.has("vel") else ()
-        ang_i = rv.load_vec("ang", i, ang_dim, m_i) if rv.has("ang") else ()
         ppr_i = rv.load_vec("ppr", i, dim, m_i) if rv.has("ppr") else ()
-        mass_i = (
-            rv.load1("mass", i, m_i, other=1.0) if rv.has("mass") else jnp.ones_like(ri)
-        )
-        dt_val = rv.scalar("dt") if rv.has("dt") else jnp.asarray(0.0, dtype=dtype)
-        dom = load_domain_scalars(rv, dspec, need_vel_rates=fspec.needs_vel)
+
+        pre_env = eval_force_pre(fspec, rv, i, m_i)
 
         z_f = tuple(jnp.zeros((BLOCK,), dtype=dtype) for _ in range(dim))
         z_t = tuple(jnp.zeros((BLOCK,), dtype=dtype) for _ in range(ang_dim))
@@ -135,46 +120,9 @@ def _run_pallas_csr_forces(
             j = jnp.where(has_nbr, nbr_j, 0)
             # The build already dropped same-clump and bond-excluded pairs, and
             # ID rewiring requires invalidation, so no per-pair re-check here.
-            valid = has_nbr
-            if rv.has("pr"):
-                prj = rv.load_vec("pr", j, 4, valid)
-                pj, rj = prj[:dim], prj[3]
-            else:
-                pj = rv.load_vec("pos", j, dim, valid)
-                rj = rv.load1("rad", j, valid, other=0.0)
-            dr, img, shear_img = triton_displacement(dspec, pi, pj, dom)
-            ctx = {
-                "j": j,
-                "ri": ri,
-                "rj": rj,
-                "R": ri + rj,
-                "dr": dr,
-                "n2": triton_dot(dr, dr),
-                "img": img,
-                "shear_img": shear_img,
-                "valid": valid,
-                "mi": mi,
-                "mj": (
-                    rv.load1("mat", j, valid, other=0)
-                    if rv.has("mat")
-                    else jnp.zeros_like(j)
-                ),
-                "si": si,
-                "sj": (
-                    rv.load1("sp", j, valid, other=0)
-                    if rv.has("sp")
-                    else jnp.zeros_like(j)
-                ),
-                "vel_i": vel_i,
-                "ang_i": ang_i,
-                "ppr_i": ppr_i,
-                "mass_i": mass_i,
-                "dt": dt_val,
-                "slot": slot,
-                "hist_out_ref": h_out_ref,
-            }
-            df, dt_vec = eval_law_node(
-                fspec.root, rv, fspec, dspec, dom, ctx, valid & (i != j), in_row
+            active = has_nbr & (i != j)
+            df, dt_vec = eval_force_pair(
+                fspec, pre_env, rv, j, active, slot=slot, hist_out_ref=h_out_ref
             )
             new_f = tuple(carry[d] + df[d] for d in range(dim))
             if fspec.has_torque:
@@ -199,7 +147,7 @@ def _run_pallas_csr_forces(
         out_shape=out_spec,
         grid=grid,
         input_output_aliases=in_out_aliases,
-        compiler_params=triton_compiler_params(num_warps=num_warps, num_stages=2),
+        compiler_params=triton_compiler_params(num_warps=1, num_stages=2),
     )(*kernel_args)
     return raw if isinstance(raw, tuple) else (raw,)
 
@@ -213,17 +161,16 @@ def can_use_pallas_csr_forces(
 ) -> bool:
     if not is_pallas_enabled() or state.N == 0 or has_manual_axes(state, system):
         return False
-    f = extract_force_spec(
-        system.force_model,
-        state,
-        system,
-        advance_history=advance_history,
-        quasistatic=quasistatic,
-    )
-    if f is None:
-        return False
     return (
-        extract_domain_spec(system.domain, state.dim, need_vel_rates=f[0].needs_vel)
+        compile_force_spec(
+            system.force_model,
+            state,
+            system,
+            state.pos,
+            advance_history=advance_history,
+            quasistatic=quasistatic,
+            pack=ArgPack(),
+        )
         is not None
     )
 
@@ -240,63 +187,48 @@ def pallas_csr_forces(
     """Evaluate CSR NeighborList forces (+ torque + history) via Pallas Triton on GPU."""
     if not is_pallas_enabled() or state.N == 0 or has_manual_axes(state, system):
         return pure_fallback()
-    f_res = extract_force_spec(
+    if pos is None:
+        pos = state.pos
+
+    col: Any = system.collider
+    n = state.N
+    dim = int(pos.shape[-1])
+    ang_dim = 3 if dim == 3 else 1
+    hist_width = math.prod(system.force_model.history_shape(dim))
+
+    pack = ArgPack()
+    pack.add("off", col.row_offsets)
+    pack.add("nbr", col.neighbor_list)
+    if dim == 3:
+        # One aligned (x, y, z, r) record per gather: one L2 sector instead of
+        # ~2.3. In 2D the extra pack pass costs what it saves.
+        rad_col = state.rad.astype(pos.dtype)[:, None]
+        pack.add("pr", jnp.concatenate((pos, rad_col), axis=-1).reshape(-1))
+    if not state.only_spheres:
+        pack.add("ppr", state._pos_p_rot.reshape(-1))
+    if hist_width > 0:
+        pack.add("hist", col.history.reshape(-1))
+
+    fspec = compile_force_spec(
         system.force_model,
         state,
         system,
+        pos,
         advance_history=advance_history,
         quasistatic=quasistatic,
+        pack=pack,
+        pr_pos_ref="pr" if dim == 3 else None,
+        pr_rad_ref="pr" if dim == 3 else None,
     )
-    if f_res is None:
+    if fspec is None:
         return pure_fallback()
-    fspec, f_params = f_res
-    d_res = extract_domain_spec(
-        system.domain, state.dim, need_vel_rates=fspec.needs_vel
-    )
-    if d_res is None:
-        return pure_fallback()
-    dspec, d_params = d_res
 
-    col: Any = system.collider
-    dim, ang_dim = fspec.dim, fspec.ang_dim
-    if pos is None:
-        pos = state.pos
-    n = state.N
-    write_hist = fspec.has_history and fspec.advance_history
-
-    pack = ArgPack()
-    pack.add("pos", pos.reshape(-1))
-    pack.add("rad", state.rad)
-    if dim == 3:
-        # One 16-byte (x, y, z, r) record per neighbor gather: one L2 sector
-        # instead of ~2.3. In 2D the extra pack pass costs what it saves.
-        lane = jnp.arange(4)
-        padded = jnp.pad(pos, ((0, 0), (0, 4 - dim)))
-        pack.add("pr", jnp.where(lane == 3, state.rad[:, None], padded).reshape(-1))
-    pack.add("off", col.row_offsets)
-    pack.add("nbr", col.neighbor_list)
-    if fspec.needs_mat_id:
-        pack.add("mat", state.mat_id)
-    if fspec.needs_species_id:
-        pack.add("sp", state.species_id)
-    if fspec.needs_vel:
-        pack.add("vel", state.vel.reshape(-1))
-        pack.add("ang", state.ang_vel.reshape(-1))
-    if not fspec.only_spheres:
-        pack.add("ppr", state._pos_p_rot.reshape(-1))
-    if fspec.needs_mass:
-        pack.add("mass", state.mass)
-    if fspec.needs_dt:
-        pack.add("dt", jnp.reshape(jnp.asarray(system.dt, dtype=pos.dtype), (1,)))
-    if fspec.has_history:
-        pack.add("hist", col.history.reshape(-1))
-    pack.add_group("dom", d_params)
-    pack.add_group("params", f_params)
     flat_args, layout = pack.build()
+    write_hist = fspec.has_history and fspec.advance_history
 
     gpu_eval = batched_pallas(
         lambda kargs, batched, bsz: _run_pallas_csr_forces(
-            fspec, dspec, layout, kargs, batched, bsz
+            fspec, layout, n, kargs, batched, bsz
         )
     )
 
@@ -400,7 +332,7 @@ def _run_pallas_remap_history(
         out_shape=shape_dtype(out_shape, k_args[idx_out].dtype),
         grid=grid,
         input_output_aliases={idx_out: 0},
-        compiler_params=triton_compiler_params(num_warps=4, num_stages=2),
+        compiler_params=triton_compiler_params(num_warps=1, num_stages=2),
     )(*k_args)
 
 

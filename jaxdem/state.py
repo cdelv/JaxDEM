@@ -8,8 +8,10 @@ import jax
 import jax.numpy as jnp
 from jax.typing import ArrayLike
 
+import contextlib
 import dataclasses
-from collections.abc import Sequence
+import threading
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from functools import partial
 from typing import TYPE_CHECKING, Any, cast, final
@@ -19,6 +21,20 @@ from .utils.quaternion import Quaternion
 
 if TYPE_CHECKING:  # pragma: no cover
     from .materials import MaterialTable
+
+_ROTATION_REFRESH_GUARD = threading.local()
+
+
+@contextlib.contextmanager
+def _suspend_rotation_cache_refresh() -> Iterator[None]:
+    """Keep existing ``_pos_p_rot`` leaves intact across read-only JAX unflattens."""
+    prev = getattr(_ROTATION_REFRESH_GUARD, "active", False)
+    _ROTATION_REFRESH_GUARD.active = True
+    try:
+        yield
+    finally:
+        _ROTATION_REFRESH_GUARD.active = prev
+
 
 #: Diagonal regularization added to inertia computed from facet/mesh geometry,
 #: as ``mass * INERTIA_REGULARIZATION`` (units of mass, so the bias is exactly
@@ -366,6 +382,12 @@ class State:
         """Refresh when geometry is concrete; tolerate JAX reconstruction values."""
         if getattr(self, "only_spheres", False):
             return
+        if getattr(_ROTATION_REFRESH_GUARD, "active", False):
+            try:
+                if self._pos_p_rot.shape == self.pos_p.shape:
+                    return
+            except AttributeError:
+                pass
         try:
             self.refresh_rotation_cache()
         except (AttributeError, TypeError, IndexError, ValueError):
